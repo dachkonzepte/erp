@@ -60,11 +60,11 @@ def test_saving_the_general_settings_form_never_touches_the_lock(threaded_db_ses
     admin = router_test_client(db, backoffice_router, role="admin")
     admin.put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()})
     form = admin.get("/api/time-backoffice/settings").json()
-    form.update({"locked_until": None, "rounding_minutes": 15})
+    form.update({"locked_until": None, "allow_manual_entries": False})  # seit 1.9.231 ohne Rundung (bis 1.9.230 „rounding_minutes“: 15)
     assert admin.put("/api/time-backoffice/settings", json=form).status_code == 200
     after = admin.get("/api/time-backoffice/settings").json()
     assert after["locked_until"] == LOCK.isoformat()
-    assert after["rounding_minutes"] == 15
+    assert after["allow_manual_entries"] is False
 
 
 def test_field_cannot_create_change_or_delete_in_the_locked_period(threaded_db_session, router_test_client):

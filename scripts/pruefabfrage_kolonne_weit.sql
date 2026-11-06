@@ -25,10 +25,11 @@
 --      die genau die alten Stunden des Kopfs traf -- im Zweifel am Verlauf der Gruppe prüfen.
 --   b) Ohne Verlauf: jedes Mitglied einer Kolonnenbuchung mit Beginn und Ende, dessen gebuchte Stunden nicht zu Von/Bis minus seiner Pause
 --      passen -- gerechnet wie der Server (app/time_tracking.py::nachtrag_nach_zeitregel()/ende_rechnen(): Anwesenheit auf vier Stellen,
---      minus Pause, mit der Rundung der Zeitregeln, rounding_minutes, sonst auf vier Stellen). Abweichungen unter 0,005 h (18 Sekunden)
---      zählen nicht (die Rechnungen von Stopp und Nachtrag runden an der vierten Stelle verschieden). Findet auch, was der Verlauf nicht hat
---      (vor der Einführung des Verlaufs, Änderungen ohne Pfad); gerechnet wird mit der Rundung von HEUTE -- wurde sie geändert, erscheinen
---      ältere Buchungen hier, ohne falsch zu sein (dann steht in "rundung_min" die heutige).
+--      minus Pause, auf vier Stellen). Abweichungen unter 0,005 h (18 Sekunden) zählen nicht (die Rechnungen von Stopp und Nachtrag runden an
+--      der vierten Stelle verschieden). Seit 1.9.231 rundet keine Buchung mehr (Stufe 6, R3a, Punkt 0b); bis 1.9.230 rundete der Server nach
+--      der Einstellung rounding_minutes -- steht dort noch ein Wert, passt eine Buchung auch, wenn sie genau so gerundet ist (ältere Buchungen;
+--      "rundung_min" nennt ihn). Wurde die Einstellung früher geändert, erscheinen ältere Buchungen hier, ohne falsch zu sein. Findet auch, was
+--      der Verlauf nicht hat (vor der Einführung des Verlaufs, Änderungen ohne Pfad).
 --   c) Kontrollzahlen: Änderungen von Kolonnenbuchungen im Verlauf je Monat (Europe/Berlin) -- Anfragen, Kolonnen, Einträge, Stundenänderungen
 --      der Mitglieder und des Kopfs, davon in a) gefunden.
 
@@ -84,9 +85,10 @@ mitglied AS (
 ),
 rechnung AS (
     SELECT m.*, r.minuten,
+           round(greatest(m.anwesend - m.break_minutes::numeric / 60, 0), 4) AS erwartet,
            CASE WHEN r.minuten > 0
                 THEN round(round(greatest(m.anwesend - m.break_minutes::numeric / 60, 0) / (r.minuten::numeric / 60)) * (r.minuten::numeric / 60), 2)
-                ELSE round(greatest(m.anwesend - m.break_minutes::numeric / 60, 0), 4) END AS erwartet
+                END AS erwartet_gerundet
     FROM mitglied m CROSS JOIN regel r
 )
 SELECT x.group_id AS gruppe,
@@ -104,6 +106,7 @@ FROM rechnung x
 LEFT JOIN orders o ON o.id = x.order_id
 LEFT JOIN employees e ON e.id = x.employee_id
 WHERE abs(x.hours::numeric - x.erwartet) >= 0.005
+  AND (x.erwartet_gerundet IS NULL OR abs(x.hours::numeric - x.erwartet_gerundet) >= 0.005)
 ORDER BY x.work_date, x.group_id, mitarbeiter, x.buchung;
 
 \echo

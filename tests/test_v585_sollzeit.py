@@ -154,7 +154,7 @@ def _schreibende(w):
         ("post", "/api/time-backoffice/work-time-assignments/bulk", {"employee_ids": [mia], "model_id": modell.id}),
         ("put", f"/api/time-backoffice/payroll-employees/{mia}", {"eintritt": "2026-11-05"}),
         ("post", f"/api/time-backoffice/sollzeiten/{mia}", {"valid_from": "2026-12-01", "werte": {"montag": "4"}}),
-        ("put", "/api/time-backoffice/settings", {"rounding_minutes": 0, "allow_manual_entries": True, "allow_group_bookings": True,
+        ("put", "/api/time-backoffice/settings", {"allow_manual_entries": True, "allow_group_bookings": True,
                                                   "require_order_item": False, "require_activity": False}),
     ]
 

@@ -33,9 +33,9 @@ def test_speichern_mit_abgeschaltetem_standardmodell(threaded_db_session, router
     assert standard is not None
     _abschalten(db, standard)
 
-    r = client.put("/api/time-backoffice/settings", json={**stand, "rounding_minutes": 15})
+    r = client.put("/api/time-backoffice/settings", json={**stand, "require_activity": True})  # seit 1.9.231 ohne Rundung (bis dahin 15 min)
     assert r.status_code == 200, r.text
-    assert r.json()["rounding_minutes"] == 15
+    assert r.json()["require_activity"] is True
     assert r.json()["default_work_time_model_id"] == standard
     db.expire_all()
     assert load_advanced_settings(db).default_work_time_model_id == standard
@@ -50,13 +50,13 @@ def test_neu_gewaehltes_abgeschaltetes_modell_abgelehnt(threaded_db_session, rou
     assert anderes is not None
     _abschalten(db, anderes.id)
 
-    r = client.put("/api/time-backoffice/settings", json={**stand, "rounding_minutes": 15, "default_work_time_model_id": anderes.id})
+    r = client.put("/api/time-backoffice/settings", json={**stand, "require_activity": True, "default_work_time_model_id": anderes.id})
     assert r.status_code == 422 and "inaktiv" in r.json()["detail"]
     r = client.put("/api/time-backoffice/settings", json={**stand, "default_work_time_model_id": 999999})
     assert r.status_code == 422
     db.expire_all()
     assert load_advanced_settings(db).default_work_time_model_id == standard
-    assert client.get("/api/time-backoffice/settings").json()["rounding_minutes"] == stand["rounding_minutes"]
+    assert client.get("/api/time-backoffice/settings").json()["require_activity"] == stand["require_activity"]
 
 
 def test_oberflaeche_behaelt_das_abgeschaltete_modell():

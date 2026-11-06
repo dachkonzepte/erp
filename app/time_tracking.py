@@ -30,16 +30,12 @@ def _d(v) -> Decimal:
 
 
 def gebucht_nach_zeitregel(db: Session, stunden) -> Decimal:
-    """Seit 1.9.39 (Stufe 4, R1 Nachrunde, Punkt 2): die gebuchten Stunden nach der Rundung der Zeitregeln (Zeiterfassungs-Backoffice,
-    rounding_minutes) -- die eine Stelle für jede neue Buchung: Stopp, Gruppen-Stopp und Stopp im Gruppenfall (je Mitglied), Nachtrag,
-    Gruppen-Nachtrag (je Mitglied), Ende nachtragen (einzeln und für die Gruppe). Ohne eingestellte Rundung bleibt der Wert, wie er ist
-    (gespeichert mit vier Nachkommastellen). Bis 1.9.38 rundeten nur Einzel-Stopp und Einzel-Nachtrag (im Router), der Stopp im
-    Gruppenfall nur die Zeit dessen, der stoppte, Gruppen-Stopp und Gruppen-Nachtrag gar nicht. Ändern mit Dauer rundet nicht (wie
-    bisher); Ändern mit Von/Bis (seit 1.9.57) und „Pausen neu rechnen“ runden hier wie ein Nachtrag."""
-    from .time_backoffice import load_time_settings, rounded_hours  # lokal: time_backoffice importiert dieses Modul
-    schritt = load_time_settings(db).rounding_minutes
-    wert = _d(stunden)
-    return rounded_hours(wert, schritt) if schritt else wert
+    """Die gebuchten Stunden einer neuen Buchung -- die eine Stelle für Stopp, Gruppen-Stopp und Stopp im Gruppenfall (je Mitglied), Nachtrag,
+    Gruppen-Nachtrag (je Mitglied), Ende nachtragen (einzeln und für die Gruppe), Ändern mit Von/Bis und „Pausen neu rechnen“.
+    Seit 1.9.231 (Stufe 6, R3a, Punkt 0b, Festlegung 1.9.223 Nr. 6): keine Rundung je Buchung mehr -- der Wert bleibt minutengenau (gespeichert mit
+    vier Nachkommastellen); gerundet wird nur die Arbeit eines Tags im Lohn (arbeit_des_tags(), 0,25 h). 1.9.39–1.9.230 rundete sie nach der
+    Einstellung „Rundung“ der Zeitregeln (rounding_minutes; die Spalte bleibt ungenutzt)."""
+    return _d(stunden)
 
 
 def employee_name(emp: Employee | None) -> str | None:
@@ -178,9 +174,9 @@ def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mind
 
 def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0,
                             ohne_id: int | None = None) -> dict:
-    """Seit 1.9.34: ein Nachtrag mit Von/Bis (die Anwesenheit ist bekannt) nach der Pausenregel -- Rückgabe anwesend, pause, netto (vor
-    der Rundung), beginn, ende. Eine reine Dauer ist dagegen gebuchte Arbeitszeit (netto) und bleibt, wie sie ist (wie „Stunden (netto)“
-    im Büro). Seit 1.9.57 (Stufe 4, R3) auch gebucht (nach der Rundung der Zeitregeln), tag_zusammen und tag_buchungen -- dieselben
+    """Seit 1.9.34: ein Nachtrag mit Von/Bis (die Anwesenheit ist bekannt) nach der Pausenregel -- Rückgabe anwesend, pause, netto, beginn,
+    ende. Eine reine Dauer ist dagegen gebuchte Arbeitszeit (netto) und bleibt, wie sie ist (wie „Stunden (netto)“ im Büro). Seit 1.9.57
+    (Stufe 4, R3) auch gebucht (bis 1.9.230 nach der Rundung der Zeitregeln, seit 1.9.231 = netto), tag_zusammen und tag_buchungen -- dieselben
     Zahlen für die Vorschau des Dialogs „Zeit nachtragen“ und die Buchung; ohne_id: beim Ändern der Tag ohne die alte Fassung."""
     beginn, ende = datetime.combine(work_date, von), datetime.combine(work_date, bis)
     if ende <= beginn:
@@ -200,7 +196,7 @@ def kolonne_rechnen(db: Session, mitglieder: list[tuple[int, str, int | None, in
                     bis: time) -> dict[int, dict]:
     """Seit 1.9.63 (Stufe 4, R3 Nachrunde, Punkt 1, Entscheidung Tobias): eine Von/Bis-Angabe für die angehakten Mitglieder einer
     Kolonne -- je Mitglied (employee_id, Name, ohne_id: seine Buchung beim Ändern, Mindestpause) dieselbe Rechnung wie sein eigener
-    Nachtrag (nachtrag_nach_zeitregel(): Pause aus seinem Tag, Rundung der Zeitregeln). Für Vorschau, Nachtrag und Ändern der Kolonne;
+    Nachtrag (nachtrag_nach_zeitregel(): Pause aus seinem Tag; seit 1.9.231 ohne Rundung). Für Vorschau, Nachtrag und Ändern der Kolonne;
     ein Fehler nennt das Mitglied. Wer anders gearbeitet hat, wird einzeln nachgetragen."""
     if datetime.combine(work_date, bis) <= datetime.combine(work_date, von):
         raise ValueError("Bis muss nach Von liegen.")
@@ -211,8 +207,7 @@ def kolonne_rechnen(db: Session, mitglieder: list[tuple[int, str, int | None, in
                                             mindestpause=mindestpause, ohne_id=ohne_id)
         except ValueError as exc:
             raise ValueError(f"{name}: {exc}") from exc
-        if werte["gebucht"] <= 0:
-            raise ValueError(f"{name}: Nach der Rundung bleibt keine Arbeitszeit.")
+        # seit 1.9.231 ohne „Nach der Rundung bleibt keine Arbeitszeit.“: ohne Rundung ist gebucht = netto > 0 (nachtrag_nach_zeitregel() prüft)
         ergebnis[employee_id] = {**werte, "name": name, "mindestpause": max(0, int(mindestpause or 0))}
     return ergebnis
 
@@ -310,8 +305,8 @@ def dauer_vorschau(db: Session, *, employee_id: int, work_date: date, hours, bre
                    runden: bool = True) -> dict:
     """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was eine Dauer -- Stunden netto und die Pause an diesem Tag, wie angegeben -- am Tag
     der Person bewirkt, ohne zu buchen: anwesend (Stunden + Pause), „Tag zusammen“ und ob die Pause des Tags danach passt (dieselbe Prüfung wie
-    „Prüfen“ und der Abschluss, _pausen_stand()). runden: eine neue Dauer rundet nach den Zeitregeln (wie create_manual_entry() und der
-    Kolonnen-Nachtrag), eine geänderte bleibt, wie eingetragen (update_entry()); ohne_id: beim Ändern der Tag ohne die alte Fassung."""
+    „Prüfen“ und der Abschluss, _pausen_stand()). runden: bis 1.9.230 rundete eine neue Dauer nach den Zeitregeln, eine geänderte blieb, wie
+    eingetragen -- seit 1.9.231 bleibt jede, wie sie ist (der Parameter wirkt nicht mehr); ohne_id: beim Ändern der Tag ohne die alte Fassung."""
     gebucht = gebucht_nach_zeitregel(db, hours) if runden else _d(hours)
     if gebucht <= 0:
         raise ValueError("Die Stunden müssen größer als 0 sein.")

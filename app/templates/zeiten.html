@@ -345,7 +345,7 @@
 </dialog>
 
 <dialog id="kolonneDialog" class="dialog" aria-labelledby="kdTitel">
-  <div class="dialog-kopf"><div style="display:flex;flex-direction:column;gap:2px"><h2 id="kdTitel">Kolonne buchen</h2><span class="unter">Je Person eine eigene Buchung, Pause und Rundung nach ihrem Tag.</span></div>
+  <div class="dialog-kopf"><div style="display:flex;flex-direction:column;gap:2px"><h2 id="kdTitel">Kolonne buchen</h2><span class="unter">Je Person eine eigene Buchung, Pause nach ihrem Tag.</span></div>
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="kdZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   <div class="dialog-felder">
     <label class="feld breit" for="kdKolonne">Kolonne<select id="kdKolonne"></select></label>
@@ -1059,7 +1059,7 @@ function aufheben(){
     .catch(function(e){el('ahStatus').textContent=e.message;knopf.disabled=false});
 }
 
-// --- Kolonne buchen (Von/Bis für alle angehakten, Pause und Rundung je Person; oder eine Dauer je Person) -----------------------------
+// --- Kolonne buchen (Von/Bis für alle angehakten, Pause je Person -- seit 1.9.231 ohne Rundung; oder eine Dauer je Person) -----------------------------
 function kdModus(){return el('kdModusDauer').getAttribute('aria-pressed')==='true'?'dauer':'vonbis'}
 function kdModusSetzen(m){
   var dauer=m==='dauer';

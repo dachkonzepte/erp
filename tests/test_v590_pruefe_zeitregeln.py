@@ -63,7 +63,7 @@ def test_grunddaten_nichts_zu_klaeren():
     sommer, winter = _modell(db, "summer"), _modell(db, "winter")
     rc, zeilen = _lauf(db)
     assert rc == 0, zeilen
-    assert zeilen[0] == "Rundung: keine; abgeschlossen bis: –"
+    assert zeilen[0] == "Abgeschlossen bis: –"  # seit 1.9.231 ohne „Rundung: keine; “
     assert zeilen[1:4] == [
         "Arbeitszeitmodelle: 2",
         f"  Modell {sommer.id} „Sommermodell“ (Kürzel summer): KW 18–48, Soll Mo–Fr 8,00 h, über 6,00 h -> 30 min · über 9,00 h -> 45 min, aktiv, "
@@ -78,12 +78,14 @@ def test_grunddaten_nichts_zu_klaeren():
     assert not any("Hinweis" in z for z in zeilen)
 
 
-def test_rundung_und_abschluss():
+def test_abschluss_ohne_rundung():
+    """Seit 1.9.231 ohne „Rundung: …“ (bis 1.9.230 test_rundung_und_abschluss: „Rundung: 15 Minuten; abgeschlossen bis: 31.10.2026“) -- auch mit der
+    alten Spalte auf 15 min."""
     db = db_session()
     zeit = db.get(TimeTrackingSettings, 1)
     zeit.rounding_minutes, zeit.locked_until = 15, date(2026, 10, 31)
     db.commit()
-    assert _lauf(db)[1][0] == "Rundung: 15 Minuten; abgeschlossen bis: 31.10.2026"
+    assert _lauf(db)[1][0] == "Abgeschlossen bis: 31.10.2026"
 
 
 def test_feiertage_dieses_und_naechsten_jahres():

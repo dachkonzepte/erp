@@ -124,7 +124,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: geladen", await tab.oeffnen("/settings?als=bea#time-rules", BEREIT), True)
     p.pruefe("Bea: Hinweis, Felder gesperrt, keine Knöpfe, Sollzeit als Text", await tab.js(
         "[document.querySelector('[data-lohnregeln-hinweis]').innerText,"
-        f"document.getElementById('pein-{mia}').disabled,document.getElementById('rounding').disabled,"
+        f"document.getElementById('pein-{mia}').disabled,document.getElementById('defaultWorkModel').disabled,"
         "[...document.querySelectorAll('#settings-time-rules [data-lohnregeln-knopf]')].every(k=>k.hidden),"
         f"{_zelle(seed)}]"),
         ["Arbeitszeitmodelle, Pausenregeln, Sollzeiten und Personalnummern ändern Admin und Büro – Finanzen – du kannst sie lesen.", True, True,

@@ -134,7 +134,11 @@ def test_pruefabfrage_weit_unter_postgresql():
         db.get(TimeTrackingSettings, 1).rounding_minutes = 15
         db.commit()
         _gb3, bm3, _bt3, _pb3 = gruppe(date(2026, 10, 22), von=time(7), bis=time(12, 10))
-        assert db.get(TimeEntry, bm3).hours == Decimal("5.25")  # 5,1667 h auf die Viertelstunde
+        assert db.get(TimeEntry, bm3).hours == Decimal("5.1667")  # seit 1.9.231 ohne Rundung je Buchung (bis 1.9.230 auf die Viertelstunde 5,25)
+        # seit 1.9.231: eine ältere, noch gerundete Kolonnenbuchung (wie bis 1.9.230 gebucht) passt ebenfalls -- die Abfrage nimmt beide
+        _gb4, bm4, bt4, _pb4 = gruppe(date(2026, 10, 23), von=time(7), bis=time(12, 10))
+        for b in (bm4, bt4):
+            db.get(TimeEntry, b).hours = Decimal("5.25")
         db.commit()
 
         conn = db.connection()

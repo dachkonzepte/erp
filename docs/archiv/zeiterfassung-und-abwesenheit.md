@@ -2048,3 +2048,58 @@ Angepasste Erwartungen (Regel 28):
   „Fin: Schritt Prüfen“ neu mit „Personalnummer „1001“ hat nicht genau 5 Ziffern: Mia Monteurin“; „Fin: Tabelle mit Personalnummer“ alt „1001“/„1002“,
   neu „1001 nicht 5 Ziffern“/„01002“; „Fin: ohne Lücke …“ alt „Fehlt: 1 Personalnummer“, neu „Fehlt: 2 Personalnummern“; „Fin: Oles Personalnummer
   gespeichert“ heißt „Oles und Mias …“ (Mia bekommt 01001).
+
+### Umsetzung 1.9.231: keine Rundung je Buchung (Punkt 0b)
+
+Festlegung 1.9.223 Nr. 6 ließ die Einstellung „Rundung“ der Zeitregeln stehen: mit einem Wert dort wäre doppelt gerundet worden (je Buchung, dann
+der Tag im Lohn). Vorgabe Tobias: die Rundung je Buchung entfällt, gerundet wird nur der Tag.
+
+- `app/time_tracking.py::gebucht_nach_zeitregel()` gibt die Stunden unverändert zurück -- die eine Stelle für jede neue Buchung (Stopp,
+  Gruppen-Stopp und Stopp im Gruppenfall, Nachtrag, Kolonne, Ende nachtragen, Ändern mit Von/Bis, „Pausen neu rechnen“, Vorschauen) bleibt.
+  `app/time_backoffice.py::rounded_hours()` ist weg; `dauer_vorschau(runden=…)` wirkt nicht mehr. In `kolonne_rechnen()` fällt „Nach der Rundung bleibt
+  keine Arbeitszeit“ weg: ohne Rundung ist gebucht = netto, und `nachtrag_nach_zeitregel()` lehnt schon ab, wenn nach der Pause nichts bleibt.
+- Zeitregeln: `rounding_minutes` fehlt in Antwort und Schema, `update_time_settings()` übernimmt es nicht, die Einstellungsseite hat keine Auswahl
+  „Rundung“ mehr (Menütext „Pausen, Arbeitszeitmodelle, …“). Die Spalte `time_tracking_settings.rounding_minutes` bleibt ungenutzt; `app/audit.py` und
+  `app/verlauf_namen.py` behalten sie für alte Einträge des Änderungsprotokolls.
+- Unverändert: `arbeit_des_tags()` (0,25 h je Person und Tag) und alles, was daraus rechnet (Lohndatei, „Zusammen“, Schlechtwetter, Mehrarbeit).
+- `scripts/pruefabfrage_kolonne_weit.sql`, Teil b: eine Kolonnenbuchung passt, wenn sie minutengenau zu Von/Bis minus Pause passt, oder -- solange in
+  der alten Einstellung ein Wert steht -- genau so gerundet ist (ältere Buchungen). `scripts/pruefe_zeitregeln.py`: erste Zeile „Abgeschlossen bis: …“.
+- Texte: „Kolonne buchen“ (Büro und Monteurin) sagt „Pause je Person nach ihrem Tag“ statt „Pause und Rundung …“.
+
+### Festlegungen 1.9.231 (Bitte bestätigen)
+
+1. Keine Buchung wird mehr gerundet, auf keinem Weg; die Stunden bleiben minutengenau (vier Stellen). Gerundet wird nur die Arbeit eines Tags im Lohn.
+2. Die Einstellung „Rundung“ gibt es nicht mehr (Seite und Schnittstelle); ein mitgeschickter Wert wird nicht übernommen (200), die Spalte bleibt
+   ungenutzt.
+3. Schon gebuchte, gerundete Zeiten bleiben, wie sie sind -- keine Migration, kein Neurechnen.
+4. Die Prüfabfrage `pruefabfrage_kolonne_weit.sql` nimmt beides an: minutengenau und, solange die alte Einstellung einen Wert hat, so gerundet.
+5. `scripts/pruefe_zeitregeln.py` nennt keine Rundung mehr.
+6. „Kolonne buchen“ sagt „Pause je Person nach ihrem Tag“.
+
+### Tests und Prüfung 1.9.231
+
+Neu: `tests/test_v632_keine_rundung_je_buchung.py` (gebucht minutengenau mit der alten Spalte auf 15, Dauer-Vorschau, Kolonne, der Tag im Lohn bleibt auf
+0,25 h, Zeitregeln ohne Rundung, Seiten ohne Auswahl und ohne „Pause und Rundung“). Gegenproben: Archiv `gegenproben-stufe6-r3a.md` (12 rot, eine erst
+grün -- das Antwortschema filtert, Gegenprobe am Schema neu: rot).
+
+Angepasste Erwartungen (Regel 28):
+- `test_v466_rundung_gruppen.py`: alle Wege mit der alten Spalte auf 15 min; alt 5,00 h (gerundet), neu 5,1167 h (Nachtrag 5,1 h); umbenannt
+  `test_gruppen_stopp_rundet_je_mitglied` -> `…_rundet_nicht`, `test_stopp_im_gruppenfall_rundet_alle` -> `…_rundet_nicht`,
+  `test_gruppen_nachtrag_rundet_je_mitglied` -> `…_rundet_nicht`, `test_ende_nachtragen_der_gruppe_rundet_je_mitglied` -> `…_rundet_nicht`,
+  `test_einzel_stopp_rundet_wie_die_gruppe` -> `test_einzel_stopp_rundet_nicht`; `test_waechter_eine_rundung` -> `test_waechter_keine_rundung_je_buchung`
+  (alt: nur `gebucht_nach_zeitregel()` ruft `rounded_hours()`; neu: die Funktion gibt es nicht, kein Aufruf).
+- `test_v483::test_vorschau_und_buchung_runden_gleich` -> `test_vorschau_und_buchung_gleich_ohne_rundung`; alt 4,25 h, neu 4,1667 h.
+- `test_v527::test_neue_dauer_rundet_wie_das_speichern` -> `test_neue_dauer_rundet_nicht`; alt (8,00; 7,9; 8), neu (7,9; 7,9; 7,9).
+- `test_v590::test_rundung_und_abschluss` -> `test_abschluss_ohne_rundung`; alt „Rundung: 15 Minuten; abgeschlossen bis: 31.10.2026“, neu „Abgeschlossen bis:
+  31.10.2026“; `::test_grunddaten_nichts_zu_klaeren`: alt „Rundung: keine; abgeschlossen bis: –“, neu „Abgeschlossen bis: –“.
+- `test_v522::test_pruefabfrage_weit_unter_postgresql`: die Kolonne 07:00–12:10 mit der alten Spalte auf 15 min hat alt 5,25 h, neu 5,1667 h; neu dazu eine
+  ältere, gerundete Kolonnenbuchung (5,25 h), die die Abfrage ebenfalls nicht meldet.
+- Nur Aufbau (die Rundung gibt es nicht mehr, geändert wird ein anderes Feld): `test_v300::test_saving_the_general_settings_form_never_touches_the_lock`
+  (allow_manual_entries statt rounding_minutes; Erwartung „Abschluss bleibt“), `test_v448` (zwei Tests, require_activity statt rounding_minutes), `test_v585`
+  (PUT der Zeitregeln ohne rounding_minutes), `test_v626::test_einstellungen_ohne_alte_felder` (require_activity statt rounding_minutes).
+- `test_v447`: Eintrag `('settings.html', 'P2', 'rounding')` aus `KLASSEN` gestrichen (die Auswahl gibt es nicht mehr).
+- Klicktests, nur Aufbau (sie griffen auf die entfernte Auswahl `#rounding` zu): `klicktest_datev_nummern` -- Vergleichsfeld für „gesperrt sieht anders
+  aus“ jetzt das Standard-Arbeitszeitmodell, die ungespeicherte Änderung jetzt „Tätigkeit verpflichtend“ (Prüfung „… Rundung bleibt stehen“ heißt „…
+  Änderung bleibt stehen“, alt '15', neu True); `klicktest_sollzeit` -- „gesperrt“ am Standardmodell statt an der Rundung; `klicktest_neue_ordnung` --
+  „geladen“ am gewählten Standardmodell (Prüfung heißt „(Standardmodell, Modelle, Personalnummern)“ statt „(Rundung, …)“), gespeichert und nach dem
+  Neuladen „Tätigkeit verpflichtend“ (alt ['15'], neu [True]).

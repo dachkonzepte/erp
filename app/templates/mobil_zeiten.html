@@ -230,7 +230,7 @@
     <div class="mitglieder breit" id="kdMitgliederFeld" role="group" aria-labelledby="kdMitgliederTitel"><span id="kdMitgliederTitel">Wer ist dabei?</span><div id="kdMitglieder"></div></div>
     <label class="feld" for="kdDatum">Datum<input id="kdDatum" type="date"></label>
     <label class="feld" for="kdZeitart">Zeitart<select id="kdZeitart"></select></label>
-    {# seit 1.9.63 Von und Bis für alle angehakten statt „Stunden je Person“ -- Pause und Rundung je Person nach ihrem Tag #}
+    {# seit 1.9.63 Von und Bis für alle angehakten statt „Stunden je Person“ -- Pause je Person nach ihrem Tag (seit 1.9.231 ohne Rundung) #}
     <label class="feld" for="kdVon">Von<input id="kdVon" type="time"></label>
     <label class="feld" for="kdBis">Bis<input id="kdBis" type="time"></label>
     <label class="feld breit" for="kdAuftrag">Auftrag<select id="kdAuftrag"></select></label>
@@ -244,7 +244,7 @@
   </div>
   <div class="vorschau" id="kdVorschau" aria-live="polite">
     <div class="vorschau-text"><span id="kdVorschauZeile">Von und Bis eintragen – dann rechnet der Server je Person die Pause.</span>
-      <span class="klein">Pause und Rundung je Person nach ihrem Tag. Wer anders gearbeitet hat: einzeln nachtragen.</span></div>
+      <span class="klein">Pause je Person nach ihrem Tag. Wer anders gearbeitet hat: einzeln nachtragen.</span></div>
   </div>
   <div class="dialog-knoepfe"><div class="status" id="kdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="kdAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-aktion" id="kdSpeichern">Speichern</button></div>
@@ -662,7 +662,7 @@ function kolonneSpeichern(){
   if(!auftrag){st.textContent='Bitte Auftrag auswählen.';return}
   if(!el('kdVon').value||!el('kdBis').value){st.textContent='Bitte Von und Bis angeben.';return}
   try{pause=zahlFeld('kdPause',{leer:0})}catch(e){st.textContent=e.message;return}
-  // seit 1.9.63 Von und Bis für alle angehakten (bis dahin „Stunden je Person“) -- Pause und Rundung rechnet der Server je Person
+  // seit 1.9.63 Von und Bis für alle angehakten (bis dahin „Stunden je Person“) -- die Pause rechnet der Server je Person (seit 1.9.231 ohne Rundung)
   var body={order_id:auftrag,work_date:el('kdDatum').value,entry_type:el('kdZeitart').value,activity:el('kdTaetigkeit').value||null,
             von:el('kdVon').value,bis:el('kdBis').value,notes:el('kdNotiz').value.trim()||null};
   var aendern=!!KD,url=aendern?'/api/time-entry-groups/'+KD.id:'/api/time-entry-groups';

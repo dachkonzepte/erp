@@ -261,8 +261,8 @@ def pruefen(db, heute: date | None = None) -> Stand:
     stand = Stand()
     heute = heute or berlin_today()
     zeit = db.get(TimeTrackingSettings, 1)
-    rundung = int(zeit.rounding_minutes or 0) if zeit else 0
-    stand.zeile(f"Rundung: {'keine' if not rundung else f'{rundung} Minuten'}; abgeschlossen bis: {_tag(zeit.locked_until) if zeit and zeit.locked_until else '–'}")
+    # seit 1.9.231 ohne „Rundung: …“ -- die Rundung je Buchung ist entfallen, gerundet wird nur der Tag im Lohn (die Spalte liest niemand)
+    stand.zeile(f"Abgeschlossen bis: {_tag(zeit.locked_until) if zeit and zeit.locked_until else '–'}")
     _modelle(db, stand)
     _personen(db, stand, heute)
     _feiertage(db, stand, heute)

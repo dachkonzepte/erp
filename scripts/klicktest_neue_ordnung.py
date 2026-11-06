@@ -206,8 +206,9 @@ async def pruefen(tab, seed, p):
                  await tab.js("!!document.querySelector('#settings-appearance #documentLayoutBlockLogo')"
                               "&&!document.querySelector('#settings-document-layout #documentLayoutBlockLogo')"), True)
         await tab.js("document.querySelector('[data-settings-section=\"time-rules\"]').click()")
-        p.pruefe(f"{rolle}: Zeitregeln und DATEV geladen (Rundung, Modelle, Personalnummern)",
-                 await tab.js("[document.getElementById('rounding').value!=='',document.querySelectorAll('#workModelCards .model-card').length>0,"
+        # seit 1.9.231 ohne Rundung (entfallen): geladen heißt das Standard-Arbeitszeitmodell gewählt
+        p.pruefe(f"{rolle}: Zeitregeln und DATEV geladen (Standardmodell, Modelle, Personalnummern)",
+                 await tab.js("[document.getElementById('defaultWorkModel').value!=='',document.querySelectorAll('#workModelCards .model-card').length>0,"
                               "document.querySelectorAll('#payrollRows tr').length]"), [True, True, 2])
         # seit 1.9.61 ohne Standardpause (Stufe 4, R3 Nachrunde)
         p.pruefe(f"{rolle}: Zeitregeln ohne Standardpause", await tab.js(
@@ -253,13 +254,13 @@ async def pruefen(tab, seed, p):
                      await tab.js("document.getElementById('documentLayoutBlockLogo').checked"), not vorher)
         if rolle == "admin":
             await einstellungen_oeffnen(tab, "#time-rules")
-            await tab.js("document.getElementById('rounding').value='15'")  # seit 1.9.224 ohne Lohnart Baustelle (E8)
+            await tab.js("document.getElementById('requireActivity').checked=true")  # seit 1.9.224 ohne Lohnart Baustelle (E8), seit 1.9.231 ohne Rundung
             await tab.warte_auf_neu_geladene_liste("saveTimeRules()")
             p.pruefe(f"{rolle}: Zeitregeln gespeichert (Meldung)",
                      await tab.js("document.getElementById('timeRulesStatus').textContent"), "Zeitregeln gespeichert.")
             await einstellungen_oeffnen(tab, "#time-rules")
             p.pruefe(f"{rolle}: Zeitregeln nach dem Neuladen", await tab.js(
-                "[document.getElementById('rounding').value]"), ["15"])
+                "[document.getElementById('requireActivity').checked]"), [True])
             await einstellungen_oeffnen(tab, "#deadlines")
             await tab.js("document.getElementById('maintenanceLeadDays').value='45'")
             await tab.warte_auf_neu_geladene_liste("saveMaintenanceSettings('maintenanceLeadStatus')")

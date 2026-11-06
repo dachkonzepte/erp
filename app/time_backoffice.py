@@ -4,7 +4,7 @@ import csv
 import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from io import BytesIO, StringIO
 from html import escape
 from sqlalchemy import select
@@ -186,7 +186,7 @@ def load_time_settings(db: Session) -> TimeTrackingSettings:
 def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> dict:
     advanced = load_advanced_settings(db) if db is not None else None
     return {
-        "rounding_minutes": row.rounding_minutes,  # seit 1.9.61 ohne Standardpause
+        # seit 1.9.61 ohne Standardpause, seit 1.9.231 ohne Rundung je Buchung (Stufe 6, R3a, Punkt 0b; die Spalte bleibt ungenutzt)
         "allow_manual_entries": row.allow_manual_entries,
         "allow_group_bookings": row.allow_group_bookings,
         "require_order_item": row.require_order_item,
@@ -270,7 +270,7 @@ def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | 
 def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
     row = load_time_settings(db)
     for key in (
-        "rounding_minutes", "allow_manual_entries",  # seit 1.9.61 ohne Standardpause
+        "allow_manual_entries",  # seit 1.9.61 ohne Standardpause, seit 1.9.231 ohne Rundung (ein mitgeschickter Wert wird nicht übernommen)
         "allow_group_bookings", "require_order_item", "require_activity",  # seit 1.9.224 ohne Zielsystem und Lohnarten (E8)
     ):
         setattr(row, key, getattr(payload, key))
@@ -423,13 +423,7 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
     return antwort
 
 
-def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:
-    h=Decimal(hours or 0)
-    if not rounding_minutes:
-        return round_hours(h)
-    step=Decimal(rounding_minutes)/Decimal(60)
-    if step <= 0: return round_hours(h)
-    return round_hours((h/step).quantize(Decimal("1"), rounding=ROUND_HALF_UP)*step)
+# Seit 1.9.231 ohne rounded_hours(): die Rundung je Buchung ist entfallen (Stufe 6, R3a, Punkt 0b).
 
 
 def backoffice_summary(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> dict:

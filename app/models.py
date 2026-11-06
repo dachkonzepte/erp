@@ -2697,7 +2697,7 @@ class TimeTrackingSettings(Base):
     __tablename__ = "time_tracking_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
-    rounding_minutes: Mapped[int] = mapped_column(default=0)
+    rounding_minutes: Mapped[int] = mapped_column(default=0)  # seit 1.9.231 ungenutzt: die Rundung je Buchung ist entfallen (Stufe 6, R3a, 0b)
     # Seit 1.9.61 (Stufe 4, R3 Nachrunde) nirgends mehr gelesen: die Standardpause entfiel -- es gilt nur die Pause nach Zeitregel je Tag
     # und die selbst eingetragene Mindestpause. Die Spalte bleibt (Wächter tests/test_v486_keine_standardpause.py).
     default_break_minutes: Mapped[int] = mapped_column(default=0)

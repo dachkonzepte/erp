@@ -310,7 +310,7 @@ KLASSEN = {
     ('settings.html', 'P2', 'optionActive'): ('ja_nein', 'Ja/Nein'),
     ('settings.html', 'P2', 'optionDefault'): ('ja_nein', 'Ja/Nein'),
     ('settings.html', 'P2', 'planningState'): ('server_fest', 'Bundesländer'),
-    ('settings.html', 'P2', 'rounding'): ('server_fest', 'Rundung der Zeiterfassung'),
+    # seit 1.9.231 ohne ('settings.html', 'P2', 'rounding'): die Auswahl „Rundung“ der Zeiterfassung ist entfallen (Stufe 6, R3a, Punkt 0b)
     ('settings.html', 'P2', 'smtpEncryption'): ('server_fest', 'Verschlüsselung'),
     ('settings.html', 'P2', 'variableOverheadMode'): ('server_fest', 'eur/pct'),
     ('tasks.html', 'P1', 'String(e.id)===selectedEmployeeId'): ('neu', 'Filter'),

@@ -26,10 +26,11 @@ BEREIT = "document.getElementById('datevBerater')&&typeof timeRules!=='undefined
 WERTE = "[document.getElementById('datevBerater').value,document.getElementById('datevMandant').value]"
 GESPEICHERT = ("fetch('/api/time-backoffice/settings').then(r=>r.json())"
                ".then(s=>[s.datev_beraternummer,s.datev_mandantennummer])")
-# Berater gesperrt: Fläche und Schrift anders als die Rundung (bearbeitbar; bis 1.9.223 die Lohnart Baustelle, die mit 1.9.224 entfiel), Fläche = --ds-feld-gesperrt, Schrift = --muted, Mauszeiger,
+# Berater gesperrt: Fläche und Schrift anders als das Standard-Arbeitszeitmodell (bearbeitbar; bis 1.9.223 die Lohnart Baustelle, die mit 1.9.224 entfiel,
+# bis 1.9.230 die Rundung, die mit 1.9.231 entfiel), Fläche = --ds-feld-gesperrt, Schrift = --muted, Mauszeiger,
 # dazu die Fläche als Farbwert
 GESPERRT_WIE_SOLL = (
-    "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('rounding');"
+    "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('defaultWorkModel');"
     "const t=document.createElement('div');t.style.background='var(--ds-feld-gesperrt)';t.style.color='var(--muted)';document.body.appendChild(t);"
     "const ts=getComputedStyle(t);const soll=[ts.backgroundColor,ts.color];t.remove();"
     "return [b.backgroundColor!==l.backgroundColor,b.color!==l.color,b.backgroundColor===soll[0],b.color===soll[1],b.cursor,b.backgroundColor]})()")
@@ -64,13 +65,13 @@ async def pruefen(tab, seed, p):
         f"[...{WERTE},document.getElementById('datevBerater').disabled,!!document.getElementById('datevNummernSpeichern')]"),
         ["", "", False, True])
     # eine ungespeicherte Änderung der Zeitregeln -- das Speichern der Nummern lässt sie stehen
-    await tab.js("document.getElementById('rounding').value='15'")
+    await tab.js("document.getElementById('requireActivity').checked=true")  # seit 1.9.231 statt der Rundung (entfallen)
     p.pruefe("Ada: falsches Format mit Meldung", await _speichern(tab, "123", "1"),
              "Fehler: Bitte die Eingabe prüfen – Beraternummer: 4 bis 7 Ziffern, ab 1001 (DATEV).")
     p.pruefe("Ada: nichts gespeichert", await tab.js(GESPEICHERT), [None, None])
     p.pruefe("Ada: gespeichert", await _speichern(tab, "1234567", "12345"), "Gespeichert.")
     p.pruefe("Ada: auf dem Server", await tab.js(GESPEICHERT), ["1234567", "12345"])
-    p.pruefe("Ada: die ungespeicherte Rundung bleibt stehen", await tab.js("document.getElementById('rounding').value"), "15")
+    p.pruefe("Ada: die ungespeicherte Änderung bleibt stehen", await tab.js("document.getElementById('requireActivity').checked"), True)
     # eine eigene Query: dieselbe Adresse mit #hash lädt nicht neu
     p.pruefe("Ada: nach dem Neuladen", [await tab.oeffnen("/settings?neu=1#time-rules", BEREIT), await tab.js(WERTE)],
              [True, ["1234567", "12345"]])

@@ -143,7 +143,7 @@
       <div class="settings-group">Personal</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="employee-functions" onclick="showSettingsSection('employee-functions')">Funktionen<span class="menu-sub">Mitarbeiterfunktionen, gewerblich/kaufmännisch</span></button>
-        <button type="button" data-settings-section="time-rules" onclick="showSettingsSection('time-rules')">Zeitregeln und DATEV<span class="menu-sub">Rundung, Pausen, Arbeitszeitmodelle, Lohnarten, Personalnummern</span></button>
+        <button type="button" data-settings-section="time-rules" onclick="showSettingsSection('time-rules')">Zeitregeln und DATEV<span class="menu-sub">Pausen, Arbeitszeitmodelle, Lohnarten, Personalnummern</span></button>
       </div>
       {% if ist_admin %}
       {# Anbindungen: reine Systemkonfiguration, ausschließlich Administratoren -- E-Mail (PUT admin-only), Outlook-Kalender
@@ -703,9 +703,9 @@
     <div class="list-narrow">
       <h3 style="margin:14px 0 8px;font-size:15px">Allgemeine Zeitregeln</h3>
       <div class="time-grid">
-        <div class="field"><label>Rundung</label><select id="rounding"><option value="0">keine Rundung</option><option value="5">5 Minuten</option><option value="10">10 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option></select></div>
+        {# seit 1.9.231 ohne „Rundung“: gerundet wird nur die Arbeit eines Tags im Lohn auf 0,25 h (Stufe 6, R3a, Punkt 0b) #}
         {# seit 1.9.61 ohne „Manuelle Standardpause / Fallback“: es gilt nur die Pause nach Zeitregel je Tag und die selbst eingetragene
-           Mindestpause; das Standard-Arbeitszeitmodell rückt neben die Rundung, die vier Häkchen stehen paarweise darunter #}
+           Mindestpause; das Standard-Arbeitszeitmodell steht vorn, die vier Häkchen stehen paarweise darunter #}
         <div class="field"><label>Standard-Arbeitszeitmodell</label><select id="defaultWorkModel"></select></div>
         <label class="inline-check"><input id="allowManual" type="checkbox"> Manuelle Buchungen erlauben</label>
         <label class="inline-check"><input id="allowGroup" type="checkbox"> Gruppenbuchungen erlauben</label>
@@ -2403,7 +2403,6 @@ aktion('sollzeit-loeschen',el=>deleteSollzeit(Number(el.dataset.id)));
 aktion('zeitliste-loeschen',el=>deleteTimeListOption(Number(el.dataset.id)));
 function renderTimeRules(){
   const s=timeRules;if(!s)return;
-  setv('rounding',String(s.rounding_minutes));
   document.getElementById('allowManual').checked=!!s.allow_manual_entries;document.getElementById('allowGroup').checked=!!s.allow_group_bookings;
   document.getElementById('requireItem').checked=!!s.require_order_item;document.getElementById('requireActivity').checked=!!s.require_activity;
   setv('datevBerater',s.datev_beraternummer);setv('datevMandant',s.datev_mandantennummer);  // seit 1.9.92
@@ -2416,7 +2415,7 @@ function renderDefaultModelSelect(){if(!timeRules||!workModels.length)return;doc
 async function saveTimeRules(silent=false){
   const st=document.getElementById('timeRulesStatus');
   try{
-    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
+    const body=JSON.stringify({allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
     await speichern('zeitregeln',()=>api('/api/time-backoffice/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{timeRules=d}});
     if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln gespeichert.';
     return true;

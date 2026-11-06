@@ -1,10 +1,10 @@
-"""Seit 1.9.39 (Stufe 4, R1 Nachrunde, Punkt 2): Gruppenzeiten werden je Mitglied genau wie Einzelzeiten gerundet.
+"""Seit 1.9.231 (Stufe 6, R3a, Punkt 0b, Festlegung 1.9.223 Nr. 6): keine Buchung wird mehr gerundet -- weder einzeln noch je Mitglied einer
+Gruppe; gerundet wird nur die Arbeit eines Tags im Lohn (arbeit_des_tags(), 0,25 h). 1.9.39–1.9.230 rundete gebucht_nach_zeitregel() jede neue
+Buchung nach der Einstellung „Rundung“ der Zeitregeln (rounding_minutes), dieser Test prüfte das je Weg (Stopp, Gruppen-Stopp, Stopp im Gruppenfall,
+Nachtrag, Gruppen-Nachtrag, Ende nachtragen). Jetzt prüft er dieselben Wege mit der alten Spalte auf 15 Minuten: der Wert bleibt minutengenau.
 
-    eine Funktion  app/time_tracking.py::gebucht_nach_zeitregel() -- Rundung der Zeitregeln (rounding_minutes) für jede neue Buchung: Stopp,
-                   Gruppen-Stopp, Stopp im Gruppenfall, Nachtrag, Gruppen-Nachtrag, Ende nachtragen (einzeln und Gruppe); ohne Rundung bleibt
-                   der Wert. Bis 1.9.38 rundeten nur Einzel-Stopp und Einzel-Nachtrag (im Router), der Stopp im Gruppenfall nur die Zeit
-                   dessen, der stoppte. Wächter: unter app/ ruft nur sie rounded_hours() (außer dem DATEV-Export in time_backoffice.py).
-    alte Buchungen bleiben, wie sie sind (keine Umrechnung)
+    eine Funktion  app/time_tracking.py::gebucht_nach_zeitregel() -- gibt die Stunden unverändert zurück; rounded_hours() gibt es nicht mehr
+    alte Buchungen bleiben, wie sie sind (keine Umrechnung, auch keine gerundeten)
 """
 
 import ast
@@ -24,8 +24,7 @@ from tests.test_v133_invoices import make_order_with_item
 from tests.test_v224_field_view import make_employee, make_team
 
 ROOT = Path(__file__).resolve().parents[1]
-ROH = Decimal("5.1167")       # 07:00–12:07 = 5 h 7 min, unter 6 h keine Pause
-GERUNDET = Decimal("5")       # auf 15 Minuten: 5,1167 / 0,25 = 20,47 -> 20 -> 5,00
+ROH = Decimal("5.1167")       # 07:00–12:07 = 5 h 7 min, unter 6 h keine Pause; bis 1.9.230 auf 15 Minuten gerundet 5,00
 
 
 @pytest.fixture
@@ -61,47 +60,49 @@ def _ende(w, tag=None):
     return f"{(tag or w['heute']).isoformat()}T12:07:00"
 
 
-def test_gruppen_stopp_rundet_je_mitglied(welt):
-    """Angriff auf die alte Rechnung: der Gruppen-Stopp rundete nicht (5,1167 h je Mitglied)."""
+def test_gruppen_stopp_rundet_nicht(welt):
+    """Bis 1.9.230 test_gruppen_stopp_rundet_je_mitglied (5,00 h je Mitglied)."""
     g = _gruppe(welt)
     antwort = welt["client"].post(f"/api/time-entry-groups/{g.id}/stop", json={"ended_at": _ende(welt), "break_minutes": 0})
     assert antwort.status_code == 200, antwort.text
-    assert _stunden(welt) == {welt["mia"].id: GERUNDET, welt["tom"].id: GERUNDET}
+    assert _stunden(welt) == {welt["mia"].id: ROH, welt["tom"].id: ROH}
 
 
-def test_stopp_im_gruppenfall_rundet_alle(welt):
-    """Angriff: bis 1.9.38 rundete der Stopp im Gruppenfall nur die Zeit dessen, der stoppte."""
+def test_stopp_im_gruppenfall_rundet_nicht(welt):
+    """Bis 1.9.230 test_stopp_im_gruppenfall_rundet_alle (5,00 h)."""
     g = _gruppe(welt)
     eigene = next(e.id for e in welt["db"].scalars(select(TimeEntry).where(TimeEntry.employee_id == welt["mia"].id)).all())
     antwort = welt["client"].post(f"/api/time-entries/{eigene}/stop", json={"ended_at": _ende(welt), "break_minutes": 0})
     assert antwort.status_code == 200, antwort.text
-    assert _stunden(welt) == {welt["mia"].id: GERUNDET, welt["tom"].id: GERUNDET}
-    assert welt["db"].get(type(g), g.id).hours == GERUNDET
+    assert _stunden(welt) == {welt["mia"].id: ROH, welt["tom"].id: ROH}
+    assert welt["db"].get(type(g), g.id).hours == ROH
 
 
-def test_gruppen_nachtrag_rundet_je_mitglied(welt):
+def test_gruppen_nachtrag_rundet_nicht(welt):
+    """Bis 1.9.230 test_gruppen_nachtrag_rundet_je_mitglied (5,1 -> 5,00 h)."""
     antwort = welt["client"].post("/api/time-entry-groups", json={
         "employee_ids": [welt["mia"].id, welt["tom"].id], "team_id": welt["team"].id, "order_id": welt["order"].id,
         "work_date": welt["heute"].isoformat(), "hours": "5.1", "entry_type": "site"})
     assert antwort.status_code == 200, antwort.text
-    assert _stunden(welt) == {welt["mia"].id: GERUNDET, welt["tom"].id: GERUNDET}
+    assert _stunden(welt) == {welt["mia"].id: Decimal("5.1"), welt["tom"].id: Decimal("5.1")}
 
 
-def test_ende_nachtragen_der_gruppe_rundet_je_mitglied(welt):
+def test_ende_nachtragen_der_gruppe_rundet_nicht(welt):
+    """Bis 1.9.230 test_ende_nachtragen_der_gruppe_rundet_je_mitglied (5,00 h)."""
     gestern = welt["heute"] - timedelta(days=1)
     g = _gruppe(welt, tag=gestern)
     eigene = next(e.id for e in welt["db"].scalars(select(TimeEntry).where(TimeEntry.employee_id == welt["mia"].id)).all())
     antwort = welt["client"].post(f"/api/time-entries/{eigene}/ende-nachtragen", json={"ende": _ende(welt, gestern)})
     assert antwort.status_code == 200, antwort.text
-    assert _stunden(welt) == {welt["mia"].id: GERUNDET, welt["tom"].id: GERUNDET}
+    assert _stunden(welt) == {welt["mia"].id: ROH, welt["tom"].id: ROH}
     assert g.id
 
 
-def test_einzel_stopp_rundet_wie_die_gruppe(welt):
-    """Gegenprobe: der Einzel-Stopp rundet wie bisher -- dieselben 5,00 h wie je Mitglied der Gruppe."""
+def test_einzel_stopp_rundet_nicht(welt):
+    """Bis 1.9.230 test_einzel_stopp_rundet_wie_die_gruppe (5,00 h)."""
     row = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(welt["heute"], time(7)))
     antwort = welt["client"].post(f"/api/time-entries/{row.id}/stop", json={"ended_at": _ende(welt), "break_minutes": 0})
-    assert Decimal(antwort.json()["hours"]) == GERUNDET
+    assert Decimal(antwort.json()["hours"]) == ROH
 
 
 def test_ohne_rundung_bleibt_der_wert(welt):
@@ -127,9 +128,11 @@ def test_alte_gruppenbuchungen_bleiben_unveraendert(welt):
     assert alte == vorher == {welt["mia"].id: ROH, welt["tom"].id: ROH}
 
 
-def test_waechter_eine_rundung():
-    """Unter app/ ruft nur gebucht_nach_zeitregel() die Rundung der Zeitregeln -- seit 1.9.92 auch nicht mehr der DATEV-Export (bis dahin
-    rundete er beim Summieren jede Buchung erneut, Stufe 4, R5a, Punkt 5)."""
+def test_waechter_keine_rundung_je_buchung():
+    """Seit 1.9.231: unter app/ ruft niemand rounded_hours() (es gibt sie nicht mehr), und keine Antwort der Zeitregeln nennt eine Rundung. Bis
+    1.9.230 test_waechter_eine_rundung: nur gebucht_nach_zeitregel() rief sie."""
+    from app import time_backoffice
+    assert not hasattr(time_backoffice, "rounded_hours")
     funde = []
     for pfad in sorted((ROOT / "app").rglob("*.py")):
         baum = ast.parse(pfad.read_text(encoding="utf-8"))
@@ -139,4 +142,4 @@ def test_waechter_eine_rundung():
             for knoten in ast.walk(fn):
                 if isinstance(knoten, ast.Call) and getattr(knoten.func, "id", getattr(knoten.func, "attr", None)) == "rounded_hours":
                     funde.append((pfad.relative_to(ROOT).as_posix(), fn.name))
-    assert sorted(set(funde)) == [("app/time_tracking.py", "gebucht_nach_zeitregel")]
+    assert funde == []

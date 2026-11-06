@@ -76,14 +76,15 @@ def test_nachtrag_ohne_vorbuchung_wie_einzelbuchung(welt):  # noqa: F811
     assert _zahlen(b, "hours") == _zahlen(v)
 
 
-def test_vorschau_und_buchung_runden_gleich(welt):  # noqa: F811
-    """Mit Rundung der Zeitregeln (15 min): Vorschau und Buchung runden mit derselben Funktion."""
+def test_vorschau_und_buchung_gleich_ohne_rundung(welt):  # noqa: F811
+    """Seit 1.9.231 ohne Rundung je Buchung (bis 1.9.230 test_vorschau_und_buchung_runden_gleich: 4:10 h -> 4,25 h): auch mit der alten Spalte auf
+    15 min bleiben Vorschau und Buchung minutengenau, aus derselben Funktion."""
     load_time_settings(welt["db"]).rounding_minutes = 15
     welt["db"].commit()
     client = _monteurin(welt)
     v = _vorschau(client, welt, "07:00", "11:10").json()
     b = _nachtrag(client, welt, "07:00", "11:10").json()
-    assert Decimal(str(v["gebucht"])) == Decimal(str(b["hours"])) == Decimal("4.25")  # 4:10 h -> auf 15 min gerundet
+    assert Decimal(str(v["gebucht"])) == Decimal(str(b["hours"])) == Decimal("4.1667")  # 4:10 h, minutengenau
 
 
 # --- Ändern über Von/Bis ----------------------------------------------------------------------------------------------------------

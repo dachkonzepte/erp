@@ -353,7 +353,7 @@ Behoben, drei Teile:
   Meine Zeiten“, die alten Adressen leiten weiter; Klicktest `klicktest_meine_zeiten.py`; seit 1.9.86 nennt die Vorwahl aus der Adresse ihren
   Auftrag auch außerhalb der Liste („Nummer · Titel (Auftrag abgeschlossen)“, `vorwahl` nur bei Zugang, `tests/test_v507_vorwahl_zeile.py`). Seit 1.9.60 trägt die Monteurin nur mit Von und
   Bis nach (`app/permissions.py::zeit_nur_mit_von_bis()`, Server 422 für eine reine Dauer), auch im Einsatzbericht; seit 1.9.63 auch der
-  Kolonnenführer für die Kolonne (eine Von/Bis-Angabe, Pause und Rundung je Mitglied nach seinem Tag über
+  Kolonnenführer für die Kolonne (eine Von/Bis-Angabe, Pause je Mitglied nach seinem Tag -- bis 1.9.230 auch die Rundung -- über
   `app/time_tracking.py::kolonne_rechnen()`, Vorschau je Mitglied, `tests/test_v489_kolonne_von_bis.py`). Seit 1.9.65 bleibt in den
   Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`); seit 1.9.83 steht
   die Meldung eines Dialogs darin über den Knöpfen (`flex:1 0 100%`). **Seit 1.9.67** steht
@@ -1586,9 +1586,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Von/Bis (422). **Seit 1.9.107** gibt das Büro die Pause einer Dauer an („Pause an diesem Tag“, Vorschau vom Server
   `GET /api/time-entries/dauer-vorschau` bzw. `/api/time-entry-groups/dauer-vorschau`); hat ein Tag eine Dauer und bringt die Regel die Pflichtpause
   nicht unter, fehlt der Rest (`pausen_vorschau()["fehlt"]`, über `pause_nach_zeitregel(deckel=False)`) -- der Tag passt nicht, „Prüfen“ zeigt je Dauer
-  „Ändern“ statt „So buchen“ (`tests/test_v527_pause_einer_dauer.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
-  auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
-  `tests/test_v466_rundung_gruppen.py`.
+  „Ändern“ statt „So buchen“ (`tests/test_v527_pause_einer_dauer.py`). **Keine Rundung je Buchung** (seit 1.9.231, 1.9.39–1.9.230 rundete
+  `gebucht_nach_zeitregel()` jede neue Buchung nach der Einstellung „Rundung“): jede Buchung bleibt minutengenau, gerundet wird nur die Arbeit eines Tags im
+  Lohn (`arbeit_des_tags()`, 0,25 h); die Einstellung gibt es nicht mehr (`tests/test_v632_keine_rundung_je_buchung.py`, `tests/test_v466_rundung_gruppen.py`).
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag
   (`app/time_tracking.py::laeuft_seit_frueher()`), lehnt der Stopp ab (409), ebenso jeder neue Start (`OffeneZeit`); geschlossen wird sie
   nur über `POST /api/time-entries/{id}/ende-nachtragen` (Ende am Starttag, Pausenregel; Gruppenzeit nur der Kolonnenführer, fremde nach

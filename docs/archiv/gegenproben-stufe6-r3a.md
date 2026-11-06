@@ -36,3 +36,24 @@ mit dem Marker `GEGENPROBE` ändern, die genannten Tests laufen lassen, die Date
 Befund (Regel 24, „bleibt eine grün, Test nachziehen“): `230_6c` blieb in Runde 1 grün -- der Fall „eine andere Person trägt die Nummer“ (E6/E7) war
 zugleich für E7 gemerkt, die zweite Prüfung verdeckte die erste. `test_v631` hat dafür die Fälle E11/E12 (getragen, nicht gemerkt) und E13/E14
 (dieselbe Nummer zweimal, Gegenprobe `230_6i`). Wiederholung: rot. Kein Marker unter `app/` nach dem Lauf.
+
+## 1.9.231 (Punkt 0b): keine Rundung je Buchung
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – keine Buchung wird gerundet | `gebucht_nach_zeitregel()` rundet wieder nach der Spalte (`231_1a`) | 10 rot: v466 (6), v483, v527, v632 (2) |
+| Nr. 1 – auch die Vorschau einer Dauer nicht | `dauer_vorschau()` rundet auf 0,25 (`231_1b`) | 2 rot: v527, v632 |
+| Nr. 1 – auch Nachtrag und Kolonne mit Von/Bis nicht | `nachtrag_nach_zeitregel()` rundet (`231_1c`) | 2 rot: v483, v632 |
+| Nr. 1 – der Tag im Lohn bleibt auf 0,25 h | `arbeit_des_tags()` ohne Rundung (`231_3`) | 5 rot: v625 (4), v632 |
+| Nr. 2 – nicht in der Antwort der Zeitregeln | Schlüssel wieder in `time_settings_dict()` (`231_2a`) | **grün** -- das Antwortschema filtert ihn; die Aussage hängt am Schema |
+| Nr. 2 – … (am Schema) | Feld wieder in `TimeTrackingSettingsOut` (`231_2d`) | 1 rot: v632::test_zeitregeln_ohne_rundung |
+| Nr. 2 – ein mitgeschickter Wert wird nicht übernommen | `update_time_settings()` setzt 15 (`231_2b`) | 1 rot: v632::test_zeitregeln_ohne_rundung |
+| Nr. 2 – keine Auswahl auf der Seite | Auswahl wieder in `settings.html` (`231_2c`) | 1 rot: v632::test_seiten_ohne_rundung |
+| Nr. 4 – Prüfabfrage nimmt ältere gerundete an | Bedingung „gerundet“ weg (`231_4a`) | 1 rot: v522 |
+| Nr. 4 – … und minutengenaue | Bedingung „minutengenau“ weg (`231_4b`) | 1 rot: v522 |
+| Nr. 5 – Prüfskript ohne Rundung | „Rundung: keine; “ wieder in der ersten Zeile (`231_5`) | 2 rot: v590 |
+| Nr. 6 – „Pause je Person“ | „Pause und Rundung“ wieder in `mobil_zeiten.html` (`231_6`) | 1 rot: v632::test_seiten_ohne_rundung |
+| Nr. 3 – gebuchte Zeiten bleiben | ohne Gegenprobe: keine Migration, kein Code ändert gespeicherte Stunden (nichts zum Aushebeln) | -- |
+
+`231_2a` blieb grün, kein Loch im Test: `GET`/`PUT /api/time-backoffice/settings` antworten über `TimeTrackingSettingsOut`, ein zusätzlicher Schlüssel im
+Dict fällt dort heraus. Die Gegenprobe am Schema (`231_2d`) ist rot. Kein Marker unter `app/` nach dem Lauf.

@@ -338,5 +338,5 @@ def test_einstellungen_ohne_alte_felder(w, router_test_client):
     client = router_test_client(w["db"], backoffice_router.router)
     s = client.get("/api/time-backoffice/settings").json()
     assert not {"datev_target", "datev_wage_type_site", "datev_wage_type_weather_winter"} & set(s)
-    assert client.put("/api/time-backoffice/settings", json={**s, "rounding_minutes": 15, "datev_target": "lodas"}).status_code == 200
+    assert client.put("/api/time-backoffice/settings", json={**s, "require_activity": True, "datev_target": "lodas"}).status_code == 200  # seit 1.9.231 ohne Rundung
     assert w["db"].get(TimeTrackingSettings, 1).datev_target == "lohn_gehalt"  # nichts liest oder schreibt es mehr

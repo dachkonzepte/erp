@@ -84,8 +84,9 @@ def test_tom_dauer_mit_pause_gespeichert_tag_passt(welt):  # noqa: F811
     assert _tag(welt, welt["tom"]) == [] and pausen_vorschau(welt["db"], welt["tom"].id, welt["heute"])["passt"]
 
 
-def test_neue_dauer_rundet_wie_das_speichern(welt):  # noqa: F811
-    """Eine neue Dauer rundet die Vorschau wie das Speichern (Zeitregeln: 15 min), eine geänderte bleibt, wie eingetragen (update_entry())."""
+def test_neue_dauer_rundet_nicht(welt):  # noqa: F811
+    """Seit 1.9.231 ohne Rundung je Buchung (bis 1.9.230 test_neue_dauer_rundet_wie_das_speichern: neu 8,00 h, geändert 7,9 h): Vorschau einer neuen
+    und einer geänderten Dauer und das Speichern bleiben, wie eingetragen -- auch mit der alten Spalte auf 15 min."""
     welt["db"].get(TimeTrackingSettings, 1).rounding_minutes = 15
     welt["db"].commit()
     neu = dauer_vorschau(welt["db"], employee_id=welt["mia"].id, work_date=welt["heute"], hours=Decimal("7.9"), break_minutes=30)
@@ -93,7 +94,7 @@ def test_neue_dauer_rundet_wie_das_speichern(welt):  # noqa: F811
                                ohne_id=999, runden=False)
     gespeichert = _als(welt).post("/api/time-entries", json={"employee_id": welt["mia"].id, "order_id": welt["order"].id,
                                                              "work_date": welt["heute"].isoformat(), "hours": "7.9", "break_minutes": 30})
-    assert (neu["gebucht"], geaendert["gebucht"], D(gespeichert.json()["hours"])) == (Decimal("8.00"), Decimal("7.9"), Decimal("8"))
+    assert (neu["gebucht"], geaendert["gebucht"], D(gespeichert.json()["hours"])) == (Decimal("7.9"), Decimal("7.9"), Decimal("7.9"))
 
 
 def test_dauer_vorschau_rechte(welt):  # noqa: F811

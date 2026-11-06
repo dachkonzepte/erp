@@ -3507,7 +3507,7 @@ class TimeGroupManualCreate(BaseModel):
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
     # seit 1.9.63 (Stufe 4, R3 Nachrunde): entweder die Dauer (nur noch das Büro) oder Von und Bis für alle angehakten Mitglieder --
-    # Pause und Rundung je Mitglied nach seinem Tag (app/time_tracking.py::kolonne_rechnen()); break_minutes ist dann die Mindestpause
+    # Pause je Mitglied nach seinem Tag (app/time_tracking.py::kolonne_rechnen(), seit 1.9.231 ohne Rundung); break_minutes ist dann die Mindestpause
     hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     von: time | None = None
     bis: time | None = None
@@ -3739,7 +3739,7 @@ class DatevNummernUpdate(BaseModel):
 
 
 class TimeTrackingSettingsOut(BaseModel):
-    rounding_minutes: int = 0
+    # seit 1.9.231 ohne rounding_minutes: die Rundung je Buchung ist entfallen (Stufe 6, R3a, Punkt 0b), gerundet wird nur der Tag im Lohn
     # seit 1.9.61 ohne die Standardpause (entfallen; eine mitgeschickte wird nicht übernommen)
     allow_manual_entries: bool = True
     allow_group_bookings: bool = True
@@ -3759,11 +3759,7 @@ class TimeTrackingSettingsOut(BaseModel):
 
 
 class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
-    @model_validator(mode="after")
-    def validate_values(self):
-        if self.rounding_minutes not in {0, 5, 10, 15, 30}:
-            raise ValueError("Rundung muss 0, 5, 10, 15 oder 30 Minuten betragen.")
-        return self
+    pass  # seit 1.9.231 ohne die Prüfung der Rundung (entfallen)
 
 
 class TimeTrackingLockUpdate(BaseModel):
