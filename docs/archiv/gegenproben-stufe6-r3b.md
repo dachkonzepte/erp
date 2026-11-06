@@ -56,3 +56,33 @@ Ohne Gegenprobe: der Stand des Steuerbüros und die Bestätigungen (reine Doku);
 | Nr. 10 – Migration: bestehende sind Baustelle | `server_default` „kranvermietung“ (`240_9`) | 2 rot: v640 Migration SQLite und PostgreSQL |
 
 Kein Marker unter `app/` nach den Läufen; jede rote nennt einen gescheiterten Test, keinen Sammelfehler.
+
+## 1.9.241 (Punkt 3): Plantafel -> Kran-Kalender
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – je Folge von Tagen ein Termin | jeder Tag ein eigener Termin (`241_1a`) | 11 rot: v641 |
+| Nr. 1 – nur aktive Geräte | auch inaktive (`241_1b`) | 1 rot: v641::test_ohne_postfach_oder_inaktiv_kein_termin |
+| Nr. 1 – ganztägig | nicht ganztägig (`241_1c`) | 6 rot: v641 |
+| Nr. 2 – „vorläufig:“ im Titel | ohne (`241_10`) | 3 rot: v641 |
+| Nr. 3 – Anlegen gleicht ab | kein Abgleich beim Anlegen (`241_2a`) | 11 rot: v641 |
+| Nr. 3 – Ändern verschiebt denselben Termin | löschen und neu anlegen (`241_2b`) | 1 rot: v641::test_aendern_verschiebt_den_termin |
+| Nr. 3 – Löschen nimmt ihn heraus | ohne `entfernen()` (`241_2c`) | 1 rot: v641::test_loeschen_nimmt_den_termin_aus_outlook |
+| Nr. 3 – geht sofort hinaus | nichts gesendet (`241_2d`) | 9 rot: v641 |
+| Nr. 4 – geschlossener Auftrag ohne Termine | `geschlossen()` übergangen (`241_3a`) | 1 rot: v641::test_geschlossener_auftrag_hat_keinen_termin |
+| Nr. 4 – der Statuswechsel gleicht ab | ohne `auftrag_abgleichen()` (`241_3b`) | 1 rot: dito |
+| Nr. 5 – Änderung in Outlook überschrieben | Änderung übernommen (`241_4a`) | 1 rot: v641::test_in_outlook_geaendert_ueberschreibt_der_abgleich |
+| Nr. 5 – in Outlook gelöscht -> neu | im ERP gelöscht (`241_4b`) | Runde 1 rot **aus dem falschen Grund** (mein Marker als Kommentar schnitt den Rest der Zeile ab: Sammelfehler); Runde 2 (Marker als Zeichenkette): rot, v641::test_in_outlook_geloescht_legt_der_abgleich_neu_an |
+| Nr. 5 – auch beim Abruf des ganzen Kalenders | 404 löscht (`241_4c`) | 1 rot: v641::test_ganzer_kalender_ohne_den_termin_legt_ihn_neu_an |
+| Nr. 6 – Büro-Kalender 409 | Prüfung weg (`241_5`) | 1 rot: v641::test_buero_kalender_aendert_ihn_nicht |
+| Nr. 7 – eigener Termin keine Belegung | Termine der Einsätze mitgezählt (`241_6`) | 4 rot: v641 |
+| Nr. 8 – der Termin wird der Termin des Einsatzes | nicht verknüpft (`241_7a`) | 3 rot: v641 |
+| Nr. 8 – Notiz außer privat | auch privat (`241_7b`) | 1 rot: v641::test_uebernehmen_ablehnungen |
+| Nr. 8 – nicht schon übernommen | Prüfung weg (`241_7c`) | Runde 1 **grün** (der zweite Versuch scheiterte an der Warnung „Gerät doppelt“, nicht an der Regel) -> Test mit „trotzdem planen“ und Meldungstext; Runde 2: rot, v641::test_termin_aus_outlook_als_kranvermietung_uebernehmen |
+| Nr. 8 – bis zum Tag vor einem Ende um Mitternacht | Tag des Endes (`241_7d`) | 1 rot: v641::test_uebernehmen_bis_mitternacht_ist_ein_tag |
+| Nr. 9 – Abgleich zieht nach | ohne `nachziehen()` (`241_8a`) | 1 rot: v641::test_postfach_nach_der_planung_zieht_der_abgleich_nach |
+| Nr. 9 – nur heute oder später endende | auch vergangene (`241_8b`) | Runde 1 rot **aus dem falschen Grund** (dito, Kommentar schnitt die Zeile ab); Runde 2: rot, dito |
+| Nr. 10 – nach der Planung inaktiv: Termin fällt weg | siehe `241_1b` | dito |
+| Nr. 11 – downgrade löscht die Termine der Einsätze | ohne DELETE (`241_9`) | 2 rot: v641 Migration SQLite und PostgreSQL |
+
+Kein Marker unter `app/` nach den Läufen. Nach `241_4b`/`241_8b` alle Läufe geprüft: jede andere rote nennt einen gescheiterten Test.

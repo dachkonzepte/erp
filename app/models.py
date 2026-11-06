@@ -5100,6 +5100,8 @@ class CalendarEvent(Base):
     resource_id: Mapped[int | None] = mapped_column(ForeignKey("operational_resources.id"), nullable=True, index=True)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True, index=True)
+    # seit 1.9.241 (Stufe 6, R3b, Punkt 3): Termin eines Einsatzes im Kalender seines Geräts (app/kran_kalender.py) -- die Plantafel ist führend
+    planning_slot_id: Mapped[int | None] = mapped_column(ForeignKey("planning_slots.id", ondelete="SET NULL"), nullable=True, index=True)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     # Stufe 2 (Outlook-Sync, seit 1.7.1) -- siehe Klassendocstring.

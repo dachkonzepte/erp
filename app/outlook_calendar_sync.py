@@ -1093,7 +1093,11 @@ def _weggefallene_entfernen(db: Session, postfach: Postfach, token: str, items: 
         try:
             _graph_call(token, f"{_mailbox_events_url(postfach.adresse)}/{zeile.outlook_event_id}", method="GET")
         except OutlookSyncError as exc:
-            if exc.status == 404:
+            if exc.status == 404 and zeile.planning_slot_id is not None:
+                # seit 1.9.241: ein Termin der Plantafel kommt neu hinaus statt wegzufallen (Plantafel führend)
+                _write_sync_bookkeeping(db, zeile, outlook_synced_at=None, outlook_event_id=None, outlook_postfach=None, outlook_etag=None)
+                counters["plantafel"] += 1
+            elif exc.status == 404:
                 db.delete(zeile)
                 db.commit()
                 counters["deleted"] += 1
@@ -1185,6 +1189,14 @@ def _apply_delta_change(db: Session, postfach: Postfach, item: dict, counters: d
             etag_eingehend=incoming_etag, entscheidung=entscheidung,
         )
 
+    if existing is not None and existing.planning_slot_id is not None and ("@removed" in item or _is_recurring(item) or _is_series_instance(item)):
+        # Seit 1.9.241 (Stufe 6, R3b, Punkt 3): ein Termin der Plantafel -- die Plantafel ist führend. In Outlook gelöscht (oder zur Serie gemacht):
+        # er verliert seine Kennung und geht in der Push-Phase desselben Laufs als neuer hinaus.
+        log("Plantafel führend: in Outlook gelöscht -> neu angelegt")
+        _write_sync_bookkeeping(db, existing, outlook_synced_at=None, outlook_event_id=None, outlook_postfach=None, outlook_etag=None)
+        counters["plantafel"] += 1
+        return None
+
     if "@removed" in item:
         if existing is not None:
             log("gelöscht (@removed)")  # VOR dem Löschen protokollieren, siehe Fallstrick oben
@@ -1263,6 +1275,14 @@ def _apply_delta_change(db: Session, postfach: Postfach, item: dict, counters: d
     # 'Schaukelnder Termin'" bzw. "Nachtrag seit 1.7.5" für die Umstellung von changeKey auf etag.
     if incoming_etag is not None and incoming_etag == existing.outlook_etag:
         log("etag-Echo (übersprungen)")
+        return None
+
+    if existing.planning_slot_id is not None:
+        # Seit 1.9.241: in Outlook geändert, aber die Plantafel ist führend -- nichts übernehmen; als „nicht übertragen“ markiert, überschreibt die
+        # Push-Phase desselben Laufs die Änderung mit dem Stand der Plantafel.
+        _write_sync_bookkeeping(db, existing, outlook_synced_at=None, outlook_etag=incoming_etag)
+        counters["plantafel"] += 1
+        log("Plantafel führend: Änderung in Outlook wird überschrieben", outlook_synced_at=None, etag_gespeichert=incoming_etag)
         return None
 
     # "Letzte Änderung gewinnt" (Punkt 5): nur anwenden, wenn Graphs Stand nachweislich neuer ist
@@ -1470,7 +1490,7 @@ def list_series_occurrences(db: Session, *, start: datetime | None = None, end: 
 
 
 _ZAEHLER = ("created", "updated", "deleted", "skipped_recurring", "skipped_invalid", "pushed_created", "pushed_updated", "push_failed",
-            "series_created", "series_updated", "series_deleted", "series_failed", "delta_reset")
+            "series_created", "series_updated", "series_deleted", "series_failed", "delta_reset", "plantafel")  # plantafel seit 1.9.241
 
 
 def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None = None) -> dict:
@@ -1506,6 +1526,11 @@ def _postfach_abgleichen(db: Session, postfach: Postfach, sperre: _Sperre, count
     diag = diagnostics_enabled()
 
     try:
+        if postfach.geraet is not None:
+            # seit 1.9.241: die Termine der Einsätze mit diesem Gerät nachziehen (ein Postfach, das erst nach der Planung kam; ein geänderter Auftrag)
+            from .kran_kalender import nachziehen  # lokal: app/kran_kalender.py liest die Plantafel
+            nachziehen(db, postfach.geraet)
+            db.commit()
         if _liegt_woanders(db, postfach):
             state.delta_link = None  # seit 1.9.160: erst der ganze Kalender sagt, was davon hier liegt (eine umbenannte Adresse) und was wirklich woanders
             db.commit()

@@ -138,10 +138,20 @@ def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_
     return _out(data, _role.id)
 
 
+PLANTAFEL_TERMIN = "Dieser Termin kommt aus der Plantafel (Einsatz mit dem Gerät) – bitte dort ändern oder löschen."
+
+
+def _nicht_aus_der_plantafel(event: CalendarEvent | None) -> None:
+    """Seit 1.9.241: einen Termin eines Einsatzes ändert nur die Plantafel (409)."""
+    if event is not None and event.planning_slot_id is not None:
+        raise HTTPException(status_code=409, detail=PLANTAFEL_TERMIN)
+
+
 @router.put("/api/calendar-events/{event_id}")
 def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     vorher = db.get(CalendarEvent, event_id)
+    _nicht_aus_der_plantafel(vorher)
     alte_lage = wo_er_liegt(vorher) if vorher is not None else None
     alter_besitzer = (vorher.owner_user_id, vorher.resource_id) if vorher is not None else None
     try:
@@ -161,6 +171,7 @@ def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session 
 def delete_calendar_event(event_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     event = db.get(CalendarEvent, event_id)
+    _nicht_aus_der_plantafel(event)
     if event is not None:
         # Best effort VOR dem lokalen Löschen (Punkt 5, "Löschungen beidseitig") -- siehe
         # try_delete_remote_event()-Docstring für das dabei bewusst akzeptierte Restrisiko.

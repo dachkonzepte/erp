@@ -106,6 +106,9 @@ GEPRUEFT = {
     # seit 1.9.240 (Stufe 6, R3b, Punkt 2): Kranvermietung mit Kunde -- derselbe Weg wie der Schnellauftrag
     "POST /api/planning/slots property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
+    # seit 1.9.241 (Stufe 6, R3b, Punkt 3): Termin am Kran als Kranvermietung übernehmen -- derselbe Weg wie das Anlegen
+    "POST /api/planning/kran-termine/{event_id}/kranvermietung property_id":
+        ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "POST /api/maintenance-contracts property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "PUT /api/maintenance-contracts/{contract_id} property_id":
@@ -296,6 +299,11 @@ FREI = {
                                       "order = db.get(Order, order_id) if order_id else None if order is None"),
     "POST /api/planning/slots order_id": ("verplant genau diesen Auftrag (Büro)", "planning._create_slot",
                                           "order = db.get(Order, order_id) if order is None"),
+    "POST /api/planning/kran-termine/{event_id}/kranvermietung order_id": (  # seit 1.9.241
+        "Kranvermietung an genau diesem Auftrag (Büro)", "planning._create_slot", "order = db.get(Order, order_id) if order is None"),
+    "POST /api/planning/kran-termine/{event_id}/kranvermietung customer_id": (  # seit 1.9.241
+        _BESITZER + " (Kranvermietung: Projekt und Auftrag für diesen Kunden; Objekt dazu: property_id, mit Bestätigung)",
+        "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
     "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
                                                "order = load_order(db, order_id) if order is None"),
     "POST /api/time-entries order_id": (_KONTEXT, "time_tracking.create_manual_entry", _AUFTRAG_FEHLT),

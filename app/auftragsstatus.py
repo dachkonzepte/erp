@@ -276,6 +276,9 @@ def _wechsel_schreiben(db: Session, order: Order, jetzt: str, ziel: str, text: s
         changed_by_name=(user_name or akteur_name or "System")[:160],
     ))
     order.status = ziel
+    from .kran_kalender import auftrag_abgleichen, senden  # lokal: app/kran_kalender.py liest die Einsätze (seit 1.9.241)
+    zu_senden = auftrag_abgleichen(db, order.id)  # abgeschlossen/storniert: keine Termine im Kalender des Krans, wieder offen: wieder da
     db.commit()
     db.refresh(order)
+    senden(db, zu_senden)
     return order

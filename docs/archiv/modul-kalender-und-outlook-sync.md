@@ -1478,3 +1478,61 @@ Spalte hatte im Änderungsprotokoll keinen Namen (`test_v436`, `test_v438` rot) 
 
 Nach der Gegenprobe `240_5b` (erst grün) verlangt `test_v640::test_aendern_einer_kranvermietung` zusätzlich: Kolonne setzen mit dem Kran in derselben
 Anfrage -> 422 „keine Kolonne“ (ohne Gerät in der Anfrage lehnte die Prüfung „mindestens ein Gerät“ ab, die Kolonne-Prüfung blieb ungesehen).
+
+### Umsetzung 1.9.241: Plantafel -> Kran-Kalender (Punkt 3)
+
+Vorgabe (Zeichnung „Kran-Kalender“): Einsätze mit dem Kran (Baustelle und Vermietung) erscheinen an ihren Tagen im Kran-Postfach, für sie ist die
+Plantafel führend, Änderungen in Outlook überschreibt der nächste Abgleich; Termine, die direkt in Outlook entstehen, bleiben Termine am Kran (1.9.161)
+und lassen sich als Kranvermietung übernehmen (Schnittstelle, Knopf mit R4). Das Kran-Postfach ist noch nicht eingerichtet: gebaut und geprüft gegen die
+Graph-Attrappe (`tests/outlook_attrappe.py`).
+
+`app/kran_kalender.py`, `calendar_events.planning_slot_id` (Migration `c9d2e6a3f417`, Fremdschlüssel mit ON DELETE SET NULL, Index):
+- `soll()`: je Gerät des Einsatzes mit Postfach (aktiv) und je Folge zusammenhängender Tage des Geräts (alle Tage des Zeitraums oder seine einzelnen Tage)
+  ein ganztägiger Termin; Besitzer das Gerät, Herkunft „erp“; Titel „<Auftrag> · <Projekt>“ bzw. „Kranvermietung · <Kunde>“, „vorläufig:“ davor; Ort die
+  Adresse; Text: Hinweis „Aus der Plantafel – bitte dort ändern …“, Besetzung bzw. Bediener, Notiz. Ein Einsatz eines abgeschlossenen oder stornierten
+  Auftrags hat keine.
+- `abgleichen()` (ohne Commit) aus `create_slot()`/`update_slot()` vor dem Commit, `entfernen()` aus `delete_slot()`, `auftrag_abgleichen()` aus dem
+  Statuswechsel (`app/auftragsstatus.py::_wechsel_schreiben()`); was stimmt, bleibt; ein Termin desselben Geräts wandert auf neue Tage, statt gelöscht und neu
+  angelegt zu werden; was übrig ist, fällt weg (Löschauftrag, wenn er in Outlook liegt). `senden()` nach dem Commit: `push_event_best_effort()` und die
+  Löschaufträge -- wie jeder Termin des ERP; was scheitert, holt der nächste Lauf nach.
+- `nachziehen()` vor dem Abgleich eines Geräte-Postfachs (`app/outlook_calendar_sync.py::_postfach_abgleichen()`): die Termine jedes Einsatzes mit diesem
+  Gerät, der heute oder später endet.
+- Abgleich, Plantafel führend (`_apply_delta_change()`, `_weggefallene_entfernen()`): eine Änderung aus Outlook wird nicht übernommen, der Termin gilt als
+  „nicht übertragen“ und die Push-Phase desselben Laufs überschreibt sie; gelöscht (auch beim Abruf des ganzen Kalenders mit 404) oder zur Serie gemacht ->
+  er verliert seine Kennung und geht als neuer hinaus. Zähler `plantafel`.
+- `termine_der_geraete()` übergeht die Termine der Einsätze (keine Belegung gegen sich selbst); ein Termin direkt in Outlook warnt weiter als „Gerät doppelt“.
+- Büro-Kalender: `PUT`/`DELETE /api/calendar-events/{id}` an einem Termin der Plantafel 409 („bitte dort ändern oder löschen“).
+- Übernehmen: `app/planning.py::kran_termin_uebernehmen()`, `POST /api/planning/kran-termine/{event_id}/kranvermietung` (Schema `KranTerminUebernahme`: Auftrag
+  oder Kunde wie beim Anlegen, Bediener, Status, Notiz, Stunden, `trotzdem_planen`). Nur ein Termin am Gerät, nicht schon übernommen (409), unbekannt 404.
+  Zeitraum vom Termin (ganztägig erster bis letzter Tag, sonst Tag des Beginns bis zum Tag vor einem Ende um Mitternacht), das Gerät für alle Tage, ohne
+  Notiz der Titel des Termins (außer privat). Der Termin wird vor der Prüfung der Warnungen der Termin des Einsatzes (sonst warnte er gegen sich selbst),
+  Herkunft „erp“; der nächste Abgleich überschreibt ihn in Outlook mit dem Stand der Plantafel. Eine Warnung lässt nichts zurück.
+
+### Festlegungen 1.9.241 (Bitte bestätigen)
+
+1. Ein Einsatz mit einem aktiven Gerät mit Postfach steht im Kalender dieses Geräts: je Folge zusammenhängender Tage des Geräts ein ganztägiger Termin
+   (ein Gerät für alle Tage: der ganze Zeitraum, auch das Wochenende darin).
+2. Besitzer das Gerät, Herkunft „erp“; Titel „<Auftrag> · <Projekt>“ bzw. „Kranvermietung · <Kunde>“, „vorläufig:“ davor; Ort die Adresse; Text Hinweis,
+   Besetzung bzw. Bediener, Notiz.
+3. Anlegen, Ändern und Löschen gleichen im selben Commit ab und senden sofort; Ändern verschiebt denselben Termin, Löschen geht über einen Löschauftrag.
+4. Ein abgeschlossener oder stornierter Auftrag hat keine Termine im Kalender des Geräts; der Statuswechsel nimmt sie heraus und legt sie wieder an.
+5. Plantafel führend: eine Änderung in Outlook überschreibt der nächste Abgleich; gelöscht oder zur Serie gemacht, legt er den Termin neu an.
+6. Der Büro-Kalender ändert und löscht einen Termin der Plantafel nicht (409).
+7. Ein Termin der Plantafel ist keine Belegung gegen Einsätze; ein Termin direkt in Outlook bleibt eine (wie 1.9.161).
+8. Übernehmen: nur ein Termin am Gerät, nicht schon übernommen (409), unbekannt 404; Kranvermietung mit dem Gerät an den Tagen des Termins (bis zum Tag vor
+   einem Ende um Mitternacht); der Termin wird ihr Termin; Notiz der Titel, außer privat; eine Warnung lässt nichts zurück.
+9. Der Abgleich eines Geräte-Postfachs zieht die Termine jedes Einsatzes nach, der heute oder später endet; ein vergangener bekommt keinen.
+10. Ein Gerät, das nach der Planung inaktiv wird oder sein Postfach verliert: sein Termin fällt beim nächsten Speichern des Einsatzes weg.
+11. Migration `c9d2e6a3f417`: bestehende Termine bleiben ohne Einsatz; downgrade() löscht die Termine der Einsätze im ERP (in Outlook bleiben sie).
+
+### Tests und Prüfung 1.9.241
+
+Neu: `tests/test_v641_kran_kalender.py` (Folgen von Tagen, Termin und Push, einzelne Tage, ohne Postfach und inaktiv, Verschieben, Löschen, Storno und
+zurück, Kranvermietung mit Bediener, in Outlook geändert und gelöscht, ganzer Kalender ohne den Termin, Büro-Kalender 409, eigener und fremder Termin,
+Übernehmen mit Ablehnungen und bis Mitternacht, Nachziehen, Migration unter SQLite und PostgreSQL) -- gegen die Graph-Attrappe aus `test_v579`.
+Gegenproben: Archiv `gegenproben-stufe6-r3b.md` (`241_7c` blieb zuerst grün: der zweite Übernahmeversuch scheiterte an der Warnung „Gerät
+doppelt“ -- der Test versucht es jetzt mit „trotzdem planen“ und prüft die Meldung).
+
+Angepasster Aufbau (Regel 28): `tests/test_v373_zugehoerigkeit_struktur.py` -- neu eingeordnet `POST /api/planning/kran-termine/{event_id}/kranvermietung`
+mit `order_id` (FREI, `planning._create_slot`), `customer_id` (FREI, `zugehoerigkeit.require_customer`) und `property_id` (GEPRUEFT). Dazu im Änderungsprotokoll
+der Name der neuen Spalte („Einsatz der Plantafel“, `app/audit.py`). Erwartungen bleiben.

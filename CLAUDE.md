@@ -1218,7 +1218,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `scripts/klicktest_plantafel_besetzung.py` (seit 1.9.237). Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener
-  = Besetzung (`tests/test_v640_kranvermietung.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
+  = Besetzung (`tests/test_v640_kranvermietung.py`). Seit 1.9.241 steht ein Einsatz mit einem Gerät mit Postfach im Kalender des Geräts
+  (`app/kran_kalender.py`, `CalendarEvent.planning_slot_id`, je Folge von Tagen ein ganztägiger Termin): die Plantafel ist führend -- der Abgleich
+  überschreibt Änderungen aus Outlook und legt Gelöschtes neu an, der Büro-Kalender ändert ihn nicht (409); ein Termin direkt in Outlook bleibt Termin am
+  Kran und wird über `POST /api/planning/kran-termine/{id}/kranvermietung` eine Kranvermietung (`tests/test_v641_kran_kalender.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
   `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
   nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
   `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,

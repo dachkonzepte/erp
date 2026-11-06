@@ -3197,6 +3197,27 @@ class PlanningSlotCreate(BaseModel):
         return self
 
 
+class KranTerminUebernahme(BaseModel):
+    """Seit 1.9.241 (Stufe 6, R3b, Punkt 3): einen Termin am Kran als Kranvermietung übernehmen -- an einem Auftrag oder mit Kunde (wie
+    PlanningSlotCreate), Bediener wahlweise. Zeitraum und Gerät kommen vom Termin."""
+    order_id: int | None = None
+    customer_id: int | None = None
+    property_id: int | None = None
+    confirm_property_customer: bool = False
+    titel: str | None = Field(default=None, max_length=255)
+    employee_ids: list[int] | None = None
+    status: Literal["vorlaeufig", "fest"] = "vorlaeufig"
+    notes: str | None = None
+    planned_hours: Decimal | None = Field(default=None, ge=0)
+    trotzdem_planen: bool = False
+
+    @model_validator(mode="after")
+    def validate_auftrag_oder_kunde(self):
+        if (self.order_id is None) == (self.customer_id is None):
+            raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides.")
+        return self
+
+
 class PlanningSlotUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): Verschieben auf der Plantafel schickt nur Team, Beginn und Ende -- vorher gingen
     Status, Notiz, Planstunden und Anfahrt mit dem beim Laden gemerkten Stand mit. Ende vor Beginn prüft app/planning.py::

@@ -23,9 +23,9 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, BesetzungUngueltig, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
 
@@ -249,6 +249,25 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:  # seit 1.9.233 auch BesetzungUngueltig (unbekannte oder inaktive Person, ohne Kolonne ohne Personen)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _einsatz_antwort(db, slot, _role)
+
+
+@router.post("/api/planning/kran-termine/{event_id}/kranvermietung")
+def post_kran_termin_uebernehmen(event_id: int, payload: KranTerminUebernahme, db: Session = Depends(get_db, scope="function"),
+                                 _role: AppUser = _role_dep):
+    """Seit 1.9.241 (Stufe 6, R3b, Punkt 3): ein Termin am Kran wird eine Kranvermietung (der Knopf kommt mit R4). Antworten wie beim Anlegen eines
+    Einsatzes; dazu 404 (Termin unbekannt) und 409 (kein Termin an einem Gerät oder schon übernommen)."""
+    try:
+        slot = kran_termin_uebernehmen(db, event_id, **payload.model_dump())
+    except PlanungsWarnung as exc:
+        return _warnung_antwort(exc, _role)
+    except (AuftragGeschlossen, KranTerminUngueltig, PropertyCustomerMismatch) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        code = 404 if str(exc) == "Termin nicht gefunden." else 422
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
     return _einsatz_antwort(db, slot, _role)
 
 

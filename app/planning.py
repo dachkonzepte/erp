@@ -24,6 +24,7 @@ from .models import (
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
 )
 from .akte import stunden_text
+from . import kran_kalender
 from .orders import employee_assigned_order_ids, load_order
 from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
@@ -687,7 +688,7 @@ def _create_slot(
     status: str = "vorlaeufig", notes: str | None = None, planned_hours: Decimal | None = None,
     travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
     geraete: list[dict] | None = None, art: str = "baustelle", customer_id: int | None = None, property_id: int | None = None,
-    confirm_property_customer: bool = False, titel: str | None = None,
+    confirm_property_customer: bool = False, titel: str | None = None, kran_termin_id: int | None = None,
 ) -> PlanningSlot:
     """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
     angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung.
@@ -751,10 +752,16 @@ def _create_slot(
     db.flush()
     hours = _remaining_order_hours(db, prep) if planned_hours is None else _d(planned_hours)
     db.add(PlanningSlotCapacity(slot_id=slot.id, planned_hours=hours, travel_hours_per_employee_day=travel))
+    if kran_termin_id is not None:
+        # seit 1.9.241: der übernommene Termin am Kran gehört ab jetzt zum Einsatz (vor der Prüfung -- sonst warnte er gegen sich selbst)
+        termin = db.get(CalendarEvent, kran_termin_id)
+        termin.planning_slot_id, termin.external_source = slot.id, "erp"
     db.flush()
     if not trotzdem_planen:
         _warnungen_pruefen(db, slot.id)
+    zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241: Termine im Kalender des Krans
     db.commit()
+    kran_kalender.senden(db, zu_senden)
     return _load_slot(db, slot.id)
 
 
@@ -853,7 +860,9 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **
     db.flush()
     if not trotzdem_planen and (neues_team, start_date, end_date, tuple(x.employee_id for x in slot.besetzung), _geraete_stand(slot)) != vorher:
         _warnungen_pruefen(db, slot.id)
+    zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241
     db.commit()
+    kran_kalender.senden(db, zu_senden)
     return _load_slot(db, slot.id)
 
 
@@ -866,8 +875,10 @@ def delete_slot(db: Session, slot_id: int) -> int:
     # -- sonst konnten Entfernen (Einsatz, dann Vorbereitung) und gleichzeitiges Verschieben desselben Einsatzes sich gegenseitig
     # blockieren (Deadlock unter PostgreSQL).
     db.execute(select(WorkPreparation.id).where(WorkPreparation.id == prep_id).with_for_update())
+    kran_kalender.entfernen(db, slot_id)  # seit 1.9.241: seine Termine im Kalender des Krans fallen weg
     db.delete(slot)
     db.commit()
+    kran_kalender.senden(db, [])
     return prep_id
 
 
@@ -1385,7 +1396,10 @@ def termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSetti
     von, bis = datetime.combine(slot.start_date, time.min), datetime.combine(slot.end_date, time.max)
     out = []
     for modell in (CalendarEvent, OutlookSeriesOccurrence):
-        for zeile in db.scalars(select(modell).where(modell.resource_id.in_(geraete), modell.start_at <= bis, modell.end_at >= von).order_by(modell.start_at)):
+        bedingung = [modell.resource_id.in_(geraete), modell.start_at <= bis, modell.end_at >= von]
+        if modell is CalendarEvent:
+            bedingung.append(CalendarEvent.planning_slot_id.is_(None))  # seit 1.9.241: die Termine der Einsätze selbst sind keine fremde Belegung
+        for zeile in db.scalars(select(modell).where(*bedingung).order_by(modell.start_at)):
             tag = next((t for t in tage_je[zeile.resource_id] if zeile.start_at.date() <= t <= zeile.end_at.date()), None)
             if tag is not None:
                 out.append((geraete[zeile.resource_id], zeile, tag))
@@ -1424,6 +1438,34 @@ def _pruefungen(db: Session, geraet_ids: set[int]) -> dict[int, list[tuple[str, 
             .order_by(OperationalAssetInspection.next_due_date, OperationalAssetInspection.id)):
         je.setdefault(rid, []).append((art, faellig))
     return je
+
+
+class KranTerminUngueltig(ValueError):
+    """Seit 1.9.241: der Termin lässt sich nicht als Kranvermietung übernehmen (kein Termin am Gerät, schon übernommen) -- 409."""
+
+
+def kran_termin_uebernehmen(db: Session, event_id: int, **werte) -> PlanningSlot:
+    """Seit 1.9.241 (Stufe 6, R3b, Punkt 3): ein Termin, der direkt im Kalender des Krans entstand (Telefon, WhatsApp, Mail), wird eine Kranvermietung --
+    an einem Auftrag oder mit Kunde wie create_slot(), mit dem Gerät des Termins für alle Tage, an seinen Tagen (ein ganztägiger von erstem bis letztem
+    Tag, sonst der Tag des Beginns bis zum Tag vor dem Ende um Mitternacht). Der Termin wird der Termin des neuen Einsatzes (die Plantafel ist ab jetzt
+    führend, der nächste Abgleich überschreibt ihn in Outlook). Ohne Notiz übernimmt der Einsatz den Titel des Termins, außer der Termin ist privat."""
+    termin = db.scalar(select(CalendarEvent).where(CalendarEvent.id == event_id).with_for_update())
+    if termin is None:
+        db.rollback()
+        raise ValueError("Termin nicht gefunden.")
+    if termin.resource_id is None or termin.planning_slot_id is not None:
+        db.rollback()
+        raise KranTerminUngueltig("Nur ein Termin aus dem Kalender eines Geräts lässt sich als Kranvermietung übernehmen." if termin.resource_id is None
+                                  else "Dieser Termin gehört schon zu einem Einsatz der Plantafel.")
+    von = termin.start_at.date()
+    if termin.all_day:
+        bis = termin.end_at.date()
+    else:
+        bis = (termin.end_at - timedelta(microseconds=1)).date() if termin.end_at > termin.start_at else von
+    if werte.get("notes") is None and not termin.is_private:
+        werte["notes"] = termin.title
+    return create_slot(db, art="kranvermietung", team_id=None, geraete=[{"resource_id": termin.resource_id}], start_date=von, end_date=max(von, bis),
+                       kran_termin_id=termin.id, **werte)
 
 
 def _warnungen_pruefen(db: Session, slot_id: int) -> None:
