@@ -21,8 +21,13 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
     Offen        Zahl der eigenen offenen Berichte, offenen Checklisten (wie GET /api/checklists/mine), Mängel zur Beseitigung
                  (list_field_defects()) und seit 1.9.49 der Wartungsverträge an meinen Objekten (list_relevant_contracts_for_employee())
                  -- dieselben Listen wie auf „Heute / Offen“ (/mobil/offen).
-    Nächste Tage Plantafel ab morgen, 14 Tage (bei offener Zeit von früher ab heute, Vorlage „Heute und nächste Tage“); aufeinander
-                 folgende Tage desselben Auftrags in einer Zeile.
+    Nächste Tage Plantafel ab morgen, 14 Tage (bei offener Zeit von früher ab heute, Vorlage „Heute und nächste Tage“); seit 1.9.242 je Einsatz
+                 die aufeinander folgenden Arbeitstage in einer Zeile (ohne Wochenende, Feiertag, betriebsfreien Tag und eigene Abwesenheit), dazu
+                 jede eigene Abwesenheit und jeder eigene offene Antrag als eigene Zeile; bis 1.9.241 je Auftrag alle Kalendertage.
+    Einsatz      seit 1.9.242 (Stufe 6, R3b, Punkt 4, Zeichnung heute-einsatz.html) in der Karte: vorläufig/fest, „Mit dir“ (die Besetzung ohne
+                 sie selbst; wer heute abwesend ist, steht nur als „ist nicht da“ dabei, nie mit der Art), die Geräte an ihren Tagen, die Notiz des
+                 Einsatzes, die Baustellenhinweise der Arbeitsvorbereitung. Die Karte gibt es nur an einem Arbeitstag und nicht, wenn sie selbst
+                 abwesend ist (heute_frei sagt dann, warum; Schlüssel der Karte: angaben).
     Aufträge     seit 1.9.75 (Stufe 4, R4 Nachtrag): die Auftragsliste der Monteurin (list_field_bookable_orders(), dieselbe wie „Zeit
                  nachtragen“) für den Dialog „Für welchen Auftrag?“ -- „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen
                  Auftrag“ (1.9.74–1.9.78 durfte sie genau dafür anlegen; seit 1.9.79 zu jedem nicht stornierten Auftrag, die übrigen
@@ -41,10 +46,10 @@ from .concern_notices import open_concerns
 from .defects import list_field_defects
 from .maintenance_contracts import list_relevant_contracts_for_employee
 from .meldungen import MONAT_ABGESCHLOSSEN
-from .models import Checklist, Employee, Order, ServiceReport
+from .models import Checklist, Employee, Order, PlanningSlot, PlanningSlotEmployee, PlanningSlotResource, Project, ServiceReport, WorkPreparation
 from .modules import is_module_enabled
 from .option_settings import get_option_group
-from .planning import list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
+from .planning import list_field_bookable_orders, list_todays_assignments_for_employee
 from .service_reports import REPORT_TYPE_LABELS, _report_roof_areas_to_dicts, list_draft_reports_for_employee, noch_offen
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
@@ -53,6 +58,85 @@ from .time_tracking import (
 )
 
 NAECHSTE_TAGE = 14
+WOCHENTAGE = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+
+
+class Tage:
+    """Seit 1.9.242: Arbeitstage und die eigenen Abwesenheiten einer Person von von bis bis -- dieselbe Rechnung wie die Plantafel (Arbeitstage der
+    Planung, Feiertage und betriebsfreie Tage; genehmigte Abwesenheit und Freistellung des Arbeitszeitkalenders, app/planning.py::_abwesend_map())."""
+
+    def __init__(self, db: Session, employee_id: int, von: date, bis: date):
+        from .planning import _absence_rows, _abwesend_map, _combined_holiday_map, _is_workday, _offene_antraege, load_planning_settings
+        einstellungen = load_planning_settings(db)
+        feiertage = set(_combined_holiday_map(db, von, bis)[0])
+        self.arbeitstage = {von + timedelta(days=i) for i in range((bis - von).days + 1)
+                            if _is_workday(von + timedelta(days=i), einstellungen, feiertage)}
+        self.zeilen = _absence_rows(db, von, bis, {employee_id})
+        person = db.get(Employee, employee_id)
+        self.abwesend = {tag: a for (eid, tag), a in _abwesend_map(db, self.zeilen, [person], von, bis).items() if eid == employee_id}
+        self.antraege = _offene_antraege(db, von, bis, {employee_id}).get(employee_id, [])
+
+    def arbeitet(self, tag: date) -> bool:
+        return tag in self.arbeitstage and tag not in self.abwesend
+
+
+def _tag_kurz(tag: date) -> str:
+    return f"{WOCHENTAGE[tag.weekday()]} {tag:%d.%m.}"
+
+
+def _slots(db: Session, employee_id: int, von: date, bis: date) -> list[PlanningSlot]:
+    """Die Einsätze, in deren Besetzung sie steht und die von..bis berühren -- mit Besetzung, Geräten, Arbeitsvorbereitung, Auftrag und Objekt."""
+    from .planning import _employee_assignment_slot_condition
+    return db.scalars(select(PlanningSlot).options(
+        selectinload(PlanningSlot.besetzung).selectinload(PlanningSlotEmployee.employee),
+        selectinload(PlanningSlot.geraete).selectinload(PlanningSlotResource.resource),
+        selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project).selectinload(Project.property),
+    ).where(PlanningSlot.start_date <= bis, PlanningSlot.end_date >= von, _employee_assignment_slot_condition(employee_id))
+        .order_by(PlanningSlot.start_date, PlanningSlot.id)).all()
+
+
+def _name(e: Employee | None) -> str:
+    return " ".join(x for x in [(e.first_name or "").strip(), (e.last_name or "").strip()] if x) if e is not None else "?"
+
+
+def einsatz_details(db: Session, employee_id: int, slots: list[PlanningSlot], heute: date) -> dict:
+    """Seit 1.9.242: was die Karte des heutigen Einsatzes zu den Einsätzen eines Auftrags zeigt -- Status (vorläufig, wenn einer davon vorläufig ist),
+    „Mit dir“, wer nicht da ist (nur der Name), Geräte an ihren Tagen (mit Zusatz bei einzelnen Tagen), Notiz, Baustellenhinweise."""
+    from .planning import EINSATZ_STATUS, _abwesend_map, _absence_rows, _geraet_tage
+    andere = []
+    for s in slots:
+        for x in s.besetzung:
+            if x.employee_id != employee_id and x.employee_id not in [a.id for a in andere]:
+                andere.append(x.employee)
+    weg = {eid for (eid, _tag) in _abwesend_map(db, _absence_rows(db, heute, heute, {a.id for a in andere}), andere, heute, heute)} if andere else set()
+    geraete, gesehen = [], set()
+    for s in slots:
+        for row in s.geraete:
+            tage = sorted(_geraet_tage(s, row))
+            if heute not in tage or row.resource_id in gesehen:
+                continue
+            gesehen.add(row.resource_id)
+            zusatz = None
+            if row.tage:
+                spaeter = [t for t in tage if t > heute]
+                zusatz = "nur heute" if not spaeter else "auch " + ", ".join(_tag_kurz(t) for t in spaeter[:3]) + (" …" if len(spaeter) > 3 else "")
+            geraete.append({"name": row.resource.name if row.resource else f"Gerät #{row.resource_id}", "zusatz": zusatz})
+    notizen = [s.notes.strip() for s in slots if (s.notes or "").strip()]
+    baustelle = (slots[0].preparation.site_notes or "").strip() or None
+    status = "vorlaeufig" if any(s.status == "vorlaeufig" for s in slots) else "fest"
+    return {"status": status, "status_label": EINSATZ_STATUS.get(status, status),
+            "mit_dir": [_name(a) for a in andere if a.id not in weg], "nicht_da": [_name(a) for a in andere if a.id in weg],
+            "geraete": geraete, "notiz": "\n".join(dict.fromkeys(notizen)) or None, "baustelle": baustelle}
+
+
+def heute_frei(tage: Tage, heute: date) -> str | None:
+    """Seit 1.9.242: warum es heute keine Karte gibt -- kein Arbeitstag oder die eigene Abwesenheit (die eigene Art darf sie lesen); sonst None."""
+    if heute not in tage.arbeitstage:
+        return "Heute ist kein Arbeitstag."
+    a = tage.abwesend.get(heute)
+    if a is not None:
+        return f"Heute bist du nicht eingeplant: {a.absence_type}."
+    return None
 
 
 def zeitarten(db: Session) -> list[dict]:
@@ -182,8 +266,12 @@ def _checklisten(db: Session, employee_id: int, order_ids: list[int], heute: dat
     return result
 
 
-def einsaetze(db: Session, employee_id: int, *, heute: date) -> list[dict]:
-    """Heutiger Einsatz je Auftrag (nicht je Plantafel-Abschnitt), in der Reihenfolge des frühesten Abschnitts."""
+def einsaetze(db: Session, employee_id: int, *, heute: date, tage: Tage | None = None) -> list[dict]:
+    """Heutiger Einsatz je Auftrag (nicht je Plantafel-Abschnitt), in der Reihenfolge des frühesten Abschnitts. Seit 1.9.242 nur an einem Arbeitstag
+    und nicht, wenn sie heute abwesend ist; dazu je Karte einsatz_details()."""
+    tage = tage or Tage(db, employee_id, heute, heute)
+    if not tage.arbeitet(heute):
+        return []
     karten: dict[int, dict] = {}
     for a in list_todays_assignments_for_employee(db, employee_id, heute):
         karte = karten.get(a["order_id"])
@@ -203,9 +291,13 @@ def einsaetze(db: Session, employee_id: int, *, heute: date) -> list[dict]:
     mit_checklisten = is_module_enabled(db, "checklisten")
     checklisten = _checklisten(db, employee_id, order_ids, heute) if mit_checklisten else {}
     bedenken = open_concerns(db, sorted(order_ids)) if mit_checklisten else {}
+    je_auftrag: dict[int, list[PlanningSlot]] = {}
+    for s in _slots(db, employee_id, heute, heute):
+        je_auftrag.setdefault(s.preparation.order_id, []).append(s)
     return [{**k, "title": auftraege.get(k["order_id"], (None, None))[1], "berichte": berichte.get(k["order_id"], []),
              "checklisten": checklisten.get(k["order_id"], []), "open_concerns": bedenken.get(k["order_id"], []),
-             "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"]))}
+             "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"])),
+             "angaben": einsatz_details(db, employee_id, je_auftrag.get(k["order_id"], []), heute) if je_auftrag.get(k["order_id"]) else None}
             for k in karten.values()]
 
 
@@ -222,53 +314,63 @@ def offen(db: Session, employee_id: int) -> dict:
     return {"berichte": berichte, "checklisten": checklisten, "maengel": len(list_field_defects(db, employee_id)), "wartungen": wartungen}
 
 
-def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool, einsatz_auftraege: set[int]) -> list[dict]:
-    """Plantafel ab morgen für 14 Tage (mit_heute: dazu heute als eigene Zeile); je Auftrag die aufeinander folgenden Tage in einer
-    Zeile. Zusatz hinter dem Objekt: „Fortsetzung“, wenn der Auftrag heute schon Einsatz ist, sonst der Titel des Auftrags."""
-    morgen, ende = heute + timedelta(days=1), heute + timedelta(days=NAECHSTE_TAGE)
-    tage: dict[int, set[date]] = {}
-    info: dict[int, dict] = {}
-    for a in list_upcoming_assignments_for_employee(db, employee_id, today=heute, days_ahead=NAECHSTE_TAGE):
-        tag = max(a["start_date"], morgen)
-        while tag <= min(a["end_date"], ende):
-            tage.setdefault(a["order_id"], set()).add(tag)
+def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool, einsatz_auftraege: set[int], tage: Tage | None = None) -> list[dict]:
+    """Seit 1.9.242 (Stufe 6, R3b, Punkt 4): je Einsatz die aufeinander folgenden Arbeitstage ab morgen (mit_heute: ab heute) für 14 Tage -- ohne
+    Wochenende, Feiertag, betriebsfreien Tag und Tage eigener Abwesenheit, jede Lücke beginnt eine neue Zeile; mit_heute steht heute als eigene Zeile
+    vorn. Zusatz: „weiter“, wenn der Einsatz heute schon läuft; sonst „mit <Vornamen der anderen>“ und „vorläufig“, ohne beides der Titel des
+    Auftrags; Tage desselben Auftrags mit demselben Zusatz stehen in einer Zeile (zwei Einsätze nebeneinander). Dazu jede eigene genehmigte
+    Abwesenheit („<Art> · genehmigt“) und jeder offene Antrag („<Art> · beantragt“) als eigene Zeile, von ihrem ersten bis letzten Arbeitstag im
+    Fenster. Bis 1.9.241: je Auftrag alle Kalendertage in einer Zeile, Zusatz „Fortsetzung“ oder der Titel."""
+    beginn, ende = (heute if mit_heute else heute + timedelta(days=1)), heute + timedelta(days=NAECHSTE_TAGE)
+    tage = tage or Tage(db, employee_id, heute, ende)
+    tage_je: dict[tuple, set[date]] = {}  # (Auftrag, Zusatz) -> Tage: zwei Einsätze desselben Auftrags mit demselben Zusatz in einer Zeile
+    info = {}
+    for s in _slots(db, employee_id, beginn, ende):
+        order = s.preparation.order
+        prop = order.project.property if order.project else None
+        info[order.id] = {"order_number": order.order_number, "objekt": (prop.name if prop else order.property_name) or order.customer_name}
+        andere = [(x.employee.first_name or _name(x.employee)).strip() for x in s.besetzung if x.employee_id != employee_id]
+        teile = (["mit " + ", ".join(andere)] if andere else []) + (["vorläufig"] if s.status == "vorlaeufig" else [])
+        sonst = " · ".join(teile) or order.title or order.order_number
+        tag = max(s.start_date, beginn)
+        while tag <= min(s.end_date, ende):
+            if tage.arbeitet(tag):
+                neben = "weiter" if s.start_date <= heute <= s.end_date and tag > heute else sonst  # mit_heute: heute eigene Zeile vorn
+                tage_je.setdefault((order.id, neben), set()).add(tag)
             tag += timedelta(days=1)
-        info.setdefault(a["order_id"], a)
-    titel = dict(db.execute(select(Order.id, Order.title).where(Order.id.in_(list(info)))).all()) if info else {}
-    zeilen = []
-    if mit_heute:
-        for order_id in sorted(einsatz_auftraege, key=lambda o: info.get(o, {}).get("order_number") or ""):
-            if order_id in info:
-                zeilen.append(_zeile(info[order_id], heute, heute, titel.get(order_id)))
-    for order_id, menge in tage.items():
-        folge = sorted(menge)
-        von = vorher = folge[0]
-        for tag in folge[1:] + [None]:
-            if tag is not None and tag == vorher + timedelta(days=1):
-                vorher = tag
-                continue
-            nebentext = "Fortsetzung" if order_id in einsatz_auftraege else titel.get(order_id)
-            zeilen.append(_zeile(info[order_id], von, vorher, nebentext))
-            if tag is not None:
-                von = vorher = tag
-    return sorted(zeilen, key=lambda z: (z["von"], z["bis"], z["order_number"] or ""))
+    zeilen = [{"art": "einsatz", "von": von, "bis": bis, "order_id": oid, "order_number": info[oid]["order_number"], "objekt": info[oid]["objekt"],
+               "nebentext": neben}
+              for (oid, neben), menge in tage_je.items() for von, bis in _folgen(list(menge))]
+    for a, stand in [*((z, "genehmigt") for z in tage.zeilen), *((z, "beantragt") for z in tage.antraege)]:
+        arbeit = [t for t in sorted(tage.arbeitstage) if max(a.start_date, beginn) <= t <= min(a.end_date, ende)]
+        if arbeit:
+            zeilen.append({"art": "abwesenheit", "von": arbeit[0], "bis": arbeit[-1], "order_id": None, "order_number": None,
+                           "objekt": a.absence_type or "Abwesenheit", "nebentext": stand})
+    return sorted(zeilen, key=lambda z: (z["von"], z["bis"], z["art"], z["order_number"] or ""))
 
 
-def _zeile(a: dict, von: date, bis: date, nebentext: str | None) -> dict:
-    return {"von": von, "bis": bis, "order_id": a["order_id"], "order_number": a["order_number"],
-            "objekt": a["property_name"] or a["customer_name"], "nebentext": nebentext or a["order_number"]}
+def _folgen(tage_liste: list[date]) -> list[tuple[date, date]]:
+    """Aufeinander folgende Kalendertage als (erster, letzter); ein ausgelassener Tag (Wochenende, Feiertag, Abwesenheit) trennt."""
+    out: list[tuple[date, date]] = []
+    for t in sorted(tage_liste):
+        if out and t == out[-1][1] + timedelta(days=1):
+            out[-1] = (out[-1][0], t)
+        else:
+            out.append((t, t))
+    return out
 
 
 def heute_fuer(db: Session, employee_id: int, *, heute: date, jetzt: datetime, ist_monteur: bool) -> dict:
     arten = zeitarten(db)
-    karten = einsaetze(db, employee_id, heute=heute)
+    tage = Tage(db, employee_id, heute, heute + timedelta(days=NAECHSTE_TAGE))  # seit 1.9.242: Arbeitstage und eigene Abwesenheit
+    karten = einsaetze(db, employee_id, heute=heute, tage=tage)
     einsatz_auftraege = {k["order_id"] for k in karten}
     auftraege = list_field_bookable_orders(db, employee_id)
     zeit = arbeitszeit(db, employee_id, heute=heute, jetzt=jetzt, ist_monteur=ist_monteur, arten=arten,
                        einsatz_auftraege=sorted(einsatz_auftraege), auftraege=auftraege)
     return {
         "tag": heute, "mitarbeiter_id": employee_id, "arbeitszeit": zeit, "zeitarten": arten, "einsaetze": karten, "offen": offen(db, employee_id),
-        "auftraege": auftraege,
+        "auftraege": auftraege, "heute_frei": heute_frei(tage, heute),
         "naechste_tage": naechste_tage(db, employee_id, heute=heute, mit_heute=zeit["zustand"] == "frueher",
-                                       einsatz_auftraege=einsatz_auftraege),
+                                       einsatz_auftraege=einsatz_auftraege, tage=tage),
     }

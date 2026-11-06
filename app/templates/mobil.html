@@ -123,6 +123,14 @@
     /* seit 1.9.93: der Auftrag der Karte, „Nummer · Titel“ (_auftrag_text.html) */
     .einsatz-auftrag{font-size:16px;font-weight:600;color:var(--ds-text);margin:2px 0 2px;overflow-wrap:anywhere}
     /* seit 1.9.87: Kennzeichen eines abgeschlossenen oder stornierten Auftrags in seiner Einsatzkarte */
+    /* seit 1.9.242 (Stufe 6, R3b, Punkt 4): Status und Angaben des Einsatzes (Zeichnung heute-einsatz.html) */
+    .einsatz-eb{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .einsatz-status{font-size:13px;font-weight:600;border-radius:var(--ds-ecke-rund);padding:3px 10px;background:var(--ds-ok-hell);color:var(--ds-ok-text)}
+    .einsatz-status.vorlaeufig{background:var(--ds-flaeche-2);color:var(--ds-text-2);border:1px dashed var(--ds-linie-stark)}
+    .einsatz-info{display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--ds-linie);padding:6px 0}
+    .einsatz-info>.was{width:96px;flex:none;font-size:14px;color:var(--ds-text-2)}
+    .einsatz-info>.text{flex:1;min-width:0;font-size:15px;overflow-wrap:anywhere;white-space:pre-line}
+    .einsatz-info .leise{color:var(--ds-text-2)}
     .einsatz-zu{display:inline-block;align-self:flex-start;margin:0 0 10px;padding:4px 12px;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-rund);background:var(--ds-flaeche-2);color:var(--ds-text-2);font-size:14px;font-weight:600}
     .zeile{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ds-text);border-top:1px solid var(--ds-grund);min-height:56px}
     .zeile:hover{color:var(--ds-text)}
@@ -506,11 +514,13 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   function einsatzKarte(k){
     var route=k.adresse?'<a class="route" href="'+esc('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(k.adresse))+'" target="_blank" rel="noopener">'+PIN+'Route</a>':'';
     return '<section class="heute-karte einsatz" aria-labelledby="einsatz-'+k.order_id+'" data-einsatz="'+k.order_id+'">'
-      +'<span class="eb">Heutiger Einsatz · '+esc(zeitraum(k.von,k.bis))+'</span>'
+      +'<div class="einsatz-eb"><span class="eb">Heutiger Einsatz · '+esc(zeitraum(k.von,k.bis))+'</span>'
+      +(k.angaben?'<span class="einsatz-status '+esc(k.angaben.status)+'" data-status="'+esc(k.angaben.status)+'">'+esc(k.angaben.status_label)+'</span>':'')+'</div>'
       +'<div class="einsatz-kopf"><h2 id="einsatz-'+k.order_id+'">'+esc(k.objekt)+'</h2>'+route+'</div>'
       // seit 1.9.93 (Stufe 4, R5a, Punkt 6): der Auftrag mit „Nummer · Titel“ -- zwei Aufträge am selben Objekt unterscheidet der Titel
       +'<p class="einsatz-auftrag">'+esc(auftragTitel(k))+'</p>'
       +'<p class="einsatz-sub">'+esc([k.kunde,k.adresse].filter(Boolean).join(' · '))+'</p>'
+      +einsatzAngaben(k.angaben)
       // seit 1.9.87: abgeschlossen oder storniert -- das Kennzeichen; gestartet wird dort nicht (der Auftrag steht nicht in der Auswahl)
       +(k.auftrag_geschlossen?'<span class="einsatz-zu" data-geschlossen="'+esc(k.auftrag_geschlossen)+'">Auftrag '+esc(k.auftrag_geschlossen)+'</span>':'')
       +concernAlert(k)
@@ -521,6 +531,17 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +(CHECKLISTS_ENABLED?'<a class="knopf knopf-neutral knopf-klein" href="/checklisten/auftrag/'+k.order_id+'">Checklisten zum Auftrag</a>':'')
       +'</div></section>';
   }
+  // seit 1.9.242: eine Zeile der Karte -- jede Aufrufstelle gibt Text, der schon über esc() lief (Regel 32)
+  function angabeZeile(was,id,html){return '<div class="einsatz-info" data-angabe="'+id+'"><span class="was">'+was+'</span><span class="text">'+html+'</span></div>'}
+  // seit 1.9.242: „Mit dir“ (wer fehlt, nur „ist nicht da“), Geräte an ihren Tagen, Notiz, Baustellenhinweise -- jede Zeile nur, wenn es etwas gibt
+  function einsatzAngaben(e){
+    if(!e)return'';
+    var weg=e.nicht_da.length?'<span class="leise">'+(e.mit_dir.length?' · ':'')+esc(e.nicht_da.join(', '))+(e.nicht_da.length===1?' ist nicht da':' sind nicht da')+'</span>':'';
+    return (e.mit_dir.length||e.nicht_da.length?angabeZeile('Mit dir','mit',esc(e.mit_dir.join(', '))+weg):'')
+      +(e.geraete.length?angabeZeile('Geräte','geraete',e.geraete.map(function(g){return esc(g.name)+(g.zusatz?' <span class="leise">'+esc(g.zusatz)+'</span>':'')}).join(' · ')):'')
+      +(e.notiz?angabeZeile('Notiz','notiz',esc(e.notiz)):'')
+      +(e.baustelle?angabeZeile('Baustelle','baustelle',esc(e.baustelle)):'');
+  }
   function renderEinsaetze(h){
     var box=el('assignmentsList');box.className='heute-spalte';
     // Vorlage heute-gestern: solange eine Zeit von früher offen ist, steht der heutige Einsatz in „Heute und nächste Tage“
@@ -529,7 +550,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     // „Für welchen Auftrag?“ (berichtDialogOeffnen)
     if(!h.einsaetze.length){
       box.innerHTML='<section class="heute-karte einsatz" aria-labelledby="keinEinsatz"><span class="eb" id="keinEinsatz">Heutiger Einsatz</span>'
-        +'<p class="leer-text" style="margin:0">Heute ist nichts eingeplant.</p>'
+        +'<p class="leer-text" style="margin:0" id="keinEinsatzText">'+esc(h.heute_frei||'Heute ist nichts eingeplant.')+'</p>'
         +'<div class="einsatz-wege"><button type="button" class="knopf knopf-aktion knopf-56" id="berichtOhneEinsatz">Bericht anlegen</button></div></section>';
       el('berichtOhneEinsatz').addEventListener('click',berichtDialogOeffnen);
       return;
@@ -646,7 +667,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     el('naechsteTitel').textContent=h.arbeitszeit.zustand==='frueher'?'Heute und nächste Tage':'Nächste Tage';
     el('naechsteZeilen').classList.toggle('mit-spanne',h.naechste_tage.some(function(z){return z.von!==z.bis}));
     el('naechsteZeilen').innerHTML=h.naechste_tage.length?h.naechste_tage.map(function(z){
-      return '<div class="zeile" data-auftrag="'+z.order_id+'"><span class="tag-spalte">'+esc(tagsSpanne(z.von,z.bis))+'</span>'
+      return '<div class="zeile" '+(z.order_id?'data-auftrag="'+z.order_id+'"':'data-abwesenheit="1"')+'><span class="tag-spalte">'+esc(tagsSpanne(z.von,z.bis))+'</span>'
         +'<span class="tag-text">'+esc(z.objekt)+' <span>· '+esc(z.nebentext)+'</span></span></div>'}).join('')
       :'<p class="leer-text" style="margin:0">In den nächsten 14 Tagen ist nichts eingeplant.</p>';
   }

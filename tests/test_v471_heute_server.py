@@ -27,7 +27,7 @@ from tests.test_v325_contract_basis import beauftragen, make_quote
 
 
 @pytest.fixture
-def welt(threaded_db_session, router_test_client, feste_uhr):
+def welt(threaded_db_session, router_test_client, fester_tag):  # seit 1.9.242 fester Tag (Di 10.11.2026): „Nächste Tage“ zählt Arbeitstage
     db = threaded_db_session
     heute = berlin_time.berlin_today()
     order = beauftragen(db, make_quote(db, is_consumer=False, number="0471a"))
@@ -202,9 +202,11 @@ def test_heute_nicht_in_naechste_tage_morgen_drin(welt):
     _einsatz(welt, welt["order"], [(h, h + timedelta(days=2))], [welt["mia"]])
     _einsatz(welt, zweiter, [(h + timedelta(days=5), h + timedelta(days=6)), (h + timedelta(days=15), h + timedelta(days=16))], [welt["mia"]])
     zeilen = _heute(welt, welt["mia"])["naechste_tage"]
+    # seit 1.9.242: je Einsatz die Arbeitstage („weiter“, „vorläufig“) -- h ist Dienstag, h+5 Sonntag fällt weg (bis 1.9.241 „Fortsetzung“ und der
+    # Titel, h+5–h+6 in einer Zeile)
     assert [(z["order_id"], z["von"], z["bis"], z["nebentext"]) for z in zeilen] == [
-        (welt["order"].id, (h + timedelta(days=1)).isoformat(), (h + timedelta(days=2)).isoformat(), "Fortsetzung"),
-        (zweiter.id, (h + timedelta(days=5)).isoformat(), (h + timedelta(days=6)).isoformat(), "Rinne erneuern"),
+        (welt["order"].id, (h + timedelta(days=1)).isoformat(), (h + timedelta(days=2)).isoformat(), "weiter"),
+        (zweiter.id, (h + timedelta(days=6)).isoformat(), (h + timedelta(days=6)).isoformat(), "vorläufig"),
     ]  # heute nie, ab morgen in einer Zeile, nach 14 Tagen nichts mehr
 
 
@@ -214,9 +216,9 @@ def test_offene_zeit_von_frueher_zeigt_heute_als_eigene_zeile(welt):
     _einsatz(welt, welt["order"], [(welt["gestern"], h + timedelta(days=2))], [welt["mia"]])
     start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(welt["gestern"], time(7)))
     zeilen = _heute(welt, welt["mia"])["naechste_tage"]
-    assert [(z["von"], z["bis"], z["nebentext"]) for z in zeilen] == [
-        (h.isoformat(), h.isoformat(), "Wartung"),
-        ((h + timedelta(days=1)).isoformat(), (h + timedelta(days=2)).isoformat(), "Fortsetzung")]
+    assert [(z["von"], z["bis"], z["nebentext"]) for z in zeilen] == [  # seit 1.9.242 „vorläufig“ statt des Titels, „weiter“ statt „Fortsetzung“
+        (h.isoformat(), h.isoformat(), "vorläufig"),
+        ((h + timedelta(days=1)).isoformat(), (h + timedelta(days=2)).isoformat(), "weiter")]
 
 
 # --- Zeitart wechseln ------------------------------------------------------------------------------------------------------------------

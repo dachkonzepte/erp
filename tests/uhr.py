@@ -26,11 +26,21 @@ from app import berlin_time
 STANDARD_UHRZEIT = time(10, 0)
 
 
+def arbeitstag_ab(tag: date) -> date:
+    """Seit 1.9.242 (Stufe 6, R3b, Punkt 4): der Tag selbst, wenn an ihm gearbeitet wird -- Montag bis Freitag, kein gesetzlicher Feiertag in NRW
+    (die Vorgabe der Planung, app/planning.py::automatic_public_holidays()) --, sonst der nächste solche Tag. „Heute“ zeigt den Einsatz nur an einem
+    Arbeitstag; ein Test mit laufender Uhr ab heute wäre sonst am Wochenende und an einem Feiertag rot."""
+    from app.planning import automatic_public_holidays
+    while tag.weekday() >= 5 or tag in automatic_public_holidays("NW", [tag.year]):
+        tag += timedelta(days=1)
+    return tag
+
+
 @contextmanager
 def uhr_festhalten(uhrzeit: time = STANDARD_UHRZEIT, tag: date | None = None):
     """tag (seit 1.9.166, Lohn L1a): die Uhr beginnt an diesem Tag statt heute -- für Tests mit festen Tagen, deren Ergebnis nicht am Lauftag
-    hängen soll (Fixture `fester_tag`)."""
-    heute = tag or berlin_time.berlin_today()
+    hängen soll (Fixture `fester_tag`). Ohne tag seit 1.9.242 heute, an einem Tag ohne Arbeit der nächste Arbeitstag (arbeitstag_ab())."""
+    heute = tag or arbeitstag_ab(berlin_time.berlin_today())
     start = datetime.combine(heute, uhrzeit, tzinfo=berlin_time.BERLIN).astimezone(timezone.utc)
     beginn = _time.monotonic()
     vorher = berlin_time._utc_now

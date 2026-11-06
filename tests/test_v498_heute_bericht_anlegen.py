@@ -66,7 +66,8 @@ def _skript(name):
 
 def test_heute_knoepfe_und_dialog():
     text = _skript("mobil.html")
-    assert re.search(r"Heute ist nichts eingeplant\.</p>'\s*\+'<div class=\"einsatz-wege\"><button type=\"button\" "
+    # seit 1.9.242 nennt der Text, warum heute keine Karte da ist (heute_frei), sonst wie bisher „Heute ist nichts eingeplant.“
+    assert re.search(r"esc\(h\.heute_frei\|\|'Heute ist nichts eingeplant\.'\)\+'</p>'\s*\+'<div class=\"einsatz-wege\"><button type=\"button\" "
                      r"class=\"knopf knopf-aktion knopf-56\" id=\"berichtOhneEinsatz\">Bericht anlegen</button>", text)
     assert ("<div class=\"weitere-wege\"><button type=\"button\" class=\"knopf knopf-neutral knopf-klein\" id=\"berichtAndererAuftrag\">"
             "Bericht für einen anderen Auftrag</button></div>") in text

@@ -86,3 +86,34 @@ Kein Marker unter `app/` nach den Läufen; jede rote nennt einen gescheiterten T
 | Nr. 11 – downgrade löscht die Termine der Einsätze | ohne DELETE (`241_9`) | 2 rot: v641 Migration SQLite und PostgreSQL |
 
 Kein Marker unter `app/` nach den Läufen. Nach `241_4b`/`241_8b` alle Läufe geprüft: jede andere rote nennt einen gescheiterten Test.
+
+## 1.9.242 (Punkt 4): „Heute“ nach heute-einsatz.html
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – vorläufig, wenn einer vorläufig ist | immer „fest“ (`242_1`) | 1 rot: v642::test_geraet_an_einzelnen_tagen |
+| Nr. 2 – „Mit dir“ ohne die Abwesenden | Abwesende auch unter „Mit dir“ (`242_2a`) | 1 rot: v642::test_wer_fehlt_ist_nicht_da_nie_die_art |
+| Nr. 2 – nie mit der Art | Art hinter dem Namen (`242_2b`) | 2 rot: v642 (wer fehlt, eigene Abwesenheit) |
+| Nr. 2 – ohne sie selbst | sie selbst mitgezählt (`242_2c`) | 2 rot: v642 (Karte, wer fehlt) |
+| Nr. 3 – Geräte nur an ihren Tagen | an jedem Tag des Einsatzes (`242_3a`) | 1 rot: v642::test_geraet_an_einzelnen_tagen |
+| Nr. 3 – „nur heute“ / „auch …“ | ohne Zusatz (`242_3b`) | 2 rot: v642 (Gerät an einzelnen Tagen, Karte) |
+| Nr. 4 – Notiz des Einsatzes | ohne Notiz (`242_4a`) | 1 rot: v642::test_karte_mit_besetzung_geraeten_notiz_baustelle |
+| Nr. 4 – Baustellenhinweise der AV | ohne (`242_4b`) | 1 rot: dito |
+| Nr. 5 – nur an Arbeitstagen | Wochenende und Feiertag zählen (`242_5a`) | 4 rot: v471 (Nächste Tage), v642 (kein Arbeitstag, Nächste Tage, `Tage`) |
+| Nr. 5 – nicht bei eigener Abwesenheit | Abwesenheit übergangen (`242_5b`) | 1 rot: v642::test_eigene_abwesenheit_keine_karte |
+| Nr. 5 – „Heute“ sagt, warum | kein Grund „kein Arbeitstag“ (`242_5c`) | 1 rot: v642::test_kein_arbeitstag_keine_karte |
+| Nr. 6 – Zusatz „weiter“ | nie „weiter“ (`242_6a`) | 3 rot: v471 (zwei), v642 (Nächste Tage) |
+| Nr. 6 – „weiter“ nur ab morgen | auch für heute (`242_6b`) | 1 rot: v471::test_offene_zeit_von_frueher_zeigt_heute_als_eigene_zeile |
+| Nr. 6 – Zusatz „vorläufig“ | ohne (`242_6c`) | 3 rot: v471 (zwei), v642 (Nächste Tage) |
+| Nr. 6 – je Auftrag und Zusatz eine Folge | je Tag eine Zeile (`242_6d`) | 11 rot: v471 (fünf), v642 (sechs) |
+| Nr. 7 – eigene genehmigte Abwesenheit als Zeile | ohne (`242_7a`) | 1 rot: v642::test_naechste_tage_je_einsatz_ohne_wochenende_mit_urlaub |
+| Nr. 7 – eigener offener Antrag als Zeile | ohne (`242_7b`) | 1 rot: dito |
+| Nr. 8 – Schlüssel `angaben` | Schlüssel „einsatz“ (`242_8`) | 7 rot: v326 (Datengrenze, drei), v642 (vier) |
+| Nr. 2 (Seite) – „ist nicht da“ | Seite schreibt „hat Urlaub“ (`242_9a`) | 1 rot: v642::test_seite_zeichnet_die_angaben (nach der Änderung an `angabeZeile()` noch einmal: rot) |
+| Regel 32 (Seite) – Namen über esc() | „Mit dir“ ohne esc() (`242_9b`) | Runde 1 rot **aus dem falschen Grund**: v407 war schon ohne Gegenprobe rot (die Zeile baute eine verschachtelte Funktion `zeile()`, deren Aufrufstellen der Scanner nicht verfolgt -- Fund der vollen Suite) -> `angabeZeile()` auf der obersten Ebene der Seite, v407 ohne Gegenprobe grün; Runde 2: rot, v407::test_kein_wert_ohne_esc_im_html |
+| Werkzeug Nr. 1 – pytest-Uhr am nächsten Arbeitstag | heute ohne Verschieben (`242_W1a`) | 1 rot: v642::test_feste_uhr_beginnt_an_einem_arbeitstag |
+| Werkzeug Nr. 1 – Klicktest-Uhr am nächsten Arbeitstag | dito in `cdp_klicktest._arbeitstag_ab()` (`242_W1b`) | 1 rot: v642::test_klicktest_uhr_beginnt_an_einem_arbeitstag |
+
+Ohne eigene Gegenprobe: Werkzeug Nr. 2 (`--wanduhr` mit Datum, `ERP_KLICKTEST_HEUTE`) ist das Mittel der Gegenproben `W1a`/`W1b` und der Samstags-Probe
+(Bericht), keine Regel im Betrieb. Alle roten nennen einen gescheiterten Test, keinen Sammelfehler; jede Datei byte-genau zurück, kein Marker unter
+`app/`.

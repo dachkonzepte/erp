@@ -1405,9 +1405,23 @@ def _uhr_marke(uhrzeit: str) -> str:
         tag_text, uhr_text = uhrzeit.split()
         start = datetime.combine(date.fromisoformat(tag_text), uhr.fromisoformat(uhr_text), tzinfo=berlin).astimezone(timezone.utc)
         return f"{start.isoformat()}|fest"
-    heute = datetime.fromtimestamp(echt, berlin).date()
+    # seit 1.9.242: an einem Tag ohne Arbeit der nächste Arbeitstag („Heute“ zeigt den Einsatz nur an Arbeitstagen); ERP_KLICKTEST_HEUTE
+    # (JJJJ-MM-TT) stellt einen anderen Lauftag nach -- nur für die Gegenprobe
+    heute = _arbeitstag_ab(date.fromisoformat(os.environ["ERP_KLICKTEST_HEUTE"]) if os.environ.get("ERP_KLICKTEST_HEUTE")
+                           else datetime.fromtimestamp(echt, berlin).date())
     start = datetime.combine(heute, uhr.fromisoformat(uhrzeit), tzinfo=berlin).astimezone(timezone.utc)
     return f"{start.isoformat()}|{echt}"
+
+
+def _arbeitstag_ab(tag):
+    """Wie tests/uhr.py::arbeitstag_ab() (seit 1.9.242): Montag bis Freitag, kein gesetzlicher Feiertag in NRW, sonst der nächste solche Tag."""
+    from datetime import timedelta
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from app.planning import automatic_public_holidays
+    while tag.weekday() >= 5 or tag in automatic_public_holidays("NW", [tag.year]):
+        tag += timedelta(days=1)
+    return tag
 
 
 def _uhr_einsetzen() -> None:

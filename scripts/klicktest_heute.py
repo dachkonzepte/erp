@@ -8,7 +8,9 @@ Browser, weitergestellt nur über tab.uhr_stellen() (bis 1.9.208 lief sie ab heu
 
     Mia quer (1280 × 620)  zwei Spalten, rechts 420 px; Arbeitszeit „Baustellenzeit seit 06:45“, Dauer 3:15 h, Knöpfe 64 px; eine Karte
                            für A (zwei Abschnitte) mit Zeitraum, Route, Bericht mit „Weiter“ 56 px, Checkliste mit Pfeil; Offen: Berichte 1,
-                           Checklisten 1, keine Mängel; Nächste Tage: A ab morgen „Fortsetzung“, B; heute nicht; hell und dunkel
+                           Checklisten 1, keine Mängel; Nächste Tage: A ab morgen „weiter“, B „mit … · vorläufig“; heute nicht; hell und
+                           dunkel; seit 1.9.242 die Karte nach heute-einsatz.html: fest, „Mit dir“ (Pia krank: nur „ist nicht da“), Kran
+                           „nur heute“, Notiz, Baustelle
     Mia hoch (800 × 1100)  eine Spalte in der Reihenfolge Arbeitszeit, Einsatz, Offen, Nächste Tage; hell und dunkel (Bilder bis zum
                            Seitenende)
     Mia Offen (seit 1.9.49) „Heute“ ohne Listen, endet mit „Nächste Tage“; die Zeilen von „Offen“ (Berichte, Checklisten, Wartungen an
@@ -78,8 +80,8 @@ def befuellen(db, k):
     from app.inspection_templates import create_template as create_inspection_template, create_template_item
     from app.maintenance_contracts import create_contract
     from app.models import (
-        AppUser, Customer, Employee, Order, OrderItem, PlanningSlot, Project, Property, RoofArea, Team, TeamEmployee,
-        WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
+        AppUser, Customer, Employee, EmployeeAbsence, OperationalResource, Order, OrderItem, PlanningSlot, PlanningSlotResource, Project,
+        Property, RoofArea, Team, TeamEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
     )
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.service_reports import create_report
@@ -88,7 +90,9 @@ def befuellen(db, k):
 
     heute = berlin_today()
     leute = {}
-    for nr, (vor, nach) in enumerate([("Mia", "Monteurin"), ("Ole", "Offen"), ("Lea", "Leer"), ("Kai", "Kolonne"), ("Tom", "Mitglied")], 1):
+    # seit 1.9.242 dazu Pia (heute krank): auf Mias Karte nur „ist nicht da“
+    for nr, (vor, nach) in enumerate([("Mia", "Monteurin"), ("Ole", "Offen"), ("Lea", "Leer"), ("Kai", "Kolonne"), ("Tom", "Mitglied"),
+                                      ("Pia", "Pause")], 1):
         leute[vor.lower()] = Employee(employee_number=f"E-{nr}", first_name=vor, last_name=nach, employee_group="gewerblich", active=True,
                                       hourly_wage=Decimal("22.00"))
     db.add_all(leute.values()); db.flush()
@@ -129,10 +133,21 @@ def befuellen(db, k):
         db.add(zuordnung); db.flush()
         for e in leute.values():
             db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=e.id, employee_name_snapshot=e.first_name))
-        for von, bis in abschnitte:
-            db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis))
+        # seit 1.9.242: A fest, mit Notiz und Baustellenhinweis, ein Kran nur heute; B vorläufig
+        if o is a:
+            prep.site_notes = "Zufahrt über den Hof · Schlüssel beim Hausmeister"
+        for nr_abschnitt, (von, bis) in enumerate(abschnitte):
+            slot = PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis,
+                                status="fest" if o is a else "vorlaeufig",
+                                notes="Kran heute ab 8 Uhr – Material hoch" if o is a and nr_abschnitt == 0 else None)
+            db.add(slot); db.flush()
+            if o is a and nr_abschnitt == 0:
+                kran = OperationalResource(resource_number="K-1", resource_type="Maschine", name="Kran 30 m", active=True)
+                db.add(kran); db.flush()
+                db.add(PlanningSlotResource(slot_id=slot.id, resource_id=kran.id, tage=f'["{heute.isoformat()}"]'))
     from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
     besetzung_wie_migration(db)
+    db.add(EmployeeAbsence(employee_id=leute["pia"].id, absence_type="Krankheit", absence_category="krankheit", start_date=heute, end_date=heute))
     db.commit()
 
     start_timer(db, employee_id=leute["mia"].id, order_id=a.id, started_at=datetime.combine(heute, time(6, 45)))
@@ -257,10 +272,19 @@ async def pruefen(tab, seed, p):
     p.pruefe("Heute ohne Listen, die letzte Karte ist „Nächste Tage“", await tab.js(
         "[!!document.querySelector('.listen,#draftReportsList,#defectsList,#maintenanceList,#draftChecklistsList'),"
         "[...document.querySelectorAll('main section')].filter(s=>s.getClientRects().length).pop().id]"), [False, "naechsteKarte"])
-    p.pruefe("Nächste Tage: A ab morgen in einer Zeile „Fortsetzung“, B; heute nicht", await tab.js(
+    # seit 1.9.242 (bis 1.9.241 „Fortsetzung“ und „Rinne erneuern“): je Einsatz, „weiter“ bzw. „mit …“ und „vorläufig“
+    p.pruefe("Nächste Tage: A ab morgen in einer Zeile „weiter“, B mit den anderen und „vorläufig“; heute nicht", await tab.js(
         "[document.getElementById('naechsteTitel').textContent,[...document.querySelectorAll('#naechsteZeilen .zeile')].map(z=>z.textContent)]"),
-        ["Nächste Tage", [f"{spanne(seed['morgen'], seed['uebermorgen'])}Halle Nord · Fortsetzung",
-                          f"{spanne(seed['b_von'], seed['b_bis'])}Halle Nord · Rinne erneuern"]])
+        ["Nächste Tage", [f"{spanne(seed['morgen'], seed['uebermorgen'])}Halle Nord · weiter",
+                          f"{spanne(seed['b_von'], seed['b_bis'])}Halle Nord · mit Ole, Lea, Kai, Tom, Pia · vorläufig"]])
+    p.pruefe("Einsatz nach der Zeichnung: fest, Mit dir (Pia nur „ist nicht da“), Geräte, Notiz, Baustelle", await tab.js(
+        "[document.querySelector('[data-einsatz] .einsatz-status').textContent,"
+        "[...document.querySelectorAll('[data-einsatz] .einsatz-info')].map(z=>[z.dataset.angabe,z.querySelector('.was').textContent,"
+        "z.querySelector('.text').textContent])]"),
+        ["fest", [["mit", "Mit dir", "Ole Offen, Lea Leer, Kai Kolonne, Tom Mitglied · Pia Pause ist nicht da"],
+                  ["geraete", "Geräte", "Kran 30 m nur heute"], ["notiz", "Notiz", "Kran heute ab 8 Uhr – Material hoch"],
+                  ["baustelle", "Baustelle", "Zufahrt über den Hof · Schlüssel beim Hausmeister"]]])
+    p.pruefe("Die Art der Abwesenheit einer anderen steht nirgends", await tab.js("document.body.innerText.includes('Krankheit')"), False)
     masse = await tab.js(MASSE)
     p.pruefe(f"Maße quer {masse[1]}", masse[0], [True, True, True, True])
     p.pruefe("Mia quer: keine JS-Fehler", tab.fehler, [])

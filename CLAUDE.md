@@ -370,7 +370,11 @@ Behoben, drei Teile:
   heißt (Nummer · Titel, Objekt · Kunde · Adresse; in der Auswahl einzeilig, gekürzt), steht seit 1.9.78 nur in `_auftrag_text.html`. Seit 1.9.69 heißen die freigegebenen Mängel der Abnahme auch für die Monteurin „Mangel“ („Mängel
   zur Beseitigung“), „Befund“ nur die Befunde aus Einsatzberichten (`tests/test_v493_mangel_und_befund.py`; 1.9.68 hieß auch der Mangel
   kurz „Befund“). Sie bleibt in `AUFGESCHOBEN` (die
-  Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
+  Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.242** (Stufe 6, R3b, Zeichnung `entwurf-stufe6/heute-einsatz.html`) trägt die
+  Karte `angaben` (`app/heute.py::einsatz_details()`: Status, „Mit dir“ -- wer fehlt nur „ist nicht da“, nie die Art --, Geräte an ihren Tagen, Notiz,
+  Baustellenhinweise der AV), nur an Arbeitstagen ohne eigene Abwesenheit (`Tage`, sonst `heute_frei`); „Nächste Tage“ je Auftrag und Zusatz nach
+  Arbeitstagen, eigener Urlaub als Zeile (`tests/test_v642_heute_einsatz.py`). Eine laufende Test-Uhr beginnt an einem Tag ohne Arbeit am nächsten
+  Arbeitstag (`tests/uhr.py::arbeitstag_ab()`, Klicktest `_uhr_marke()`). **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
   `tests/test_v476_heute_offen.py`. Seit 1.9.50 ein Feld auf der Signalfläche mit `--ds-feld-rand-signal` (≥ 3 : 1 zu signal-hell).

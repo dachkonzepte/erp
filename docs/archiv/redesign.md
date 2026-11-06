@@ -8506,3 +8506,73 @@ Die Punkte 0–6 stehen im Archiv ihres Themas: Outlook und Plantafel in `docs/a
 #### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `test_v560::test_…` (zwei Stellen), altes Soll „Kundendokument … angelegt“, neues Soll „… hochgeladen“. `klicktest_kundenakte`: dieselbe Prüfung, neuer Name „Verlauf: Kundendokument hochgeladen und gelöscht, nebeneinander“; neu „abgerechnet … unter dem Namen“ (1440 und 412 px) und „übliche Namen ungekürzt“ (1440 px).
+
+## Stufe 6, R3b: „Heute“ der Monteurin nach heute-einsatz.html (1.9.242)
+
+Vorgabe Tobias (06.11.2026): „Heute“ nach `bildgrundlage/entwurf-stufe6/heute-einsatz.html` -- Mit dir (Besetzung ohne sie selbst; wer aus der Kolonne fehlt,
+nur „ist nicht da“, nie die Art), Geräte nur an ihren Tagen, Notiz des Einsatzes, Baustellenhinweise der AV, vorläufig/fest; nur an Arbeitstagen und nicht
+an Tagen mit eigener Abwesenheit; „Nächste Tage“ ohne Wochenenden und Feiertage, eigener Urlaub als eigene Zeile. Abweichung von der Zeichnung nach dieser
+Vorgabe: die Zeichnung zeigt „Tom hat Urlaub“, gebaut ist „Tom … ist nicht da“.
+
+### Umsetzung 1.9.242 (Punkt 4)
+
+`app/heute.py`:
+- `Tage` (je Person von..bis): Arbeitstage wie die Plantafel (Arbeitstage der Planung, Feiertage, betriebsfreie Tage) und die eigenen Abwesenheiten
+  (genehmigt und Freistellung des Arbeitszeitkalenders, `_abwesend_map()`), dazu die eigenen offenen Anträge.
+- `einsaetze()`: nur, wenn sie an dem Tag arbeitet (`Tage.arbeitet()`); je Karte `angaben` aus `einsatz_details()` über die heutigen Einsätze des
+  Auftrags: Status (vorläufig, wenn einer vorläufig ist), `mit_dir` (volle Namen, ohne sie selbst), `nicht_da` (abwesend: genehmigt oder Freistellung; nur
+  der Name), `geraete` (nur Geräte mit heute unter ihren Tagen; Zusatz „nur heute“ bzw. „auch <Tage>“ bei einzelnen Tagen), `notiz` (die Notiz der
+  Einsätze), `baustelle` (`WorkPreparation.site_notes`).
+- `heute_frei()`: „Heute ist kein Arbeitstag.“ oder „Heute bist du nicht eingeplant: <Art>.“ (ihre eigene Art), sonst nichts.
+- `naechste_tage()`: je Auftrag und Zusatz die Arbeitstage ab morgen (mit offener Zeit von früher ab heute, heute als eigene Zeile vorn) für 14 Tage;
+  Wochenende, Feiertag, betriebsfreier Tag und Tage eigener Abwesenheit trennen; Zusatz „weiter“ (der Einsatz läuft heute schon), sonst „mit <Vornamen>“
+  und „vorläufig“, ohne beides der Titel; dazu jede eigene genehmigte Abwesenheit und jeder offene Antrag als Zeile „<Art> · genehmigt|beantragt“ (erster
+  bis letzter Arbeitstag im Fenster). Bis 1.9.241: je Auftrag alle Kalendertage, Zusatz „Fortsetzung“ oder der Titel.
+
+`app/templates/mobil.html`: Kennzeichen vorläufig/fest neben „Heutiger Einsatz“, Zeilen „Mit dir“, „Geräte“, „Notiz“, „Baustelle“ (`einsatzAngaben()`, nur
+mit Inhalt; jede Zeile über `angabeZeile()` auf der obersten Ebene der Seite -- jede Aufrufstelle gibt Text, der schon über esc() lief, Regel 32), ohne Karte der Grund aus `heute_frei`, Zeilen der eigenen Abwesenheit ohne Auftrag.
+
+Datengrenze (`tests/test_v326_monteur_datengrenze.py`): der Schlüssel `notiz` der Karte ist ausdrücklich erlaubt -- die Notiz des Einsatzes ist für die
+Monteure geschrieben (Zeichnung, `plantafel-regeln.html`); die Schlüssel heißen `angaben` und `heute_frei`, nicht „einsatz…“ („satz“ ist ein verbotener
+Wortteil der Datengrenze).
+
+Testablauf: eine laufende Test-Uhr ab heute beginnt an einem Tag ohne Arbeit am nächsten Arbeitstag -- `tests/uhr.py::arbeitstag_ab()` (Montag bis Freitag,
+kein gesetzlicher Feiertag in NRW) für `feste_uhr`/`uhr_festhalten()` ohne Tag, `scripts/cdp_klicktest.py::_uhr_marke()` für `uhr="HH:MM"`; ohne das wären
+die Tests mit Karte am Wochenende und an Feiertagen rot. `--wanduhr "JJJJ-MM-TT HH:MM"` stellt einen anderen Lauftag nach, `ERP_KLICKTEST_HEUTE` dasselbe für
+den Klicktest (nur für die Gegenprobe).
+
+### Festlegungen 1.9.242 (Bitte bestätigen)
+
+1. Die Karte trägt vorläufig/fest; vorläufig, wenn ein heutiger Einsatz des Auftrags vorläufig ist.
+2. „Mit dir“: die Besetzung ohne sie selbst; wer heute abwesend ist (genehmigt oder Freistellung), steht nur als „… ist nicht da“ dahinter, nie mit der Art;
+   ein offener Antrag zählt nicht als abwesend.
+3. Geräte nur an ihren Tagen; ein Gerät an einzelnen Tagen mit „nur heute“ oder „auch <bis zu drei Tage>“.
+4. Die Notiz des Einsatzes und die Baustellenhinweise der Arbeitsvorbereitung stehen auf der Karte (die Notiz darf die Monteurin lesen).
+5. Die Karte gibt es nur an einem Arbeitstag ohne eigene Abwesenheit; sonst sagt „Heute“, warum.
+6. „Nächste Tage“: je Auftrag und Zusatz die Arbeitstage, jede Lücke trennt; Zusatz „weiter“ / „mit <Vornamen>“ / „vorläufig“ / sonst der Titel; mit offener
+   Zeit von früher heute als eigene Zeile vorn.
+7. Eigene genehmigte Abwesenheit und eigener offener Antrag je als eigene Zeile „<Art> · genehmigt|beantragt“, erster bis letzter Arbeitstag im Fenster.
+8. Die Schlüssel heißen `angaben` und `heute_frei`.
+
+### Festlegungen 1.9.242 zu Werkzeug und Testablauf (Bitte bestätigen)
+
+1. Eine laufende Test-Uhr ab heute (pytest `feste_uhr`, Klicktest `uhr="HH:MM"`) beginnt an einem Tag ohne Arbeit (Wochenende, gesetzlicher Feiertag in NRW)
+   am nächsten Arbeitstag.
+2. `--wanduhr` nimmt auch „JJJJ-MM-TT HH:MM“ (pytest), `ERP_KLICKTEST_HEUTE` stellt den Lauftag eines Klicktests nach (nur Gegenprobe).
+
+### Tests und Prüfung 1.9.242
+
+Neu: `tests/test_v642_heute_einsatz.py` (Karte mit allen Angaben, Gerät an einzelnen Tagen, „ist nicht da“ ohne Art, kein Arbeitstag, eigene Abwesenheit,
+Nächste Tage mit Urlaub und Antrag, `Tage`, Test-Uhr in pytest und Klicktest, die Seite zeichnet die Angaben in node). Gegenproben: Archiv
+`gegenproben-stufe6-r3b.md`.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v471::test_heute_nicht_in_naechste_tage_morgen_drin`: alt (A, morgen–übermorgen, „Fortsetzung“), (B, h+5–h+6, „Rinne erneuern“); neu (A, morgen–
+  übermorgen, „weiter“), (B, h+6, „vorläufig“) -- h+5 ist ein Sonntag. Die Testwelt von v471 nimmt dafür `fester_tag` (Di 10.11.2026) statt `feste_uhr`.
+- `test_v471::test_offene_zeit_von_frueher_zeigt_heute_als_eigene_zeile`: alt (h, „Wartung“), (h+1–h+2, „Fortsetzung“); neu (h, „vorläufig“), (h+1–h+2,
+  „weiter“).
+- `test_v498::test_heute_knoepfe_und_dialog`: nur Aufbau -- der Text ohne Karte steht als `esc(h.heute_frei||'Heute ist nichts eingeplant.')`.
+- `test_v326`: neue Ausnahme `/api/field-view/today $.heute.einsaetze[].angaben.notiz` (Notiz des Einsatzes, für die Monteure).
+- `klicktest_heute`: Testdaten dazu Pia (heute krank), Status fest, Notiz, Baustellenhinweis, ein Kran nur heute; „Nächste Tage“ alt „… · Fortsetzung“ und
+  „… · Rinne erneuern“, neu „… · weiter“ und „… · mit Ole, Lea, Kai, Tom, Pia · vorläufig“; neu „Einsatz nach der Zeichnung …“ und „Die Art der Abwesenheit
+  einer anderen steht nirgends“.

@@ -113,6 +113,8 @@ ERLAUBT_JE_ROUTE = {
     ("/api/service-reports/{report_id}/materials", "$[].notes"): "Bemerkung des Monteurs zum Material im eigenen Bericht",
     ("/api/service-reports/{report_id}/assets", "$[].notes"): "Bemerkung des Monteurs zum Geräteeinsatz im eigenen Bericht",
     ("/api/time-entries", "$[].notes"): "eigene Zeitbuchung (self-scoped seit 1.3.56), die Notiz schreibt er selbst",
+    ("/api/field-view/today", "$.heute.einsaetze[].angaben.notiz"):
+        "Notiz des Einsatzes -- für die Monteure geschrieben, steht auf „Heute“ (Zeichnung Stufe 6, plantafel-regeln.html; seit 1.9.242)",
     ("/api/time-entries/active", "$.notes"): "eigene laufende Zeitbuchung",
     ("/api/field-view/meine-zeiten", "$.tage[].zeilen[].notes"): "eigene Zeitbuchung in „Meine Zeiten“ (seit 1.9.57), die Notiz schreibt er selbst",
     ("/api/time-entry-groups/active", "$.notes"): "Notiz der Kolonnenbuchung, in der er selbst mitgebucht ist (1.7.12)",

@@ -132,7 +132,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--wanduhr", metavar="HH:MM", default=None,
         help="Suite so laufen lassen, als wäre es heute HH:MM (Europe/Berlin) -- Gegenprobe für Tests, "
-             "die von der Tageszeit abhängen (seit 1.8.36, z. B. --wanduhr 19:30 nach der Feierabend-Grenze).",
+             "die von der Tageszeit abhängen (seit 1.8.36, z. B. --wanduhr 19:30 nach der Feierabend-Grenze). Seit 1.9.242 auch "
+             "\"JJJJ-MM-TT HH:MM\": als wäre es an diesem Tag (z. B. ein Samstag, Gegenprobe für den Tag ohne Arbeit).",
     )
     option_anmelden(parser)  # --zeitgrenze, seit 1.8.111
 
@@ -180,8 +181,9 @@ def _wanduhr(request):
     if not wert:
         yield
         return
-    from datetime import time
-    with uhr_festhalten(time.fromisoformat(wert)):
+    from datetime import date, time
+    tag, _, uhrzeit = wert.strip().rpartition(" ")
+    with uhr_festhalten(time.fromisoformat(uhrzeit), tag=date.fromisoformat(tag) if tag else None):
         yield
 
 
