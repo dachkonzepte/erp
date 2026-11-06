@@ -412,3 +412,32 @@ in der Statuszeile, und der anschließende Retry über das bestehende Bearbeiten
 gelingt nachweislich (`has_document: true` danach); das Beleg-Feld blendet sich beim Wechsel in
 den Bearbeiten-Modus einer bereits bestehenden Rechnung korrekt wieder aus. Keine neuen
 `pytest`-Tests (reine Frontend-Änderung, Muster 1.5.6) -- volle Suite weiterhin 1764 Tests grün.
+
+## Umsetzung 1.9.232: Speichern und gleichzeitiges Löschen ohne 500 (Stufe 6, R3a, Punkt 0c)
+
+Vorgabe Tobias (06.11.2026): Speichern und gleichzeitiges Löschen einer Eingangsrechnung ergeben kein 500 mehr (Wackler
+`test_v399_teil_updates_geld.py::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock`, Bericht L1b, Abschnitt 2 d).
+
+`app/incoming_invoices.py::update_invoice()`: nach den Änderungen `flush()`, dann die Antwort (`invoice_to_dict(_load(...))`) aus dem Stand, der gleich
+festgeschrieben wird, erst danach `commit()`. Bis 1.9.231 las die Funktion die Rechnung nach dem Commit neu (`_load(db, invoice.id)` auf einem
+abgelaufenen Objekt) -- das Löschen, das an der Sperre der Zeile wartete, bekam sie mit dem Commit und konnte vorher löschen: `ObjectDeletedError`, 500.
+Jetzt: das Speichern antwortet mit seinem Stand (200), das Löschen löscht danach (`{"deleted": true}`), nichts bleibt zurück.
+
+Der Test wartet nicht mehr 1,5 s, sondern bis das Löschen nachweislich an der Sperre wartet (`_wartet_auf_sperre()` aus `test_v375`), und hält das
+Neulesen nach dem Commit fest: ein Haken an `_load` wartet im Speichern nach dessen Commit, bis das Löschen fertig ist -- die alte Reihenfolge ist damit
+immer rot, nicht nur unter Last.
+
+Gesehen, nicht angefasst (Vorschlag im Bericht): `set_invoice_document()` und `remove_invoice_document()` laden die Rechnung ohne Sperre (`db.get`) und
+lesen sie nach dem Commit neu -- gleichzeitig mit einem Löschen kann dort dasselbe passieren (dazu bliebe beim Hochladen die neue Datei liegen).
+
+### Festlegungen 1.9.232 (Bitte bestätigen)
+
+1. Das Speichern einer Eingangsrechnung antwortet mit dem Stand, den es festschreibt -- gebaut vor dem Commit unter der Sperre der Zeile; wird die Rechnung
+   gleich danach gelöscht, bleibt die Antwort 200 mit diesem Stand.
+2. Beleg hochladen und entfernen bleiben, wie sie sind (nur benannt).
+
+### Tests und Prüfung 1.9.232
+
+`test_v399::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock`: Aufbau geändert -- statt `time.sleep(1.5)` wartet er auf
+`_wartet_auf_sperre()`; neu der Haken an `_load` (nach dem Commit des Speicherns wartet er auf das Ende des Löschens). Die Erwartung bleibt (Speichern ohne
+Fehler, Löschen `{"deleted": true}`, keine Rechnung und keine Position übrig).

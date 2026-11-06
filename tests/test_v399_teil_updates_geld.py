@@ -663,42 +663,60 @@ def test_postgresql_eingangsrechnung_zwei_zuordnungen_gleichzeitig(pg):
 def test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock(pg, monkeypatch):
     """Speichern mit Positionen sperrt seit 1.8.96 zuerst die Rechnung, dann ersetzt es die Positionen; Löschen löscht Positionen,
     dann Rechnung. Hier deterministisch: das Speichern hält nach der Sperre an, das Löschen startet. Seit delete_invoice() die
-    Rechnung zuerst sperrt, wartet das Löschen; ohne diese Sperre warteten beide aufeinander (Deadlock)."""
+    Rechnung zuerst sperrt, wartet das Löschen; ohne diese Sperre warteten beide aufeinander (Deadlock).
+
+    Seit 1.9.232 (Stufe 6, R3a, Punkt 0c): bis 1.9.231 las das Speichern die Rechnung nach dem Commit neu -- das an der Sperre wartende Löschen
+    konnte dazwischen löschen, das Speichern antwortete mit 500 (Wackler). Jetzt antwortet es aus dem Stand vor dem Commit. Damit der Test das
+    sicher sieht statt manchmal: liest das Speichern nach seinem Commit, wartet es dort, bis das Löschen fertig ist (alte Reihenfolge = immer
+    rot). Statt einer festen Pause von 1,5 s wartet der Test, bis das Löschen nachweislich an der Sperre wartet (_wartet_auf_sperre())."""
     import threading
-    import time
+
+    from sqlalchemy import event
 
     import app.incoming_invoices as eingang
     from app.routers.incoming_invoices import delete_incoming_invoice
+    from tests.test_v375_rechnungen_sperren import _bis, _wartet_auf_sperre
 
     Session, order_id = pg
     invoice_id, _, _ = _pg_eingangsrechnung(Session, order_id)
-    echt = eingang._validate_items_payload
-    gesperrt, weiter = threading.Event(), threading.Event()
+    echt, echt_laden = eingang._validate_items_payload, eingang._load
+    gesperrt, weiter, festgeschrieben, geloescht = threading.Event(), threading.Event(), threading.Event(), threading.Event()
 
     def angehalten(db, items):
         if threading.current_thread().name == "speichern":
             gesperrt.set()
             weiter.wait(timeout=30)
         return echt(db, items)
-    monkeypatch.setattr(eingang, "_validate_items_payload", angehalten)
-    ergebnis = {}
 
-    def laufen(name, aktion):
-        s = Session()
+    def laden(db, iid):
+        if threading.current_thread().name == "speichern" and festgeschrieben.is_set():
+            _bis(geloescht.is_set, "das Löschen nach dem Commit des Speicherns")
+        return echt_laden(db, iid)
+    monkeypatch.setattr(eingang, "_validate_items_payload", angehalten)
+    monkeypatch.setattr(eingang, "_load", laden)
+    ergebnis = {}
+    s_speichern, s_loeschen = Session(), Session()
+    event.listen(s_speichern, "after_commit", lambda _s: festgeschrieben.set())
+
+    def laufen(name, s, aktion, fertig=None):
         try:
             ergebnis[name] = aktion(s)
         except Exception as exc:  # noqa: BLE001
             ergebnis[name] = exc
         finally:
             s.close()
+            if fertig is not None:
+                fertig.set()
     neu = IncomingInvoiceUpdate(net_amount=D("600.00"), items=[{"description": "Bahnen", "net_amount": D("600.00")}])
     speichern = threading.Thread(name="speichern", target=laufen,
-                                 args=("speichern", lambda s: put_incoming_invoice(invoice_id, neu, db=s, _role=None)))
-    loeschen = threading.Thread(target=laufen, args=("loeschen", lambda s: delete_incoming_invoice(invoice_id, db=s, _role=None)))
+                                 args=("speichern", s_speichern, lambda s: put_incoming_invoice(invoice_id, neu, db=s, _role=None)))
+    loeschen = threading.Thread(target=laufen, args=("loeschen", s_loeschen, lambda s: delete_incoming_invoice(invoice_id, db=s, _role=None),
+                                                     geloescht))
     speichern.start()
     assert gesperrt.wait(timeout=10)
+    wartet = _wartet_auf_sperre(s_loeschen)
     loeschen.start()
-    time.sleep(1.5)  # länger als deadlock_timeout (1 s)
+    _bis(wartet, "das Löschen wartet auf die Sperre der Rechnung")
     weiter.set()
     speichern.join(timeout=30)
     loeschen.join(timeout=30)

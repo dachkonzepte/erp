@@ -363,9 +363,14 @@ def update_invoice(db: Session, invoice_id: int, payload: dict) -> dict | None:
         # cascade="all, delete-orphan" löscht die alten Zeilen, sobald sie aus der Collection
         # entfernt werden.
         invoice.items = [IncomingInvoiceItem(**item) for item in items]
-    db.commit()
+    # Seit 1.9.232 (Stufe 6, R3a, Punkt 0c): die Antwort entsteht vor dem Commit, unter der Sperre der Zeile, aus dem Stand, der gleich
+    # festgeschrieben wird. Bis 1.9.231 las update_invoice() die Rechnung nach dem Commit neu -- ein gleichzeitiges Löschen, das an der Sperre
+    # wartete, konnte dazwischen löschen, das Speichern antwortete dann mit 500 (Wackler test_v399, Bericht L1b, Abschnitt 2 d).
+    db.flush()
     lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
-    return invoice_to_dict(_load(db, invoice.id), lead_days)
+    antwort = invoice_to_dict(_load(db, invoice_id), lead_days)
+    db.commit()
+    return antwort
 
 
 def delete_invoice(db: Session, invoice_id: int) -> bool:

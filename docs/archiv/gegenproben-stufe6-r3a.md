@@ -57,3 +57,10 @@ zugleich für E7 gemerkt, die zweite Prüfung verdeckte die erste. `test_v631` h
 
 `231_2a` blieb grün, kein Loch im Test: `GET`/`PUT /api/time-backoffice/settings` antworten über `TimeTrackingSettingsOut`, ein zusätzlicher Schlüssel im
 Dict fällt dort heraus. Die Gegenprobe am Schema (`231_2d`) ist rot. Kein Marker unter `app/` nach dem Lauf.
+
+## 1.9.232 (Punkt 0c): Eingangsrechnung speichern und gleichzeitig löschen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Antwort entsteht vor dem Commit unter der Sperre | wieder erst `commit()`, dann neu lesen (`232_1`) | 1 rot: v399::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock (deterministisch: der Haken an `_load` wartet nach dem Commit auf das Löschen) |
+| Nr. 2 – Beleg hochladen/entfernen bleiben | ohne Gegenprobe: nichts geändert, nur benannt | -- |
