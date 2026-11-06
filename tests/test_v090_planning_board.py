@@ -81,7 +81,7 @@ def test_planning_slot_updates_work_preparation_dates_and_can_switch_team():
     db = db_session(); order = setup_order(db); _, _, team1, team2 = setup_shared_teams(db)
     slot = create_slot(db, order_id=order.id, team_id=team1.id, start_date=date(2026,9,7), end_date=date(2026,9,11))
     assert einsatz_zeitraum(db, slot.preparation_id) == (date(2026,9,7), date(2026,9,11))  # seit 1.9.145 gelesen, nicht gespeichert (F12)
-    moved = update_slot(db, slot.id, team_id=team2.id, start_date=date(2026,9,14), end_date=date(2026,9,18), status="bestaetigt", notes="verschoben")
+    moved = update_slot(db, slot.id, team_id=team2.id, start_date=date(2026,9,14), end_date=date(2026,9,18), status="fest", notes="verschoben")  # seit 1.9.235 vorlaeufig | fest (bis 1.9.234 „bestaetigt“)
     assert moved.team_assignment.team_id == team2.id
     prep_id = moved.preparation_id
     assert einsatz_zeitraum(db, prep_id) == (date(2026,9,14), date(2026,9,18))

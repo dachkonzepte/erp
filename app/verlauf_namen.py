@@ -55,6 +55,8 @@ _STATUS = {
     "entwurf": "Entwurf", "versendet": "Versendet", "beauftragt": "Beauftragt", "storniert": "Storniert",
     "abgeschlossen": "Abgeschlossen", "gegenstandslos": "Gegenstandslos", "anfrage": "Anfrage", "angebot": "Angebot",
     "offen": "Offen", "erledigt": "Erledigt", "geplant": "Geplant", "bedarf": "Bedarf",
+    # Einsatz der Plantafel (seit 1.9.235)
+    "vorlaeufig": "Vorläufig", "fest": "Fest",
     # Abwesenheitsantrag
     "pending": "Beantragt", "approved": "Genehmigt", "rejected": "Abgelehnt", "cancelled": "Zurückgezogen",
     # Zeitbuchung

@@ -66,6 +66,8 @@ FESTE_WERTE = {
     # seit 1.9.124 (Stufe 5, R2, Punkt 1): vier Status, am Server erzwungen; bis 1.9.123 in FESTE_LITERALE ("beauftragt", "storniert",
     # "abgeschlossen", sonst vom Client)
     "orders.status": [("app.auftragsstatus", "mod.STATUS")],
+    # seit 1.9.235 (Stufe 6, R3a, Punkt 4): vorlaeufig | fest, am Server erzwungen; bis 1.9.234 in FESTE_LITERALE („geplant“, sonst vom Client)
+    "planning_slots.status": [("app.planning", "mod.EINSATZ_STATUS")],
     "order_status_changes.old_status": [("app.auftragsstatus", "mod.STATUS")],
     "order_status_changes.new_status": [("app.auftragsstatus", "mod.STATUS")],
     "app_users.role": [("app.permissions", "mod.ROLES")],
@@ -224,7 +226,6 @@ FESTE_LITERALE = {
     "order_items.position_type": ("normal",),  # sonst vom Client, Schema max_length=30
     "order_revisions.source": ("manual", "quote", "quote_sync", "migration"),
     "planning_school_holidays.source": ("ferien-api.de",),
-    "planning_slots.status": ("geplant",),  # sonst vom Client, Schema max_length=40
     "projects.status": ("anfrage", "angebot", "beauftragt"),  # sonst vom Client, Schema max_length=50
     "quote_items.position_type": ("normal",),
     "quotes.status": ("entwurf", "beauftragt"),  # sonst vom Client, Schema max_length=50

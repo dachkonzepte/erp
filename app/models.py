@@ -2489,7 +2489,7 @@ class PlanningSlot(Base):
     team_assignment_id: Mapped[int | None] = mapped_column(ForeignKey("work_preparation_team_assignments.id"), index=True, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
-    status: Mapped[str] = mapped_column(String(40), default="geplant", index=True)
+    status: Mapped[str] = mapped_column(String(40), default="vorlaeufig", index=True)  # seit 1.9.235 vorlaeufig | fest (app/planning.py::EINSATZ_STATUS)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

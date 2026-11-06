@@ -132,3 +132,25 @@ Kein Marker unter `app/` nach dem Lauf.
 
 Kein Marker unter `app/` nach dem Lauf. Geprüft für alle Gegenproben der Runde: jede rote nennt einen gescheiterten Test (FAILED), keinen Sammelfehler -- außer
 `234_5c` in Runde 1 (oben).
+
+## 1.9.235 (Punkt 4): Status vorläufig | fest
+
+Gelaufen auf dem Stand 1.9.237 (alle Änderungen bis dahin), ohne PostgreSQL (die Migrationsprobe unter SQLite reicht, um rot zu sehen); jede Gegenprobe
+betrifft nur ihre eigene Stelle.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – andere Werte 422 beim Anlegen (Schema) | Schema freier Text (`235_1a`) | Runde 1 **grün** (die Geschäftsfunktion prüft auch) -> Test am Schema ergänzt; Runde 2: rot |
+| Nr. 1 – … (Geschäftsfunktion Anlegen) | Prüfung in `create_slot()` weg (`235_1b`) | rot: v635 |
+| Nr. 1 – … (Geschäftsfunktion Ändern) | Prüfung in `update_slot()` weg (`235_1c`) | rot: v635 |
+| Nr. 1 – andere Werte 422 beim Ändern (Schema) | Schema freier Text (`235_1d`) | Runde 1 **grün** -> Test am Schema; Runde 2: rot |
+| Nr. 1 – neu vorläufig (Geschäftsfunktion) | Vorgabe „fest“ in `create_slot()` (`235_1e`) | Runde 1 **grün** (die Schnittstelle schickt den Status immer) -> Test ohne Status; Runde 2: rot |
+| Nr. 1 – neu vorläufig (Schema) | Vorgabe „fest“ im Schema (`235_1f`) | rot: v635 |
+| Anzeige „vorläufig“ | `status_label` = Rohwert (`235_1g`) | rot: v635 |
+| Dialog nur die zwei Werte | dritte Option (`235_1h`) | rot: v635, v447 (3) |
+| neu im Dialog vorläufig | „fest“ (`235_1i`) | rot: v635 |
+| Verlauf „Vorläufig“/„Fest“ | Namen fehlen (`235_1j`) | rot: v635 |
+| Nr. 2 – „geplant“ -> vorläufig, sonst fest | auch leer -> vorläufig (`235_2a`) | rot: v635 Migration |
+| Nr. 2 – downgrade | ohne Rückweg (`235_2b`) | rot: v635 Migration |
+| Prüfabfrage kennt die zwei Werte | „geplant“ statt „vorlaeufig“ (`235_2c`) | rot: v447 (2) |
+| Nr. 3 – vorläufig zählt wie fest | vorläufige Einsätze aus den Konflikten (`235_3`) | rot: v635 |

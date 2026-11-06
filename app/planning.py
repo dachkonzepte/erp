@@ -39,6 +39,13 @@ FAERBT_NICHT = frozenset({"antrag_offen"})  # seit 1.9.152: steht beim Einsatz, 
 WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
 
 
+# Seit 1.9.235 (Stufe 6, R3a, Punkt 4): der Status eines Einsatzes -- vorläufig (auf der Tafel gestrichelt, R4) oder fest. Abgeschlossen und storniert
+# kommen vom Auftrag (app/auftragsstatus.py), nicht vom Einsatz. Bis 1.9.234 freier Text ohne Wirkung (geplant, bestaetigt, in_ausfuehrung, pausiert,
+# abgeschlossen; Befund Stufe 6, 3.3); die Migration a7d3e5f9c214 machte „geplant“ zu vorläufig, alles andere zu fest.
+EINSATZ_STATUS = {"vorlaeufig": "vorläufig", "fest": "fest"}
+EINSATZ_STATUS_FALSCH = "Der Status eines Einsatzes ist „vorläufig“ oder „fest“."
+
+
 class PlanungsWarnung(Exception):
     """Der Einsatz hat Warnungen und „trotzdem planen“ fehlt -- nichts gespeichert (409). Die Listen sind reine Daten, kein ORM-Objekt."""
 
@@ -660,7 +667,7 @@ def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
 
 def create_slot(
     db: Session, *, order_id: int, team_id: int | None, start_date: date, end_date: date,
-    status: str = "geplant", notes: str | None = None, planned_hours: Decimal | None = None,
+    status: str = "vorlaeufig", notes: str | None = None, planned_hours: Decimal | None = None,
     travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
     geraete: list[dict] | None = None,
 ) -> PlanningSlot:
@@ -675,6 +682,8 @@ def create_slot(
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     if team_id is None and not employee_ids:
         raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
+    if status not in EINSATZ_STATUS:  # seit 1.9.235
+        raise ValueError(EINSATZ_STATUS_FALSCH)
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag wurde nicht gefunden.")
@@ -729,6 +738,8 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
+    if "status" in changes and changes["status"] not in EINSATZ_STATUS:  # seit 1.9.235
+        raise ValueError(EINSATZ_STATUS_FALSCH)
     prep_id = db.scalar(select(PlanningSlot.preparation_id).where(PlanningSlot.id == slot_id))
     if prep_id is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
@@ -872,6 +883,7 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         "team_name": slot.team_assignment.team_name_snapshot if slot.team_assignment is not None else None,
         "start_date": slot.start_date, "end_date": slot.end_date,
         "duration_days": (slot.end_date - slot.start_date).days + 1, "status": slot.status,
+        "status_label": EINSATZ_STATUS.get(slot.status, slot.status),  # seit 1.9.235
         "notes": slot.notes, "planned_hours": hours,
         "travel_hours_per_employee_day": travel,
         # seit 1.9.233 die Besetzung des Einsatzes (Name live, Rolle aus der Kolonne, wenn die Person dort steht); bis 1.9.232 der Schnappschuss der Kolonne

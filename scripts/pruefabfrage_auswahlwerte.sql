@@ -47,7 +47,7 @@ WITH gruppe AS (
   UNION ALL SELECT 'quotes.status (Angebot)', status,
          status IN ('entwurf', 'versendet', 'in_pruefung', 'beauftragt', 'abgelehnt') FROM quotes
   UNION ALL SELECT 'planning_slots.status (Plantafel)', status,
-         status IN ('geplant', 'bestaetigt', 'in_ausfuehrung', 'pausiert', 'abgeschlossen') FROM planning_slots
+         status IN ('vorlaeufig', 'fest') FROM planning_slots  -- seit 1.9.235 (bis 1.9.234 geplant, bestaetigt, in_ausfuehrung, pausiert, abgeschlossen)
   UNION ALL SELECT 'work_preparations.status (Arbeitsvorbereitung)', status,
          status IN ('offen', 'in_planung', 'bereit', 'in_ausfuehrung', 'abgeschlossen') FROM work_preparations
   UNION ALL SELECT 'work_preparation_materials.status (Arbeitsvorbereitung, Material)', status,

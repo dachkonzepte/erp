@@ -229,7 +229,7 @@ def test_nur_notiz_aendern_fragt_nicht_nach_und_nennt_die_konflikte(tafel):
     client.post("/api/planning/slots", json=_body(setup_order(db, "1"), a))
     zweiter = client.post("/api/planning/slots", json=_body(setup_order(db, "2"), b, trotzdem_planen=True)).json()
     url = f"/api/planning/slots/{zweiter['id']}"
-    for aenderung in ({"notes": "Kran ab 8 Uhr"}, {"status": "bestaetigt"}, {"planned_hours": "2"},
+    for aenderung in ({"notes": "Kran ab 8 Uhr"}, {"status": "fest"}, {"planned_hours": "2"},  # seit 1.9.235 „fest“ statt „bestaetigt“
                       {"team_id": b.id, "start_date": zweiter["start_date"], "end_date": zweiter["end_date"], "notes": "wie der Dialog"}):
         antwort = client.put(url, json=aenderung)
         assert antwort.status_code == 200, (aenderung, antwort.text)

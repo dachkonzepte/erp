@@ -1516,6 +1516,19 @@ Vorgabe Tobias (04.11.2026): `klicktest_heute` hält die Uhr an -- stehende Uhr 
 
 Angepasste Erwartungen (Regel 28) zu 1.9.209, `klicktest_heute`: „zwei Buchungen ohne Lücke und ohne Überschneidung“ altes Soll: Beginn der Fahrzeit = der gelesene Wert, neues Soll genau `<heute>T10:00:00`; „Feierabend: Ergebnis mit Tag zusammen“ altes Soll das Muster „… gebucht 0,0\d h“, neues Soll genau „… gebucht 0,00 h“; Aufbau: stehende Uhr an einem festen Tag statt laufend ab heute 10:00. 55 Prüfungen wie bisher.
 
+## Testdaten mit Einsätzen wie ein Bestand (1.9.233/1.9.234, Stufe 6, R3a)
+
+Seit 1.9.233 tragen Einsätze ihre Personen (`PlanningSlotEmployee`), seit 1.9.234 ihre Geräte (`PlanningSlotResource`). Testdaten, die Einsätze direkt
+anlegen (`PlanningSlot(...)` mit Kolonnen-Zuweisung und Schnappschuss, wie ein Bestand von vor 1.9.233), geben ihnen danach die Besetzung und die Geräte,
+die die Migrationen ihnen gäben: in Klicktests und der Bildgrundlage `scripts/cdp_klicktest.py::besetzung_wie_migration(db)`, in pytest
+`tests/besetzung.py::wie_migration()`/`alle_wie_migration()` -- dieselbe Regel. Ohne sie hatten die Einsätze keine Personen; im ersten Gesamtlauf von
+1.9.233 waren dadurch fünf Klicktests rot (Einsätze fehlten auf „Heute“). Ein neuer Klicktest legt Einsätze besser über `app/planning.py::create_slot()` an.
+
+### Festlegungen 1.9.233 zu Werkzeug und Testablauf (Bitte bestätigen)
+
+1. Testdaten mit direkt angelegten Einsätzen rufen danach `besetzung_wie_migration()` bzw. `wie_migration()`; die Regel steht zweimal (Werkzeug und Tests),
+   weil kein Skript aus `tests/` importiert.
+
 ## Gegenprobe zu jeder neuen Festlegung in derselben Runde (stehende Regel seit 1.9.210, L1a Stufe 5, Punkt 3)
 
 Vorgabe Tobias (04.11.2026): jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe; wo keine möglich ist, mit Begründung in der Tabelle. Anlass: Stufe 4 hatte für 1.9.202 Nr. 2 und Nr. 3 keine (die Tests gab es, die Gegenprobe nicht); die Durchsicht aller Festlegungen von Stufe 4 fand weitere Teilaussagen ohne eigene Gegenprobe, drei davon auch ohne Test.

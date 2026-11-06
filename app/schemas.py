@@ -3165,7 +3165,7 @@ class PlanningSlotCreate(BaseModel):
     geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: ohne Angabe schlägt die Kolonne ihre Geräte vor
     start_date: date
     end_date: date
-    status: str = Field(default="geplant", max_length=40)
+    status: Literal["vorlaeufig", "fest"] = "vorlaeufig"  # seit 1.9.235 (bis 1.9.234 freier Text bis 40 Zeichen, Vorgabe „geplant“)
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
@@ -3193,7 +3193,7 @@ class PlanningSlotUpdate(PartialUpdate):
     geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: setzt die Geräte genau so (weglassen = unverändert, null 422)
     start_date: date | None = None
     end_date: date | None = None
-    status: str | None = Field(default=None, max_length=40)
+    status: Literal["vorlaeufig", "fest"] | None = None  # seit 1.9.235
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)

@@ -154,7 +154,7 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     Verschieben alles auf den Stand beim Laden zurück."""
     db, client = tafel["db"], tafel["client"]
     beim_laden = client.get("/api/planning", params={"start": "2026-10-12", "end": "2026-10-25"}).json()
-    neu = {"status": "bestaetigt", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}
+    neu = {"status": "fest", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}  # seit 1.9.235 (bis dahin „bestaetigt“)
     assert client.put(tafel["url"], json=neu).status_code == 200
     aufrufe = im_browser(
         "planning.html", ["dropSlot", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt"],
@@ -170,7 +170,7 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     senden(client, aufrufe)
     stand = _einsatz_stand(db, tafel["id"])
     assert (stand["start_date"], stand["end_date"]) == (date(2026, 10, 14), date(2026, 10, 18))
-    assert (stand["status"], stand["notes"], stand["planned_hours"], stand["travel"]) == ("bestaetigt", "Gerüst steht", D("30"),
+    assert (stand["status"], stand["notes"], stand["planned_hours"], stand["travel"]) == ("fest", "Gerüst steht", D("30"),
                                                                                         D("1"))
     assert client.get("/api/planning", params={"start": "2026-10-12", "end": "2026-10-25"}).json()["slots"][0]["team_id"] == \
         tafel["team_b"]

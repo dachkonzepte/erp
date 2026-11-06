@@ -1313,3 +1313,32 @@ Gerät doppelt nach Tagen, Kalender des Geräts nach Tagen, Belegung der Tafel, 
 PostgreSQL). `tests/besetzung.py::wie_migration()` und `scripts/cdp_klicktest.py::besetzung_wie_migration()` übernehmen dazu die Geräte des Schnappschusses
 (wie die Migration). Gegenproben: Archiv `gegenproben-stufe6-r3a.md` (21, alle rot; eine erst aus dem falschen Grund).
 Angepasste Erwartungen: keine (die neue Feldbeschriftung „Tage“ in `app/audit.py::FIELD_LABELS` verlangen `test_v436`/`test_v438` ohnehin).
+
+### Umsetzung 1.9.235: Status vorläufig | fest (Punkt 4)
+
+- `app/planning.py::EINSATZ_STATUS` (`vorlaeufig` -> „vorläufig“, `fest` -> „fest“): `create_slot()` (Vorgabe vorläufig) und `update_slot()` nehmen nur diese
+  zwei (`ValueError`), die Schemas als `Literal` (422); `slot_to_dict()` dazu `status_label`. Modell-Vorgabe `vorlaeufig`.
+- Migration `a7d3e5f9c214`: „geplant“ -> vorläufig, jeder andere Wert (auch leer, Freitext) -> fest; downgrade() vorläufig -> geplant, fest -> bestaetigt.
+- Oberfläche: „Einsatz planen“ und „Einsatz bearbeiten“ bieten „vorläufig“ und „fest“ (neu vorläufig). Gestrichelt auf der Tafel und die Anzeige auf
+  „Heute“ kommen mit R4 und R3b. Abgeschlossen und storniert kommen vom Auftrag. Im Verlauf heißen die Werte „Vorläufig“/„Fest“; die Prüfabfrage
+  `scripts/pruefabfrage_auswahlwerte.sql` kennt die zwei.
+
+### Festlegungen 1.9.235 (Bitte bestätigen)
+
+1. Ein Einsatz ist „vorläufig“ oder „fest“, neu angelegt vorläufig; jeder andere Wert 422.
+2. Die Migration macht „geplant“ zu vorläufig und jeden anderen Wert (auch leer oder Freitext) zu fest; downgrade() macht vorläufig zu „geplant“ und fest zu
+   „bestaetigt“, frühere andere Werte kommen nicht zurück (sie hatten keine Wirkung).
+3. Der Status hat in R3a keine Wirkung auf Konflikte und Kapazität: ein vorläufiger Einsatz zählt wie ein fester.
+
+### Tests und Prüfung 1.9.235
+
+Neu: `tests/test_v635_einsatz_status.py` (Vorgabe vorläufig, fest, sechs andere Werte 422 beim Anlegen und Ändern, Geschäftsfunktionen prüfen selbst,
+vorläufig zählt wie fest, Dialog und Verlauf, Migration auf einem Bestand unter SQLite und PostgreSQL; seit den Gegenproben dazu Schema und Vorgabe
+für sich). Gegenproben: Archiv `gegenproben-stufe6-r3a.md` (14 rot, drei erst grün -> Tests ergänzt).
+
+Angepasste Erwartungen (Regel 28):
+- `test_v090::test_planning_slot_updates_work_preparation_dates_and_can_switch_team`: Aufbau `status="fest"` statt „bestaetigt“.
+- `test_v399_teil_updates_rest::test_plantafel_verschieben_schickt_nur_team_und_zeitraum`: Status „fest“ statt „bestaetigt“ (gesendet und erwartet).
+- `test_v563::test_nur_notiz_aendern_fragt_nicht_nach_und_nennt_die_konflikte`: geändert wird `{"status": "fest"}` statt „bestaetigt“.
+- `test_v364`: `planning_slots.status` von `FESTE_LITERALE` („geplant“, sonst vom Client) nach `FESTE_WERTE` (`app.planning.EINSATZ_STATUS`).
+- `scripts/pruefabfrage_auswahlwerte.sql` (von `test_v447` gegen die Seite geprüft): `planning_slots.status IN ('vorlaeufig', 'fest')` statt der fünf alten Werte.
