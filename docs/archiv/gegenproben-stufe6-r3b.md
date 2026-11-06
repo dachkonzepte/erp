@@ -113,6 +113,11 @@ Kein Marker unter `app/` nach den Läufen. Nach `241_4b`/`241_8b` alle Läufe ge
 | Regel 32 (Seite) – Namen über esc() | „Mit dir“ ohne esc() (`242_9b`) | Runde 1 rot **aus dem falschen Grund**: v407 war schon ohne Gegenprobe rot (die Zeile baute eine verschachtelte Funktion `zeile()`, deren Aufrufstellen der Scanner nicht verfolgt -- Fund der vollen Suite) -> `angabeZeile()` auf der obersten Ebene der Seite, v407 ohne Gegenprobe grün; Runde 2: rot, v407::test_kein_wert_ohne_esc_im_html |
 | Werkzeug Nr. 1 – pytest-Uhr am nächsten Arbeitstag | heute ohne Verschieben (`242_W1a`) | 1 rot: v642::test_feste_uhr_beginnt_an_einem_arbeitstag |
 | Werkzeug Nr. 1 – Klicktest-Uhr am nächsten Arbeitstag | dito in `cdp_klicktest._arbeitstag_ab()` (`242_W1b`) | 1 rot: v642::test_klicktest_uhr_beginnt_an_einem_arbeitstag |
+| Werkzeug Nr. 3 (Nachtrag) – Versatz in ganzen Tagen | `_tage_versatz_ms()` immer 0 (`242_W3a`) | 1 rot: v642::test_klicktest_browser_geht_um_ganze_tage_mit |
+| Werkzeug Nr. 3 – jeder Tab | Aufruf beim ersten Tab weg (`242_W3b`) | 1 rot: v642::test_klicktest_jeder_tab_bekommt_den_tagesversatz |
+| Werkzeug Nr. 3 – `_browser_tage()` setzt den Versatz | tut nichts (`242_W3d`) | 1 rot: v642::test_klicktest_tab_bekommt_den_tagesversatz |
+| Werkzeug Nr. 3 – das zuletzt eingesetzte Skript gilt | das erste gilt (wie bis jetzt, `242_W3c`) | 1 rot: v642::test_browser_uhr_das_letzte_skript_gilt |
+| Werkzeug Nr. 3 – im Klicktest | Stand vor dem Nachtrag (Samstags-Probe, `ERP_KLICKTEST_HEUTE=2026-11-07`) | 2 rot: klicktest_bericht_ohne_einsatz, klicktest_maengel_monteur (Datum des Browsers statt der Instanz) |
 
 Ohne eigene Gegenprobe: Werkzeug Nr. 2 (`--wanduhr` mit Datum, `ERP_KLICKTEST_HEUTE`) ist das Mittel der Gegenproben `W1a`/`W1b` und der Samstags-Probe
 (Bericht), keine Regel im Betrieb. Alle roten nennen einen gescheiterten Test, keinen Sammelfehler; jede Datei byte-genau zurück, kein Marker unter

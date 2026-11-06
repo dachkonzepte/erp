@@ -187,3 +187,77 @@ def test_seite_zeichnet_die_angaben():
     assert zweite == ('<div class="einsatz-info" data-angabe="mit"><span class="was">Mit dir</span><span class="text">'
                       '<span class="leise">Tom Test, Mia Test sind nicht da</span></span></div>')
     assert keine == ""
+
+
+# --- 1.9.242 (Nachtrag): der Browser im Klicktest geht um dieselben ganzen Tage mit ------------------------------------------------------
+
+def _klicktest_modul(name):
+    import importlib.util
+    from pathlib import Path
+    pfad = Path(__file__).resolve().parents[1] / "scripts" / "cdp_klicktest.py"
+    spec = importlib.util.spec_from_file_location(name, pfad)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    return modul
+
+
+def test_klicktest_browser_geht_um_ganze_tage_mit():
+    """1.9.242 (Nachtrag): an einem Tag ohne Arbeit liegt die laufende Uhr der Instanz Tage voraus -- der Browser um dieselben ganzen Tage."""
+    from datetime import timezone
+    modul = _klicktest_modul("cdp_klicktest_v642_tage")
+    montag_10_uhr = datetime(2026, 11, 9, 10, 0, tzinfo=berlin_time.BERLIN).astimezone(timezone.utc).isoformat()
+    freitag_10_uhr = datetime(2026, 11, 6, 10, 0, tzinfo=berlin_time.BERLIN).astimezone(timezone.utc).isoformat()
+    samstag_15_uhr = datetime(2026, 11, 7, 15, 0, tzinfo=berlin_time.BERLIN).timestamp()
+    freitag_23_30 = datetime(2026, 11, 6, 23, 30, tzinfo=berlin_time.BERLIN).timestamp()
+    assert modul._tage_versatz_ms(f"{montag_10_uhr}|{samstag_15_uhr}") == 2 * 86_400_000
+    assert modul._tage_versatz_ms(f"{freitag_10_uhr}|{freitag_23_30}") == 0  # Arbeitstag: der Browser bleibt, wie er war
+    assert modul._tage_versatz_ms(f"{montag_10_uhr}|fest") == 0  # stehende Uhr: der Klicktest hält den Browser selbst an
+
+
+def test_klicktest_tab_bekommt_den_tagesversatz(monkeypatch):
+    """1.9.242 (Nachtrag): _browser_tage() setzt den Tagesversatz am Tab -- an einem Arbeitstag (0) nichts."""
+    import asyncio
+    modul = _klicktest_modul("cdp_klicktest_v642_tab")
+
+    class Attrappe:
+        def __init__(self):
+            self.versatz = []
+
+        async def browser_uhr(self, ms):
+            self.versatz.append(ms)
+
+    tab = Attrappe()
+    monkeypatch.setattr(modul, "_BROWSER_TAGE_MS", 0)
+    asyncio.run(modul._browser_tage(tab))
+    monkeypatch.setattr(modul, "_BROWSER_TAGE_MS", 2 * 86_400_000)
+    asyncio.run(modul._browser_tage(tab))
+    assert tab.versatz == [2 * 86_400_000]
+
+
+def test_klicktest_jeder_tab_bekommt_den_tagesversatz():
+    """1.9.242 (Nachtrag): jede Funktion in cdp_klicktest.py, die einen Tab anlegt, ruft _browser_tage() auf."""
+    import ast
+    from pathlib import Path
+    baum = ast.parse((Path(__file__).resolve().parents[1] / "scripts" / "cdp_klicktest.py").read_text(encoding="utf-8"))
+    anlegen = 0
+    for f in ast.walk(baum):
+        if not isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        aufrufe = [n.func.id for n in ast.walk(f) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+        if "Tab" in aufrufe:
+            anlegen += 1
+            assert "_browser_tage" in aufrufe, f"{f.name}() legt einen Tab an, ohne _browser_tage()"
+    assert anlegen == 2
+
+
+@nur_mit_node
+def test_browser_uhr_das_letzte_skript_gilt():
+    """1.9.242 (Nachtrag): zwei Skripte BROWSER_UHR in einem Dokument -- der Versatz des zweiten gilt (erst der Tagesversatz des Werkzeugs,
+    dann der volle Versatz eines Klicktests über Tab.browser_uhr())."""
+    from tests.node_lauf import node_ausfuehren
+    modul = _klicktest_modul("cdp_klicktest_v642_skript")
+    erst, dann = 2 * 86_400_000, 2 * 86_400_000 + 3_600_000
+    ergebnis = node_ausfuehren("globalThis.window=globalThis;const echt=Date.now();" + modul.BROWSER_UHR % erst + modul.BROWSER_UHR % dann
+                               + "console.log(JSON.stringify({now: Date.now() - echt, neu: new Date().getTime() - echt, fest: new Date(5).getTime()}));")
+    assert dann <= ergebnis["now"] < dann + 5_000 and dann <= ergebnis["neu"] < dann + 5_000
+    assert ergebnis["fest"] == 5

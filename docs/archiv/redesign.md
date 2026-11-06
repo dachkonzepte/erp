@@ -8559,8 +8559,19 @@ den Klicktest (nur für die Gegenprobe).
 1. Eine laufende Test-Uhr ab heute (pytest `feste_uhr`, Klicktest `uhr="HH:MM"`) beginnt an einem Tag ohne Arbeit (Wochenende, gesetzlicher Feiertag in NRW)
    am nächsten Arbeitstag.
 2. `--wanduhr` nimmt auch „JJJJ-MM-TT HH:MM“ (pytest), `ERP_KLICKTEST_HEUTE` stellt den Lauftag eines Klicktests nach (nur Gegenprobe).
+3. (Nachtrag) Ist die laufende Uhr eines Klicktests auf einen anderen Tag verschoben, geht der Browser jedes Tabs um dieselben ganzen Tage mit (die
+   Uhrzeit bleibt die echte, `_browser_tage()` an jeder Stelle, die einen Tab anlegt); von zwei Uhren des Browsers gilt die zuletzt eingesetzte.
 
 ### Tests und Prüfung 1.9.242
+
+**Nachtrag (nach dem Commit, Samstags-Probe):** mit `ERP_KLICKTEST_HEUTE=2026-11-07` (Samstag) liefen 24 Klicktests mit laufender Uhr, die `/mobil`
+berühren -- 2 rot: `klicktest_bericht_ohne_einsatz` und `klicktest_maengel_monteur` erwarteten das Datum der Instanz (Montag), der Browser füllte den echten
+Tag. An einem echten Samstag wäre es genauso gewesen (Browser Samstag, Instanz Montag) -- eingeführt von der Verschiebung der Test-Uhr in 1.9.242. Behoben in
+`scripts/cdp_klicktest.py`: `_tage_versatz_ms()` (Versatz der laufenden Uhr in ganzen Tagen, bei stehender Uhr 0), `_browser_tage()` an beiden Stellen, die
+einen Tab anlegen, `BROWSER_UHR` lässt das zuletzt eingesetzte Skript gelten (`klicktest_zeitbuchungen_liste` setzt mit `tab.browser_uhr()` danach den vollen
+Versatz). In pytest dieselbe Probe (`--wanduhr "2026-11-07 10:00"`, 34 Testdateien mit Test-Uhr oder „Heute“): 6 rot, alle `test_v224_field_view` -- sie
+legen den Einsatz auf `date.today()`, die Probe verstellt nur die Uhr der App (an einem Dienstag dieselben 6, an einem echten Samstag zeigen beide denselben
+Tag); ohne das Verschieben der Test-Uhr 3 mehr (v326 Datengrenze, v498, v642).
 
 Neu: `tests/test_v642_heute_einsatz.py` (Karte mit allen Angaben, Gerät an einzelnen Tagen, „ist nicht da“ ohne Art, kein Arbeitstag, eigene Abwesenheit,
 Nächste Tage mit Urlaub und Antrag, `Tage`, Test-Uhr in pytest und Klicktest, die Seite zeichnet die Angaben in node). Gegenproben: Archiv
@@ -8573,6 +8584,7 @@ Angepasste Erwartungen (Regel 28):
   „weiter“).
 - `test_v498::test_heute_knoepfe_und_dialog`: nur Aufbau -- der Text ohne Karte steht als `esc(h.heute_frei||'Heute ist nichts eingeplant.')`.
 - `test_v326`: neue Ausnahme `/api/field-view/today $.heute.einsaetze[].angaben.notiz` (Notiz des Einsatzes, für die Monteure).
+- Nachtrag: `test_v642` drei Tests neu (Tagesversatz, jeder Tab, das letzte Skript gilt) -- keine bestehende Erwartung geändert.
 - `klicktest_heute`: Testdaten dazu Pia (heute krank), Status fest, Notiz, Baustellenhinweis, ein Kran nur heute; „Nächste Tage“ alt „… · Fortsetzung“ und
   „… · Rinne erneuern“, neu „… · weiter“ und „… · mit Ole, Lea, Kai, Tom, Pia · vorläufig“; neu „Einsatz nach der Zeichnung …“ und „Die Art der Abwesenheit
   einer anderen steht nirgends“.

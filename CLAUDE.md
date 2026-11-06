@@ -374,7 +374,7 @@ Behoben, drei Teile:
   Karte `angaben` (`app/heute.py::einsatz_details()`: Status, „Mit dir“ -- wer fehlt nur „ist nicht da“, nie die Art --, Geräte an ihren Tagen, Notiz,
   Baustellenhinweise der AV), nur an Arbeitstagen ohne eigene Abwesenheit (`Tage`, sonst `heute_frei`); „Nächste Tage“ je Auftrag und Zusatz nach
   Arbeitstagen, eigener Urlaub als Zeile (`tests/test_v642_heute_einsatz.py`). Eine laufende Test-Uhr beginnt an einem Tag ohne Arbeit am nächsten
-  Arbeitstag (`tests/uhr.py::arbeitstag_ab()`, Klicktest `_uhr_marke()`). **Seit 1.9.49** stehen die
+  Arbeitstag (`tests/uhr.py::arbeitstag_ab()`, Klicktest `_uhr_marke()`; der Browser jedes Tabs geht um dieselben ganzen Tage mit, `_browser_tage()`). **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
   `tests/test_v476_heute_offen.py`. Seit 1.9.50 ein Feld auf der Signalfläche mit `--ds-feld-rand-signal` (≥ 3 : 1 zu signal-hell).
@@ -2140,7 +2140,7 @@ Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Den Browser nimmt die feste Uhr nur mit, wenn der Klicktest es
-will (seit 1.8.111): `k.uhr_versatz_ms()` in den Seed, `await tab.browser_uhr(seed[…])` vor dem ersten Laden -- so läuft
+will (seit 1.8.111; seit 1.9.242 geht er an einem Tag ohne Arbeit um die ganzen Tage mit, um die die Instanz verschoben ist): `k.uhr_versatz_ms()` in den Seed, `await tab.browser_uhr(seed[…])` vor dem ersten Laden (das zuletzt eingesetzte gilt) -- so läuft
 `klicktest_zeitbuchungen_liste.py` immer bei 00:30 Uhr (in UTC noch gestern). Eine stehende Uhr (`uhr="JJJJ-MM-TT HH:MM"`, `tab.browser_uhr_fest()`)
 stellt seit 1.9.209 nur der Klicktest weiter, mit `await tab.uhr_stellen(ms)` in Instanz und Browser zugleich -- nie über Warten auf die echte Uhr
 (`klicktest_heute`, `tests/test_v614_stehende_uhr_stellen.py`). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --

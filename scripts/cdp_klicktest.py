@@ -309,8 +309,10 @@ XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEve
 # anzahl, art}; art "antwort": die Anfrage geht sofort hinaus, der Server bearbeitet sie, die Seite bekommt die Antwort erst bei
 # freigeben(); art "anfrage": die Anfrage geht erst bei freigeben() hinaus. gehalten: je Fall {url, methode, art, beantwortet}.
 # Seit 1.8.111: versetzte, weiterlaufende Uhr des Browsers (Tab.browser_uhr()) -- new Date() ohne Argument und Date.now() um %d ms.
-BROWSER_UHR = """(()=>{if(window.__dkUhrVersatz!==undefined)return;const V=%d;window.__dkUhrVersatz=V;const Echt=Date;
-globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[Echt.now()+V]))}static now(){return Echt.now()+V}};})();"""
+# Seit 1.9.242 (Nachtrag) gilt das zuletzt eingesetzte Skript: jeder Tab bekommt beim Anlegen den Versatz in ganzen Tagen
+# (_browser_tage()), ein Klicktest mit Tab.browser_uhr(k.uhr_versatz_ms()) setzt danach den vollen Versatz -- bis dahin gewann das erste.
+BROWSER_UHR = """(()=>{const V=%d;if(window.__dkUhrVersatz!==undefined){window.__dkUhrVersatz=V;return}window.__dkUhrVersatz=V;const Echt=Date;
+globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[Echt.now()+window.__dkUhrVersatz]))}static now(){return Echt.now()+window.__dkUhrVersatz}};})();"""
 # Seit 1.8.126: stehende Uhr des Browsers (Tab.browser_uhr_fest()) -- new Date() ohne Argument und Date.now() immer derselbe Zeitpunkt.
 # Seit 1.9.209 aus window.__dkUhrFest gelesen: Tab.uhr_stellen() stellt sie im geladenen Dokument weiter.
 BROWSER_UHR_FEST = """(()=>{if(window.__dkUhrFest!==undefined)return;const T=%d;window.__dkUhrFest=T;const Echt=Date;
@@ -858,6 +860,7 @@ class Tab:
                 tab = Tab(ws, self.base, self.shots, self.cdp_port, self.verbindungen)
                 for domain in ("Page", "Runtime", "Network"):
                     await tab.cmd(f"{domain}.enable")
+                await _browser_tage(tab)  # seit 1.9.242 (Nachtrag)
                 await tab.fenster(1400, 1000)
                 yield tab
         finally:
@@ -1389,6 +1392,10 @@ UHR_ENV = "KLICKTEST_UHR"
 # bei jedem Blick auf die Uhr; fehlt sie, steht die Uhr auf dem Zeitpunkt aus KLICKTEST_UHR.
 UHR_DATEI_ENV = "KLICKTEST_UHR_DATEI"
 _STEHENDE_UHR_DATEI: Path | None = None
+# Seit 1.9.242 (Nachtrag): um wie viele ganze Tage die laufende Uhr der Instanz verschoben ist (an einem Tag ohne Arbeit auf den nächsten
+# Arbeitstag, _uhr_marke()) -- jeder Tab bekommt diesen Versatz (_browser_tage()), sonst sähe die Seite den echten Tag und die Instanz einen
+# anderen. An einem Arbeitstag und bei stehender Uhr 0: dort ändert sich nichts.
+_BROWSER_TAGE_MS = 0
 
 
 def _uhr_marke(uhrzeit: str) -> str:
@@ -1411,6 +1418,27 @@ def _uhr_marke(uhrzeit: str) -> str:
                            else datetime.fromtimestamp(echt, berlin).date())
     start = datetime.combine(heute, uhr.fromisoformat(uhrzeit), tzinfo=berlin).astimezone(timezone.utc)
     return f"{start.isoformat()}|{echt}"
+
+
+def _tage_versatz_ms(marke: str) -> int:
+    """Seit 1.9.242 (Nachtrag): aus der Marke von _uhr_marke() der Versatz der laufenden Uhr in ganzen Tagen (Millisekunden) -- der Tag
+    des Starts gegen den echten Tag in Europe/Berlin; bei stehender Uhr ("…|fest") 0."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    start, _, echt = marke.partition("|")
+    if echt == "fest":
+        return 0
+    berlin = ZoneInfo("Europe/Berlin")
+    tage = (datetime.fromisoformat(start).astimezone(berlin).date() - datetime.fromtimestamp(float(echt), berlin).date()).days
+    return tage * 86_400_000
+
+
+async def _browser_tage(tab: "Tab") -> None:
+    """Seit 1.9.242 (Nachtrag): ist die laufende Uhr der Instanz auf einen anderen Tag verschoben, geht der Browser dieses Tabs um dieselben
+    ganzen Tage mit (Tab.browser_uhr(), die Uhrzeit bleibt die echte). Jede Stelle, die einen Tab anlegt, ruft das auf."""
+    if _BROWSER_TAGE_MS:
+        await tab.browser_uhr(_BROWSER_TAGE_MS)
 
 
 def _arbeitstag_ab(tag):
@@ -1556,6 +1584,10 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
     uhrzeit = uhr or args.wanduhr
     if uhrzeit:
         env[UHR_ENV] = _uhr_marke(uhrzeit)
+        global _BROWSER_TAGE_MS
+        _BROWSER_TAGE_MS = _tage_versatz_ms(env[UHR_ENV])  # seit 1.9.242 (Nachtrag)
+        if _BROWSER_TAGE_MS:
+            print(f"Tag ohne Arbeit: Instanz und Browser {_BROWSER_TAGE_MS // 86_400_000} Tag(e) weiter (nächster Arbeitstag)")
     stehend = bool(uhrzeit) and " " in uhrzeit.strip()
     if stehend:  # seit 1.9.209: Tab.uhr_stellen() schreibt hierher, die Instanz liest von hier
         global _STEHENDE_UHR_DATEI
@@ -1648,6 +1680,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbin
         p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")
+        await _browser_tage(tab)  # seit 1.9.242 (Nachtrag)
         await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANTWORT_RUECKHALT)  # seit 1.8.95, vor dem Zähler
         await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANFRAGEN_ZAEHLER)  # seit 1.8.94
         await tab.fenster(1400, 1000)
