@@ -2140,6 +2140,9 @@ Runde, nicht im Archiv): 11 Personen, 170 Buchungen über den Nachtragsweg, 205 
 Lesart A, Tag auf 0,25 h, ein Azubi in Time 4 ohne Arbeit und Berufsschule, Mehrarbeit AA / 1900), 0 zu klären; nicht übernommen: eine Abwesenheit für einen
 Teil eines Tags („AT“), die es im ERP nicht gibt. Kopf 1234567;12345 -- die echten Nummern trägt Tobias selbst ein.
 
+Nachtrag (06.11.2026): bis zu diesem Nachtrag standen hier die Personalnummern aus dem Aufruf und eine Abwesenheit einer Person -- aus `lohn_echt`
+wird nichts committet (Vorgabe Tobias).
+
 ### Tests und Prüfung 1.9.239
 
 Neu: `tests/test_v639_lohndatei_statt_lodas.py` (Hinweis nennt die Lohndatei, keine Vorlage nennt LODAS). Gegenproben: Archiv
