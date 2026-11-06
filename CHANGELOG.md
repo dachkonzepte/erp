@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.237 – Plantafel: bedienbar auf dem neuen Modell, Besetzung im Dialog (Stufe 6, R3a, Punkt 6)
+
+Die Plantafel bleibt, wie sie aussieht, und arbeitet mit Besetzung, Geräten und Status je Einsatz: eine Kolonne wählen setzt ihre Mitglieder und Geräte, auch beim Ziehen in ihre Zeile; ein Einsatz ohne Kolonne steht in der Zeile „Ohne Kolonne“; „Einsatz bearbeiten“ nennt jetzt unter der Kolonne, wer und was an diesem Einsatz steht, und bietet „ohne Kolonne – die Personen bleiben“. Ein neuer Klicktest geht das einmal ganz durch, mit der Rückfrage zur abgelaufenen Prüffrist eines Krans. Das neue Aussehen der Zeichnung kommt mit R4, Kranvermietung, Kran-Kalender und „Heute“ mit R3b.
+
 ## 1.9.236 – Plantafel: Konflikte auf dem neuen Modell, Prüffrist der Geräte (Stufe 6, R3a, Punkt 5)
 
 Die Konflikte rechnen jetzt ganz mit Besetzung und Geräten des Einsatzes. Neu warnt die Plantafel, wenn ein Gerät an einem seiner Tage am Einsatz eine abgelaufene Prüffrist hat („Prüffrist abgelaufen: Kran · UVV fällig am 03.11.2026“) -- aus den Prüfungen der Betriebsmittelverwaltung, solange sie eingeschaltet ist. „Kolonne doppelt“ entfällt: zwei Einsätze derselben Kolonne melden ihre gemeinsamen Personen, ohne gemeinsame Person ist es kein Konflikt. Unverändert warnen „Person doppelt“ (jetzt auch für einzeln Zugeordnete), „Person abwesend“ und „Gerät doppelt“ samt Kalender des Geräts; Antrag offen, Feiertag oder betriebsfreier Tag und Kapazität bleiben Hinweise.

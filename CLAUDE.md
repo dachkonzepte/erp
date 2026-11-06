@@ -1214,7 +1214,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Besetzung (`tests/test_v633_besetzung_je_einsatz.py`); seit 1.9.234 ebenso die Geräte (`PlanningSlotResource`, alle oder einzelne Tage,
   `tests/test_v634_geraete_je_einsatz.py`); der Status eines Einsatzes seit 1.9.235 nur `vorlaeufig` | `fest` (`EINSATZ_STATUS`,
   `tests/test_v635_einsatz_status.py`), abgeschlossen/storniert kommt vom Auftrag. Seit 1.9.236 ohne „Kolonne doppelt“, dazu die Warnung „Gerät mit
-  abgelaufener Prüffrist“ (`pruefung`, `_pruefungen()`, `tests/test_v636_konflikte_neues_modell.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
+  abgelaufener Prüffrist“ (`pruefung`, `_pruefungen()`, `tests/test_v636_konflikte_neues_modell.py`). Klicktest der Abläufe auf dem neuen Modell:
+  `scripts/klicktest_plantafel_besetzung.py` (seit 1.9.237). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
   `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
   nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
   `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,

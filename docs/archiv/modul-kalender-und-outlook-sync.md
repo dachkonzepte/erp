@@ -1378,3 +1378,30 @@ Angepasste Erwartungen (Regel 28):
 - `test_v090::test_same_team_overlap_is_conflict_and_unplanned_backlog_disappears_after_planning`: alt ein Konflikt „team“, neu „employee“.
 - `test_v563_konflikte_pg::test_pg_warnung_laesst_nichts_zurueck_und_trotzdem_planen_speichert`: alt „team“ in den Warnungen, neu „employee“; die
   Kolonne A der PostgreSQL-Fassung bekommt dafür eine Person (Aufbau), `test_pg_verschieben_mit_warnung_gibt_die_sperre_frei` erwartet weiter 409.
+
+### Umsetzung 1.9.237: die heutige Oberfläche bleibt bedienbar (Punkt 6)
+
+Mit 1.9.233–1.9.236 lief die Oberfläche auf dem neuen Modell mit: eine Kolonne wählen (Anlegen, Bearbeiten, Ziehen in ihre Zeile) setzt ihre Mitglieder und
+Geräte, Einsätze ohne Kolonne stehen in der Zeile „Ohne Kolonne“, „Mitarbeiter“ liest die Besetzung, „Fahrzeuge / Maschinen“ die Geräte an ihren Tagen,
+der Status heißt „vorläufig“/„fest“, die Rückfrage nennt „Prüffrist abgelaufen“. Dazu jetzt:
+
+- „Einsatz bearbeiten“ nennt unter der Kolonne die Besetzung und die Geräte des Einsatzes (`besetzungText()`, einzelne Tage in Klammern) und sagt, dass
+  eine andere Kolonne ihre Mitglieder und Geräte setzt -- die Besetzung kann seit 1.9.233 von der Kolonne abweichen. Nur lesend; Personen und Geräte
+  einzeln wählen kommt mit R4.
+- Klicktest `scripts/klicktest_plantafel_besetzung.py`: Neu mit Nord, Ansichten Kolonnen/Mitarbeiter/Fahrzeuge, Dialog, Wechsel auf Süd mit Rückfrage
+  „Prüffrist abgelaufen“, „ohne Kolonne“ (fragt wie jeder Wechsel der Kolonne), Ziehen nach Nord, Status fest.
+
+Unverändert bis R4 (bewusst): die Legende der Tafel („geplant · Konflikt · …“ meint einen eingeplanten Balken, nicht den Status), keine Strichelung für
+vorläufig, Kapazität je Tag und Kolonne in den Zellen, Ziehen nur in „Kolonnen“ und mit der Maus.
+
+### Festlegungen 1.9.237 (Bitte bestätigen)
+
+1. „Einsatz bearbeiten“ zeigt die Besetzung und die Geräte des Einsatzes lesend unter der Kolonne; ändern über die Kolonne (oder die Schnittstelle).
+2. Auch der Wechsel auf „ohne Kolonne“ fragt bei Warnungen zurück wie jeder Wechsel der Kolonne.
+
+### Tests und Prüfung 1.9.237
+
+Neu: `tests/test_v637_plantafel_bedienbar.py` (Text der Besetzung im Dialog in node, Dialog füllt die Zeile beim Öffnen, der Klicktest deckt die Abläufe,
+„ohne Kolonne“ fragt bei Warnungen zurück) und `scripts/klicktest_plantafel_besetzung.py` (17 Prüfungen). Gegenproben: Archiv `gegenproben-stufe6-r3a.md`.
+Angepasste Erwartungen (Regel 28): `test_v447::test_plantafel_status` nur Aufbau -- die Attrappe des Einsatzes bekommt `employees` und `resources`
+(leer), wie jede Antwort des Servers (`slot_to_dict`); ohne sie warf der neue `besetzungText()` beim Öffnen des Dialogs (Regel 36). Erwartung bleibt.

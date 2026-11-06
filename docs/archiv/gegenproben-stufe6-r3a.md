@@ -169,3 +169,14 @@ betrifft nur ihre eigene Stelle.
 | Nr. 3 – ohne Fälligkeit keine Warnung | Prüfungen ohne Fälligkeit mitgenommen (`236_3b`) | rot: v636 |
 | Nr. 4 – nur an den Tagen des Geräts | alle Tage des Einsatzes (`236_4`) | rot: v636 |
 | Tafel: „Prüffrist abgelaufen“, kein „Kolonne doppelt“ | Beschriftung zurück (`236_5`) | rot: v636 |
+
+## 1.9.237 (Punkt 6): Oberfläche bedienbar
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Dialog füllt die Zeile | Zeile nicht gefüllt (`237_1a`) | rot: v637 |
+| Nr. 1 – nennt die Geräte | Geräte weg (`237_1b`) | rot: v637 |
+| Nr. 1 – mit einzelnen Tagen | Tage weg (`237_1c`) | rot: v637 |
+| Nr. 2 – „ohne Kolonne“ fragt zurück | ohne Kolonne nie (`237_2`) | rot: v637 |
+
+Kein Marker unter `app/` nach den Läufen; jede rote nennt einen gescheiterten Test, keinen Sammelfehler.

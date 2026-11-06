@@ -163,7 +163,8 @@ def test_einstellungen_schichttyp_auswahlliste():
 def test_plantafel_status():
     slot = {"id": 1, "status": "unterbrochen", "project_number": "P-1", "order_number": "A-1", "team_id": None, "start_date": "2026-10-01",
             "end_date": "2026-10-02", "planned_hours": "8", "travel_hours_per_employee_day": "0", "notes": "", "project_name": "N",
-            "customer_name": "K", "conflicts": []}
+            "customer_name": "K", "conflicts": [],
+            "employees": [], "resources": []}  # seit 1.9.237: wie die Antwort des Servers (slot_to_dict), der Dialog nennt Besetzung und Geräte
     ablauf = (statisch("planning.html", "editStatus") + f"board = {{slots: [{json.dumps(slot)}], teams: [], employees: []}};"
               "globalThis.editDialog = _element('editDialog');"  # im Browser über die id als Name erreichbar
               "openEdit(1); return _feld('editStatus');")
