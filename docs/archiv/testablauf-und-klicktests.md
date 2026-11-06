@@ -1524,7 +1524,7 @@ die die Migrationen ihnen gäben: in Klicktests und der Bildgrundlage `scripts/c
 `tests/besetzung.py::wie_migration()`/`alle_wie_migration()` -- dieselbe Regel. Ohne sie hatten die Einsätze keine Personen; im ersten Gesamtlauf von
 1.9.233 waren dadurch fünf Klicktests rot (Einsätze fehlten auf „Heute“). Ein neuer Klicktest legt Einsätze besser über `app/planning.py::create_slot()` an.
 
-### Festlegungen 1.9.233 zu Werkzeug und Testablauf (Bitte bestätigen)
+### Festlegungen 1.9.233 zu Werkzeug und Testablauf (bestätigt am 06.11.2026)
 
 1. Testdaten mit direkt angelegten Einsätzen rufen danach `besetzung_wie_migration()` bzw. `wie_migration()`; die Regel steht zweimal (Werkzeug und Tests),
    weil kein Skript aus `tests/` importiert.

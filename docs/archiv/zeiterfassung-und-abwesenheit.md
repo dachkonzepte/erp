@@ -1655,7 +1655,7 @@ minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Loh
 Unverändert minutengenau: die Buchungen (`TimeEntry.hours`), Stundenzettel (PDF, CSV), Übersicht, „Meine Zeiten“, „Prüfen“ und der bisherige
 DATEV-Export (er entfällt mit 1.9.224).
 
-### Festlegungen 1.9.223 (Bitte bestätigen)
+### Festlegungen 1.9.223 (bestätigt am 06.11.2026)
 
 1. Die Arbeit eines Tags im Lohn sind die gebuchten Stunden der Person an dem Tag (nach der Pause), kaufmännisch auf 0,25 h gerundet: die Hälfte
    rundet auf (8,125 -> 8,25; 0,625 -> 0,75), darunter ab (8,12 -> 8,00; 0,10 -> 0,00 -- ein Tag mit 6 Minuten hat keine Arbeit im Lohn).
@@ -1694,7 +1694,7 @@ NOT NULL, `server_default` false), im Teil-Update der Lohnstammdaten (`NOT_NULL`
 Exports“ entfallen samt Schnittstelle (`TimeTrackingSettingsOut`/`update_time_settings()`); die Spalten bleiben ungenutzt stehen (keine Migration),
 das Änderungsprotokoll nennt sie weiter. „Monat & Lohn“, Schritt „Ausgeben“: der Satz nennt die Lohndatei.
 
-### Festlegungen 1.9.224 (Bitte bestätigen)
+### Festlegungen 1.9.224 (bestätigt am 06.11.2026)
 
 1. Format wie die Muster: ASCII, CRLF auch nach der letzten Zeile, jede Zeile 11 Felder. Kopf `Beraternummer;Mandantennummer;MM/JJJJ`. Tageszeile
    `Personalnummer;Tag;Kennzeichen;Lohnart;Stunden;;;;;;` -- Tag ohne führende Null, Stunden mit Komma und zwei Stellen, ohne Lohnart ein leeres Feld
@@ -1716,6 +1716,7 @@ das Änderungsprotokoll nennt sie weiter. „Monat & Lohn“, Schritt „Ausgebe
     (Feiertag, Kalendertag, Abwesenheit, Schlechtwetter, auch nicht exportierte) − Sollzeit, zwischen 0 und der Arbeit (Samstag: alles; Berufsschultag
     mit Arbeit danach: die Arbeit). Diese Stunden stehen unter Mehrarbeit (AA / 1900), der Rest unter Arbeit -- keine Stunde doppelt. Ohne Kennzeichen
     der Mehrarbeit bleibt alles unter Arbeit. Annahme zur Antwort des Lohnbüros („AA / 1900 je Tag“), die „Mehrarbeit“ nicht bestimmt.
+    **Endgültig (06.11.2026):** das Steuerbüro bestätigt die Mehrarbeit der Azubis so (Angabe Tobias, Archiv „Stufe 6, R3b“).
 11. Eine Zeile mit 0,00 Stunden entfällt; ohne Kennzeichen in der Zuordnung keine Zeile.
 12. Vor dem Eintritt und nach dem Austritt keine Zeile, auch keine gebuchte Arbeit.
 13. Bekäme eine Person ohne Personalnummer eine Zeile, entsteht keine Datei (409 mit Liste); „Vor dem Abschluss“ nennt das erst mit 1.9.225.
@@ -1780,7 +1781,7 @@ Tage und Stunden; Gründe `UMFANG_ABWESENHEITEN` (Arbeit, Feiertag -- der Feiert
 mit Texten); „Vor dem Abschluss“ über `datev_fehlt()`. „Monat & Lohn“, Schritt „Ausgeben“: Block „Nicht in der Datei“ (`lohnNicht`) direkt über dem
 Knopf „DATEV-Export“, die Texte vom Server; ohne Einträge „Nichts – alles aus dem Monat geht in die Datei.“
 
-### Festlegungen 1.9.225 (Bitte bestätigen)
+### Festlegungen 1.9.225 (bestätigt am 06.11.2026)
 
 1. „Vor dem Abschluss“, „Monat & Lohn“ („Fehlt“) und der Export verlangen die Personalnummer von jeder Person, die eine Zeile bekäme -- auch nur mit
    Abwesenheit, Ausfalltag, Heiligabend, Silvester oder Feiertag (im Dezember also von jeder aktiven Person mit Umfang „alles“ -- Feiertag -- und
@@ -1826,7 +1827,7 @@ Knopf „DATEV-Export“ erzeugt über `abschliessen()` (`lohndateiErzeugen`, in
 Dateien des Monats („Abgelegt <Zeitpunkt in Berlin> · <wer> · Prüfsumme <12 Zeichen>… Herunterladen“). Einstellungen: statt „freigeben“ „in der
 Lohndatei MM/JJJJ“.
 
-### Festlegungen 1.9.226 (Bitte bestätigen)
+### Festlegungen 1.9.226 (bestätigt am 06.11.2026)
 
 1. Jede erzeugte Lohndatei bleibt auf dem Server -- auch eine zweite für denselben Monat; nie geändert, nie gelöscht. Erzeugt wird sie nur noch per
    POST (der Knopf „DATEV-Export“); der GET-Export entfällt.
@@ -1886,7 +1887,7 @@ Monatszeile 8110 gegen WA je Tag mit gleicher Summe; Heiligabend FR; Silvester U
 Arbeit von Time 4); 4 gegen 5 Stellen; jede Zeile nur im ERP für eine Person aus `--azubis`. Alles andere zu klären (Rückgabe 1). Jede Datei gegen
 sich selbst ergibt keine Abweichung (auch alle sieben Muster).
 
-### Festlegungen 1.9.227 (Bitte bestätigen)
+### Festlegungen 1.9.227 (bestätigt am 06.11.2026)
 
 1. Das Skript vergleicht je Person und Tag, nie Zeile für Zeile; Personen über die Nummer mit führenden Nullen auf 5 Stellen (9005 = 09005, erklärt),
    ein Nummernwechsel nur mit `--gleich`.
@@ -1914,7 +1915,7 @@ als genehmigte Abwesenheit (`absence_requests.eintragen()`), SWW/SWS als Ausfall
 und Mandant aus dem Kopf der Time-4-Datei, der Monat abgeschlossen, die Datei über `build_datev_export()`, dann `pruefe_lohndatei.py` mit denselben
 Optionen.
 
-### Festlegungen 1.9.228 (Bitte bestätigen)
+### Festlegungen 1.9.228 (bestätigt am 06.11.2026)
 
 1. Die Vorprobe bucht über die Funktionen des echten Nachtragswegs (wie `POST /api/time-entries`), nicht über die Schnittstelle selbst; P wird nicht
    gebucht, AT nicht übernommen.
@@ -1939,16 +1940,16 @@ Stand der Fragen aus L0 (Bericht `bildgrundlage/bericht_lohn_l0_11b0a63.txt`, Ab
 
 | Frage | Stand | Antwort und Quelle | offen |
 |---|---|---|---|
-| LB1 Berufsschule, unbezahlt, Freizeitausgleich; Weiterbildung, Sonderurlaub | teilweise | Berufsschule FE ohne Lohnart (Lohnbüro, 1.9.214); Silvester UU ohne Lohnart (Lohnbüro, 1.9.214) | unbezahlter Urlaub außer Silvester (Kategorie leer), Freizeitausgleich (beim Steuerbüro), Sonderurlaub; Weiterbildung 1 / 1000 ist Vorgabe Tobias (E7), nicht Lohnbüro |
+| LB1 Berufsschule, unbezahlt, Freizeitausgleich; Weiterbildung, Sonderurlaub | teilweise | Berufsschule FE ohne Lohnart (Lohnbüro, 1.9.214); Silvester UU ohne Lohnart (Lohnbüro, 1.9.214); seit 06.11.2026: Freizeitausgleich ohne Zeile, DATEV rechnet selbst (Steuerbüro) | unbezahlter Urlaub außer Silvester (Kategorie leer), Sonderurlaub; Weiterbildung 1 / 1000 ist Vorgabe Tobias (E7), nicht Lohnbüro |
 | LB2 Reihenfolge, Programm, Satzbeschreibung, Dateiname | teilweise | Programm: DATEV Lohn und Gehalt (Tobias, 05.11.2026); Zeile ohne Lohnart mit leerem Feld (Steuerbüro, 05.11.2026) | Reihenfolge der Personen, Satzbeschreibung, Dateiname -- das ERP schreibt aufsteigend nach Nummer, `DATEV_Lohndaten_JJJJ-MM.txt` (Festlegungen 1.9.224 Nr. 3 und 15) |
 | LB3 mehrere Arten an einem Tag | beantwortet | mehrere Zeilen je Person und Tag erlaubt (Steuerbüro, 05.11.2026) | welche Stunden in Einzelfällen (Arbeit an einem Krankheitstag) -- das ERP schreibt beide Zeilen mit ihren Stunden |
-| LB4 Feiertag für wen, am Samstag | offen beim Lohnbüro | im ERP nach E3 (Tobias): F nur bei Umfang „alles“ und Sollzeit, auch Azubis, am Samstag keine Zeile | ja |
+| LB4 Feiertag für wen, am Samstag | beantwortet (06.11.2026) | im ERP nach E3 (Tobias): F nur bei Umfang „alles“ und Sollzeit, auch Azubis, am Samstag keine Zeile -- vom Steuerbüro bestätigt | nein |
 | LB5 Schlechtwetter: Teilausfall, Sommer, Azubis, Arbeitszeitkonto | teilweise | Winter WA / 8195 je Tag (Lohnbüro, 1.9.214); Stunden = Sollzeit − Arbeit (Tobias, 1.9.216) | Sommer (leer, bis der Juni-Export da ist), Azubis, Arbeitszeitkonto |
-| LB6 Azubis: Sollzeit, Berufsschule | teilweise | Mehrarbeit AA / 1900 je Tag (Lohnbüro, Notiz 1.9.214); Berufsschule FE (Lohnbüro) | Sollzeit der Azubis (das ERP: Tarif); was „Mehrarbeit“ genau ist (Festlegung 1.9.224 Nr. 10 ist eine Annahme) |
-| LB7 Startwerte (Arbeitszeitkonto, Urlaub) | offen | -- | ja (L2) |
+| LB6 Azubis: Sollzeit, Berufsschule | teilweise | Mehrarbeit AA / 1900 je Tag (Lohnbüro, Notiz 1.9.214); Berufsschule FE (Lohnbüro); Mehrarbeit wie Festlegung 1.9.224 Nr. 10 (Steuerbüro, 06.11.2026, endgültig) | Sollzeit der Azubis (das ERP: Tarif) |
+| LB7 Startwerte (Arbeitszeitkonto, Urlaub) | offen | kommen Ende Dezember (Steuerbüro, 06.11.2026) | ja (L2) |
 | LB8 Viertelstunde oder exakt | beantwortet (Tobias) | die Tagessumme Arbeit nach der Pause kaufmännisch auf 0,25 h, die Buchungen minutengenau (Tobias, 05.11.2026; 1.9.223) | ob das Lohnbüro es so will, ist nicht vermerkt |
-| LB9 Korrekturen nach dem Import | offen | -- (jede erzeugte Datei bleibt seit 1.9.226 abgelegt) | ja |
-| LB10 Testmandant für die Dezember-Datei | offen | -- | ja |
+| LB9 Korrekturen nach dem Import | beantwortet (06.11.2026), nicht gebaut | eine neue Datei, am liebsten nur für die betroffene Person (Steuerbüro); jede erzeugte Datei bleibt seit 1.9.226 abgelegt | Umsetzung später, nicht in R3b |
+| LB10 Testmandant für die Dezember-Datei | beantwortet (06.11.2026) | ein Testeinlesen ist möglich (Steuerbüro); erste Testdatei Oktober 2026 aus Time-4-Buchungen (R3b, Punkt 0c, nur lokal) | nein |
 
 ### Festlegungen der Stufe 7 bestätigt, Begründung 1.9.219 Nr. 2 berichtigt
 
@@ -1997,7 +1998,7 @@ geschriebene (Klicktest-Daten) und bei „DATEV-Nr. = ERP-Nr.“ jede Mitarbeite
   keine Daten.
 - `scripts/pruefe_zeitregeln.py`: die Zeile „Personen (aktiv): N“ ohne „; DATEV-Nr. = ERP-Nr.: …“, geprüft wird nur die DATEV-Nummer.
 
-### Festlegungen 1.9.230 (Bitte bestätigen)
+### Festlegungen 1.9.230 (bestätigt am 06.11.2026)
 
 1. Eine gespeicherte Personalnummer ohne genau 5 Ziffern sperrt die Lohndatei wie eine fehlende: Eintrag „Personalnummer „1001“ hat nicht genau 5
    Ziffern: Name“ unter „Vor dem Abschluss“ (Prüfen und Monat & Lohn) und in der Ablehnung des Exports; „Fehlt: …“ zählt sie als Personalnummer.
@@ -2066,7 +2067,7 @@ der Tag im Lohn). Vorgabe Tobias: die Rundung je Buchung entfällt, gerundet wir
   der alten Einstellung ein Wert steht -- genau so gerundet ist (ältere Buchungen). `scripts/pruefe_zeitregeln.py`: erste Zeile „Abgeschlossen bis: …“.
 - Texte: „Kolonne buchen“ (Büro und Monteurin) sagt „Pause je Person nach ihrem Tag“ statt „Pause und Rundung …“.
 
-### Festlegungen 1.9.231 (Bitte bestätigen)
+### Festlegungen 1.9.231 (bestätigt am 06.11.2026)
 
 1. Keine Buchung wird mehr gerundet, auf keinem Weg; die Stunden bleiben minutengenau (vier Stellen). Gerundet wird nur die Arbeit eines Tags im Lohn.
 2. Die Einstellung „Rundung“ gibt es nicht mehr (Seite und Schnittstelle); ein mitgeschickter Wert wird nicht übernommen (200), die Spalte bleibt
@@ -2103,3 +2104,43 @@ Angepasste Erwartungen (Regel 28):
   Änderung bleibt stehen“, alt '15', neu True); `klicktest_sollzeit` -- „gesperrt“ am Standardmodell statt an der Rundung; `klicktest_neue_ordnung` --
   „geladen“ am gewählten Standardmodell (Prüfung heißt „(Standardmodell, Modelle, Personalnummern)“ statt „(Rundung, …)“), gespeichert und nach dem
   Neuladen „Tätigkeit verpflichtend“ (alt ['15'], neu [True]).
+
+## Stufe 6, R3b: Vorweg (ab 1.9.238)
+
+Vorgabe Tobias (06.11.2026), R3b „Kran und Heute“, Vorweg: 0a Eingangsrechnung (1.9.238, Archiv „Buchhaltung“), 0b Text in den Einstellungen (1.9.239),
+0c Testdatei für das Steuerbüro (nur lokal, nichts committet).
+
+### Stand Steuerbüro und Bestätigungen (06.11.2026, Angabe Tobias)
+
+- **Mehrarbeit der Azubis** wie Festlegung 1.9.224 Nr. 10 bestätigt, endgültig (bis dahin vorläufig, Frage beim Steuerbüro).
+- **Freizeitausgleich:** ohne Zeile in der Lohndatei, DATEV rechnet selbst -- die Zuordnung bleibt leer, wie sie ist (keine Änderung im Code).
+- **Feiertagsregel (LB4)** bestätigt: F nur bei Umfang „alles“ und Sollzeit, auch Azubis, am Samstag keine Zeile.
+- **Korrektur nach dem Einlesen (LB9):** eine neue Datei, am liebsten nur für die betroffene Person. Später, nicht in R3b.
+- **Testeinlesen (LB10)** ist möglich.
+- **Startwerte (LB7)** kommen Ende Dezember.
+- Bestätigt: alle Festlegungen aus L1b (1.9.223–1.9.228, schon mit dem Auftrag zu R3a) und aus R3a (1.9.230–1.9.237, dazu die Festlegung 1.9.233 zu
+  Werkzeug und Testablauf). 1.9.235 Nr. 3 gilt auch künftig: ein vorläufiger Einsatz zählt wie ein fester.
+
+### Umsetzung 1.9.239: Lohndatei statt LODAS in den Einstellungen (Punkt 0b)
+
+Einstellungen → Zeitregeln → „DATEV-Berater und -Mandant“: der Hinweis sagt jetzt „sie stehen im Kopf der Lohndatei; ohne sie entsteht keine
+Lohndatei.“ (bis 1.9.238 „… im Kopf des LODAS-Exports; ohne sie entsteht kein DATEV-Export.“, Bericht R3a, Abschnitt 3 j). Der Kommentar an
+`TimeTrackingSettings.datev_beraternummer` nennt den Kopf der Lohndatei. Den Namen „LODAS“ alter Einträge im Änderungsprotokoll übersetzt weiter
+`app/verlauf_namen.py`.
+
+### Festlegungen 1.9.239 (Bitte bestätigen)
+
+1. Keine Vorlage nennt LODAS; der Hinweis zu Berater und Mandant nennt die Lohndatei.
+
+### Testdatei für das Steuerbüro (Punkt 0c, nur lokal)
+
+`scripts/vorprobe_time4.py` mit den Buchungen und der Datei aus Time 4 für Oktober 2026 unter `bildgrundlage/lohn_echt/`, `--azubis` (zwei Personen) und
+`--teilzeit` (eine Person), Ausgabe in denselben Ordner (nicht in Git; die Personalnummern und Einzelheiten je Person stehen nur dort und im Bericht der
+Runde, nicht im Archiv): 11 Personen, 170 Buchungen über den Nachtragsweg, 205 Zeilen ERP gegen 167 Time 4, 48 Abweichungen, alle erklärt (Pause nach
+Lesart A, Tag auf 0,25 h, ein Azubi in Time 4 ohne Arbeit und Berufsschule, Mehrarbeit AA / 1900), 0 zu klären; nicht übernommen: eine Abwesenheit für einen
+Teil eines Tags („AT“), die es im ERP nicht gibt. Kopf 1234567;12345 -- die echten Nummern trägt Tobias selbst ein.
+
+### Tests und Prüfung 1.9.239
+
+Neu: `tests/test_v639_lohndatei_statt_lodas.py` (Hinweis nennt die Lohndatei, keine Vorlage nennt LODAS). Gegenproben: Archiv
+`gegenproben-stufe6-r3b.md`. Angepasste Erwartungen: keine.

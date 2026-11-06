@@ -1244,7 +1244,7 @@ Kolonne behält nach dem Umplanen den Zugriff), „Heute“ in neuer Form (R3b),
   in „Mitarbeiter“ bei jeder Person; der Dialog „Einsatz bearbeiten“ bietet „ohne Kolonne – die Personen bleiben“. Personen einzeln wählen kommt mit R4 (heute
   über die Schnittstelle).
 
-### Festlegungen 1.9.233 (Bitte bestätigen)
+### Festlegungen 1.9.233 (bestätigt am 06.11.2026)
 
 1. Die Besetzung am Einsatz ist die eine Quelle für Tafel, Kapazität, Konflikte und die Einsätze der Monteurin („Heute“, „Nächste Tage“).
 2. Die Kolonne schlägt ihre heutigen aktiven Mitglieder aus den Stammdaten vor -- beim Anlegen und beim Wechsel der Kolonne (auch Ziehen in ihre Zeile),
@@ -1295,7 +1295,7 @@ Datengrenze), `test_v346` (Hinweis je Einsatz), `test_v471` (Einsätze für „H
 - Oberfläche: eine Kolonne wählen setzt auch ihre Geräte; die Ansicht „Fahrzeuge / Maschinen“ liest die Geräte des Einsatzes. Geräte und Tage wählen kommt
   mit R4 (heute über die Schnittstelle).
 
-### Festlegungen 1.9.234 (Bitte bestätigen)
+### Festlegungen 1.9.234 (bestätigt am 06.11.2026)
 
 1. Die Kolonne schlägt ihre aktiven Geräte jeder Rolle vor (auch „bei Bedarf“), für alle Tage -- wie bis 1.9.233 der Schnappschuss; ohne Kolonne keine.
 2. `geraete` setzt die Geräte genau so; unbekannt oder inaktiv, ein Tag außerhalb des Einsatzes oder eine leere Tagesliste 422; doppelt genannt zählt das erste.
@@ -1323,12 +1323,13 @@ Angepasste Erwartungen: keine (die neue Feldbeschriftung „Tage“ in `app/audi
   „Heute“ kommen mit R4 und R3b. Abgeschlossen und storniert kommen vom Auftrag. Im Verlauf heißen die Werte „Vorläufig“/„Fest“; die Prüfabfrage
   `scripts/pruefabfrage_auswahlwerte.sql` kennt die zwei.
 
-### Festlegungen 1.9.235 (Bitte bestätigen)
+### Festlegungen 1.9.235 (bestätigt am 06.11.2026)
 
 1. Ein Einsatz ist „vorläufig“ oder „fest“, neu angelegt vorläufig; jeder andere Wert 422.
 2. Die Migration macht „geplant“ zu vorläufig und jeden anderen Wert (auch leer oder Freitext) zu fest; downgrade() macht vorläufig zu „geplant“ und fest zu
    „bestaetigt“, frühere andere Werte kommen nicht zurück (sie hatten keine Wirkung).
-3. Der Status hat in R3a keine Wirkung auf Konflikte und Kapazität: ein vorläufiger Einsatz zählt wie ein fester.
+3. Der Status hat in R3a keine Wirkung auf Konflikte und Kapazität: ein vorläufiger Einsatz zählt wie ein fester. -- Gilt auch künftig (Vorgabe
+   Tobias, 06.11.2026).
 
 ### Tests und Prüfung 1.9.235
 
@@ -1356,7 +1357,7 @@ Angepasste Erwartungen (Regel 28):
   Arbeitstagen minus Anfahrt (seit 1.9.211/1.9.233).
 - Tafel: „Prüffrist abgelaufen: …“ in der Liste des Einsatzes und der Rückfrage; „Kolonne doppelt“ steht dort nicht mehr.
 
-### Festlegungen 1.9.236 (Bitte bestätigen)
+### Festlegungen 1.9.236 (bestätigt am 06.11.2026)
 
 1. „Kolonne doppelt“ ist kein Konflikt mehr; es zählen die Personen.
 2. Gerät mit abgelaufener Prüffrist ist eine Warnung, sobald an einem Arbeitstag des Geräts am Einsatz die Fälligkeit vorbei ist (der Fälligkeitstag selbst
@@ -1394,7 +1395,7 @@ der Status heißt „vorläufig“/„fest“, die Rückfrage nennt „Prüffris
 Unverändert bis R4 (bewusst): die Legende der Tafel („geplant · Konflikt · …“ meint einen eingeplanten Balken, nicht den Status), keine Strichelung für
 vorläufig, Kapazität je Tag und Kolonne in den Zellen, Ziehen nur in „Kolonnen“ und mit der Maus.
 
-### Festlegungen 1.9.237 (Bitte bestätigen)
+### Festlegungen 1.9.237 (bestätigt am 06.11.2026)
 
 1. „Einsatz bearbeiten“ zeigt die Besetzung und die Geräte des Einsatzes lesend unter der Kolonne; ändern über die Kolonne (oder die Schnittstelle).
 2. Auch der Wechsel auf „ohne Kolonne“ fragt bei Warnungen zurück wie jeder Wechsel der Kolonne.

@@ -17,3 +17,12 @@ Tests laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mind
 
 Ohne eigene Gegenprobe: die Prüfung „gibt es die Rechnung?“ vor dem Ablegen ist nur eine Abkürzung (keine Datei für eine unbekannte ID); dasselbe
 Ergebnis sichert `238_1b`. Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.239 (Punkt 0b): Lohndatei statt LODAS in den Einstellungen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Hinweis nennt die Lohndatei | alter Text zurück in `settings.html` (`239_1a`) | 2 rot: v639 (Hinweis, keine Vorlage) |
+| Nr. 1 – keine Vorlage nennt LODAS | „LODAS“ in einem Kommentar einer anderen Vorlage (`239_1b`) | 1 rot: v639::test_keine_vorlage_nennt_lodas |
+
+Ohne Gegenprobe: der Stand des Steuerbüros und die Bestätigungen (reine Doku); 0c (nur lokal, kein Code).
