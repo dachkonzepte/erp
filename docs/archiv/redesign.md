@@ -9051,3 +9051,7 @@ Knopf „Trotzdem planen“ ganz im Bild ist (27 statt 25 Prüfungen). Angepasst
 Fund bei den Gegenproben: beide blieben zuerst grün. Die Helligkeit las die Farbe aus `color-mix` falsch -- Chrome liefert sie als `color(srgb 0.84 0.86 0.88
 / 0.45)`, Werte 0–1, gelesen als dunkel; und der Dialog war beim Messen schon bis unten gerollt, der Knopf lag auch ohne klebende Leiste im Bild. Jetzt
 liest die Prüfung beide Farbformate und rollt den Dialog vor der Messung an den Anfang; dieselben Gegenproben dann rot.
+
+Nachtrag 2: im Endlauf des Nachtrags (4da9c54) meldete `klicktest_alle.py` beim Lesen der Klicktests eine `SyntaxWarning` -- die neue Messung schrieb den
+regulären Ausdruck der Seite mit `\d` in eine gewöhnliche Python-Zeichenkette (künftig ein Fehler). Jetzt `\\d`; die Zeichenketten des Klicktests sind
+zur Laufzeit dieselben (AST verglichen), Suite und Endlauf trotzdem neu (Regel 26).

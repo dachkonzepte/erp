@@ -198,7 +198,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("dialog_bearbeiten_1440_dunkel")
     p.pruefe("dunkel: Dialog dunkel, der Hintergrund dahinter abgedunkelt, nicht aufgehellt", await tab.js(
         # Helligkeit 0–255 aus rgb()/rgba() oder color(srgb …) (so liefert Chrome eine mit color-mix gemischte Farbe, Werte 0–1)
-        "(()=>{const hell=c=>{const f=c.startsWith('color(')?255:1;const m=c.match(/\d+(\.\d+)?/g).map(Number);return (m[0]*299+m[1]*587+m[2]*114)/1000*f};const d=getComputedStyle(einsatzDialog);"
+        "(()=>{const hell=c=>{const f=c.startsWith('color(')?255:1;const m=c.match(/\\d+(\\.\\d+)?/g).map(Number);return (m[0]*299+m[1]*587+m[2]*114)/1000*f};const d=getComputedStyle(einsatzDialog);"
         "const b=getComputedStyle(einsatzDialog,'::backdrop').backgroundColor;return [document.documentElement.dataset.theme,hell(d.backgroundColor)<80,hell(b)<80]})()"),
         ["dark", True, True])
     p.pruefe("dunkel, 1440 × 1000: die Knopfleiste ganz im Bild, ohne zu rollen", await tab.js(
