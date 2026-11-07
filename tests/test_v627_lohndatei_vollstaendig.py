@@ -114,7 +114,7 @@ def _nicht(w, erster=DEZ):
 
 
 def test_umfang_nur_abwesenheiten_und_nichts(w):
-    c = person(w, "M-3", "Cleo", "Berg", "00103", umfang="abwesenheiten")
+    c = person(w, "M-3", "Cleo", "Berg", "00193", umfang="abwesenheiten")
     buchen(w, c, "8.00", tag(7))
     buchen(w, c, "6.10", tag(8))
     d = person(w, "M-4", "Dora", "Kurz", umfang="nichts")
@@ -153,7 +153,7 @@ def test_nichts_fehlt_bei_vollstaendiger_zuordnung(w):
 
 
 def test_monat_und_lohn_liefert_die_liste(w, router_test_client):
-    c = person(w, "M-3", "Cleo", "Berg", "00103", umfang="abwesenheiten")
+    c = person(w, "M-3", "Cleo", "Berg", "00193", umfang="abwesenheiten")
     buchen(w, c, "8.00", tag(7))
     a = person(w, "M-1", "Ada", "Zander", "00101")
     abwesend(w, a, tag(2), kategorie="unbezahlt", art="Unbezahlt")

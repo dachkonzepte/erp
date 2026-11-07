@@ -196,7 +196,7 @@ def test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle():
     db = db_session()
     a = _person(db, "E-1", datev="00001", eintritt=date(2020, 4, 1))  # seit 1.9.212 fünfstellig (bis 1.9.211 „1“, „2“, „3“)
     b = _person(db, "E-2", datev="00002", eintritt=date(2021, 1, 1), austritt=date(2026, 10, 31))
-    _person(db, "E-3", datev="00003", austritt=date(2027, 3, 31))     # Austritt erst später
+    _person(db, "E-3", datev="00093", austritt=date(2027, 3, 31))     # Austritt erst später
     db.add(EmployeeTargetHours(employee_id=a.id, valid_from=date(2026, 1, 1), dienstag=Decimal("8"), mittwoch=Decimal("8")))
     db.add(EmployeeWorkTimeModel(employee_id=a.id, model_id=_modell(db, "winter").id))
     db.commit()

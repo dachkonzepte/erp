@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.244 – Tests und Doku ohne echte Personalnummern (Stufe 6, R4, Punkt 0b)
+
+Fünf Personalnummern, die es im Betrieb gibt, standen seit der Lohnrunde in Tests und Doku als Beispiele (in neun Dateien, auch in einem Beispiel der Lohndatei in `app/lohndatei.py` und in der Anleitung von `scripts/pruefe_lohndatei.py`). Sie sind durch erfundene ersetzt: die Zehnerstelle wird 9 (0009x, 0019x, 0029x), der Kreis des Lohnbüros bleibt derselbe. Ein neuer Wächter (`tests/test_v644_keine_echten_personalnummern.py`) liest die echten Nummern nur auf dem Rechner des Betreibers aus `bildgrundlage/lohn_echt/` und sucht sie in jeder versionierten Datei; ein Treffer nennt Datei und Zeile, nie die Nummer. Der Verlauf bleibt, wie er ist. Dazu im Archiv „Zeiterfassung“ der Absatz zur Testdatei fürs Steuerbüro so gefasst, dass er zum neu gebildeten Verlauf passt (Punkt 0e, nur Doku).
+
 ## 1.9.243 – „Nächste Tage“: wer an einem Tag fehlt, steht dort nicht im „mit …“ (Stufe 6, R4, Punkt 0a)
 
 In „Nächste Tage“ nannte der Zusatz „mit …“ die ganze Besetzung eines Einsatzes, auch wer an dem Tag abwesend war – im Bild der Runde R3b stand „mit … Pia“ an einem Tag, an dem Pia krank war. Jetzt gilt der Zusatz je Tag: wer an dem Tag abwesend ist (genehmigt oder freigestellt nach dem Arbeitszeitkalender, dieselbe Regel wie „ist nicht da“ auf der Karte), fehlt dort; ein offener Antrag zählt nicht. Wo sich der Zusatz ändert, teilt sich die Zeile. „weiter“ bleibt ohne Namen und teilt sich nicht.

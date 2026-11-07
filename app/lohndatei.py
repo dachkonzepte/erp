@@ -5,7 +5,7 @@ jede Zeile 11 Felder, getrennt durch Semikolon.
 
     Kopf          Beraternummer;Mandantennummer;MM/JJJJ          (aus den Einstellungen, nur der Admin trägt sie ein)
     Tageszeile    Personalnummer;Tag;Kennzeichen;Lohnart;Stunden;;;;;;   (Tag ohne führende Null, Stunden mit Komma und zwei Stellen;
-                                                                          ohne Lohnart bleibt das Feld leer: 00201;31;UU;;7,50;;;;;;)
+                                                                          ohne Lohnart bleibt das Feld leer: 00291;31;UU;;7,50;;;;;;)
     Monatszeile   Personalnummer;;;Lohnart;;;Stunden;;;;          (nur eine Zeile der Zuordnung mit „Monatszeile“, heute keine)
 
 Ein Monat. Personen aufsteigend nach Personalnummer, je Person die Tage aufsteigend, im Tag Arbeit, Mehrarbeit, Feiertag, Kalendertag,

@@ -1939,6 +1939,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   sie über `tests/aufraeumen.py::wegwerf_engine()`, und `tests/conftest.py` schließt sie am Ende des Tests (des Moduls, des Laufs, wenn ein Aufbau
   dieses Umfangs sie anlegte). Nie der Speicherbereinigung überlassen: sie räumte die Verbindung sonst in einem fremden Thread ab (Fehler im
   Protokoll, 1.9.183). Wächter `tests/test_v603_engines_aufraeumen.py`.
+- **Keine echte Personalnummer in einer versionierten Datei** (seit 1.9.244): Beispiele in Tests und Doku sind erfunden (0009x, 0019x, 0029x --
+  der Kreis des Lohnbüros bleibt). Der Wächter `tests/test_v644_keine_echten_personalnummern.py` liest die echten Nummern nur lokal aus
+  `bildgrundlage/lohn_echt/` (sonst übersprungen) und nennt bei einem Treffer Datei und Zeile, nie die Nummer.
 - **`pytest -q` als Standard-Aufruf** (Regel 15 oben) -- bei über 1800 Tests erzeugt die volle
   Ausgabe (inkl. `DeprecationWarning`-Sammlung) allein schon zehntausende Zeilen, ohne bei einem
   grünen Lauf zusätzliche Information zu liefern. `pytest.ini` blendet die

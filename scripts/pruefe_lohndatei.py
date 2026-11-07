@@ -2,7 +2,7 @@
 
 Für den Probemonat: zwei Dateien desselben Monats, je Person und Tag verglichen, nie Zeile für Zeile. Nur lesend, keine Datenbank, kein Netz.
 
-    .venv/bin/python scripts/pruefe_lohndatei.py ERP.txt TIME4.txt [--azubis 00201,00202] [--gleich 91008=91016] [--pausen 6:30,9:45]
+    .venv/bin/python scripts/pruefe_lohndatei.py ERP.txt TIME4.txt [--azubis 00291,00202] [--gleich 91008=91016] [--pausen 6:30,9:45]
 
 Schritte:
   1  Form beider Dateien: ASCII, CRLF auch nach der letzten Zeile, Kopf Berater;Mandant;MM/JJJJ, jede Zeile 11 Felder; Tageszeile

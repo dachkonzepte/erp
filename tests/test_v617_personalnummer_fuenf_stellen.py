@@ -61,11 +61,11 @@ def test_fuenf_ziffern_mit_hinweis_zum_kreis(welt, nummer, kreis):
 
 def test_kreis_ist_keine_sperre(welt):
     """Mia ist Monteurin (keine Azubi, kein Minijob) -- 00150 und 00250 werden trotzdem gespeichert, der Hinweis nennt nur den Kreis."""
-    for nummer in ("00150", "00250", "00010"):
+    for nummer in ("00150", "00250", "00091"):
         r = _put(welt, welt["mia"], datev_personnel_number=nummer)
         assert (r.status_code, r.json()["datev_personnel_number"]) == (200, nummer)
     welt["db"].expire_all()
-    assert welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["mia"].id).one().datev_personnel_number == "00010"
+    assert welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["mia"].id).one().datev_personnel_number == "00091"
 
 
 def test_ohne_nummer_kein_hinweis(welt):

@@ -115,48 +115,48 @@ def test_ein_monat_einer_person(w):
 def test_azubi_mehrarbeit(w):
     """Über der Sollzeit Mehrarbeit statt Arbeit; am Berufsschultag zählt die Schule mit (2,00 h nach der Schule ganz Mehrarbeit), am Samstag
     alles; ohne Merkmal bleibt alles Arbeit."""
-    b = person(w, "M-2", "Ben", "00201", azubi=True)
+    b = person(w, "M-2", "Ben", "00291", azubi=True)
     buchen(w, b, "9.00", tag(7))
     abwesend(w, b, tag(8), kategorie="fortbildung", art="Berufsschule")
     buchen(w, b, "2.00", tag(8), ab=16)
     buchen(w, b, "3.00", tag(12))
     buchen(w, b, "7.00", tag(14))
-    z = [x for x in zeilen(w)[1:] if not x.startswith(("00201;24;", "00201;25;", "00201;31;"))]
-    assert z == ["00201;7;1;1000;7,50;;;;;;", "00201;7;AA;1900;1,50;;;;;;", "00201;8;AA;1900;2,00;;;;;;", "00201;8;FE;;7,50;;;;;;",
-                 "00201;12;AA;1900;3,00;;;;;;", "00201;14;1;1000;7,00;;;;;;"]
+    z = [x for x in zeilen(w)[1:] if not x.startswith(("00291;24;", "00291;25;", "00291;31;"))]
+    assert z == ["00291;7;1;1000;7,50;;;;;;", "00291;7;AA;1900;1,50;;;;;;", "00291;8;AA;1900;2,00;;;;;;", "00291;8;FE;;7,50;;;;;;",
+                 "00291;12;AA;1900;3,00;;;;;;", "00291;14;1;1000;7,00;;;;;;"]
     w["db"].query(EmployeePayrollSettings).update({"azubi": False})
     w["db"].commit()
-    assert [x for x in zeilen(w)[1:] if x.startswith(("00201;7;", "00201;8;", "00201;12;"))] == [
-        "00201;7;1;1000;9,00;;;;;;", "00201;8;1;1000;2,00;;;;;;", "00201;8;FE;;7,50;;;;;;", "00201;12;1;1000;3,00;;;;;;"]
+    assert [x for x in zeilen(w)[1:] if x.startswith(("00291;7;", "00291;8;", "00291;12;"))] == [
+        "00291;7;1;1000;9,00;;;;;;", "00291;8;1;1000;2,00;;;;;;", "00291;8;FE;;7,50;;;;;;", "00291;12;1;1000;3,00;;;;;;"]
 
 
 def test_mehrarbeit_ohne_kennzeichen_bleibt_arbeit(w):
-    b = person(w, "M-2", "Ben", "00201", azubi=True)
+    b = person(w, "M-2", "Ben", "00291", azubi=True)
     buchen(w, b, "9.00", tag(7))
     z = w["db"].query(LohnartZuordnung).filter_by(schluessel="mehrarbeit_azubi").one()
     z.kennzeichen, z.lohnart = None, None
     w["db"].commit()
-    assert "00201;7;1;1000;9,00;;;;;;" in zeilen(w)
+    assert "00291;7;1;1000;9,00;;;;;;" in zeilen(w)
 
 
 def test_umfang_nur_abwesenheiten_und_nichts(w):
     """„nur Abwesenheiten“: Urlaub und Kalendertage, keine Arbeit, kein Feiertag; „nichts“: keine Zeile, auch ohne Personalnummer."""
-    c = person(w, "M-3", "Cleo", "00103", umfang="abwesenheiten")
+    c = person(w, "M-3", "Cleo", "00193", umfang="abwesenheiten")
     d = person(w, "M-4", "Dora", None, umfang="nichts")
     buchen(w, c, "8.00", tag(7))
     abwesend(w, c, tag(9))
     buchen(w, d, "8.00", tag(7))
-    assert zeilen(w) == ["1234567;12345;12/2026", "00103;9;U;8000;7,50;;;;;;", "00103;24;FR;1080;7,00;;;;;;", "00103;31;UU;;7,50;;;;;;"]
+    assert zeilen(w) == ["1234567;12345;12/2026", "00193;9;U;8000;7,50;;;;;;", "00193;24;FR;1080;7,00;;;;;;", "00193;31;UU;;7,50;;;;;;"]
 
 
 def test_eintritt_und_kaufmaennisch(w):
     """Vor dem Eintritt nichts, auch keine gebuchte Arbeit; kaufmännisch kein Kalendertag, aber der Feiertag."""
-    e = person(w, "M-5", "Emil", "00104", eintritt=tag(15))
+    e = person(w, "M-5", "Emil", "00194", eintritt=tag(15))
     f = person(w, "B-1", "Fritz", "00001", gruppe="kaufmännisch")
     buchen(w, e, "8.00", tag(14))
     buchen(w, e, "7.50", tag(15))
     assert zeilen(w) == ["1234567;12345;12/2026", "00001;25;F;1012;7,50;;;;;;",
-                         "00104;15;1;1000;7,50;;;;;;", "00104;24;FR;1080;7,00;;;;;;", "00104;25;F;1012;7,50;;;;;;", "00104;31;UU;;7,50;;;;;;"]
+                         "00194;15;1;1000;7,50;;;;;;", "00194;24;FR;1080;7,00;;;;;;", "00194;25;F;1012;7,50;;;;;;", "00194;31;UU;;7,50;;;;;;"]
 
 
 def test_silvester_als_urlaubstag_und_halber_tag(w):
@@ -272,15 +272,15 @@ def _probe(url: str, engine) -> None:
                        "VALUES ('M-1', 'Mia', 'Test', 'gewerblich', 40, :a, '2026-09-01', '2026-09-01')"), {"a": True})
         mia = c.execute(text("SELECT id FROM employees")).scalar()
         c.execute(text("INSERT INTO employee_payroll_settings (employee_id, datev_personnel_number, payroll_export_enabled, export_umfang, updated_at) "
-                       "VALUES (:e, '00201', :a, 'alles', '2026-11-02')"), {"e": mia, "a": True})
+                       "VALUES (:e, '00291', :a, 'alles', '2026-11-02')"), {"e": mia, "a": True})
     _ok(_alembic(url, "upgrade", MIGRATION))
     with engine.begin() as c:
-        assert c.execute(text("SELECT datev_personnel_number, azubi FROM employee_payroll_settings")).one() == ("00201", False)
+        assert c.execute(text("SELECT datev_personnel_number, azubi FROM employee_payroll_settings")).one() == ("00291", False)
         c.execute(text("UPDATE employee_payroll_settings SET azubi = :a"), {"a": True})
     _ok(_alembic(url, "downgrade", VORHER))
     assert "azubi" not in {s["name"] for s in sa_inspect(engine).get_columns("employee_payroll_settings")}
     with engine.connect() as c:
-        assert c.execute(text("SELECT datev_personnel_number FROM employee_payroll_settings")).scalar() == "00201"
+        assert c.execute(text("SELECT datev_personnel_number FROM employee_payroll_settings")).scalar() == "00291"
     _ok(_alembic(url, "upgrade", "head"))
 
 
@@ -326,12 +326,12 @@ def test_feiertag_geht_dem_kalendertag_vor(w):
 
 def test_mehrarbeit_hoechstens_die_arbeit(w):
     """Mehr übrige Stunden als Sollzeit (zwei Abwesenheiten am selben Tag, direkt eingetragen): Mehrarbeit höchstens die gebuchte Arbeit."""
-    b = person(w, "M-2", "Ben", "00201", azubi=True)
+    b = person(w, "M-2", "Ben", "00291", azubi=True)
     abwesend(w, b, tag(7))
     abwesend(w, b, tag(7), kategorie="krankheit", art="Krankheit")
     buchen(w, b, "1.00", tag(7))
-    assert [x for x in zeilen(w) if x.startswith("00201;7;")] == ["00201;7;AA;1900;1,00;;;;;;", "00201;7;U;8000;7,50;;;;;;",
-                                                                  "00201;7;K;1650;7,50;;;;;;"]
+    assert [x for x in zeilen(w) if x.startswith("00291;7;")] == ["00291;7;AA;1900;1,00;;;;;;", "00291;7;U;8000;7,50;;;;;;",
+                                                                  "00291;7;K;1650;7,50;;;;;;"]
 
 
 def test_einstellungen_ohne_alte_felder(w, router_test_client):

@@ -1428,14 +1428,14 @@ Vorgabe Tobias (05.11.2026): Antworten des Lohnbüros einarbeiten, je Punkt eine
 
 ### Tests und Prüfung 1.9.212
 
-Neu: `tests/test_v617_personalnummer_fuenf_stellen.py` (23 Tests) -- sieben Formate abgelehnt ohne Zeile (auch „101“ und „9005“), die Kreise an ihren Grenzen (00000, 00099, 00100, 00199, 00200, 00204, 91001), keine Sperre (Monteurin mit 00150, 00250, 00010), ohne Nummer kein Hinweis, Gleichsetzung („101“ abgelehnt, „00101“ mit Hinweis), Prüfskript (Befund und Kreise), Migration auf einem Bestand unter SQLite und PostgreSQL (aufgefüllt, ERP-Nummer bleibt, hoch, runter, hoch), Abbruch bei einer Kollision unter SQLite und PostgreSQL (nichts geändert), die Umrechnung für sich. `klicktest_sollzeit`: eine Prüfung mehr („Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).“). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 6“.
+Neu: `tests/test_v617_personalnummer_fuenf_stellen.py` (23 Tests) -- sieben Formate abgelehnt ohne Zeile (auch „101“ und „9005“), die Kreise an ihren Grenzen (00000, 00099, 00100, 00199, 00200, 00204, 91001), keine Sperre (Monteurin mit 00150, 00250, 00091), ohne Nummer kein Hinweis, Gleichsetzung („101“ abgelehnt, „00101“ mit Hinweis), Prüfskript (Befund und Kreise), Migration auf einem Bestand unter SQLite und PostgreSQL (aufgefüllt, ERP-Nummer bleibt, hoch, runter, hoch), Abbruch bei einer Kollision unter SQLite und PostgreSQL (nichts geändert), die Umrechnung für sich. `klicktest_sollzeit`: eine Prüfung mehr („Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).“). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 6“.
 
 Angepasste Erwartungen (Regel 28) zu 1.9.212:
 - `test_v586::test_personalnummer_nur_ziffern`: dazu „1“ und „9005“ (abgelehnt); Meldung altes Soll „1 bis 5 Ziffern ohne führende Null“, neues Soll „genau 5 Ziffern, führende Nullen gehören dazu“.
 - `test_v586::test_gueltige_personalnummer`: altes Soll „1“, „9005“, „91001“, „ 91001 “ gültig, neues Soll „00001“, „09005“, „91001“, „ 91001 “.
 - `test_v586::test_pruefabfrage_nur_lesen`: altes Soll Format `^[1-9][0-9]{0,4}$`, neues Soll `^[0-9]{5}$`.
 - `test_v590::test_personalnummern_fehlend_falsch_doppelt` und `::test_gleichsetzung_prueft_die_erp_nummer`: Befund altes Soll „ist nicht 1 bis 5 Ziffern ohne führende Null.“, neues Soll „hat nicht genau 5 Ziffern.“; Aufbau „9005“ -> „09005“.
-- `test_v590::test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle`: Aufbau Personalnummern „1“, „2“, „3“ -> „00001“, „00002“, „00003“ (Soll gleich).
+- `test_v590::test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle`: Aufbau Personalnummern „1“, „2“, „3“ -> „00001“, „00002“, „00093“ (Soll gleich).
 - `klicktest_sollzeit` „Fin: Personalnummer „9100A“ abgelehnt“: altes Soll „Fehler: Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null (z. B. 91001).“, neues Soll „Fehler: Die DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (z. B. 00101).“
 - `klicktest_zeiten` „Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert“: nur Aufbau, Oles Nummer „1003“ -> „01003“ (Soll 200 bleibt).
 - `test_v387::test_lohnstammdaten_entstehen_erst_beim_speichern`: nur Aufbau, gespeicherte Nummer „77“ -> „00077“ (gefunden im ersten Lauf der Kette: 422 statt 200).
@@ -1638,7 +1638,7 @@ Neu `scripts/klicktest_zuordnung_ausgeliefert.py`. Gegenproben: Archiv „Gegenp
 
 Befund vorab: `bildgrundlage/bericht_lohn_l1b_befund_cf29fad.txt` (05.11.2026, nichts gebaut). Vorgabe Tobias (05.11.2026), je Punkt eine Version, jede
 Festlegung mit eigener Gegenprobe: bestätigt alle Festlegungen aus L1a Stufe 7; 1.9.219 Nr. 2 bleibt, die Begründung wird berichtigt. Neu vom
-Steuerbüro: eine Zeile ohne Lohnart hat ein leeres Feld (`00201;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Rundung
+Steuerbüro: eine Zeile ohne Lohnart hat ein leeres Feld (`00291;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Rundung
 (Tobias): die Tagessumme Arbeit nach der Pause kaufmännisch auf 0,25 h, die einzelnen Buchungen bleiben minutengenau -- für Export, „Monat & Lohn“
 und alles, was daraus rechnet (Schlechtwetter = Sollzeit − Arbeit, Mehrarbeit der Azubis). Offen beim Steuerbüro, nichts angenommen: der
 Freizeitausgleich (bleibt in der Zuordnung leer). Punkte: 1 Export neu im Format der Muster, ersetzt Lohn und Gehalt und LODAS (E8), mit Merkmal
@@ -1933,7 +1933,7 @@ Ergebnis der Vorprobe je Person: Bericht `bildgrundlage/bericht_lohn_l1b_*.txt`.
 
 Das Lohnbüro rechnet mit **DATEV Lohn und Gehalt** ab, nicht mit LODAS (Angabe Tobias, 05.11.2026). Damit ist von LB2 das Programm beantwortet; die
 Lohndatei des ERP (1.9.224) folgt dem Format der Time-4-Dateien, die das Lohnbüro mit Lohn und Gehalt einliest. Neu vom Steuerbüro (05.11.2026): eine
-Zeile ohne Lohnart hat ein leeres Feld (`00201;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Offen beim Steuerbüro, nichts
+Zeile ohne Lohnart hat ein leeres Feld (`00291;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Offen beim Steuerbüro, nichts
 angenommen: der Freizeitausgleich (bleibt in der Zuordnung leer).
 
 Stand der Fragen aus L0 (Bericht `bildgrundlage/bericht_lohn_l0_11b0a63.txt`, Abschnitt 8), mit Quelle der Antwort:
@@ -2140,8 +2140,9 @@ Runde, nicht im Archiv): 11 Personen, 170 Buchungen über den Nachtragsweg, 205 
 Lesart A, Tag auf 0,25 h, ein Azubi in Time 4 ohne Arbeit und Berufsschule, Mehrarbeit AA / 1900), 0 zu klären; nicht übernommen: eine Abwesenheit für einen
 Teil eines Tags („AT“), die es im ERP nicht gibt. Kopf 1234567;12345 -- die echten Nummern trägt Tobias selbst ein.
 
-Nachtrag (06.11.2026): bis zu diesem Nachtrag standen hier die Personalnummern aus dem Aufruf und eine Abwesenheit einer Person -- aus `lohn_echt`
-wird nichts committet (Vorgabe Tobias).
+Nachtrag (06.11.2026, gefasst am 07.11.2026): die erste, nie gepushte Fassung dieses Abschnitts nannte die Personalnummern aus dem Aufruf und eine
+Abwesenheit einer Person. Vor dem Push wurde der Verlauf neu gebildet (die Commits von 1.9.239 bis zu diesem Nachtrag, Stand am Ende unverändert), sodass
+sie in keinem Commit stehen. Aus `lohn_echt` wird nichts committet (Vorgabe Tobias); seit 1.9.244 auch keine echte Personalnummer mehr in Tests und Doku.
 
 ### Tests und Prüfung 1.9.239
 

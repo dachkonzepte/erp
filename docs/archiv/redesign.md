@@ -8616,3 +8616,35 @@ Namen und teilt sich nicht. Die Art einer fremden Abwesenheit steht nirgends in 
 Neu: `tests/test_v643_naechste_tage_ohne_abwesende.py` (abwesend an einem Tag teilt die Zeile und die Art steht nirgends, ohne Abwesenheit eine Zeile,
 offener Antrag zählt nicht, alle anderen weg, Freistellung an Heiligabend, „weiter“). Gegenproben: Archiv `gegenproben-stufe6-r4.md` (5, alle rot).
 Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.244 (Punkt 0b, dazu 0e): Tests und Doku ohne echte Personalnummern
+
+Gesucht mit den Nummern aus `bildgrundlage/lohn_echt/` (die Datei aus Time 4, die Datei des ERP, die Buchungen, das LIESMICH -- zwölf Nummern) über alle
+versionierten Dateien: fünf davon an 62 Stellen in neun Dateien -- `tests/test_v590`, `v617`, `v626`, `v627`, `v629`, `v630`, das Archiv „Zeiterfassung“
+(Beispielzeile der Lohndatei, Aufbau von v590), der Kopf von `app/lohndatei.py` und die Anleitung von `scripts/pruefe_lohndatei.py`. Ersetzt nach einer
+Regel: die Zehnerstelle wird 9, endet die Nummer dann auf 0, die Einerstelle 1 (0000x -> 0009x, 0001x -> 00091, 0010x -> 0019x, 0020x -> 0029x); der Kreis
+des Lohnbüros (Hunderter, `NUMMERNKREISE`) bleibt, keine Ersatznummer ist echt oder stand vorher in derselben Datei. Die Reihenfolge der Nummern in einem
+Test bleibt dieselbe (alle Tests unverändert grün). Der Verlauf bleibt, wie er ist (Vorgabe): ältere Commits tragen die Nummern weiter.
+
+Wächter `tests/test_v644_keine_echten_personalnummern.py`: liest die echten Nummern aus `bildgrundlage/lohn_echt/` (erste Spalte der Dateien, fünfstellige
+Zahlen im LIESMICH, ohne den Platzhalter des Kopfs) und sucht sie mit `git grep` in jeder versionierten Textdatei; ein Treffer nennt Datei, Zeile und eine
+Kennung (P01 …), nie die Nummer. Ohne den Ordner oder ohne git übersprungen (Server, frischer Checkout).
+
+Punkt 0e: im Archiv „Zeiterfassung“ sagt der Absatz „Nachtrag (06.11.2026)“ jetzt, dass die erste, nie gepushte Fassung die Nummern nannte und der Verlauf
+vor dem Push neu gebildet wurde -- bis dahin stand dort „bis zu diesem Nachtrag standen hier …“, was im neuen Verlauf nicht mehr zutrifft.
+
+#### Festlegungen 1.9.244 (Bitte bestätigen)
+
+1. In keiner versionierten Datei steht eine Personalnummer aus `bildgrundlage/lohn_echt/`; Beispiele sind erfunden, die Zehnerstelle 9, der Kreis bleibt.
+2. Der Wächter liest die echten Nummern nur lokal und nennt nie eine Nummer, nur Datei, Zeile und Kennung.
+3. Der Verlauf bleibt unverändert.
+
+#### Tests und Prüfung 1.9.244
+
+Neu: `tests/test_v644_keine_echten_personalnummern.py` (Suche über den Baum, Fundstellen ohne Nummer, Nummern aus den Dateien). Gegenproben: Archiv
+`gegenproben-stufe6-r4.md`.
+
+Angepasste Erwartungen (Regel 28) -- je Test die Nummer im Aufbau und in der Erwartung, sonst nichts: `test_v590::test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle`
+(eine Nummer im Kreis 00000–00099 -> 00093), `test_v617::test_kreis_ist_keine_sperre` (00091 statt einer echten im selben Kreis), `test_v626` (sieben Tests: Azubi
+00291, Abwesenheiten 00193, Eintritt 00194, Migration 00291), `test_v627` (zwei Tests: 00193), `test_v629` (zwei Tests: 00291), `test_v630` (ein Test: Azubi
+00291) -- alt jeweils eine Nummer, die es im Betrieb gibt.

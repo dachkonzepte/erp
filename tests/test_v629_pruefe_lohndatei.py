@@ -82,9 +82,9 @@ def test_rundung_und_pause_erklaert(tmp_path, capsys):
 
 
 def test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer(tmp_path, capsys):
-    t4 = ["9005;;;8110;;;15,00;;;;", "9005;24;1;1000;7,50;;;;;;", "9005;31;U;8000;7,50;;;;;;", "00201;7;1;1000;9,00;;;;;;"]
+    t4 = ["9005;;;8110;;;15,00;;;;", "9005;24;1;1000;7,50;;;;;;", "9005;31;U;8000;7,50;;;;;;", "00291;7;1;1000;9,00;;;;;;"]
     erp = ["09005;9;WA;8195;7,50;;;;;;", "09005;10;WA;8195;7,50;;;;;;", "09005;24;FR;1080;7,00;;;;;;", "09005;31;UU;;7,50;;;;;;",
-           "00201;7;1;1000;7,50;;;;;;", "00201;7;AA;1900;1,50;;;;;;", "00201;8;FE;;7,50;;;;;;"]
+           "00291;7;1;1000;7,50;;;;;;", "00291;7;AA;1900;1,50;;;;;;", "00291;8;FE;;7,50;;;;;;"]
     rc, out = lauf(tmp_path, capsys, erp, t4)
     assert rc == 0, out
     text = "\n".join(zeilen_mit(out, "erklärt"))
@@ -94,9 +94,9 @@ def test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer(tmp
 
 
 def test_azubi_nur_im_erp(tmp_path, capsys):
-    erp, t4 = ["00201;7;1;1000;8,00;;;;;;", "00201;25;F;1012;7,50;;;;;;"], ["00201;2;U;8000;7,50;;;;;;"]
+    erp, t4 = ["00291;7;1;1000;8,00;;;;;;", "00291;25;F;1012;7,50;;;;;;"], ["00291;2;U;8000;7,50;;;;;;"]
     assert lauf(tmp_path, capsys, erp + t4, t4)[0] == 1  # ohne --azubis zu klären
-    rc, out = lauf(tmp_path, capsys, erp + t4, t4, "--azubis", "00201")
+    rc, out = lauf(tmp_path, capsys, erp + t4, t4, "--azubis", "00291")
     assert rc == 0 and len(zeilen_mit(out, "erklärt")) == 2 and "Azubi: Time 4 gab nur U und K aus" in out
 
 
