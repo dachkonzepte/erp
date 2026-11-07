@@ -9055,3 +9055,67 @@ liest die Prüfung beide Farbformate und rollt den Dialog vor der Messung an den
 Nachtrag 2: im Endlauf des Nachtrags (4da9c54) meldete `klicktest_alle.py` beim Lesen der Klicktests eine `SyntaxWarning` -- die neue Messung schrieb den
 regulären Ausdruck der Seite mit `\d` in eine gewöhnliche Python-Zeichenkette (künftig ein Fehler). Jetzt `\\d`; die Zeichenketten des Klicktests sind
 zur Laufzeit dieselben (AST verglichen), Suite und Endlauf trotzdem neu (Regel 26).
+
+## Stufe 6, R4b: Nachrunde der Plantafel (ab 1.9.253)
+
+Auftrag vom 07.11.2026, Start 96d048b (live, Datenbank `c9d2e6a3f417`). Bestätigt: Festlegungen 1.9.243–1.9.252 mit N1/N2 und die drei zu Werkzeug und
+Testablauf, außer 1.9.250 Nr. 1 („Bauleitung = in keiner Kolonne, mit Konto“) -- dafür Punkt 1. Antworten zu Abschnitt 14 des Berichts R4: 1 Bauleitung als
+eigenes Kennzeichen (1.9.253); 2 Termin einer Person öffnet den Kalender (1.9.254); 3 Serie am Kran: der Hinweis „in Outlook ändern“ reicht -- keine Änderung;
+4 Rückfrage beim Ziehen: so lassen -- keine Änderung. Funde aus den Bildern: 5 Gerätezeilen nur mit Warnungen und Hinweisen zum Gerät, 6 vorläufig mit
+Warnung bleibt gestrichelt, 7 kurze Balken zweizeilig mit Silbentrennung, 8 „Nicht eingeplant“ unter 1440 px eingeklappt -- je eine Version. Reihenfolge:
+Punkt 8 vor Punkt 7, weil die neue Messung von Punkt 7 (Text ab 2 Arbeitstagen bei 1280 px ungekürzt) den eingeklappten Rückstand braucht.
+
+### Umsetzung 1.9.253 (Punkt 1): Kennzeichen „Plantafel“ am Mitarbeiter
+
+Bis 1.9.252 stand in „Personen“ unter „Bauleitung · Termine aus dem Kalender“, wer in keiner Kolonne war und ein aktives Konto hatte (Festlegung 1.9.250
+Nr. 1). Weil jeder gewerbliche Mitarbeiter ein eigenes Konto bekommt, trägt der Mitarbeiter jetzt ein Kennzeichen. Es gab schon ein Häkchen
+`EmployeePlanningSettings.show_on_planning_board` („In Plantafel anzeigen / Kapazität berücksichtigen“, ohne Zeile die Vorgabe aus Gruppe und Funktion:
+kaufmännisch, Lager, Büro, Verwaltung ausgeblendet) -- das Kennzeichen ersetzt es: `plantafel` (VARCHAR(20), Vorgabe „einplanbar“, Index), Werte in
+`app/employees.py::PLANTAFEL`. „nicht zeigen“ wirkt genau wie bisher das fehlende Häkchen (`planning_visible_employee_ids()`: nicht in den Personen der
+Tafel, also weder in „Personen“ noch unter „+ Person“, nicht in Kapazität und Konflikten, nicht in der Kolonnenzeile); „Bauleitung“ ist sichtbar wie
+einplanbar und steuert nur den Abschnitt. Die Tafel schickt je Person `plantafel` (statt `konto`, `_plantafel_map()`: eine Abfrage für alle), die Seite
+gruppiert danach (`personenGruppen()`); die Termine aus dem Kalender bleiben bei jeder Person mit Konto (Festlegung 1.9.250 Nr. 4).
+
+Schnittstelle: `EmployeeCreate.plantafel` als Literal, None = unverändert, beim Anlegen „einplanbar“ (`set_plantafel(…, anlegen=True)`); bis 1.9.252
+setzte ein PUT ohne `show_on_planning_board` die Vorgabe True ein (Regel 22). Formular: Auswahl „Plantafel“ mit Erklärung (`plantafel`, Regel 22: feste
+Liste, die der Server erzwingt -- `KLASSEN` „server_fest“); Liste: „Plantafel“, „Bauleitung“ bzw. „—“. Verlauf: Feld „Plantafel“, Werte
+„Einplanbar“/„Bauleitung“/„Nicht zeigen“.
+
+Migration `e3b7c51a9d26`: Spalte mit Vorgabe anlegen, Häkchen nicht gesetzt -> „nicht_zeigen“, Index, alte Spalte samt Index weg; downgrade: Häkchen
+zurück (nicht_zeigen -> nicht gesetzt, einplanbar und bauleitung -> gesetzt, ohne Vorgabe wie in der Baseline), dann die Spalte weg. Mitarbeiter ohne Zeile
+bleiben ohne -- für sie gilt weiter die Vorgabe aus Gruppe und Funktion.
+
+#### Festlegungen 1.9.253 (Bitte bestätigen)
+
+1. Das Kennzeichen „Plantafel“ am Mitarbeiter hat drei Werte: einplanbar (Vorgabe), Bauleitung, nicht zeigen; es ersetzt das Häkchen „In Plantafel
+   anzeigen / Kapazität berücksichtigen“ (Auswahl mit Erklärung im Formular, „Plantafel“/„Bauleitung“/„—“ in der Liste, im Verlauf mit Namen).
+2. Bestehende: das Häkchen wird übernommen -- gesetzt -> einplanbar, nicht gesetzt -> nicht zeigen; niemand wird von selbst Bauleitung. Mitarbeiter ohne
+   gespeicherte Einstellung behalten die Vorgabe aus Gruppe und Funktion (kaufmännisch, Lager, Büro, Verwaltung: nicht zeigen). Damit steht nach dem
+   Einspielen genau dieselbe Menge Personen in der Plantafel wie vorher. **Abweichung vom Wortlaut „Bestehende: alle einplanbar“** -- wörtlich genommen kämen
+   alle bisher ausgeblendeten (Büro, Lager, Geschäftsführung, auch die Funktion „Bauleitung / Projektleitung“, die kaufmännisch ist) unter „Ohne Kolonne“ in
+   die Plantafel und in die Kapazität. Soll das so sein, ändere ich die Migration vor dem Einspielen.
+3. Speichern ohne das Feld lässt das Kennzeichen unverändert; Anlegen ohne Angabe heißt einplanbar.
+4. „Personen“: im Abschnitt „Bauleitung · Termine aus dem Kalender“ steht jede Person mit Kennzeichen Bauleitung -- auch, wer in einer Kolonne steht (der
+   Abschnitt Bauleitung geht vor); unter „Ohne Kolonne“ jede einplanbare Person ohne Kolonne, mit oder ohne Konto. Die Termine aus dem Kalender stehen
+   weiter bei jeder Person mit Konto (Festlegung 1.9.250 Nr. 4).
+5. Bauleitung bleibt einplanbar: unter „+ Person“, in der Kapazität, als Mitglied einer Kolonne vorgeschlagen.
+6. Nicht zeigen wirkt wie bisher das fehlende Häkchen: nicht in „Personen“, nicht unter „+ Person“, nicht in Kapazität, Konflikten und der Zeile der
+   Kolonne. Schlägt ihre Kolonne sie vor, kommt sie weiter in die Besetzung (die Kolonne schlägt ihre aktiven Mitglieder vor, wie seit 1.9.233).
+
+#### Tests und Prüfung 1.9.253
+
+Neu: `tests/test_v653_plantafel_kennzeichen.py` (drei Werte und Verlauf; Anlegen ohne Angabe einplanbar mit Zeile, Ändern ohne Angabe unverändert, 422 bei
+unbekanntem Wert, das alte Feld ohne Wirkung; ohne Zeile die Vorgabe; Tafel mit Kennzeichen ohne „nicht zeigen“ und ohne Kapazität für sie; „+ Person“ im
+Dialog ohne „nicht zeigen“, Bauleitung dabei, die Kolonne schlägt wie bisher vor; Gruppen in node -- Bauleitung aus einer Kolonne, „Ohne Kolonne“ ohne Blick
+auf das Konto; Formular und Liste; Migration auf einem Bestand unter SQLite und PostgreSQL mit downgrade und Indizes). `scripts/klicktest_plantafel_personen.py`
+dazu: Paul mit Konto ohne Kolonne unter „Ohne Kolonne“, Vera „nicht zeigen“ weder in „Personen“ noch unter „+ Person“, Bea mit dem Kennzeichen, das Formular
+setzt Paul auf Bauleitung und die Tafel folgt (26 statt 23 Prüfungen). Gegenproben: Archiv `gegenproben-stufe6-r4b.md`.
+
+Angepasste Erwartungen (Regel 28): `test_v650::test_personen_mit_konto_und_ihre_termine` -- alt `konto` je Person (Bea True, Tom False), neu `plantafel`
+(beide einplanbar); `test_v650::test_ohne_modul_kalender_keine_termine` -- alt Bea `konto` True, neu Bea und Tom in der Tafel; `test_v650::_tafel()` -- die
+Personen tragen `plantafel` statt `konto` (Aufbau); `test_v246::test_show_on_planning_board_preserved` -- alt Häkchen `showOnPlanningBoard`, neu Auswahl
+`plantafel`; `test_v092::test_office_and_warehouse_default_hidden_but_can_be_enabled` -- alt `set_planning_visibility(…, True)`, neu `set_plantafel(…,
+"einplanbar")` (Aufbau); `test_v092::test_v092_ui_contains_state_school_holiday_and_employee_visibility_controls` -- alt Text des Häkchens, neu Auswahl
+„Plantafel“; `test_v600` -- Testdaten mit `plantafel="einplanbar"` statt `show_on_planning_board=True` (Aufbau); `test_v447` (`KLASSEN`) neu `plantafel`
+„server_fest“ -- Aufbau; `test_v364` (`FESTE_WERTE`) neu `employee_planning_settings.plantafel` -- Aufbau; `klicktest_plantafel_personen` -- Gruppen alt ohne
+„Ohne Kolonne“, neu mit Paul darunter; Unterzeilen um Paul ergänzt.

@@ -271,6 +271,7 @@ KLASSEN = {
     ('master_data_form.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Kunden (Vorgabe)'),
     ('master_data_form.html', 'P2', 'compensationType'): ('server_fest', 'hourly/fixed_salary'),
     ('master_data_form.html', 'P2', 'costAllocation'): ('server_fest', 'labor_rate/variable_overhead/excluded'),
+    ('master_data_form.html', 'P2', 'plantafel'): ('server_fest', 'einplanbar/bauleitung/nicht_zeigen (seit 1.9.253, Literal im Schema)'),
     ('master_data_form.html', 'P2', 'customer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('master_data_form.html', 'P2', 'resourceType'): ('eigen', 'Optionen vorher über auswahlOptionen() mit demselben Wert gebaut'),
     ('akte.html', 'P2', 'payment'): ('eigen', 'Zahlungsbedingung: ein gespeicherter Text außerhalb der Liste erscheint als „· bisher“'),

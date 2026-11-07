@@ -778,7 +778,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`.
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position
@@ -1229,13 +1229,17 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen; `tests/test_v648_einsatz_pruefen.py`, Klicktest `klicktest_plantafel_dialog.py`); seit 1.9.249
   bedient: Klick öffnet, Ziehen verschiebt mit Maus und Finger (Pointer Events, `verschieben()`, Rückfrage bei Warnungen), Klick in eine freie Zelle plant für
   Zeile und Tag (`planenAn()`; `tests/test_v649_plantafel_bedienen.py`, Klicktest `klicktest_plantafel_bedienen.py` mit echten Eingaben); seit 1.9.250
-  „Personen“ nach Kolonnen gruppiert, dazu „Ohne Kolonne“ und „Bauleitung“ (mit Konto), mit den Terminen aus dem Kalender der Personen mit Konto
+  „Personen“ nach Kolonnen gruppiert, dazu „Ohne Kolonne“ und „Bauleitung“ (bis 1.9.252 mit Konto, seit 1.9.253 nach dem Kennzeichen), mit den Terminen aus dem Kalender der Personen mit Konto
   (`app/planning.py::personen_termine()`, privat „Belegt“ außer für den Besitzer, ohne Modul „Kalender“ keine; `tests/test_v650_plantafel_personen.py`,
   Klicktest `klicktest_plantafel_personen.py`); seit 1.9.251 ist ein Termin am Gerät ein Knopf: „Als Kranvermietung übernehmen …“ öffnet den Dialog
   mit Zeitraum und Gerät vom Termin, geprüft über `POST /api/planning/kran-termine/{id}/pruefen` (`kran_termin_pruefen()`, wie die Übernahme, schreibt
   nichts; `tests/test_v651_kran_termin_uebernehmen.py`, Klicktest `klicktest_plantafel_kran_termin.py`); seit 1.9.252 öffnet „Einsatz planen“ der Akte den Dialog
   über `/planning?auftrag=<id>&zurueck=<Akte#ausfuehrung>` und kehrt danach zurück (nur ein lokaler Pfad, `startAusAdresse()`/`nachDemDialog()`;
-  `tests/test_v652_einsatz_aus_der_akte.py`, Klicktest `klicktest_plantafel_aus_der_akte.py`).
+  `tests/test_v652_einsatz_aus_der_akte.py`, Klicktest `klicktest_plantafel_aus_der_akte.py`). **Stufe 6, R4b (ab 1.9.253):** das Kennzeichen „Plantafel“ am
+  Mitarbeiter (`EmployeePlanningSettings.plantafel`: einplanbar | bauleitung | nicht_zeigen, `app/employees.py::PLANTAFEL`, Migration `e3b7c51a9d26`) ersetzt
+  das Häkchen „In Plantafel anzeigen“; „Personen“ gruppiert danach statt nach dem Konto -- Bauleitung im eigenen Abschnitt (auch aus einer Kolonne, weiter
+  einplanbar), einplanbar ohne Kolonne unter „Ohne Kolonne“; „nicht zeigen“ fehlt in Tafel, „+ Person“ und Kapazität; ohne Zeile die Vorgabe aus Gruppe und
+  Funktion (`tests/test_v653_plantafel_kennzeichen.py`).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

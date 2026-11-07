@@ -128,11 +128,12 @@ def test_aggregate_wage_metrics_moved_into_the_list_page():
 
 
 def test_show_on_planning_board_preserved():
+    """Seit 1.9.253 das Kennzeichen „Plantafel“ (Auswahl) statt des Häkchens „In Plantafel anzeigen“ -- es bleibt im Formular und in der Liste."""
     form = _form()
-    assert 'id="showOnPlanningBoard"' in form
-    assert "show_on_planning_board:el('showOnPlanningBoard').checked" in form
+    assert 'id="plantafel"' in form
+    assert "plantafel:v('plantafel')||'einplanbar'" in form
     html = _master_data()
-    assert "show_on_planning_board" in html
+    assert "x.plantafel===" in html
 
 
 def test_all_other_employee_fields_preserved_in_the_form():

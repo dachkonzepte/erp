@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..employees import apply_employee_payload, employee_to_dict, load_employees, set_cost_allocation, set_planning_visibility
+from ..employees import apply_employee_payload, employee_to_dict, load_employees, set_cost_allocation, set_plantafel
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
@@ -110,7 +110,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db, scope
     role.available_as_caseworker = bool(payload.available_as_caseworker)
     if payload.vorarbeiter is not None:  # seit 1.9.170 (Lohn L1a, Punkt 5)
         role.vorarbeiter = bool(payload.vorarbeiter)
-    set_planning_visibility(db, employee, payload.show_on_planning_board)
+    set_plantafel(db, employee, payload.plantafel, anlegen=True)  # seit 1.9.253, ohne Angabe „einplanbar“
     set_cost_allocation(db, employee, payload.cost_allocation)
     db.commit()
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee.id))
@@ -138,7 +138,7 @@ def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Dep
     role.available_as_caseworker = bool(payload.available_as_caseworker)
     if payload.vorarbeiter is not None:  # seit 1.9.170 (Lohn L1a, Punkt 5)
         role.vorarbeiter = bool(payload.vorarbeiter)
-    set_planning_visibility(db, employee, payload.show_on_planning_board)
+    set_plantafel(db, employee, payload.plantafel)  # seit 1.9.253, ohne Angabe unverändert
     set_cost_allocation(db, employee, payload.cost_allocation)
     db.commit()
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))

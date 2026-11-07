@@ -126,7 +126,7 @@ def test_vorschlag_rechnet_den_tag_ohne_die_betroffenen(tafel):
     db = tafel["db"]
     uwe = _person(db, "B-1", "Uwe")
     uwe.employee_group = "kaufmaennisch"
-    db.add_all([TeamEmployee(team_id=tafel["team"].id, employee_id=uwe.id), EmployeePlanningSettings(employee_id=uwe.id, show_on_planning_board=True)])
+    db.add_all([TeamEmployee(team_id=tafel["team"].id, employee_id=uwe.id), EmployeePlanningSettings(employee_id=uwe.id, plantafel="einplanbar")])
     db.commit()
     order = setup_order(db, "1")
     s = planning_suggestion(db, order_id=order.id, team_id=tafel["team"].id, start_date=HEILIGABEND)

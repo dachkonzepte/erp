@@ -132,19 +132,18 @@ def _combined_holiday_map(db: Session, start: date, end: date) -> tuple[dict[dat
         rows.append({"date":d,"name":n,"source":"manual" if d in manual else "automatic"})
     return combined, rows
 
-def _planning_visibility_map(db: Session, employees: list[Employee]) -> dict[int,bool]:
+def _plantafel_map(db: Session, employees: list[Employee]) -> dict[int,str]:
+    """Seit 1.9.253: das Kennzeichen „Plantafel“ je Mitarbeiter (einplanbar | bauleitung | nicht_zeigen), eine Abfrage für alle; ohne Zeile die Vorgabe
+    aus Gruppe und Funktion (app/employees.py::_default_plantafel())."""
+    from .employees import _default_plantafel
     ids=[e.id for e in employees if e.id]
-    stored={r.employee_id:bool(r.show_on_planning_board) for r in db.scalars(select(EmployeePlanningSettings).where(EmployeePlanningSettings.employee_id.in_(ids))).all()} if ids else {}
-    result={}
-    for e in employees:
-        if e.id in stored: result[e.id]=stored[e.id]; continue
-        fn=(e.profile.function.name if e.profile and e.profile.function else e.job_title or "").casefold()
-        result[e.id]=e.employee_group!="kaufmaennisch" and not any(t in fn for t in ("lager","büro","buero","verwaltung"))
-    return result
+    stored={r.employee_id:r.plantafel for r in db.scalars(select(EmployeePlanningSettings).where(EmployeePlanningSettings.employee_id.in_(ids))).all()} if ids else {}
+    return {e.id:stored.get(e.id) or _default_plantafel(e) for e in employees}
 
 def planning_visible_employee_ids(db: Session) -> set[int]:
+    """In Plantafel und Kapazität: aktiv und nicht „nicht zeigen“ (seit 1.9.253 das Kennzeichen, bis 1.9.252 das Häkchen)."""
     employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True)).all()
-    vis=_planning_visibility_map(db,employees); return {e.id for e in employees if vis.get(e.id,True)}
+    kz=_plantafel_map(db,employees); return {e.id for e in employees if kz.get(e.id,"einplanbar")!="nicht_zeigen"}
 
 def _parse_ferien_api_datetime(value: str) -> datetime:
     dt=datetime.fromisoformat(value.replace("Z","+00:00"))
@@ -1872,8 +1871,9 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
         rand_start, rand_ende = min(x.start_date for x in visible), max(x.end_date for x in visible)
         if rand_start < start_date or rand_ende > end_date:
             relevant = db.scalars(_einsatz_abfrage().where(PlanningSlot.start_date <= rand_ende, PlanningSlot.end_date >= rand_start)).all()
-    visible_employee_ids = planning_visible_employee_ids(db)
     all_employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)).all()
+    kennzeichen=_plantafel_map(db,all_employees)  # seit 1.9.253: das Kennzeichen „Plantafel“ einmal für alle
+    visible_employee_ids={x.id for x in all_employees if kennzeichen[x.id]!="nicht_zeigen"}
     employees=[x for x in all_employees if x.id in visible_employee_ids]
     # seit 1.9.211: die Sollzeit einmal für Tafel und Konflikte, über den Zeitraum der Tafel samt dem der Einsätze, die über den Rand reichen --
     # sonst hinge die Zahl der Abfragen an den Einsätzen im Bild (test_v564)
@@ -1938,13 +1938,13 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
     slot_dicts=[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible]
     pruefungen=_pruefungen(db,{x.id for x in resources})
-    mit_konto,termine_der_personen=personen_termine(db,{x.id for x in employees},start_date,end_date,betrachter_user_id)  # seit 1.9.250
+    _mit_konto,termine_der_personen=personen_termine(db,{x.id for x in employees},start_date,end_date,betrachter_user_id)  # seit 1.9.250
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
         "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"absence_category":x.absence_category,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
         "teams":team_rows,
         "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"vorname":(x.first_name or _employee_name(x)).strip(),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title,
-                     "konto":x.id in mit_konto} for x in employees],  # seit 1.9.250: mit Konto -> Termine aus dem Kalender, ohne Kolonne „Bauleitung“
+                     "plantafel":kennzeichen[x.id]} for x in employees],  # seit 1.9.253 das Kennzeichen (1.9.250–1.9.252 „konto“: ohne Kolonne mit Konto hieß „Bauleitung“)
         # seit 1.9.247: die nächste Prüfung (Betriebsmittel) und ob das Gerät einen Kalender hat (eigenes Postfach)
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier,
                       "pruefung":_geraet_pruefung(pruefungen.get(x.id,[]),berlin_today()),"kalender":bool(x.outlook_mailbox)} for x in resources],

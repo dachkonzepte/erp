@@ -338,13 +338,15 @@ function geraetUnter(r){return [r.pruefung,r.kalender?'mit Outlook-Kalender':'',
 function geraetFolgen(s,r){if(!r.tage)return [[s.start_date,s.end_date]];const t=r.tage.slice().sort(),out=[];for(const d of t){if(out.length&&addDays(out[out.length-1][1],1)===d)out[out.length-1][1]=d;else out.push([d,d])}return out}
 function geraetItems(rid){const items=[];for(const s of board.slots){const r=s.resources.find(x=>x.id===rid);if(!r)continue;for(const [von,bis] of geraetFolgen(s,r))items.push({von,bis,b:einsatzBalken(s,'geraet')})}for(const t of (board.geraete_termine||[]).filter(t=>t.resource_id===rid)){const text=(t.zeit?t.zeit+' ':'')+t.titel;items.push({von:t.von,bis:t.bis,b:{klasse:'termin',text:'Outlook',leise:text,klick:'kranTermin',id:t.id,  // seit 1.9.251 ein Knopf (Zeichnung: title mit dem nächsten Schritt)
     title:`Outlook · ${text}\nAus dem Kalender des Geräts · ${fmtSpanne(t.von,t.bis)} · belegt das Gerät${t.uebernehmbar?' · „Als Kranvermietung übernehmen …“':' · Termin einer Serie'}`,termin:true}})}return items}
-/* seit 1.9.250 (Stufe 6, R4, Punkt 3): „Personen“ nach Kolonnen gruppiert -- je Kolonne ihre Mitglieder (Kolonnenführer zuerst), dann „Ohne Kolonne“ (ohne Konto)
-   und „Bauleitung · Termine aus dem Kalender“ (mit Konto); jede Person einmal, in ihrer ersten Kolonne. Eine Zeile je Person: Einsätze, Abwesenheiten und bei
-   Personen mit Konto die Termine aus dem Kalender. */
-function personenGruppen(){const sichtbar=new Map(board.employees.map(e=>[e.id,e])),gesehen=new Set(),out=[];
-  for(const t of board.teams){const m=t.employees.filter(e=>sichtbar.has(e.id)&&!gesehen.has(e.id)).sort((a,b)=>(b.kf-a.kf)||a.name.localeCompare(b.name,'de'));if(!m.length)continue;
+/* seit 1.9.250 (Stufe 6, R4, Punkt 3): „Personen“ nach Kolonnen gruppiert -- je Kolonne ihre Mitglieder (Kolonnenführer zuerst), dann „Ohne Kolonne“ und
+   „Bauleitung · Termine aus dem Kalender“; jede Person einmal, in ihrer ersten Kolonne. Eine Zeile je Person: Einsätze, Abwesenheiten und bei Personen mit
+   Konto die Termine aus dem Kalender. Seit 1.9.253 (R4b, Punkt 1) nach dem Kennzeichen „Plantafel“ am Mitarbeiter, nicht mehr nach dem Konto: „Bauleitung“
+   steht immer im Abschnitt Bauleitung (auch wer in einer Kolonne steht), „Ohne Kolonne“ sind die übrigen einplanbaren ohne Kolonne -- mit oder ohne Konto;
+   „nicht zeigen“ schickt der Server gar nicht. */
+function personenGruppen(){const sichtbar=new Map(board.employees.map(e=>[e.id,e])),gesehen=new Set(),out=[];const bauleitung=e=>e.plantafel==='bauleitung';
+  for(const t of board.teams){const m=t.employees.filter(e=>sichtbar.has(e.id)&&!bauleitung(sichtbar.get(e.id))&&!gesehen.has(e.id)).sort((a,b)=>(b.kf-a.kf)||a.name.localeCompare(b.name,'de'));if(!m.length)continue;
     for(const e of m)gesehen.add(e.id);out.push({titel:t.name,team:t.id,personen:m.map(e=>({...sichtbar.get(e.id),kf:e.kf}))})}
-  const rest=board.employees.filter(e=>!gesehen.has(e.id));const ohne=rest.filter(e=>!e.konto),bau=rest.filter(e=>e.konto);
+  const rest=board.employees.filter(e=>!gesehen.has(e.id));const ohne=rest.filter(e=>!bauleitung(e)),bau=rest.filter(bauleitung);
   if(ohne.length)out.push({titel:'Ohne Kolonne',team:null,personen:ohne});if(bau.length)out.push({titel:'Bauleitung · Termine aus dem Kalender',team:null,personen:bau});return out}
 // wo eine Person im Bild in zwei Einsätzen zugleich steht (Einsätze geschlossener Aufträge zählen nicht) -- „doppelt 03.–05.11.“
 function doppeltText(eid){const erste=geo.spalten[0].d,letzte=geo.spalten[geo.spalten.length-1].d;const s=board.slots.filter(x=>x.employees.some(e=>e.id===eid)&&x.order_status!=='storniert'&&x.order_status!=='abgeschlossen');const r=[];

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.employees import effective_planning_visibility, set_planning_visibility
+from app.employees import effective_planning_visibility, set_plantafel
 from app.importers.leistungen_dach import parse_leistungen_dach_xml
 from app.main import create_customer, create_project, create_quote, add_quote_item, create_team
 from app.models import (
@@ -69,7 +69,7 @@ def test_office_and_warehouse_default_hidden_but_can_be_enabled():
     assert effective_planning_visibility(db, office) is False
     assert effective_planning_visibility(db, warehouse) is False
     assert effective_planning_visibility(db, roofer) is True
-    set_planning_visibility(db, warehouse, True); db.commit()
+    set_plantafel(db, warehouse, "einplanbar"); db.commit()  # seit 1.9.253 das Kennzeichen (bis 1.9.252 set_planning_visibility(…, True))
     assert effective_planning_visibility(db, warehouse) is True
 
 
@@ -161,4 +161,5 @@ def test_v092_ui_contains_state_school_holiday_and_employee_visibility_controls(
     employee = (root / "app/templates/master_data_form.html").read_text(encoding="utf-8")
     assert "Schulferien (nur Anzeige)" in planning and "school-holiday" in planning  # seit 1.9.247 Eintrag der Legende (bis dahin „… nur visuell“)
     assert "Bundesland" in settings and "planningState" in settings and "Ferien jetzt aktualisieren" in settings
-    assert "In Plantafel anzeigen / Kapazität berücksichtigen" in employee
+    # seit 1.9.253 das Kennzeichen „Plantafel“ (bis 1.9.252 das Häkchen „In Plantafel anzeigen / Kapazität berücksichtigen“)
+    assert '<label for="plantafel">Plantafel</label>' in employee and "nicht zeigen" in employee

@@ -1,9 +1,9 @@
 """Version 1.9.250 (Stufe 6, R4, Punkt 3): die Ansicht „Personen“ nach bildgrundlage/entwurf-stufe6/plantafel-personen.html.
 
-    Daten        GET /api/planning: je Person „konto“ (aktives Konto mit diesem Mitarbeiter); die Termine aus dem Kalender der Personen mit Konto
+    Daten        GET /api/planning: je Person das Kennzeichen „plantafel“ (seit 1.9.253, bis 1.9.252 „konto“); die Termine aus dem Kalender der Personen mit Konto
                  („personen_termine“, auch Serienvorkommen) -- privat „Belegt“, außer für den Besitzer (der Router gibt den Betrachter mit); ohne Modul
                  „Kalender“ keine Termine
-    Seite        Gruppen je Kolonne (Kolonnenführer zuerst), „Ohne Kolonne“ (ohne Konto), „Bauleitung · Termine aus dem Kalender“ (mit Konto); jede
+    Seite        Gruppen je Kolonne (Kolonnenführer zuerst), „Ohne Kolonne“, „Bauleitung · Termine aus dem Kalender“ (Kennzeichen, seit 1.9.253); jede
                  Person einmal; „doppelt …“ (Einsätze geschlossener Aufträge zählen nicht), „Antrag …“; „mit <Kolonne>“ an einem Einsatz einer anderen
                  Kolonne; eine Kranvermietung nach dem Gerät
 Im Browser misst scripts/klicktest_plantafel_personen.py (Zeichnung nachgestellt, Überdeckung, 1440/1280, hell/dunkel, Büro – Auftrag).
@@ -48,7 +48,8 @@ def test_personen_mit_konto_und_ihre_termine(threaded_db_session):
     db = threaded_db_session
     w = _welt(db)
     tafel = planning_board(db, MO, MO + timedelta(days=13))
-    assert {e["id"]: e["konto"] for e in tafel["employees"]} == {w["bea"].id: True, w["tom"].id: False}  # Toms Konto ist nicht aktiv
+    # seit 1.9.253 kein „konto“ mehr an der Person (die Gruppe folgt dem Kennzeichen „Plantafel“); Toms Konto ist nicht aktiv -- keine Termine
+    assert {e["id"]: e["plantafel"] for e in tafel["employees"]} == {w["bea"].id: "einplanbar", w["tom"].id: "einplanbar"}
     assert _kurz(tafel["personen_termine"]) == [
         ("Aufmaß", date(2026, 11, 3), date(2026, 11, 3), "10:00", False),
         ("Belegt", date(2026, 11, 6), date(2026, 11, 6), "09:00", False),  # privat, kein Betrachter
@@ -76,7 +77,7 @@ def test_ohne_modul_kalender_keine_termine(threaded_db_session):
     db.add(EnabledModule(module_key="kalender", enabled=False))
     db.commit()
     tafel = planning_board(db, MO, MO + timedelta(days=13))
-    assert tafel["personen_termine"] == [] and {e["id"]: e["konto"] for e in tafel["employees"]}[w["bea"].id] is True
+    assert tafel["personen_termine"] == [] and {e["id"] for e in tafel["employees"]} == {w["bea"].id, w["tom"].id}
 
 
 def test_konflikte_nennen_die_person(threaded_db_session):
@@ -121,8 +122,8 @@ def _tafel():
                   {"id": 2, "name": "Kolonne Süd", "employees": [{"id": 20, "name": "Kai", "kf": True}, {"id": 11, "name": "Ole", "kf": False},
                                                                  {"id": 99, "name": "Unsichtbar", "kf": False}]},
                   {"id": 3, "name": "Kolonne leer", "employees": []}],
-        "employees": [{"id": 10, "name": "Tom"}, {"id": 11, "name": "Ole"}, {"id": 20, "name": "Kai"}, {"id": 30, "name": "Ulf", "konto": False},
-                      {"id": 31, "name": "Bea", "konto": True}],
+        "employees": [{"id": 10, "name": "Tom"}, {"id": 11, "name": "Ole"}, {"id": 20, "name": "Kai"}, {"id": 30, "name": "Ulf", "plantafel": "einplanbar"},
+                      {"id": 31, "name": "Bea", "plantafel": "bauleitung"}],
         "slots": [s(1, 1, [20], "2026-11-02", "2026-11-06"), s(2, 2, [20], "2026-11-04", "2026-11-05"), s(3, 2, [20], "2026-11-05", "2026-11-09"),
                   s(4, 2, [20], "2026-11-12", "2026-11-12"), s(5, 2, [20], "2026-11-12", "2026-11-13", order_status="storniert"),
                   s(6, 1, [10], "2026-10-26", "2026-11-03"), s(7, 1, [10], "2026-10-27", "2026-11-04")],

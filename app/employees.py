@@ -110,24 +110,44 @@ def _default_planning_visibility(employee: Employee) -> bool:
     return True
 
 
-def effective_planning_visibility(db: Session, employee: Employee) -> bool:
+# Seit 1.9.253 (Stufe 6, R4b, Punkt 1): das Kennzeichen „Plantafel“ statt des Häkchens „In Plantafel anzeigen“ -- einplanbar (Vorgabe),
+# Bauleitung (in „Personen“ im Abschnitt „Bauleitung · Termine aus dem Kalender“, weiter einplanbar) oder nicht zeigen (weder in „Personen“ noch unter
+# „+ Person“, keine Kapazität -- wie bisher ohne Häkchen). Ohne gespeicherte Zeile gilt weiter die Vorgabe aus Gruppe und Funktion (oben).
+PLANTAFEL = {"einplanbar": "einplanbar", "bauleitung": "Bauleitung", "nicht_zeigen": "nicht zeigen"}
+
+
+def _default_plantafel(employee: Employee) -> str:
+    return "einplanbar" if _default_planning_visibility(employee) else "nicht_zeigen"
+
+
+def effective_plantafel(db: Session, employee: Employee) -> str:
     if employee.id:
         row = db.scalar(select(EmployeePlanningSettings).where(EmployeePlanningSettings.employee_id == employee.id))
         if row is not None:
-            return bool(row.show_on_planning_board)
-    return _default_planning_visibility(employee)
+            return row.plantafel
+    return _default_plantafel(employee)
 
 
-def set_planning_visibility(db: Session, employee: Employee, visible: bool | None) -> EmployeePlanningSettings | None:
+def effective_planning_visibility(db: Session, employee: Employee) -> bool:
+    """In Plantafel und Kapazität: einplanbar oder Bauleitung."""
+    return effective_plantafel(db, employee) != "nicht_zeigen"
+
+
+def set_plantafel(db: Session, employee: Employee, wert: str | None, *, anlegen: bool = False) -> EmployeePlanningSettings | None:
+    """None lässt das Kennzeichen unverändert (Regel 22) -- beim Anlegen des Mitarbeiters (anlegen=True) heißt None „einplanbar“."""
     if not employee.id:
         return None
+    if wert is None and not anlegen:
+        return None
+    wert = wert or "einplanbar"
+    if wert not in PLANTAFEL:
+        raise ValueError(f"Unbekanntes Kennzeichen „{wert}“ für die Plantafel.")
     row = db.scalar(select(EmployeePlanningSettings).where(EmployeePlanningSettings.employee_id == employee.id))
-    target = _default_planning_visibility(employee) if visible is None else bool(visible)
     if row is None:
-        row = EmployeePlanningSettings(employee_id=employee.id, show_on_planning_board=target)
+        row = EmployeePlanningSettings(employee_id=employee.id, plantafel=wert)
         db.add(row)
     else:
-        row.show_on_planning_board = target
+        row.plantafel = wert
     return row
 
 def effective_cost_allocation(db: Session, employee: Employee) -> str:
@@ -244,7 +264,7 @@ def employee_to_dict(employee: Employee, db: Session | None = None) -> dict:
         "important_info": p.important_info if p else None,
         "available_as_caseworker": bool(role.available_as_caseworker) if role else False,
         "vorarbeiter": bool(role.vorarbeiter) if role else False,  # seit 1.9.170
-        "show_on_planning_board": effective_planning_visibility(db, employee) if db is not None else _default_planning_visibility(employee),
+        "plantafel": effective_plantafel(db, employee) if db is not None else _default_plantafel(employee),  # seit 1.9.253 (bis 1.9.252 show_on_planning_board)
         "cost_allocation": effective_cost_allocation(db, employee) if db is not None else ("labor_rate" if employee.employee_group == "gewerblich" else "excluded"),
         "active": employee.active,
     }

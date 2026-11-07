@@ -122,6 +122,7 @@ def _werte() -> dict[str, dict[str, str]]:
         "employee_group": {"gewerblich": "Gewerblich", "kaufmaennisch": "Kaufmännisch"},
         "im_urlaub": {"kein_urlaubstag": "Kein Urlaubstag", "fragen": "Rückfrage: Urlaubstag oder frei"},  # seit 1.9.175, Arbeitszeitkalender
         "art": {"baustelle": "Baustelle", "kranvermietung": "Kranvermietung"},  # seit 1.9.240: Art des Einsatzes (app/planning.py::EINSATZ_ARTEN)
+        "plantafel": {"einplanbar": "Einplanbar", "bauleitung": "Bauleitung", "nicht_zeigen": "Nicht zeigen"},  # seit 1.9.253 (app/employees.py::PLANTAFEL)
         "contract_basis": CONTRACT_BASES,
         "work_kind": gross(WORK_KINDS),
         "kind": {"beleg": "Beleg", "foto": "Foto", "unterschrift": "Unterschrift", **gross(KONTAKT_ARTEN), **gross(EVENT_KINDS),

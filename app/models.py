@@ -3367,13 +3367,15 @@ class EmployeeRoleSettings(Base):
 
 
 class EmployeePlanningSettings(Base):
-    """Steuert, ob ein Mitarbeiter in Plantafel und Kapazitätsplanung sichtbar/berücksichtigt wird."""
+    """Steuert, wie ein Mitarbeiter in Plantafel und Kapazitätsplanung steht (seit 1.9.253 das Kennzeichen „Plantafel“, bis 1.9.252 ein Häkchen
+    show_on_planning_board): einplanbar | bauleitung (Abschnitt „Bauleitung“ in „Personen“, weiter einplanbar) | nicht_zeigen (weder in „Personen“ noch
+    unter „+ Person“, keine Kapazität). Ohne Zeile gilt die Vorgabe aus Gruppe und Funktion (app/employees.py::_default_planning_visibility())."""
     __tablename__ = "employee_planning_settings"
     __table_args__ = (UniqueConstraint("employee_id", name="uq_employee_planning_settings_employee"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
-    show_on_planning_board: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    plantafel: Mapped[str] = mapped_column(String(20), default="einplanbar", server_default="einplanbar", index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

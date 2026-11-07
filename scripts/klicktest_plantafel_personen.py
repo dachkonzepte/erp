@@ -1,15 +1,18 @@
 """Klicktest: die Ansichten „Personen“ und „Geräte“ nach der Zeichnung entwurf-stufe6/plantafel-personen.html (1.9.250, Stufe 6, R4, Punkt 3).
 
-Testdaten wie klicktest_plantafel_tafel (Zeichnung KW 45–46), dazu Bea Bauer (Bauleiterin, ohne Kolonne, Konto „bea“ mit Rolle Büro – Auftrag) mit vier
-Terminen im Kalender: Di 03.11. 10:00 Aufmaß, Do 05.11. 08:00 Angebot vor Ort, Fr 06.11. 09:00 privat „Zahnarzt“, Fr 13.11. 14:00 Abnahme.
+Testdaten wie klicktest_plantafel_tafel (Zeichnung KW 45–46), dazu Bea Bauer (Bauleiterin, ohne Kolonne, Kennzeichen „Bauleitung“, Konto „bea“ mit Rolle
+Büro – Auftrag) mit vier Terminen im Kalender: Di 03.11. 10:00 Aufmaß, Do 05.11. 08:00 Angebot vor Ort, Fr 06.11. 09:00 privat „Zahnarzt“, Fr 13.11. 14:00
+Abnahme; seit 1.9.253 dazu Paul Pohl (Dachdecker, eigenes Konto, keine Kolonne, einplanbar) und Vera Vogt (Kennzeichen „nicht zeigen“).
 Stehende Uhr Di 03.11.2026 10:00.
 
-    Gruppen      KOLONNE NORD (Tom KF, Mia, Ole), KOLONNE SÜD (Kai KF, Lia, Nele), BAULEITUNG · TERMINE AUS DEM KALENDER (Bea); jede Person einmal
+    Gruppen      KOLONNE NORD (Tom KF, Mia, Ole), KOLONNE SÜD (Kai KF, Lia, Nele), OHNE KOLONNE (Paul -- mit Konto, seit 1.9.253 nach dem Kennzeichen),
+                 BAULEITUNG · TERMINE AUS DEM KALENDER (Bea); jede Person einmal; Vera fehlt, auch unter „+ Person“
     Zeile        Tom „Kolonnenführer“; Kai „Kolonnenführer“ und rot „doppelt 03.–05.11.“; Nele „Antrag 05.–06.11.“; Bea „Bauleiterin“
     Balken       nur die Warnungen und Hinweise der Person: Kai „Am Wasserturm 4 · mit Nord“ und „Garage“ mit Warnung (doppelt), Mia und Ole am selben
                  Einsatz ohne, Nele „Garage“ mit dem Punkt für ihren Antrag; Tom „Urlaub · genehmigt“ schraffiert; Nele „Urlaub · beantragt“ gestrichelt; Lia
                  „Kran Böcker AHK 36 · Vermietung“ blau; Bea die Termine zweizeilig (Uhrzeit über dem Titel), der private „Belegt“
     Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title; hell und dunkel als Bild
+    Formular     seit 1.9.253: im Mitarbeiterformular „Plantafel“ auf „Bauleitung“ -> Paul steht danach im Abschnitt Bauleitung
     Büro – Auftrag  als Bea: Tom „abwesend“ und Nele „beantragt“ ohne Art; ihr eigener privater Termin mit Titel
     Geräte       Kran mit dem Termin aus seinem Postfach („Müller“, 10.–11.11.) und der Vermietung, die Pritschen
     keine JS-Fehler
@@ -32,19 +35,29 @@ def befuellen(db, k):
     from datetime import datetime
     from decimal import Decimal
 
-    from app.models import AppUser, CalendarEvent, Employee
+    from sqlalchemy import select
+
+    from app.models import AppUser, CalendarEvent, Employee, EmployeeFunction, EmployeePlanningSettings, EmployeeProfile
 
     seed = tafel_befuellen(db, k)
     bea = Employee(employee_number="M-7", first_name="Bea", last_name="Bauer", employee_group="angestellt", job_title="Bauleiterin",
                    weekly_hours=Decimal("40"), active=True)
-    db.add(bea); db.flush()
+    # seit 1.9.253: Paul mit eigenem Konto ohne Kolonne (einplanbar -> „Ohne Kolonne“), Vera „nicht zeigen“
+    paul = Employee(employee_number="M-8", first_name="Paul", last_name="Pohl", employee_group="gewerblich", job_title="Dachdecker",
+                    hourly_wage=Decimal("20"), weekly_hours=Decimal("40"), active=True)
+    vera = Employee(employee_number="M-9", first_name="Vera", last_name="Vogt", employee_group="gewerblich", job_title="Dachdecker",
+                    hourly_wage=Decimal("20"), weekly_hours=Decimal("40"), active=True)
+    db.add_all([bea, paul, vera]); db.flush()
+    db.add_all([EmployeePlanningSettings(employee_id=bea.id, plantafel="bauleitung"), EmployeePlanningSettings(employee_id=vera.id, plantafel="nicht_zeigen"),
+                AppUser(username="paul", display_name="Paul Pohl", role="field", employee_id=paul.id, password_hash=k.passwort()),
+                EmployeeProfile(employee_id=paul.id, function_id=db.scalar(select(EmployeeFunction.id).where(EmployeeFunction.name == "Dachdecker Geselle")))])
     konto = AppUser(username="bea", display_name="Bea Bauer", role="buero_auftrag", employee_id=bea.id, password_hash=k.passwort())
     db.add(konto); db.flush()
     for tag, stunde, titel, privat in ((3, 10, "Aufmaß", False), (5, 8, "Angebot vor Ort", False), (6, 9, "Zahnarzt", True), (13, 14, "Abnahme", False)):
         db.add(CalendarEvent(title=titel, start_at=datetime(2026, 11, tag, stunde), end_at=datetime(2026, 11, tag, stunde + 1), owner_user_id=konto.id,
                              is_private=privat))
     db.commit()
-    return {**seed, "bea": k.cookies(konto)}
+    return {**seed, "bea": k.cookies(konto), "paul": paul.id}
 
 
 # je Zeile die Balken: [Text, Art] -- Art: abwesend, beantragt, termin, kran, vorlaeufig, fest; „!“ bei Warnung, „·“ bei Hinweis
@@ -69,11 +82,11 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await ansicht(tab, "employees")
 
-    p.pruefe("Gruppen nach Kolonnen, dann Bauleitung; jede Person einmal", await tab.js(ZEILEN),
+    p.pruefe("Gruppen nach Kolonnen, Ohne Kolonne (Paul mit Konto), dann Bauleitung; jede Person einmal, Vera fehlt", await tab.js(ZEILEN),
              ["[Kolonne Nord]", "Tom Monteur", "Mia Monteurin", "Ole Offen", "[Kolonne Süd]", "Kai Kolb", "Lia Lang", "Nele Neu",
-              "[Bauleitung · Termine aus dem Kalender]", "Bea Bauer"])
-    p.pruefe("Unterzeilen: KF, doppelt, Antrag, Funktion", [await tab.js(UNTER + f"('{n}')") for n in ("Tom Monteur", "Kai Kolb", "Nele Neu", "Bea Bauer", "Mia Monteurin")],
-             [["Kolonnenführer"], ["Kolonnenführer", "doppelt 03.–05.11."], ["Antrag 05.–06.11."], ["Bauleiterin"], []])
+              "[Ohne Kolonne]", "Paul Pohl", "[Bauleitung · Termine aus dem Kalender]", "Bea Bauer"])
+    p.pruefe("Unterzeilen: KF, doppelt, Antrag, Funktion", [await tab.js(UNTER + f"('{n}')") for n in ("Tom Monteur", "Kai Kolb", "Nele Neu", "Bea Bauer", "Mia Monteurin", "Paul Pohl")],
+             [["Kolonnenführer"], ["Kolonnenführer", "doppelt 03.–05.11."], ["Antrag 05.–06.11."], ["Bauleiterin"], [], ["Dachdecker Geselle"]])
     p.pruefe("„doppelt“ rot, die übrigen Unterzeilen nicht", await tab.js(
         "[...document.querySelectorAll('#planner .row-label .unter.warn')].map(u=>u.textContent)"), ["doppelt 03.–05.11."])
     p.pruefe("Tom: Urlaub genehmigt schraffiert, KW 46 Wasserturm", await tab.js(BALKEN_JE_ZEILE + "('Tom Monteur')"),
@@ -94,6 +107,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("1440 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1440 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
     await tab.bild("personen_1440_hell")
+    # seit 1.9.253: „+ Person“ bietet Bea (Bauleitung, weiter einplanbar) und Paul an, Vera („nicht zeigen“) nicht
+    await tab.js("[...document.querySelectorAll('#planner .slot')].find(s=>s.textContent.includes('Garage Lindenweg 7')).click()")
+    await tab.warten("document.getElementById('einsatzDialog').open&&typeof pruefung!=='undefined'&&!!pruefung")
+    await tab.warte_auf_ruhe()
+    await tab.js("document.getElementById('edPersonPlus').click()")
+    p.pruefe("+ Person: Bea und Paul zur Wahl, Vera nicht", await tab.js(
+        "[...document.getElementById('edPersonWahl').options].map(o=>o.textContent).filter(t=>/Bea|Paul|Vera/.test(t))"), ["Bea Bauer", "Paul Pohl"])
+    await tab.js("document.getElementById('einsatzDialog').close()")
     await tab.fenster(1280, 900)
     await tab.warte_auf_ruhe()
     p.pruefe("1280 px: die Seite läuft nicht über", await tab.ueberlauf(), [])
@@ -120,6 +141,21 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await tab.bild("personen_1280_dunkel")
     p.pruefe("dunkel: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
+
+    # --- seit 1.9.253: das Kennzeichen im Mitarbeiterformular ---
+    await tab.fenster(1440, 1000)
+    await tab.oeffnen(f"/master-data/employees/{seed['paul']}/edit", "!!document.getElementById('plantafel')&&document.getElementById('firstName').value==='Paul'")
+    p.pruefe("Formular: „Plantafel“ mit drei Werten, Paul einplanbar", await tab.js(
+        "[[...document.getElementById('plantafel').options].map(o=>o.textContent),document.getElementById('plantafel').value]"),
+             [["einplanbar", "Bauleitung", "nicht zeigen"], "einplanbar"])
+    await tab.js("document.getElementById('plantafel').value='bauleitung';document.getElementById('saveBtn').click()")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Formular: gespeichert als Bauleitung", await tab.js(f"fetch('/api/employees/{seed['paul']}').then(r=>r.json()).then(d=>d.plantafel)"), "bauleitung")
+    await tab.oeffnen("/planning", BEREIT)
+    await tab.warte_auf_ruhe()
+    await ansicht(tab, "employees")
+    p.pruefe("Tafel: Paul jetzt im Abschnitt Bauleitung, „Ohne Kolonne“ fällt weg", (await tab.js(ZEILEN))[-4:],
+             ["Nele Neu", "[Bauleitung · Termine aus dem Kalender]", "Bea Bauer", "Paul Pohl"])
 
     # --- als Bea (Büro – Auftrag): ohne Art, ihr privater Termin mit Titel ---
     await tab.fenster(1440, 1000)

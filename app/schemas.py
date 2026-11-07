@@ -1003,7 +1003,8 @@ class EmployeeCreate(BaseModel):
     important_info: str | None = None
     available_as_caseworker: bool = False
     vorarbeiter: bool | None = None  # seit 1.9.170: None = unverändert (die Seite schickt es mit)
-    show_on_planning_board: bool = True
+    # seit 1.9.253 das Kennzeichen „Plantafel“ (bis 1.9.252 show_on_planning_board): None = unverändert, beim Anlegen „einplanbar“
+    plantafel: Literal["einplanbar", "bauleitung", "nicht_zeigen"] | None = None
     cost_allocation: str | None = Field(default=None, pattern="^(labor_rate|variable_overhead|excluded)$")
     active: bool = True
 
@@ -1060,7 +1061,7 @@ class EmployeeRosterOut(BaseModel):
     important_info: str | None = None
     available_as_caseworker: bool
     vorarbeiter: bool = False  # seit 1.9.170
-    show_on_planning_board: bool
+    plantafel: str  # seit 1.9.253
     cost_allocation: str | None = None
     active: bool
 
