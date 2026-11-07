@@ -8678,3 +8678,97 @@ Angepasste Erwartungen (Regel 28), nur Aufbau: `test_v224` -- `test_team_path_re
 `test_employee_on_both_paths_for_same_slot_is_not_duplicated`, `test_address_falls_back_to_order_snapshot_without_linked_property`,
 `test_address_uses_linked_property_when_present`, `test_field_view_today_returns_assignments_and_drafts_for_linked_employee`: Tag des Einsatzes alt
 `date.today()`, neu `berlin_today()`; die Erwartungen bleiben.
+
+### Umsetzung 1.9.247 (Punkt 1): die Tafel „Kolonnen“ nach der Zeichnung
+
+`app/templates/planning.html` neu und umgezogen (`ds-seite`, Seitenkopf über das Makro; `tests/test_v441_rahmen_baustein.py`: von `AUFGESCHOBEN` nach
+`UMGEZOGEN`). Maße aus `plantafel-kolonnen.html`: Namensspalte 168 px, Samstag und Sonntag 22 px, die Arbeitstage teilen sich den Rest (mindestens 44 px) --
+14 Tage passen bei 1440 px ohne Bildlauf (gemessen: 62 px je Tag); mehr Tage oder weniger Platz rollen in der Tafel, nie auf der Seite.
+
+- Seitenkopf: „Plantafel“, „Wer ist wann wo – Einsätze, Kran und Geräte, Abwesenheiten“, „+ Einsatz“, Menü „Abwesenheit eintragen“, „Einstellungen der
+  Planung“ (`/settings#planning`); „Kranvermietung anlegen“ steht schon im Menü, ausgeblendet bis zum Dialog (Punkt 4).
+- Leiste: ‹ › eine Woche, „KW 45–46 · 02.11.–15.11.2026“, „Heute“, 2/3/4 Wochen, Kolonnen | Personen | Geräte, Knopf „n Warnungen · n Hinweise“ (Filter:
+  nur Einsätze mit Warnung oder Hinweis; ohne beides gesperrt „Keine Warnungen“); sein title nennt, was berücksichtigt wird (bis 1.9.246 der Satz über der Tafel).
+- „Nicht eingeplant“ links, einklappbar (der Stand bleibt im Browser, `localStorage`, nur Bequemlichkeit): Projektnummer (zur Akte), Projektname, Soll, „ab …“
+  bzw. „ohne Termin“, „Einplanen …“.
+- Zeilen „Kolonnen“: je Kolonne Name, Mitglieder mit „(KF)“, wer im Bild abwesend ist („Tom Urlaub 02.–06.11.“, genehmigt und Freistellung; ein Antrag nicht);
+  „Ohne Kolonne“ immer (Einsätze ohne Kolonne, keine Kranvermietung); Abschnitt „Geräte“ nach Namen mit „UVV gültig bis 03/2027“ bzw. „fällig seit …“ und
+  „mit Outlook-Kalender“, sonst der Typ. Ein Gerät steht in seiner Zeile an seinen Tagen (je Folge ein Balken), dazu die Termine direkt in seinem Kalender.
+- Balken (`balkenHtml()`): Text Projektname · Vornamen (in der Zeile des Geräts nur der Projektname; Kranvermietung „Vermietung · Bediener“; Termin
+  „Outlook · Titel“), fest / vorläufig / Kranvermietung / Termin / abwesend / beantragt; Warnung roter Rand und Zeichen, Hinweis grauer Punkt (aus `stufe` der
+  Konflikte, Server), Auftrag abgeschlossen oder storniert blass. Spuren (`spurenVerteilen()`): jeder Balken nimmt die erste freie Spur ab seinem ersten Tag, die
+  Zeile wächst. Der title beginnt mit dem Text des Balkens, danach Projekt, Zeitraum, Art, Status, Besetzung, Geräte, Status des Auftrags, Warnungen und Hinweise.
+- „Personen“ und „Geräte“ zeichnen mit denselben Balken (je Person ihre Einsätze und Abwesenheiten, je Gerät seine Einsätze und Termine); was die Zeichnung
+  dort mehr zeigt, kommt mit Punkt 3.
+- Server (`app/planning.py::planning_board()`): je Mitglied `vorname` und `kf`; je Gerät `pruefung` (`_geraet_pruefung()`) und `kalender`; `geraete_termine()`
+  (Termine im Kalender eines Geräts ohne Einsatz, privat „Belegt“, `uebernehmbar` nur ein Einzeltermin; `termin_tage()` gemeinsam mit dem Übernehmen);
+  `abwesenheiten_der_tafel()` (je Person genehmigt, Freistellung, beantragt -- der Router setzt für Büro – Auftrag `art` leer); `zaehler` (`tafel_zaehler()`).
+- `app/static/ds/ds.css`: `--ds-termin-hell`, `--ds-termin-rand`, `--ds-termin-text` (hell und dunkel, Prüfpaare termin-text/termin-hell und text/termin-hell).
+- Bis Punkt 4 die bisherigen Dialoge (Einsatz planen, bearbeiten, Abwesenheiten, Rückfrage) im neuen Aussehen, Ziehen mit der Maus wie bisher (Punkt 2).
+
+#### Festlegungen 1.9.247 (Bitte bestätigen)
+
+1. Die Plantafel ist umgezogen: Seitenkopf mit „+ Einsatz“ und Menü „Abwesenheit eintragen“, „Einstellungen der Planung“ („Kranvermietung anlegen“ mit Punkt 4).
+2. Der Knopf „n Warnungen · n Hinweise“ zählt Warnungen und Hinweise im Bild -- ein Paar (Person oder Gerät doppelt) einmal -- und filtert auf die betroffenen
+   Einsätze; ohne beides ist er gesperrt.
+3. 14 Tage passen auf 1440 px: Samstag und Sonntag 22 px, die Arbeitstage gleich breit (mindestens 44 px); mehr rollt in der Tafel.
+4. „Kolonnen“: je Kolonne Mitglieder mit „(KF)“ und wer im Bild abwesend ist (genehmigt und Freistellung, kein Antrag); „Ohne Kolonne“ immer; darunter die Geräte
+   nach Namen mit Prüfung und „mit Outlook-Kalender“.
+5. Eine Kranvermietung steht in der Zeile ihres Geräts, nicht in „Ohne Kolonne“; ein Gerät an einzelnen Tagen hat je Folge zusammenhängender Tage einen Balken.
+6. Balken: fest gefüllt, vorläufig gestrichelt, Kranvermietung blau schraffiert, Termin lila, Warnung roter Rand mit Zeichen, Hinweis grauer Punkt, Auftrag
+   abgeschlossen oder storniert blass; Text Projektname · Vornamen (beim Gerät nur der Projektname).
+7. Was sich überschneidet, steht in eigenen Spuren untereinander, nie verdeckt.
+8. Der title jedes Balkens beginnt mit seinem Text; „Auftrag abgeschlossen“, „Auftrag pausiert“, „Antrag offen“ stehen dort (neu gefasst: 1.9.156 als dritte
+   Zeile im Balken -- die Zeichnung hat einzeilige Balken).
+9. Keine Kapazität je Zelle mehr (Vorgabe).
+10. „Nicht eingeplant“ steht links und ist einklappbar; der Stand bleibt im Browser.
+11. Ein Termin direkt im Kalender eines Geräts steht in seiner Zeile (privat „Belegt“); die Termine der Einsätze nicht.
+12. Abwesenheiten als Zeiträume vom Server: genehmigt, Freistellung, beantragt; die Art nur für Admin und Büro – Finanzen.
+13. Der Satz „berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität“ steht am Knopf der Leiste
+    (neu gefasst: Festlegung 1.9.193, bis dahin über der Tafel).
+14. Neue Farben für Termine: `--ds-termin-*` in `ds.css`, hell und dunkel, mit Kontrastprüfung.
+15. Das Feld heißt „Anfahrt je Tag (h)“ (Zeichnung), die Meldungen ebenso.
+16. Die Prüfung am Gerät: die nächste fällige, „<Art> gültig bis MM/JJJJ“, abgelaufen „<Art> fällig seit TT.MM.JJJJ“; nur mit Betriebsmittelverwaltung.
+17. Der Server liefert je Mitglied einer Kolonne Vorname und Kolonnenführer.
+18. Schulferien bleiben wie bis 1.9.246 nur zur Anzeige: Kopf und Zellen der Arbeitstage getönt, der Name im title des Tags, in der Legende
+    „Schulferien (nur Anzeige)“ nur mit Ferien im Bild (die Zeichnung zeigt keine, weil in KW 45–46 keine liegen).
+19. Die Tafel liest die offenen Anträge einmal (für Konflikte und Abwesenheiten zusammen).
+
+#### Tests und Prüfung 1.9.247
+
+Neu: `tests/test_v647_plantafel_tafel.py` (Vorname und KF, Prüfung und Kalender am Gerät, Termine am Gerät, Abwesenheiten mit Freistellung und Antrag samt Schwärzung,
+Termin-Tage, Zähler, Spuren und Geometrie in node, Zeilen der Kolonnen in node, Gerät an einzelnen Tagen, Seitenkopf und Leiste) und
+`scripts/klicktest_plantafel_tafel.py` (Zeichnung nachgestellt, 24 Prüfungen: Zeilen, Balken, Maße, Überdeckung, gekürzte Texte, Filter, Rückstand, Klick, 1280 px,
+hell und dunkel). Gegenproben: Archiv `gegenproben-stufe6-r4.md`.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v432::test_kontrast_der_pruefpaare_hell_und_dunkel`: alt 48 Prüfpaare, neu 50 (termin-text/termin-hell, text/termin-hell).
+- `test_v441`: `planning.html` von `AUFGESCHOBEN` (Stufe 6) nach `UMGEZOGEN` (Aufbau).
+- `test_v460`: `NICHT_KARTEN` um „muster“ (Farbmuster der Legende, Kennzeichen) -- Aufbau.
+- `test_v407`: drei Einträge der Ausnahmeliste gestrichen (`renderAbsences`, `renderBacklog`, `renderSlot` mit onclick -- es gibt keine on…-Attribute mehr).
+- `test_v414::test_abgelehnte_antworten_sind_lesbar[planning.html…]`: alt „Anfahrt je MA / Tag ist zu groß.“, neu „Anfahrt je Tag ist zu groß.“.
+- `test_v637::test_dialog_fuellt_die_zeile_beim_oeffnen`: alt `<div id="editBesetzung" class="small muted"`, neu `<span id="editBesetzung" class="klein"` (nur Markup).
+- `test_v616::test_seite_nennt_die_sollzeit`: alt `${fmt(…)} − je ${num(…)} h Anfahrt`, neu `${esc(fmt(…))} − je ${esc(zahlText(…,2))} h Anfahrt`.
+- `test_v600::test_seite_nennt_die_freistellung`: alt der Satz „Berücksichtigt werden …“ über der Tafel, neu „berücksichtigt werden …“ am Knopf der Leiste.
+- `test_v600::test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip`: alt Regel `.absence-mark` in der Zelle, neu `.slot-text` mit „…“ und der title des Balkens.
+- `test_v633::test_tafel_zeigt_besetzung_und_ohne_kolonne`: alt `label:'Ohne Kolonne',sub:…`, neu `name:'Ohne Kolonne',team:'null',unter:[…]`.
+- `test_v090::test_v09_planning_ui_and_routes_exist`: alt „Mitarbeiter“, „Fahrzeuge / Maschinen“, `ondrop="dropSlot`; neu „Personen“, „Geräte“,
+  `addEventListener('drop',…)`.
+- `klicktest_browser_datum` „Plantafel heute markiert“: alt `.day-head.today` mit dem Datum im Inhalt, neu `.tagkopf.heute` mit dem Datum im title.
+- `klicktest_plantafel_konflikte`: „beide rot“ alt alle roten Balken (2), neu die der Kolonnen-Zeilen (2; der Einsatz steht auch beim Gerät); „Abgeschlossen: Balken
+  sagt es“ alt Text im Balken, neu title und blass; „… Zeile im Balken zu sehen“ (drei) alt gemessene dritte Zeile, neu im title; „Büro – Auftrag: Balken nennt die
+  Person“ alt Text, neu title.
+- `klicktest_zahleneingaben`: zwei Meldungen alt „Anfahrt je MA / Tag“, neu „Anfahrt je Tag“.
+- `klicktest_plantafel_kalender`: umgeschrieben, 13 statt 16 Prüfungen -- die drei zur Kapazität je Zelle entfallen (Vorgabe); „2 abw.“ in der Zelle -> die Zeile
+  der Kolonne („Mia Heiligabend 24.12. · … Silvester 31.12. …“, zwei Wochen im Bild); die Markierung der Zelle -> Balken „Heiligabend“ in „Personen“ (Lage in der
+  Spalte gemessen); Kais lange Art im Balken statt in der Zelle; „Berta: abwesend“ je Balken (zwei); Einsatz A mit dem Punkt eines Hinweises statt rot gezählt.
+- `klicktest_abwesenheit_ein_weg`: keine Erwartung geändert -- der Klicktest schickt `change` ohne `bubbles`; die Seite hört deshalb am Feld selbst (bis zur
+  Korrektur rot: „zu Krankheit nur passende Arten“).
+- Aus der vollen Suite (vor dem Commit): `test_v574_balken_lesbar` umgeschrieben -- alt die dritte Zeile im Balken (1.9.156: „Auftrag pausiert …“ statt der Adresse,
+  gezählt drei Zeilen), neu ein einzeiliger Balken „Dach · Tom“, Status und Antrag im title, abgeschlossen blass, Antrag mit Punkt, nur eine Warnung rot (8 Tests);
+  `test_v091::test_v091_ui_settings_and_absence_types_are_present` alt „Planungsvorschlag“ und „utilization_pct“ in der Seite, neu „Abwesenheit eintragen“;
+  `test_v092::test_v092_ui_contains_state_school_holiday_and_employee_visibility_controls` alt „Schulferien nur visuell“, neu „Schulferien (nur Anzeige)“;
+  `test_v399_teil_updates_rest::test_plantafel_verschieben_schickt_nur_team_und_zeitraum` nur Aufbau (Geometrie `geo` und `tagAnX` statt `DAY_W`);
+  `test_v600::test_lange_abwesenheit…` alt `klasse:'abwesend'`, neu `klasse:antrag?'beantragt':'abwesend'` (zweite Anpassung in derselben Version).
+  `klicktest_plantafel_tafel` wartet nach dem Umschalten der Breite auf das neu gezeichnete Bild statt 0,3 s (`test_v413`: sonst zeitkritisch ohne `ALLEIN`).
+  Befund der Gegenproben: die angepasste Erwartung in `test_v414` hatte selbst einen Syntaxfehler (der Kommentar verschluckte `),`), behoben.

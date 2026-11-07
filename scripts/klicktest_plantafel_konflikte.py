@@ -11,7 +11,8 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
     Antrag offen  Sol hat einen offenen Antrag: ein Einsatz auf West meldet „Antrag offen“ ohne Rückfrage, der Balken ist nicht rot und nennt ihn; Büro – Auftrag sieht die Art nicht (seit 1.9.152)
     L6          /planning?auftrag=<abgeschlossen> und <storniert>: kein Dialog, der Grund; unbekannt: Meldung; Akte des geschlossenen Auftrags ohne „Einsatz planen“, mit dem Grund, der laufende mit (seit 1.9.155)
-    Balken      „Auftrag abgeschlossen“, „Auftrag pausiert“, „Antrag offen“ stehen sichtbar im Balken, gemessen, nicht nur im Text (seit 1.9.156)
+    Balken      „Auftrag abgeschlossen“, „Auftrag pausiert“, „Antrag offen“ stehen im title des Balkens (seit 1.9.247; 1.9.156–1.9.246 als dritte Zeile im
+                Balken, gemessen); ein abgeschlossener ist blass, ein offener Antrag hat den Punkt eines Hinweises
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
 
 AUFRUF (aus dem Projektordner):
@@ -97,9 +98,10 @@ BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&
 
 
 async def _zeile_im_balken(tab, text):
-    """Die Zeile steht ganz im Balken. Der Balken schneidet ab (overflow:hidden): textContent findet auch, was niemand sieht -- so blieb die vierte Zeile unbemerkt (1.9.156)."""
-    return await tab.js("(()=>{const m=[...document.querySelectorAll('.slot .slot-meta')].find(x=>x.textContent.includes(" + repr(text) + "));if(!m)return 'fehlt';"
-                        "const a=m.getBoundingClientRect(),b=m.closest('.slot').getBoundingClientRect();return a.bottom<=b.bottom&&a.top>=b.top})()")
+    """Seit 1.9.247 (neue Tafel, ein Balken hat eine Zeile): der Text steht im title eines Balkens der Kolonnen-Zeilen (der Tooltip). 1.9.156–1.9.246 als
+    dritte Zeile im Balken, gemessen."""
+    return await tab.js("(()=>{const m=[...document.querySelectorAll('.track[data-team-id] .slot')].find(x=>(x.title||'').includes(" + repr(text) + "));"
+                        "return m?true:'fehlt'})()")
 
 
 async def _neu(tab, order, team, von, bis):
@@ -134,7 +136,7 @@ async def pruefen(tab, seed, p):
     await tab.warten("document.getElementById('konfliktDialog').open")
     await tab.js("document.getElementById('konfliktTrotzdem').click()")
     p.pruefe("Trotzdem planen: gespeichert", await tab.warten("!document.getElementById('konfliktDialog').open&&!document.getElementById('createDialog').open&&board.slots.length===2"), True)
-    p.pruefe("beide rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 2)
+    p.pruefe("beide rot", await tab.js("document.querySelectorAll('.track[data-team-id] .slot.conflict').length"), 2)  # seit 1.9.247 nur die Kolonnen-Zeilen (der Einsatz steht auch beim Gerät)
 
     # --- Über ein Wochenende: meldet nichts (seit 1.9.150) ---
     await _neu(tab, seed["c"], seed["west"], "2026-10-23", "2026-10-26")
@@ -174,7 +176,7 @@ async def pruefen(tab, seed, p):
     # --- Einsatz eines abgeschlossenen Auftrags: zählt nicht, bleibt sichtbar (seit 1.9.151) ---
     await tab.warte_auf_neu_geladene_liste("movePeriod(14)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===1")
-    p.pruefe("Abgeschlossen: Balken sagt es", "Auftrag abgeschlossen" in await tab.js("document.querySelector('.slot').textContent"), True)
+    p.pruefe("Abgeschlossen: Balken sagt es", await tab.js("[...document.querySelectorAll('.track[data-team-id] .slot')].some(s=>s.title.includes('Auftrag abgeschlossen')&&s.classList.contains('zu'))"), True)
     p.pruefe("Abgeschlossen: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag abgeschlossen"), True)
     await _neu(tab, seed["g"], seed["ost"], "2026-11-03", "2026-11-04")
     p.pruefe("Abgeschlossen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===2&&!document.getElementById('createDialog').open"), True)
@@ -237,7 +239,7 @@ async def pruefen(tab, seed, p):
     await tab.warten(BEREIT + "&&board.slots.some(s=>s.order_id===" + str(seed["h"]) + ")")
     p.pruefe("Büro – Auftrag: Antrag offen ohne Art", await tab.js(f"board.slots.find(s=>s.order_id==={seed['h']}).conflicts.map(c=>c.label).join()"), "Sol Test")
     p.pruefe("Büro – Auftrag: Art nicht auf dem Balken", "Krankheit" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), False)
-    p.pruefe("Büro – Auftrag: Balken nennt die Person", "Antrag offen: Sol Test" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), True)
+    p.pruefe("Büro – Auftrag: Balken nennt die Person", "Antrag offen: Sol Test" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.title).join(' ')"), True)
     await tab.bild("antrag_offen_buero_auftrag")
     p.pruefe("Büro – Auftrag: JS-Fehler", tab.fehler, [])
 

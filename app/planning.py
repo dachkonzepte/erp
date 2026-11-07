@@ -955,7 +955,8 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         "notes": slot.notes, "planned_hours": hours,
         "travel_hours_per_employee_day": travel,
         # seit 1.9.233 die Besetzung des Einsatzes (Name live, Rolle aus der Kolonne, wenn die Person dort steht); bis 1.9.232 der Schnappschuss der Kolonne
-        "employees": [{"id": x.employee_id, "name": _employee_name(x.employee), "role": _rolle_in_kolonne(slot, x.employee_id)} for x in slot.besetzung if visible_ids is None or x.employee_id in visible_ids],
+        "employees": [{"id": x.employee_id, "name": _employee_name(x.employee), "vorname": ((x.employee.first_name if x.employee else "") or _employee_name(x.employee)).strip(),
+                       "role": _rolle_in_kolonne(slot, x.employee_id)} for x in slot.besetzung if visible_ids is None or x.employee_id in visible_ids],  # seit 1.9.247 mit Vorname (Balken)
         # seit 1.9.234 die Geräte des Einsatzes (Name live, Rolle aus der Kolonne, wenn das Gerät dort steht; tage leer = alle Tage)
         "resources": [{"id": x.resource_id, "name": x.resource.name if x.resource else f"Gerät #{x.resource_id}",
                        "type": x.resource.resource_type if x.resource else None, "role": _rolle_des_geraets(slot, x.resource_id),
@@ -1285,7 +1286,7 @@ def _einsatz_abfrage():
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings, *, visible_employee_ids: set[int] | None = None,
-               soll=None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
+               soll=None, antraege: dict | None = None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
     """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität, seit 1.9.151 ebenso die abgeschlossener
     Aufträge (Vorgabe Tobias, Zeichnung „zählt nicht“). Jeder Konflikt trägt seine Stufe
     („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort). Seit 1.9.144 bekommt sie nur noch die Einsätze, um die es geht (nach
@@ -1303,7 +1304,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     employee_ids = {x.employee_id for s in slots for x in s.besetzung if x.employee_id in visible_employee_ids}
     personen = [x.employee for s in slots for x in s.besetzung if x.employee_id in visible_employee_ids and x.employee is not None]
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _abwesend_map(db, absence_rows, personen, start, end)
-    offene_antraege = _offene_antraege(db, start, end, employee_ids)
+    offene_antraege = antraege if antraege is not None else _offene_antraege(db, start, end, employee_ids)  # seit 1.9.247 von der Tafel mitgegeben
     if soll is None:  # seit 1.9.211: die Kapazität aus der Sollzeit des Lohns, einmal für alle Einsätze (die Tafel gibt ihre mit)
         soll = _soll_je_tag(db, personen, start, end)
     arbeitstage = _working_weekdays(settings)
@@ -1440,6 +1441,76 @@ def _pruefungen(db: Session, geraet_ids: set[int]) -> dict[int, list[tuple[str, 
     return je
 
 
+def termin_tage(termin) -> tuple[date, date]:
+    """Erster und letzter Tag eines Termins: ganztägig der erste bis letzte Tag, sonst der Tag des Beginns bis zum Tag vor einem Ende um Mitternacht
+    (seit 1.9.241 in kran_termin_uebernehmen(), seit 1.9.247 auch für die Tafel)."""
+    von = termin.start_at.date()
+    if termin.all_day:
+        bis = termin.end_at.date()
+    else:
+        bis = (termin.end_at - timedelta(microseconds=1)).date() if termin.end_at > termin.start_at else von
+    return von, max(von, bis)
+
+
+def geraete_termine(db: Session, geraet_ids: set[int], start: date, end: date) -> list[dict]:
+    """Seit 1.9.247 (Stufe 6, R4, Punkt 1): Termine im Kalender eines Geräts, die direkt in Outlook entstanden (nicht die der Einsätze,
+    planning_slot_id leer), im Zeitraum der Tafel -- für die Zeile des Geräts. Ein privater Termin heißt „Belegt“. uebernehmbar: ein Einzeltermin
+    lässt sich als Kranvermietung übernehmen (kran_termin_uebernehmen()), ein Serienvorkommen nicht."""
+    if not geraet_ids:
+        return []
+    von, bis = datetime.combine(start, time.min), datetime.combine(end, time.max)
+    out = []
+    for modell in (CalendarEvent, OutlookSeriesOccurrence):
+        bedingung = [modell.resource_id.in_(geraet_ids), modell.start_at <= bis, modell.end_at >= von]
+        if modell is CalendarEvent:
+            bedingung.append(CalendarEvent.planning_slot_id.is_(None))
+        for zeile in db.scalars(select(modell).where(*bedingung).order_by(modell.start_at, modell.id)):
+            erster, letzter = termin_tage(zeile)
+            out.append({"id": zeile.id, "resource_id": zeile.resource_id, "titel": BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title,
+                        "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}",
+                        "uebernehmbar": modell is CalendarEvent})
+    return out
+
+
+def _geraet_pruefung(pruefungen: list[tuple[str, date]], heute: date) -> str | None:
+    """Seit 1.9.247: die nächste Prüfung eines Geräts für die Zeile der Tafel -- „UVV gültig bis 03/2027“, abgelaufen „UVV fällig seit 03.11.2026“."""
+    if not pruefungen:
+        return None
+    art, faellig = pruefungen[0]
+    return f"{art} fällig seit {faellig:%d.%m.%Y}" if faellig < heute else f"{art} gültig bis {faellig:%m/%Y}"
+
+
+def abwesenheiten_der_tafel(db: Session, absence_rows: list[EmployeeAbsence], absences: dict, employee_ids: set[int], start: date, end: date,
+                            antraege: dict | None = None) -> list[dict]:
+    """Seit 1.9.247 (Stufe 6, R4): je Person die Abwesenheiten im Bild als Zeiträume -- genehmigt (gespeichert), Freistellung des Arbeitszeitkalenders
+    (abgeleitet, je Folge gleicher Tage) und offene Anträge (beantragt). art ist die Art bzw. der Tag des Kalenders; die Fassung für Büro – Auftrag
+    schwärzt der Router (Krankheitssichtbarkeit)."""
+    out = [{"employee_id": a.employee_id, "art": a.absence_type, "stand": "genehmigt", "von": a.start_date, "bis": a.end_date} for a in absence_rows]
+    frei = sorted((eid, tag, f.kalendertag) for (eid, tag), f in absences.items() if isinstance(f, Freistellung) and start <= tag <= end)
+    for eid, tag, name in frei:
+        letzte = out[-1] if out else None
+        if letzte and letzte["stand"] == "frei" and letzte["employee_id"] == eid and letzte["art"] == name and letzte["bis"] + timedelta(days=1) == tag:
+            letzte["bis"] = tag
+        else:
+            out.append({"employee_id": eid, "art": name, "stand": "frei", "von": tag, "bis": tag})
+    for eid, liste in (antraege if antraege is not None else _offene_antraege(db, start, end, employee_ids)).items():
+        out += [{"employee_id": eid, "art": a.absence_type, "stand": "beantragt", "von": a.start_date, "bis": a.end_date} for a in liste
+                if eid in employee_ids and a.start_date <= end and a.end_date >= start]
+    return out
+
+
+def tafel_zaehler(slots: list[dict]) -> dict:
+    """Seit 1.9.247: Warnungen und Hinweise im Bild für den Knopf der Leiste -- ein Paar (Person oder Gerät doppelt) zählt einmal, nicht je Einsatz."""
+    warnungen, hinweise = set(), 0
+    for s in slots:
+        for k in s.get("conflicts", []):
+            if k.get("stufe") == "warnung":
+                warnungen.add((k["type"], k.get("label"), frozenset({s["id"], k.get("other_slot_id")}) if k.get("other_slot_id") else s["id"], str(k.get("date"))))
+            else:
+                hinweise += 1
+    return {"warnungen": len(warnungen), "hinweise": hinweise}
+
+
 class KranTerminUngueltig(ValueError):
     """Seit 1.9.241: der Termin lässt sich nicht als Kranvermietung übernehmen (kein Termin am Gerät, schon übernommen) -- 409."""
 
@@ -1457,11 +1528,7 @@ def kran_termin_uebernehmen(db: Session, event_id: int, **werte) -> PlanningSlot
         db.rollback()
         raise KranTerminUngueltig("Nur ein Termin aus dem Kalender eines Geräts lässt sich als Kranvermietung übernehmen." if termin.resource_id is None
                                   else "Dieser Termin gehört schon zu einem Einsatz der Plantafel.")
-    von = termin.start_at.date()
-    if termin.all_day:
-        bis = termin.end_at.date()
-    else:
-        bis = (termin.end_at - timedelta(microseconds=1)).date() if termin.end_at > termin.start_at else von
+    von, bis = termin_tage(termin)
     if werte.get("notes") is None and not termin.is_private:
         werte["notes"] = termin.title
     return create_slot(db, art="kranvermietung", team_id=None, geraete=[{"resource_id": termin.resource_id}], start_date=von, end_date=max(von, bis),
@@ -1602,7 +1669,9 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     # sonst hinge die Zahl der Abfragen an den Einsätzen im Bild (test_v564)
     soll_von = min([start_date] + [x.start_date for x in relevant]); soll_bis = max([end_date] + [x.end_date for x in relevant])
     soll=_soll_je_tag(db,employees,soll_von,soll_bis)
-    conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids, soll=soll)
+    # seit 1.9.247: die offenen Anträge einmal für Konflikte und die Abwesenheiten der Tafel (test_v570: eine Abfrage)
+    antraege=_offene_antraege(db,soll_von,soll_bis,{x.id for x in employees}|{x.employee_id for s in relevant for x in s.besetzung})
+    conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids, soll=soll, antraege=antraege)
 
     teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
     used_team_ids = {x.team_assignment.team_id for x in visible if x.team_assignment is not None}
@@ -1610,7 +1679,8 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     for team in teams:
         if not team.active and team.id not in used_team_ids: continue
         team_rows.append({"id":team.id,"number":team.team_number,"name":team.name,"active":team.active,
-            "employees":[{"id":x.employee_id,"name":_employee_name(x.employee),"role":x.role} for x in team.employees if x.employee and x.employee_id in visible_employee_ids],
+            # seit 1.9.247 Vorname und Kolonnenführer (Zeile der Tafel: „Tom (KF), Mia, Ole“)
+            "employees":[{"id":x.employee_id,"name":_employee_name(x.employee),"vorname":(x.employee.first_name or _employee_name(x.employee)).strip(),"role":x.role,"kf":bool(x.is_crew_leader)} for x in team.employees if x.employee and x.employee_id in visible_employee_ids],
             "resources":[{"id":x.resource_id,"name":x.resource.name,"type":x.resource.resource_type,"role":x.role} for x in team.resources if x.resource]})
     resources=db.scalars(select(OperationalResource).where(OperationalResource.active==True).order_by(OperationalResource.resource_type,OperationalResource.name)).all()
 
@@ -1656,11 +1726,19 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         # seit 1.9.234 aus den Geräten des Einsatzes, an ihren Tagen
         resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id and day in _geraet_tage(slot,x) for x in slot.geraete)) for day in dates}
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
+    slot_dicts=[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible]
+    pruefungen=_pruefungen(db,{x.id for x in resources})
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
         "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"absence_category":x.absence_category,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
         "teams":team_rows,
-        "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
-        "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier} for x in resources],
-        "slots":[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible],"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if any(k["type"] not in FAERBT_NICHT for k in conflict_map.get(x.id,[]))),
+        "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"vorname":(x.first_name or _employee_name(x)).strip(),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
+        # seit 1.9.247: die nächste Prüfung (Betriebsmittel) und ob das Gerät einen Kalender hat (eigenes Postfach)
+        "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier,
+                      "pruefung":_geraet_pruefung(pruefungen.get(x.id,[]),berlin_today()),"kalender":bool(x.outlook_mailbox)} for x in resources],
+        "slots":slot_dicts,"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if any(k["type"] not in FAERBT_NICHT for k in conflict_map.get(x.id,[]))),
+        "zaehler":tafel_zaehler(slot_dicts),  # seit 1.9.247: Knopf „n Warnungen · n Hinweise“
+        "geraete_termine":geraete_termine(db,{x.id for x in resources},start_date,end_date),  # seit 1.9.247: Termine direkt im Kalender eines Geräts
+        # seit 1.9.247: Abwesenheiten je Person als Zeiträume -- genehmigt, Freistellung, beantragt (Zeilen der Kolonnen und „Personen“)
+        "abwesenheiten":abwesenheiten_der_tafel(db,absence_rows,absences,{x.id for x in employees},start_date,end_date,antraege=antraege),
         "team_capacity":team_capacity,"employee_capacity":employee_capacity,"resource_load":resource_load}

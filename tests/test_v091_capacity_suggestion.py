@@ -84,7 +84,8 @@ def test_v091_ui_settings_and_absence_types_are_present():
     planning=(root/"app/templates/planning.html").read_text(encoding="utf-8")
     settings=(root/"app/templates/settings.html").read_text(encoding="utf-8")
     options=(root/"app/option_settings.py").read_text(encoding="utf-8")
-    assert "Planungsvorschlag" in planning and "Abwesenheiten" in planning and "utilization_pct" in planning
+    # seit 1.9.247 (Stufe 6, R4) ohne Kapazität je Zelle (utilization_pct) und ohne Planungsvorschlag im Dialog -- die Kapazität steht am Einsatz
+    assert "Abwesenheit eintragen" in planning and "Abwesenheiten" in planning
     # Seit 1.8.112 (neue Ordnung) heißt der Bereich "Arbeitszeit und Kalender" (Betrieb), vorher "Plantafel & Kapazität".
     assert "Arbeitszeit und Kalender" in settings and "planningDailyHours" in settings
     assert '"absence_types"' in options

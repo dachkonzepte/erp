@@ -97,6 +97,9 @@ def _redact_board_absences(board: dict, role: AppUser) -> dict:
          "start_date": a["start_date"], "end_date": a["end_date"]}
         for a in board.get("absences", [])
     ]
+    # seit 1.9.247: die Zeiträume der Tafel ohne Art (genehmigt und Freistellung „abwesend“, ein Antrag nur „beantragt“)
+    for a in board.get("abwesenheiten", []):
+        a["art"] = None
     return board
 
 

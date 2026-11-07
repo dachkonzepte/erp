@@ -21,6 +21,7 @@
      auf-aktion/aktion aktion-text/aktion-hell aktion-text/flaeche
      signal-text/signal-hell signal-text/flaeche signal-text/grund
      info-text/info-hell ok-text/ok-hell warn-text/warn-hell
+     termin-text/termin-hell text/termin-hell
      fehler-text/fehler-hell fehler-text/flaeche
      link/flaeche link/grund link-hover/flaeche
    Bedienelemente und Rahmen mindestens 3 : 1
@@ -92,6 +93,10 @@
   --ds-zeitart-fahrt: #3D6A8C;
   --ds-zeitart-werkstatt: #7A5A34;
   --ds-zeitart-sonstige: #5C6660;
+  /* Termin aus dem Kalender auf der Plantafel (seit 1.9.247, Zeichnung entwurf-stufe6) */
+  --ds-termin-hell: #F3EEFA;
+  --ds-termin-rand: #CFC2E6;
+  --ds-termin-text: #5B3E8A;
 
   /* Links und Fokus */
   --ds-link: #1D5FA8;
@@ -190,6 +195,9 @@
   --ds-zeitart-fahrt: #5B8DB8;
   --ds-zeitart-werkstatt: #A8804F;
   --ds-zeitart-sonstige: #8A948E;
+  --ds-termin-hell: #2A2238;
+  --ds-termin-rand: #5B4A7A;
+  --ds-termin-text: #CDB8F0;
 
   --ds-link: #86B9F2;
   --ds-link-hover: #B5D3F7;

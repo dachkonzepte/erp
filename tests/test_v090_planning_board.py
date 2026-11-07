@@ -103,8 +103,8 @@ def test_v09_planning_ui_and_routes_exist():
     html = (root / "app/templates/planning.html").read_text(encoding="utf-8")
     main = (root / "app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root / "app/routers").glob("*.py")))
     models = (root / "app/models.py").read_text(encoding="utf-8")
-    assert "Kolonnen" in html and "Mitarbeiter" in html and "Fahrzeuge / Maschinen" in html
-    assert "ondrop=\"dropSlot" in html and "Nicht eingeplant" in html
+    assert "Kolonnen" in html and "Personen" in html and "Geräte" in html  # seit 1.9.247 (Zeichnung Stufe 6), bis dahin Mitarbeiter und Fahrzeuge / Maschinen
+    assert "addEventListener('drop',e=>dropSlot(e,team))" in html and "Nicht eingeplant" in html  # seit 1.9.247 ohne ondrop-Attribut
     assert '@router.get("/planning"' in main and '@router.get("/api/planning")' in main
     assert "class PlanningSlot" in models
 

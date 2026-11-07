@@ -140,8 +140,9 @@ def test_seite_nennt_die_freistellung():
     from tests import vorlagen_js as vj
     text = vj.seitentext("planning.html")[0]
     assert "kalendertag:'Freistellung: '" in text
-    # seit 1.9.193: der Satz über der Tafel nennt Freistellungen -- in der Liste „Abwesenheiten“ der Tafel stehen sie nicht (Festlegung 1.9.188 Nr. 5)
-    assert "Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität." in text
+    # seit 1.9.193: der Satz über der Tafel nennt Freistellungen -- in der Liste „Abwesenheiten“ der Tafel stehen sie nicht (Festlegung 1.9.188 Nr. 5);
+    # seit 1.9.247 steht er am Knopf „Warnungen · Hinweise“ der Leiste (die Zeile über der Tafel gibt es nicht mehr)
+    assert "berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität." in text
 
 
 def test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip():
@@ -151,7 +152,8 @@ def test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip():
 
     from tests import vorlagen_js as vj
     text = vj.seitentext("planning.html")[0]
-    [regel] = re.findall(r"\.absence-mark\{([^}]*)\}", text)
-    assert {"position:absolute", "right:3px", "bottom:3px", "max-width:calc(100% - 58px)", "overflow:hidden", "text-overflow:ellipsis",
-            "white-space:nowrap"} <= set(regel.split(";"))
-    assert '<span class="absence-mark" title="${esc(absence)}">${esc(absence)}</span>' in text
+    # seit 1.9.247 (Stufe 6, R4): keine Zelle mit Kapazität mehr -- eine Abwesenheit ist in „Personen“ ein Balken; sein Text endet mit „…“, der volle
+    # Text steht im title (jeder Balken)
+    [regel] = re.findall(r"\.slot-text\{([^}]*)\}", text)
+    assert {"overflow:hidden", "text-overflow:ellipsis"} <= set(regel.split(";"))
+    assert 'title="${esc(b.title)}"' in text and "klasse:antrag?'beantragt':'abwesend'" in text

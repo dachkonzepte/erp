@@ -121,8 +121,8 @@ async def pruefen(tab, seed, p):
         await tab.oeffnen("/planning", "board")
         p.pruefe(f"{zone}: Plantafel Wochenbeginn", await tab.js("iso(periodStart)"), _montag(heute))
         p.pruefe(f"{zone}: Plantafel heute markiert", await tab.js(
-            f"(()=>{{const h=[...document.querySelectorAll('.day-head.today')];"
-            f"return h.length===1&&h[0].innerHTML.includes(fmt('{seed['heute']}'))}})()"), True)
+            f"(()=>{{const h=[...document.querySelectorAll('.tagkopf.heute')];"  # seit 1.9.247 (neue Tafel): der Tageskopf, das volle Datum im title
+            f"return h.length===1&&h[0].title.includes(fmtJahr('{seed['heute']}'))}})()"), True)
         await tab.oeffnen("/kalender", "typeof toDateStr==='function'&&typeof anchor!=='undefined'")
         p.pruefe(f"{zone}: Kalender Ausgangstag", await tab.js("toDateStr(anchor)"), seed["heute"])
         p.pruefe(f"{zone}: Büro JS-Fehler", tab.fehler, [])

@@ -101,7 +101,7 @@ NICHT_KARTEN = {
         "auftragswahl")},  # seit 1.9.129 die Auftragswahl im Kopf der Akte (Knopfgruppe)
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
-        "status-pill", "einsatz-zu", "phase-kreis")},  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
+        "status-pill", "einsatz-zu", "phase-kreis", "muster")},  # muster seit 1.9.247: Farbmuster der Legende der Plantafel  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
     **{k: "Raster oder Tafelteil (Linien zwischen den Zellen, Plantafel, Zeitstrahl, Kopf der Positionen)" for k in (
         "month-grid", "rate-result", "timeline", "lv-columns", "slot")},
     **{k: "Skizze der Dachfläche" for k in ("sketch-wrap", "sketch-rect", "sketch-rect-preview", "sketch-marker", "sketch-marker-label")},

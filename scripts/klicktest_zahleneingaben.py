@@ -8,7 +8,7 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.109". Getippt wird wie von
     Einstellungen    Zahlungsbedingung: "Tage bis Fälligkeit" leer -> "fehlt", nichts gespeichert; "1.5" -> Meldung; ein 422 des
                      Servers (Bezeichnung zu lang) lesbar statt "[object Object]"; "30" gespeichert
     Mahnwesen        der Knopf am Entwurf heißt "Festschreiben" (kein "Versenden"); geklickt: festgeschrieben, keine E-Mail
-    Plantafel        Anfahrt "1.25" -> Meldung im Dialog; "30" -> der 422 des Servers lesbar ("Anfahrt je MA / Tag ist zu groß")
+    Plantafel        Anfahrt "1.25" -> Meldung im Dialog; "30" -> der 422 des Servers lesbar ("Anfahrt je Tag ist zu groß", seit 1.9.247; bis dahin „Anfahrt je MA / Tag“)
     Arbeitsvorb.     "Entfernen" an einer Kolonne mit Einsatz in der Plantafel -> der Grund des Servers (409) unter den Teams
 
 AUFRUF (aus dem Projektordner):
@@ -184,13 +184,13 @@ async def pruefen(tab, seed, p):
     await tab.js("saveNew()")
     await tab.warte_auf_ruhe()
     p.pruefe("Anfahrt 1.25: Meldung", (await tab.js("document.getElementById('newInfo').textContent")).split(" – ")[0],
-             "Fehler: Anfahrt je MA / Tag (h): „1.25“ ist nicht eindeutig")
+             "Fehler: Anfahrt je Tag (h): „1.25“ ist nicht eindeutig")  # seit 1.9.247 Feldname der Zeichnung
     await _tippen(tab, "newTravelHours", "30")
     await tab.js("saveNew()")
     p.pruefe("Anfahrt 30: 422 lesbar", await tab.warten(
         "document.getElementById('newInfo').textContent.includes('Bitte die Eingabe')"), True)
     p.pruefe("Anfahrt 30: Text", await tab.js("document.getElementById('newInfo').textContent"),
-             "Fehler: Bitte die Eingabe prüfen – Anfahrt je MA / Tag ist zu groß.")
+             "Fehler: Bitte die Eingabe prüfen – Anfahrt je Tag ist zu groß.")  # seit 1.9.247
     await tab.bild("plantafel_422")
     await tab.js("createDialog.close()")
     p.pruefe("Plantafel: JS-Fehler", tab.fehler, [])

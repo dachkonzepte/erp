@@ -368,7 +368,7 @@ def _422(feld: str, art: str) -> dict:
     ("settings.html", _422("days", "int_type"), "Bitte die Eingabe prüfen – Tage bis Fälligkeit muss eine ganze Zahl sein."),
     ("settings.html", _422("label", "string_too_long"), "Bitte die Eingabe prüfen – Bezeichnung ist zu lang."),
     ("planning.html", _422("travel_hours_per_employee_day", "less_than"),
-     "Bitte die Eingabe prüfen – Anfahrt je MA / Tag ist zu groß."),
+     "Bitte die Eingabe prüfen – Anfahrt je Tag ist zu groß."),  # seit 1.9.247 „Anfahrt je Tag“ (Zeichnung)
     ("planning.html", _422("start_date", "date_from_datetime_parsing"), "Bitte die Eingabe prüfen – Beginn ist kein gültiges Datum."),
     ("work_preparation.html", {"detail": "Diese Kolonne besitzt noch einen Einsatz in der Plantafel."},
      "Diese Kolonne besitzt noch einen Einsatz in der Plantafel."),

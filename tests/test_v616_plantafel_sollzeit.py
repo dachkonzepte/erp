@@ -172,7 +172,8 @@ def test_abfragen_haengen_nicht_an_der_zahl_der_personen(threaded_db_session):
 def test_seite_nennt_die_sollzeit():
     from tests import vorlagen_js as vj
     plantafel = vj.seitentext("planning.html")[0]
-    assert "Sollzeit am ${fmt(s.full_team_capacity_date)} − je ${num(s.travel_hours_per_employee_day)} h Anfahrt" in plantafel
+    # seit 1.9.247 über esc() und zahlText() (neue Plantafel)
+    assert "Sollzeit am ${esc(fmt(s.full_team_capacity_date))} − je ${esc(zahlText(s.travel_hours_per_employee_day,2))} h Anfahrt" in plantafel
     einstellungen = vj.seitentext("settings.html")[0]
     assert "Die Kapazität je Mitarbeiter und Tag ist die Sollzeit aus „Zeitregeln und DATEV“" in einstellungen
     assert einstellungen.count("Nicht mehr für die Kapazität (die kommt aus der Sollzeit)") == 2

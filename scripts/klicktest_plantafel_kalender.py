@@ -4,17 +4,15 @@ Stehende Uhr Mo 14.12.2026 10:00. Befüllt: Kolonne Nord mit Mia (Tarif), Tom (T
 Sollzeit); Auftrag A eingeplant 21.–24.12.2026 auf Nord; Anna (Admin), Berta (Büro – Auftrag). Seit 1.9.194 dazu Kai (ohne Kolonne) mit einer
 Fortbildung am Di 22.12. und einer langen Art („Fortbildung Abdichtungstechnik Flachdach mit Herstellerschulung (Teil 2)“).
 
-    Kolonnen     Woche ab 21.12.: in Nord am Do 24.12. „2 abw.“ (Mia und Tom), die Tage davor ohne; der Einsatz A ist markiert wie an einem
-                 betriebsfreien Tag, im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ -- Bild; seit 1.9.193 nennt der Satz über
-                 der Tafel auch Freistellungen (sie stehen nicht in der Liste „Abwesenheiten“)
-    Kapazität    seit 1.9.211 aus der Sollzeit: Nord Mo–Do 15,5 / 18,5 / 10,5 / 0 h, je Person Mia 7,5, Tom Di–Do 3, Ben Mo–Di 8 (bis 1.9.210
-                 aus den Wochenstunden je 8 h); seit 1.9.211 wartet der Test, bis die Tafel der neuen Woche gezeichnet ist
-    Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag); Bild;
-                 seit 1.9.194 Kais lange Art am 22.12.: in der Zelle rechts neben der Kapazität, mit „…“ gekürzt (text-overflow), voller Text
-                 im Tooltip (title) -- die Absicherung des Nachtrags zu 1.9.188 für lange Arten, bis dahin ohne eigenen Test
+    Kolonnen     Woche ab 21.12.: in der Zeile Nord „Mia Heiligabend 24.12. · Tom Heiligabend 24.12.“ (seit 1.9.247; bis 1.9.246 „2 abw.“ in der
+                 Zelle); der Einsatz A trägt den Punkt eines Hinweises, nicht rot; im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ --
+                 Bild; seit 1.9.193 nennt der Satz zu Warnungen und Hinweisen auch Freistellungen (seit 1.9.247 am Knopf der Leiste)
+    Kapazität    seit 1.9.247 keine Kapazität je Zelle mehr (Vorgabe Stufe 6, R4: sie steht am Einsatz); 1.9.211–1.9.246 prüfte der Klicktest sie hier
+    Personen     Mia und Tom am 24.12. ein Balken „Heiligabend“ (abwesend, schraffiert), genau in der Spalte des Tags, Ben keiner (keine Sollzeit am
+                 Donnerstag); Bild; Kais lange Art am 22.12. im Balken mit „…“ gekürzt, voller Text im title (seit 1.9.194, bis 1.9.246 in der Zelle)
     Einplanen    Auftrag B auf Nord 28.–31.12.: gespeichert ohne Rückfrage, Hinweis „Einsatz gespeichert – zur Kenntnis: Freistellung: Silvester
                  – Mia Test, Tom Test · 31.12.“ -- wie am betriebsfreien Tag; Bild
-    Büro–Auftrag am Mitarbeiter steht „abwesend“ (wie jede Abwesenheit, Krankheitssichtbarkeit), der Hinweis am Einsatz nennt den Tag
+    Büro–Auftrag der Balken der Abwesenheit sagt nur „abwesend“ (wie jede Abwesenheit, Krankheitssichtbarkeit), der Hinweis am Einsatz nennt den Tag
 
 AUFRUF (aus dem Projektordner):
 
@@ -80,35 +78,31 @@ def befuellen(db, k):
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&typeof orders!=='undefined'"
 LANGE_ART = "Fortbildung Abdichtungstechnik Flachdach mit Herstellerschulung (Teil 2)"
-# seit 1.9.194: Kais Zelle am 22.12. -- die lange Art liegt rechts neben der Kapazität und ganz in der Zelle, ist gekürzt (scrollWidth über der
-# sichtbaren Breite, text-overflow „ellipsis“, eine Zeile) und trägt den vollen Text im Tooltip
-GEKUERZT = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==='Kai Test'),"
-            "c=r.querySelector('.day-cell[data-date=\"2026-12-22\"]'),m=c.querySelector('.absence-mark'),k=c.querySelector('.capacity-label'),"
-            "a=m.getBoundingClientRect(),b=k.getBoundingClientRect(),z=c.getBoundingClientRect(),s=getComputedStyle(m);"
-            "return [b.right<=a.left,a.left>=z.left&&a.right<=z.right&&a.top>=z.top&&a.bottom<=z.bottom,m.scrollWidth>m.clientWidth,"
-            "s.textOverflow,s.whiteSpace,m.textContent,m.title]})()")
-# seit 1.9.188 (Nachtrag): in Mias Zelle am 24.12. liegen Abwesenheit und Kapazität nebeneinander, die Abwesenheit ist nicht abgeschnitten
-UEBERLAPPUNG = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b').textContent==='Mia Test'),"
-                "c=r.querySelector('.day-cell[data-date=\"2026-12-24\"]'),m=c.querySelector('.absence-mark'),k=c.querySelector('.capacity-label'),"
-                "a=m.getBoundingClientRect(),b=k.getBoundingClientRect(),z=c.getBoundingClientRect();"
-                "return [b.right<=a.left&&a.left>=z.left&&a.right<=z.right,m.scrollWidth<=m.clientWidth,m.title]})()")
 
 
-def kapazitaeten(zeile: str, tage: list[str]) -> str:
-    """Seit 1.9.211: die Kapazitätsangaben („geplant/Kapazität h · Auslastung“) der Zeile an den Tagen."""
-    return ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==="
-            + repr(zeile) + ");if(!r)return 'Zeile fehlt';return " + repr(tage) + ".map(t=>{const k=r.querySelector('.day-cell[data-date=\"'+t+'\"] .capacity-label');"
-            "return k?k.textContent:'fehlt'})})()")
+def _zeile(name: str) -> str:
+    return ("[...document.querySelectorAll('#planner .planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==="
+            + repr(name) + ")")
 
 
-WOCHE = ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24"]
+def unter(name: str) -> str:
+    """Seit 1.9.247: die Zeilen unter dem Namen (Mitglieder, Abwesenheiten im Bild)."""
+    return "(()=>{const r=" + _zeile(name) + ";return r?[...r.querySelectorAll('.row-label .unter')].map(u=>u.textContent.trim()):'Zeile fehlt'})()"
 
 
-def zelle(zeile: str, tag: str) -> str:
-    """Text der Markierung „abw.“ bzw. der Abwesenheit in der Zelle der Zeile (Name in der linken Spalte) am Tag -- leer, wenn keine."""
-    return ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==="
-            + repr(zeile) + ");if(!r)return 'Zeile fehlt';const c=r.querySelector('.day-cell[data-date=\"" + tag + "\"]');if(!c)return 'Tag fehlt';"
-            "const m=c.querySelector('.absence-mark');return m?m.textContent:''})()")
+def balken(name: str, klasse: str) -> str:
+    """Seit 1.9.247: die Texte der Balken mit der Klasse in der Zeile (z. B. „abwesend“ in „Personen“)."""
+    return ("(()=>{const r=" + _zeile(name) + ";return r?[...r.querySelectorAll('.slot." + klasse + "')].map(s=>s.querySelector('.slot-text').textContent.trim())"
+            ":'Zeile fehlt'})()")
+
+
+# seit 1.9.247: Mias Balken „Heiligabend“ liegt in der Spalte des 24.12. (mit 3 px Spiel) und sein Text passt
+LAGE_24 = ("(()=>{const r=" + _zeile("Mia Test") + ",s=r.querySelector('.slot.abwesend'),c=r.querySelector('.day-cell[data-date=\"2026-12-24\"]'),"
+           "a=s.getBoundingClientRect(),z=c.getBoundingClientRect(),t=s.querySelector('.slot-text');return [a.left>=z.left-3&&a.right<=z.right+3,"
+           "t.scrollWidth<=t.clientWidth+1||s.title.startsWith('Heiligabend'),s.title.includes('Heiligabend')]})()")
+# seit 1.9.194 (seit 1.9.247 im Balken statt in der Zelle): Kais lange Art ist gekürzt, eine Zeile mit „…“, der volle Text im title
+GEKUERZT = ("(()=>{const r=" + _zeile("Kai Test") + ",s=r.querySelector('.slot.abwesend'),t=s.querySelector('.slot-text'),st=getComputedStyle(t);"
+            "return [t.scrollWidth>t.clientWidth,st.textOverflow,getComputedStyle(s).whiteSpace,s.title.startsWith(" + repr(LANGE_ART) + ")]})()")
 
 
 async def pruefen(tab, seed, p):
@@ -123,16 +117,13 @@ async def pruefen(tab, seed, p):
     await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.start_date==='2026-12-21'&&board.slots.length===1")
 
     # --- Kolonnen ---
-    p.pruefe("Nord am 24.12.: 2 abwesend, die Tage davor nicht", [await tab.js(zelle("Nord", t)) for t in ("2026-12-22", "2026-12-23", "2026-12-24")],
-             ["", "", "2 abw."])
-    p.pruefe("Einsatz A markiert wie am betriebsfreien Tag", await tab.js("document.querySelectorAll('.slot.conflict').length"), 1)
-    # seit 1.9.211 (L1a Stufe 5, Punkt 4): Kapazität aus der Sollzeit -- Mia 7,5 (Winter), Tom Di–Do 3, Ben Mo–Di 8; Do Mia und Tom freigestellt
-    # (bis 1.9.210 aus den Wochenstunden: 24, 24, 24, 8)
-    p.pruefe("Nord: Kapazität aus der Sollzeit", await tab.js(kapazitaeten("Nord", WOCHE)), ["0/15,5 h · 0%", "0/18,5 h · 0%", "0/10,5 h · 0%", "0/0 h · 0%"])
-    # seit 1.9.193: die Freistellung steht nicht in der Liste „Abwesenheiten“ (Festlegung 1.9.188 Nr. 5) -- der Satz über der Tafel nennt sie
-    p.pruefe("Satz über der Tafel nennt Freistellungen", await tab.js("document.querySelector('#conflictBanner .warning').textContent"),
-             "⚠ 1 Planeinsatz mit Konflikten. Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende "
-             "Stundenkapazität.")
+    p.pruefe("Nord: Mia und Tom am 24.12. freigestellt (Zeile der Kolonne)", await tab.js(unter("Nord")),
+             ["Mia, Tom, Ben", "Mia Heiligabend 24.12. · Mia Silvester 31.12. · Tom Heiligabend 24.12. · Tom Silvester 31.12."])  # zwei Wochen im Bild
+    p.pruefe("Einsatz A mit Hinweis wie am betriebsfreien Tag, nicht rot", await tab.js(
+        "(()=>{const s=document.querySelector('.track[data-team-id] .slot');return [!!s.querySelector('.hinweis-punkt'),s.classList.contains('conflict')]})()"),
+        [True, False])
+    # seit 1.9.193: die Freistellung steht nicht in der Liste „Abwesenheiten“ (Festlegung 1.9.188 Nr. 5) -- der Satz nennt sie (seit 1.9.247 am Knopf)
+    p.pruefe("Satz zu Warnungen und Hinweisen nennt Freistellungen", "Freistellungen" in await tab.js("document.getElementById('filterKnopf').title"), True)
     await tab.bild("1_kolonnen_heiligabend")
     await tab.js(f"openEdit({seed['slot']})")
     await tab.warten("document.getElementById('editDialog').open")
@@ -141,23 +132,14 @@ async def pruefen(tab, seed, p):
     await tab.bild("2_einsatz_freistellung")
     await tab.js("editDialog.close()")
 
-    # --- Mitarbeiter ---
+    # --- Personen ---
     await tab.js("document.querySelector('.viewtabs button[data-view=employees]').click()")
     await tab.warten("view==='employees'&&!!document.querySelector('.planner-row')")
-    p.pruefe("Mitarbeiter am 24.12.: Mia und Tom freigestellt, Ben wie bisher", [await tab.js(zelle(f"{n} Test", "2026-12-24")) for n in ("Mia", "Tom", "Ben")],
-             ["Heiligabend", "Heiligabend", ""])
-    # 1.9.188 (Nachtrag): sichtbar messen, nicht nur den Text -- bis dahin stand die ganze Freistellung in der 120 px schmalen Zelle über der Kapazität
-    p.pruefe("Mitarbeiter am 24.12.: Freistellung und Kapazität überlappen nicht, nichts abgeschnitten, voller Text im Tooltip", await tab.js(UEBERLAPPUNG),
-             [True, True, "Heiligabend"])
-    p.pruefe("Mia am 23.12. ohne", await tab.js(zelle("Mia Test", "2026-12-23")), "")
-    # seit 1.9.211: je Person die Sollzeit des Tags (bis 1.9.210 je 8 h an jedem Arbeitstag der Planung)
-    p.pruefe("Mitarbeiter: Kapazität aus der Sollzeit", [await tab.js(kapazitaeten(f"{n} Test", WOCHE)) for n in ("Mia", "Tom", "Ben")],
-             [["0/7,5 h · 0%", "0/7,5 h · 0%", "0/7,5 h · 0%", "0/0 h · 0%"], ["0/0 h · 0%", "0/3 h · 0%", "0/3 h · 0%", "0/0 h · 0%"],
-              ["0/8 h · 0%", "0/8 h · 0%", "0/0 h · 0%", "0/0 h · 0%"]])
-    # seit 1.9.194: die Kürzung aus dem Nachtrag zu 1.9.188 mit einer langen Art -- Lage, „…“ und Tooltip
-    p.pruefe("Kai am 22.12.: lange Art neben der Kapazität, in der Zelle, mit „…“ gekürzt, voller Text im Tooltip", await tab.js(GEKUERZT),
-             [True, True, True, "ellipsis", "nowrap", LANGE_ART, LANGE_ART])
-    await tab.bild("3_mitarbeiter_heiligabend")
+    p.pruefe("Personen am 24.12.: Mia und Tom freigestellt, Ben nicht", [await tab.js(balken(f"{n} Test", "abwesend")) for n in ("Mia", "Tom", "Ben")],
+             [["Heiligabend", "Silvester"], ["Heiligabend", "Silvester"], []])
+    p.pruefe("Personen: der Balken steht in der Spalte des 24.12., der Text passt oder steht im title", await tab.js(LAGE_24), [True, True, True])
+    p.pruefe("Kai am 22.12.: lange Art im Balken mit „…“ gekürzt, voller Text im title", await tab.js(GEKUERZT), [True, "ellipsis", "nowrap", True])
+    await tab.bild("3_personen_heiligabend")
     await tab.js("document.querySelector('.viewtabs button[data-view=teams]').click()")
     await tab.warten("view==='teams'")
 
@@ -181,7 +163,7 @@ async def pruefen(tab, seed, p):
     await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.start_date==='2026-12-21'&&board.slots.length===2")
     await tab.js("document.querySelector('.viewtabs button[data-view=employees]').click()")
     await tab.warten("view==='employees'&&!!document.querySelector('.planner-row')")
-    p.pruefe("Berta: am Mitarbeiter „abwesend“", await tab.js(zelle("Mia Test", "2026-12-24")), "abwesend")
+    p.pruefe("Berta: am Mitarbeiter „abwesend“", await tab.js(balken("Mia Test", "abwesend")), ["abwesend", "abwesend"])  # Heiligabend und Silvester
     p.pruefe("Berta: der Hinweis am Einsatz nennt den Tag", await tab.js(
         f"board.slots.find(s=>s.id==={seed['slot']}).conflicts.map(c=>[c.type,c.label])"), [["kalendertag", "Heiligabend – Mia Test, Tom Test"]])
     p.pruefe("Berta: keine JS-Fehler", tab.fehler, [])

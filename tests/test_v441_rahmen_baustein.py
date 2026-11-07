@@ -74,6 +74,8 @@ UMGEZOGEN |= {"zeiten.html"}
 UMGEZOGEN |= {"akte.html"}
 # seit 1.9.137 (Stufe 5, R3) die Kundenakte nach den Vorlagen kunde-*.html -- Aufbau, Bausteine und Regeln wie die Akte
 UMGEZOGEN |= {"customer.html"}
+# seit 1.9.247 (Stufe 6, R4) die Plantafel nach der Zeichnung entwurf-stufe6/plantafel-*.html -- Seitenkopf über das Makro, Leiste darunter
+UMGEZOGEN |= {"planning.html"}
 # Seit 1.9.29 (Abschluss Stufe 2): was nicht umgezogen ist, steht hier mit der Stufe, die es umzieht, und dem Grund -- jede Seite steht
 # in genau einer der beiden Listen (test_jede_seite_umgezogen_oder_aufgeschoben). Eine neue Seite kommt umgezogen dazu oder mit Stufe
 # und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.
@@ -82,7 +84,6 @@ AUFGESCHOBEN: dict[str, tuple[int, str]] = {
     "mobil_zeiten.html": (4, "Meine Zeiten -- seit 1.9.59 nach der Vorlage zeiten-nachtragen der Stufe 4, die keinen Seitenkopf hat; in den "
                              "Rahmen mit Stufe 4 als Ganzes (ersetzt Zeiterfassung der Monteure und Stundenzettel)"),
     "calendar.html": (6, "Kalender -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit der Plantafel"),
-    "planning.html": (6, "Plantafel -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit dem Kalender"),
     "project_form.html": (7, "Neues Projekt -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
     "quote_form.html": (7, "Neues Angebot -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
 }

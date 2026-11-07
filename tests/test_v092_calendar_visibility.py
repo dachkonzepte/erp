@@ -159,6 +159,6 @@ def test_v092_ui_contains_state_school_holiday_and_employee_visibility_controls(
     # zwischenzeitliche 1.3.26-Auslagerung auf /employees wurde zurückgenommen, siehe CLAUDE.md
     # "Mitarbeiter-Formular: ein Bereich statt zwei Ähnlicher").
     employee = (root / "app/templates/master_data_form.html").read_text(encoding="utf-8")
-    assert "Schulferien nur visuell" in planning and "school-holiday" in planning
+    assert "Schulferien (nur Anzeige)" in planning and "school-holiday" in planning  # seit 1.9.247 Eintrag der Legende (bis dahin „… nur visuell“)
     assert "Bundesland" in settings and "planningState" in settings and "Ferien jetzt aktualisieren" in settings
     assert "In Plantafel anzeigen / Kapazität berücksichtigen" in employee

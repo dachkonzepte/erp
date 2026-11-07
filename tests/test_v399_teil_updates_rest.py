@@ -157,8 +157,10 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     neu = {"status": "fest", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}  # seit 1.9.235 (bis dahin „bestaetigt“)
     assert client.put(tafel["url"], json=neu).status_code == 200
     aufrufe = im_browser(
-        "planning.html", ["dropSlot", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt"],
-        f"var board = {js(beim_laden)}; var dragData = {{id: {tafel['id']}, days: 5}}; var view = 'teams'; const DAY_W = 120; "
+        "planning.html", ["dropSlot", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt", "tagAnX"],
+        f"var board = {js(beim_laden)}; var dragData = {{id: {tafel['id']}, days: 5}}; var view = 'teams'; "
+        # seit 1.9.247 die Geometrie der neuen Tafel (Spalten mit Lage und Breite) statt fester 120 px je Tag
+        "var geo = {spalten: Array.from({length: 14}, (_, i) => ({d: addDays('2026-10-12', i), x: i * 120, w: 120}))}; const KONFLIKT_ART = {}; "
         "var periodStart = new Date('2026-10-12T12:00:00'); async function loadBoard() {} "
         "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); "
         "return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; } "

@@ -27,7 +27,7 @@ def test_dialog_nennt_besetzung_und_geraete():
 
 def test_dialog_fuellt_die_zeile_beim_oeffnen():
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    assert '<div id="editBesetzung" class="small muted"' in seite
+    assert '<span id="editBesetzung" class="klein"' in seite  # seit 1.9.247 im Feld „Kolonne“ (bis dahin ein div darunter)
     oeffnen = re.search(r"function openEdit\(id\)\{.*?\n", seite).group(0)
     assert "document.getElementById('editBesetzung').textContent=besetzungText(s);" in oeffnen
 
