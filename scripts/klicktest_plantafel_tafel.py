@@ -9,7 +9,8 @@ Kranvermietung (Lia, 04.–05.); zwei Aufträge nicht eingeplant.
     Zeilen       Nord, Süd, Ohne Kolonne, dann GERÄTE (Kran, Pritschen); Nord nennt „Tom (KF), Mia, Ole“ und „Tom Urlaub 02.–06.“; der Kran „UVV gültig bis
                  03/2027“ und „mit Outlook-Kalender“
     Balken       fest / vorläufig / Kranvermietung / Termin, Warnung mit rotem Rand und Zeichen, Hinweis mit Punkt; der Kran nur an seinen Tagen;
-                 seit 1.9.255 tragen Kran und Pritschen nur Warnungen zum Gerät -- nicht Kais Warnung, nicht Neles Punkt
+                 seit 1.9.255 tragen Kran und Pritschen nur Warnungen zum Gerät -- nicht Kais Warnung, nicht Neles Punkt; seit 1.9.256 ist „Garage“
+                 (vorläufig mit Warnung) rot gestrichelt, „Am Wasserturm 4“ (fest mit Warnung) rot durchgezogen, hell und dunkel
     Maße         14 Tage passen bei 1440 px ohne Bildlauf in der Tafel, Sa/So schmal; kein Balken verdeckt einen anderen; jeder Text im Balken ist
                  sichtbar oder steht im title
     Leiste       „KW 45–46 · 02.11.–15.11.2026“, Knopf „1 Warnung · 1 Hinweis“ filtert (nur Einsätze mit Warnung oder Hinweis) und zurück
@@ -125,6 +126,20 @@ VERDECKT = ("[...document.querySelectorAll('#planner .track')].flatMap(t=>{const
 # jeder Text im Balken: sichtbar (passt) oder im title
 TEXTE = ("[...document.querySelectorAll('#planner .slot')].filter(s=>{const t=s.querySelector('.slot-text');const passt=t.scrollWidth<=t.clientWidth+1;"
          "return !passt&&!(s.title||'').includes(t.textContent.trim())}).map(s=>s.querySelector('.slot-text').textContent.trim())")
+# seit 1.9.256: der Rand eines Balkens [Stil, Breite, Farbe] -- (Zeile, Text des Balkens)
+RAND = ("((zeile,text)=>{const z=[...document.querySelectorAll('#planner .planner-row')].find(z=>z.querySelector('.row-label b').textContent.trim()===zeile);"
+        "const b=[...z.querySelectorAll('.slot')].find(x=>x.textContent.includes(text));const c=getComputedStyle(b);"
+        "return [c.borderTopStyle,c.borderTopWidth,c.borderTopColor]})")
+
+
+async def raender(tab, p, wo):
+    """Seit 1.9.256: vorläufig mit Warnung rot gestrichelt, fest mit Warnung rot durchgezogen, dieselbe Farbe; vorläufig ohne Warnung gestrichelt in Grün."""
+    garage, turm, notdienst = [await tab.js(RAND + f"('{z}','{t}')") for z, t in (("Kolonne Süd", "Garage"), ("Kolonne Nord", "Mia, Ole, Kai"),
+                                                                                   ("Ohne Kolonne", "Notdienst"))]
+    p.pruefe(f"{wo}: vorläufig mit Warnung rot gestrichelt, fest mit Warnung rot durchgezogen",
+             [garage[:2], turm[:2], garage[2] == turm[2], garage[2] != notdienst[2]], [["dashed", "2px"], ["solid", "2px"], True, True])
+
+
 GEKUERZT = "[...document.querySelectorAll('#planner .slot')].filter(s=>{const t=s.querySelector('.slot-text');return t.scrollWidth>t.clientWidth+1}).length"
 
 
@@ -156,6 +171,7 @@ async def pruefen(tab, seed, p):
         ["Pritsche HS-DK 204", "Garage Lindenweg 7", "vorlaeufig", False],  # ohne Kais Warnung und Neles Punkt
         ["Pritsche HS-DK 204", "Wartung", "fest", False],
     ])
+    await raender(tab, p, "Rand hell")
     p.pruefe("Warnung: rotes Zeichen im Balken", await tab.js("[...document.querySelectorAll('#planner .slot.conflict')].every(s=>!!s.querySelector('svg.warnzeichen'))"), True)
     p.pruefe("Maße: 14 Tage ohne Bildlauf in der Tafel (1440 px)", await tab.js(
         "(()=>{const s=document.getElementById('planner');return [document.querySelectorAll('#planner .tagkopf').length,s.scrollWidth<=s.clientWidth+1]})()"), [14, True])
@@ -214,6 +230,7 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1440, 1000)
     await tab.warten("document.querySelector('#planner .tagkopf').offsetWidth>=56")  # neu gezeichnet für 1440 px
     await tab.bild("tafel_kolonnen_1440_dunkel")
+    await raender(tab, p, "Rand dunkel")
     p.pruefe("dunkel: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 

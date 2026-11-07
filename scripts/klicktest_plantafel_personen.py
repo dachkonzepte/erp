@@ -136,6 +136,9 @@ async def pruefen(tab, seed, p):
               ["08:00 Jour fixe", "termin"]])
     p.pruefe("Bea: jeder Termin ein Knopf, „Belegt“ nicht", await tab.js(TERMIN_KNOEPFE + "('Bea Bauer')"),
              [["10:00 Aufmaß", True], ["08:00 Angebot vor Ort", True], ["09:00 Belegt", False], ["14:00 Abnahme", True], ["08:00 Jour fixe", True]])
+    p.pruefe("Kai: „Garage“ (vorläufig mit Warnung) rot gestrichelt, „Am Wasserturm 4“ durchgezogen", await tab.js(
+        "[...[...document.querySelectorAll('#planner .planner-row')].find(z=>z.querySelector('.row-label b').textContent.trim()==='Kai Kolb')"
+        ".querySelectorAll('.slot.conflict')].map(s=>getComputedStyle(s).borderTopStyle)"), ["solid", "dashed"])  # seit 1.9.256
     p.pruefe("Termin zweizeilig: Uhrzeit über dem Titel", await tab.js(
         "(()=>{const t=[...document.querySelectorAll('#planner .slot.termin')].find(s=>s.textContent.includes('Aufmaß')).querySelector('.slot-text');"
         "const [a,b]=[...t.children].map(x=>x.getBoundingClientRect());return [t.children.length,b.top>=a.bottom-1]})()"), [2, True])

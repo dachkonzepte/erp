@@ -9184,3 +9184,22 @@ Angepasste Erwartungen (Regel 28): `test_v579::test_die_tafel_zeichnet_ihn_noch_
 HS-DK 202 „Am Wasserturm 4“ mit Warnung, Pritsche HS-DK 204 „Garage“ mit Warnung und Punkt, neu ohne; der Filter alt fünf Balken (drei in Gerätezeilen), neu
 die zwei der Kolonnen; `klicktest_plantafel_personen` -- Kran alt „Am Wasserturm 4“ (KW 45) mit Kais Warnung und ohne „Wagner“, neu KW 45 ohne, KW 46 mit
 der Warnung des Termins, dazu „Outlook · 07:00 Wagner“.
+
+### Umsetzung 1.9.256 (Punkt 6): vorläufig mit Warnung bleibt gestrichelt
+
+Fund aus den Bildern von R4: „Garage Lindenweg 7“ (vorläufig, Kai doppelt) war rot durchgezogen. `.slot.conflict{border:2px solid var(--ds-fehler)}` steht
+nach `.slot.vorlaeufig{…dashed…}` und wiegt gleich viel (zwei Klassen) -- die Kurzschreibweise setzte den Strich mit zurück. Neu `.slot.vorlaeufig.conflict
+{border-style:dashed}` (drei Klassen): Breite und Farbe bleiben die der Warnung, nur der Strich kommt zurück. Die Klassen sind in allen Ansichten dieselben
+(`einsatzBalken()`), auch in „Personen“ und an den Geräten; die Kranvermietung (`.slot.kran.vorlaeufig`) ebenso.
+
+#### Festlegungen 1.9.256 (Bitte bestätigen)
+
+1. Ein vorläufiger Einsatz mit Warnung hat einen roten, gestrichelten Rand -- dieselbe Breite (2 px) und Farbe wie die Warnung eines festen, der rot
+   durchgezogen bleibt; in jeder Ansicht, hell und dunkel.
+
+#### Tests und Prüfung 1.9.256
+
+Neu: `tests/test_v656_vorlaeufig_mit_warnung.py` (die Regel, nach der Warnung, ohne eigene Farbe oder Breite; keine andere Regel setzt bei einer Warnung einen
+durchgezogenen Rand). `scripts/klicktest_plantafel_tafel.py` misst den Rand in „Kolonnen“ hell und dunkel: „Garage“ gestrichelt 2 px, „Am Wasserturm 4“
+durchgezogen 2 px, dieselbe Farbe, anders als ohne Warnung (26 statt 24 Prüfungen); `klicktest_plantafel_personen.py` in „Personen“ bei Kai (33 statt 32).
+Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine.

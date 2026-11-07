@@ -69,3 +69,15 @@ nichts (`openEdit()` findet keinen Termin). Kein Marker unter `app/` nach den L�
 
 Ohne eigene Gegenprobe: „zählt im Knopf Warnungen“ -- `tafel_zaehler()` zählt jede Warnung der Einsätze (Gegenproben 1.9.247 Nr. 2), der Test prüft den
 Zähler mit. Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.256 (Punkt 6): vorläufig mit Warnung bleibt gestrichelt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – rot gestrichelt | ohne die Regel (`256_1a`) | 1 rot: v656::test_vorlaeufig_mit_warnung_gestrichelt |
+| Nr. 1 – rot gestrichelt, „Kolonnen“ hell und dunkel | ohne die Regel (`256_1b`, Klicktest Tafel) | rot: plantafel_tafel (Rand hell; Rand dunkel) |
+| Nr. 1 – in jeder Ansicht („Personen“) | ohne die Regel (`256_1c`, Klicktest Personen) | rot: plantafel_personen (Kai) |
+| Nr. 1 – Farbe der Warnung | grün gestrichelt (`256_1d`) | 1 rot: v656::test_vorlaeufig_mit_warnung_gestrichelt |
+| Nr. 1 – Farbe der Warnung | grün gestrichelt (`256_1e`, Klicktest Tafel) | rot: plantafel_tafel (Rand hell; Rand dunkel) |
+
+Kein Marker unter `app/` nach den Läufen.
