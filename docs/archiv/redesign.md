@@ -9119,3 +9119,30 @@ Personen tragen `plantafel` statt `konto` (Aufbau); `test_v246::test_show_on_pla
 „Plantafel“; `test_v600` -- Testdaten mit `plantafel="einplanbar"` statt `show_on_planning_board=True` (Aufbau); `test_v447` (`KLASSEN`) neu `plantafel`
 „server_fest“ -- Aufbau; `test_v364` (`FESTE_WERTE`) neu `employee_planning_settings.plantafel` -- Aufbau; `klicktest_plantafel_personen` -- Gruppen alt ohne
 „Ohne Kolonne“, neu mit Paul darunter; Unterzeilen um Paul ergänzt.
+
+### Umsetzung 1.9.254 (Punkt 2): Termin einer Person öffnet den Kalender
+
+Antwort auf Frage 2 des Berichts R4: „Klick öffnet den Kalender an diesem Tag mit dem Termin; ein privater Termin ist für andere kein Knopf.“ Server:
+`personen_termine()` nennt je Termin `belegt` (privat und nicht der Besitzer -- dieselbe Prüfung wie der Titel „Belegt“, `is_redacted_for_viewer()`).
+Seite: `personTermine()` gibt jedem anderen Termin `klick:'personTermin'` mit einer Kennung aus Art und ID (`personTerminKennung()`: e<id> Termin,
+s<id> Vorkommen einer Serie -- beide Tabellen zählen eigene IDs), title mit „· im Kalender öffnen“; `terminImKalender()` führt nach
+`/kalender?tag=<erster Tag>&termin=<id>` bzw. `&serie=<id>` (fester lokaler Anfang, Regel 32). Kalender (`calendar.html`, `init()`): `tag` nur als
+JJJJ-MM-TT -> Tagesansicht an dem Tag, ohne `setView()` (die gemerkte Ansicht bleibt); `termin`/`serie` nur als Zahl -> `openEdit()` bzw. `openSeries()`,
+sobald die Termine geladen sind (`render()` gibt das Laden zurück). Ein Termin, den der Kalender nicht findet, öffnet nichts (wie bisher bei „Belegt“).
+
+#### Festlegungen 1.9.254 (Bitte bestätigen)
+
+1. In „Personen“ ist jeder Termin aus dem Kalender ein Knopf (title endet mit „· im Kalender öffnen“); ein privater Termin eines anderen („Belegt“) nicht
+   -- für seinen Besitzer schon.
+2. Der Klick öffnet den Kalender in der Tagesansicht am ersten Tag des Termins (auch wenn der vor dem Bild der Tafel liegt) und öffnet den Termin -- ein
+   Einzeltermin im Dialog „Termin bearbeiten“, ein Vorkommen einer Outlook-Serie in seiner Leseansicht. Die gemerkte Ansicht des Kalenders bleibt.
+3. Der Kalender nimmt `tag` nur als JJJJ-MM-TT und `termin`/`serie` nur als Zahl; anderes übergeht er.
+
+#### Tests und Prüfung 1.9.254
+
+Neu: `tests/test_v654_termin_einer_person.py` („belegt“ nur für andere; in node Knopf, Kennung und title je Termin, kein Knopf für „Belegt“, das Ziel je
+Termin -- erster Tag, Serie, unbekannte Kennung ohne Ziel; der Kalender liest Tag und Termin ohne die gemerkte Ansicht, öffnet erst nach dem Laden).
+`scripts/klicktest_plantafel_personen.py` dazu: Beas Termine als Knöpfe außer „Belegt“, Klick auf „Aufmaß“ -> Kalender 03.11.2026 Tag mit dem Dialog, Klick auf
+das Vorkommen „Jour fixe“ -> 04.11.2026 mit der Leseansicht, die gemerkte Ansicht leer; als Bea ihr privater Termin ein Knopf (29 statt 26 Prüfungen, zwei neue
+Bilder). Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: `klicktest_plantafel_personen` -- Beas Termine alt vier, neu fünf (das
+Vorkommen der Serie dazu); „Bea sieht ihren privaten Termin“ prüft dazu den Knopf.

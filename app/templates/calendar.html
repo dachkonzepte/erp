@@ -238,7 +238,7 @@ function eventChipHtml(e,dense){
 function render(){
   document.getElementById('periodLabel').textContent=periodLabelText();
   document.querySelectorAll('.views .btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-  loadEvents().then(()=>{
+  return loadEvents().then(()=>{
     if(view==='month')renderMonth();
     else if(view==='week')renderWeek();
     else renderDay();
@@ -461,7 +461,13 @@ async function init(){
   document.querySelectorAll('.views .btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   await loadOwners();
   const params=new URLSearchParams(location.search);
-  render();
+  /* seit 1.9.254 (Stufe 6, R4b, Punkt 2): ?tag=JJJJ-MM-TT&termin=<id> (bzw. serie=<id>) -- aus der Plantafel („Personen“): der Tag in der Tagesansicht
+     (nur für diesen Aufruf, die gemerkte Ansicht bleibt) und der Termin geöffnet */
+  const tag=params.get('tag'),termin=params.get('termin'),serie=params.get('serie');
+  if(tag&&/^\d{4}-\d{2}-\d{2}$/.test(tag)){const [j,m,t]=tag.split('-').map(Number);anchor=new Date(j,m-1,t);view='day'}
+  const geladen=render();
+  if(termin&&/^\d{1,9}$/.test(termin))geladen.then(()=>openEdit(Number(termin)));
+  else if(serie&&/^\d{1,9}$/.test(serie))geladen.then(()=>openSeries(Number(serie)));
   // "Beim Öffnen" (Kalender-Modul Stufe 2, siehe CLAUDE.md "Kalender" -> "Stufe 2" Punkt 5) --
   // synchronisiert best effort das eigene Outlook-Postfach, dann die Ansicht neu laden, falls
   // sich dadurch etwas geändert hat. Fire-and-forget: ein deaktivierter/nicht konfigurierter

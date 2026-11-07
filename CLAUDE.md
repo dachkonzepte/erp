@@ -1239,7 +1239,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Mitarbeiter (`EmployeePlanningSettings.plantafel`: einplanbar | bauleitung | nicht_zeigen, `app/employees.py::PLANTAFEL`, Migration `e3b7c51a9d26`) ersetzt
   das Häkchen „In Plantafel anzeigen“; „Personen“ gruppiert danach statt nach dem Konto -- Bauleitung im eigenen Abschnitt (auch aus einer Kolonne, weiter
   einplanbar), einplanbar ohne Kolonne unter „Ohne Kolonne“; „nicht zeigen“ fehlt in Tafel, „+ Person“ und Kapazität; ohne Zeile die Vorgabe aus Gruppe und
-  Funktion (`tests/test_v653_plantafel_kennzeichen.py`).
+  Funktion (`tests/test_v653_plantafel_kennzeichen.py`); seit 1.9.254 ist ein Termin einer Person ein Knopf in den Kalender (`/kalender?tag=…&termin=…` bzw.
+  `serie=…`, Tagesansicht nur für diesen Aufruf), ein privater Termin eines anderen („belegt“ in `personen_termine`) nicht
+  (`tests/test_v654_termin_einer_person.py`).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

@@ -355,8 +355,14 @@ function doppeltText(eid){const erste=geo.spalten[0].d,letzte=geo.spalten[geo.sp
   return z.length?'doppelt '+z.map(([a,b])=>fmtSpanne(a,b)).join(', '):''}
 function antragText(eid){return (board.abwesenheiten||[]).filter(a=>a.employee_id===eid&&a.stand==='beantragt').map(a=>'Antrag '+fmtSpanne(a.von,a.bis)).join(' · ')}
 // Termine aus dem Kalender einer Person mit Konto: Uhrzeit (oder „ganztägig“) über dem Titel; privat „Belegt“ (Server)
+/* seit 1.9.254 (Stufe 6, R4b, Punkt 2) ein Knopf: öffnet den Kalender an seinem ersten Tag mit dem Termin (terminImKalender()); ein privater Termin
+   eines anderen („belegt“) bleibt ohne Knopf. Die Kennung trägt die Art (e = Termin, s = Vorkommen einer Serie) -- beide Tabellen zählen eigene IDs. */
+function personTerminKennung(t){return (t.serie?'s':'e')+t.id}
 function personTermine(eid){return (board.personen_termine||[]).filter(t=>t.employee_id===eid).map(t=>{const zeit=t.zeit||'ganztägig';return {von:t.von,bis:t.bis,
-  b:{klasse:'termin zwei',zwei:true,text:zeit,leise:t.titel,title:`${zeit} ${t.titel}\n${fmtSpanne(t.von,t.bis)} · Termin im Kalender${t.serie?' (Serie)':''}`}}})}
+  b:{klasse:'termin zwei',zwei:true,text:zeit,leise:t.titel,...(t.belegt?{}:{klick:'personTermin',id:personTerminKennung(t)}),
+     title:`${zeit} ${t.titel}\n${fmtSpanne(t.von,t.bis)} · Termin im Kalender${t.serie?' (Serie)':''}${t.belegt?'':' · im Kalender öffnen'}`}}})}
+function terminImKalender(kennung){const t=(board.personen_termine||[]).find(x=>!x.belegt&&personTerminKennung(x)===kennung);if(!t)return;
+  location.href='/kalender?tag='+encodeURIComponent(t.von)+'&'+(t.serie?'serie':'termin')+'='+encodeURIComponent(t.id)}
 function personZeilen(){const out=[];for(const g of personenGruppen()){out.push({abschnitt:g.titel});for(const p of g.personen)out.push({name:p.name,zeile:'person',id:p.id,
   unter:[p.kf?'Kolonnenführer':(p.function||''),{text:doppeltText(p.id),klasse:'warn'},antragText(p.id)].filter(u=>typeof u==='string'?u:u.text),
   items:board.slots.filter(s=>s.employees.some(x=>x.id===p.id)).map(s=>({von:s.start_date,bis:s.end_date,b:einsatzBalken(s,'person',g.team,p.id)})).concat(abwesenheitItems(p.id),personTermine(p.id))})}return out}
@@ -545,6 +551,7 @@ async function deleteAbsence(id){if(!confirm('Abwesenheit wirklich löschen? Ein
 aktion('einsatz',el=>{if(nachZiehen){nachZiehen=false;return}openEdit(Number(el.dataset.id))});
 aktion('einplanen',el=>openCreate(Number(el.dataset.auftrag)));
 aktion('kranTermin',el=>terminZeigen(Number(el.dataset.id)));
+aktion('personTermin',el=>terminImKalender(el.dataset.id));
 aktion('terminUebernehmen',()=>terminUebernehmen());
 aktion('schliessen',el=>document.getElementById(el.dataset.dialog).close());
 aktion('einsatzSpeichern',()=>einsatzSpeichern());

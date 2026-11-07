@@ -29,3 +29,24 @@ genannten Tests laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot
 
 Ohne eigene Gegenprobe: die Termine aus dem Kalender bei jeder Person mit Konto (Festlegung 1.9.250 Nr. 4, Gegenproben `250_4a`–`250_4e`, unverändert).
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.254 (Punkt 2): Termin einer Person öffnet den Kalender
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – privat für andere „belegt“ | nie belegt (`254_1a`) | 1 rot: v654::test_belegt_nur_fuer_andere |
+| Nr. 1 – privat für andere kein Knopf | nie belegt (`254_1e`, Klicktest Personen) | rot: plantafel_personen (Bea) |
+| Nr. 1 – jeder andere Termin ein Knopf | kein Knopf (`254_1b`) | 1 rot: v654::test_knopf_und_ziel |
+| Nr. 1 – „Belegt“ kein Knopf | jeder ein Knopf (`254_1c`, Klicktest Personen) | rot: plantafel_personen (Bea) |
+| Nr. 1 – title „· im Kalender öffnen“ | ohne (`254_1d`) | 1 rot: v654::test_knopf_und_ziel |
+| Nr. 2 – erster Tag des Termins | letzter Tag (`254_2a`) | 1 rot: v654::test_knopf_und_ziel |
+| Nr. 2 – Serie in der Leseansicht | immer als Termin (`254_2b`) | 1 rot: v654::test_knopf_und_ziel |
+| Nr. 2 – Serie in der Leseansicht | immer als Termin (`254_2c`, Klicktest Personen) | rot: plantafel_personen (Kalender) |
+| Nr. 2 – Tagesansicht | ohne (`254_2g`, Klicktest Personen) | rot: plantafel_personen (Kalender; Kalender) |
+| Nr. 2 – die gemerkte Ansicht bleibt | gemerkt (`254_2d`) | 1 rot: v654::test_kalender_liest_tag_und_termin |
+| Nr. 2 – der Termin öffnet nach dem Laden | sofort (`254_2e`) | 1 rot: v654::test_kalender_liest_tag_und_termin |
+| Nr. 2 – der Termin öffnet nach dem Laden | sofort (`254_2f`, Klicktest Personen) | rot: plantafel_personen (Kalender) |
+| Nr. 3 – Tag nur als JJJJ-MM-TT | jeder Wert (`254_3a`) | 1 rot: v654::test_kalender_liest_tag_und_termin |
+
+Ohne eigene Gegenprobe: `termin`/`serie` nur als Zahl -- derselbe Prüfausdruck wie der Tag, der statische Test liest beide; ein falscher Wert öffnet ohnehin
+nichts (`openEdit()` findet keinen Termin). Kein Marker unter `app/` nach den Läufen.

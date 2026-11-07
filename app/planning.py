@@ -1659,8 +1659,10 @@ def personen_termine(db: Session, employee_ids: set[int], start: date, end: date
                                 .order_by(modell.start_at, modell.id)):
             erster, letzter = termin_tage(zeile)
             belegt = is_redacted_for_viewer({"is_private": zeile.is_private, "owner_user_id": zeile.owner_user_id}, betrachter_user_id)
+            # seit 1.9.254 „belegt“: ein privater Termin für jemand anderen -- auf der Tafel kein Knopf in den Kalender
             out.append({"id": zeile.id, "employee_id": konten[zeile.owner_user_id], "titel": BUSY_PLACEHOLDER_TITLE if belegt else zeile.title,
-                        "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}", "serie": modell is OutlookSeriesOccurrence})
+                        "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}", "serie": modell is OutlookSeriesOccurrence,
+                        "belegt": belegt})
     return mit_konto, out
 
 

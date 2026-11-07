@@ -2,7 +2,8 @@
 
 Testdaten wie klicktest_plantafel_tafel (Zeichnung KW 45–46), dazu Bea Bauer (Bauleiterin, ohne Kolonne, Kennzeichen „Bauleitung“, Konto „bea“ mit Rolle
 Büro – Auftrag) mit vier Terminen im Kalender: Di 03.11. 10:00 Aufmaß, Do 05.11. 08:00 Angebot vor Ort, Fr 06.11. 09:00 privat „Zahnarzt“, Fr 13.11. 14:00
-Abnahme; seit 1.9.253 dazu Paul Pohl (Dachdecker, eigenes Konto, keine Kolonne, einplanbar) und Vera Vogt (Kennzeichen „nicht zeigen“).
+Abnahme, seit 1.9.254 dazu ein Vorkommen einer Serie (Mi 04.11. 08:00 „Jour fixe“); seit 1.9.253 dazu Paul Pohl (Dachdecker, eigenes Konto, keine Kolonne,
+einplanbar) und Vera Vogt (Kennzeichen „nicht zeigen“).
 Stehende Uhr Di 03.11.2026 10:00.
 
     Gruppen      KOLONNE NORD (Tom KF, Mia, Ole), KOLONNE SÜD (Kai KF, Lia, Nele), OHNE KOLONNE (Paul -- mit Konto, seit 1.9.253 nach dem Kennzeichen),
@@ -12,6 +13,8 @@ Stehende Uhr Di 03.11.2026 10:00.
                  Einsatz ohne, Nele „Garage“ mit dem Punkt für ihren Antrag; Tom „Urlaub · genehmigt“ schraffiert; Nele „Urlaub · beantragt“ gestrichelt; Lia
                  „Kran Böcker AHK 36 · Vermietung“ blau; Bea die Termine zweizeilig (Uhrzeit über dem Titel), der private „Belegt“
     Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title; hell und dunkel als Bild
+    Kalender     seit 1.9.254: ein Termin ist ein Knopf und öffnet den Kalender an seinem Tag (Tagesansicht) mit dem Termin, das Vorkommen der Serie
+                 ebenso; „Belegt“ (privat, für Anna) ist kein Knopf, für Bea selbst schon; die gemerkte Ansicht des Kalenders bleibt
     Formular     seit 1.9.253: im Mitarbeiterformular „Plantafel“ auf „Bauleitung“ -> Paul steht danach im Abschnitt Bauleitung
     Büro – Auftrag  als Bea: Tom „abwesend“ und Nele „beantragt“ ohne Art; ihr eigener privater Termin mit Titel
     Geräte       Kran mit dem Termin aus seinem Postfach („Müller“, 10.–11.11.) und der Vermietung, die Pritschen
@@ -37,7 +40,7 @@ def befuellen(db, k):
 
     from sqlalchemy import select
 
-    from app.models import AppUser, CalendarEvent, Employee, EmployeeFunction, EmployeePlanningSettings, EmployeeProfile
+    from app.models import AppUser, CalendarEvent, Employee, EmployeeFunction, EmployeePlanningSettings, EmployeeProfile, OutlookSeriesOccurrence
 
     seed = tafel_befuellen(db, k)
     bea = Employee(employee_number="M-7", first_name="Bea", last_name="Bauer", employee_group="angestellt", job_title="Bauleiterin",
@@ -56,8 +59,12 @@ def befuellen(db, k):
     for tag, stunde, titel, privat in ((3, 10, "Aufmaß", False), (5, 8, "Angebot vor Ort", False), (6, 9, "Zahnarzt", True), (13, 14, "Abnahme", False)):
         db.add(CalendarEvent(title=titel, start_at=datetime(2026, 11, tag, stunde), end_at=datetime(2026, 11, tag, stunde + 1), owner_user_id=konto.id,
                              is_private=privat))
+    db.add(OutlookSeriesOccurrence(owner_user_id=konto.id, outlook_postfach="bea@dachkonzepte.example", outlook_event_id="bea-jf-1", occurrence_type="occurrence",
+                                   title="Jour fixe", start_at=datetime(2026, 11, 4, 8), end_at=datetime(2026, 11, 4, 9)))  # seit 1.9.254
     db.commit()
-    return {**seed, "bea": k.cookies(konto), "paul": paul.id}
+    from sqlalchemy import select as auswahl
+    return {**seed, "bea": k.cookies(konto), "paul": paul.id, "aufmass": db.scalar(auswahl(CalendarEvent.id).where(CalendarEvent.title == "Aufmaß")),
+            "jour_fixe": db.scalar(auswahl(OutlookSeriesOccurrence.id))}
 
 
 # je Zeile die Balken: [Text, Art] -- Art: abwesend, beantragt, termin, kran, vorlaeufig, fest; „!“ bei Warnung, „·“ bei Hinweis
@@ -65,6 +72,21 @@ BALKEN_JE_ZEILE = ("(n=>[...[...document.querySelectorAll('#planner .planner-row
                    ".querySelectorAll('.slot')].map(s=>[s.querySelector('.slot-text').textContent.trim(),"
                    "['abwesend','beantragt','termin','kran','vorlaeufig','fest'].find(c=>s.classList.contains(c))+(s.classList.contains('conflict')?' !':'')"
                    "+(s.querySelector('.hinweis-punkt')?' ·':'')]))")
+
+
+# seit 1.9.254: je Termin einer Zeile [Text, ist ein Knopf]
+TERMIN_KNOEPFE = ("(n=>[...[...document.querySelectorAll('#planner .planner-row')].find(z=>z.querySelector('.row-label b').textContent.trim()===n)"
+                  ".querySelectorAll('.slot.termin')].map(s=>[s.querySelector('.slot-text').textContent.trim(),s.tagName==='BUTTON'&&s.dataset.klick==='personTermin']))")
+
+
+async def kalender_aus_der_tafel(tab, p, text, bedingung, erwartet, name):
+    """Seit 1.9.254: Klick auf den Termin in „Personen“ -> der Kalender an seinem Tag mit dem Termin."""
+    await tab.js(f"[...document.querySelectorAll('#planner .slot.termin')].find(s=>s.textContent.includes('{text}')).click()")
+    ok = await tab.warten(f"location.pathname==='/kalender'&&document.readyState==='complete'&&({bedingung})", 20)
+    await tab.warte_auf_ruhe()
+    p.pruefe(f"Kalender: {name}", [ok, await tab.js("[location.search,document.getElementById('periodLabel').textContent,view,"
+                                                  "localStorage.getItem('erp_calendar_view')]")], [True, erwartet])
+    await tab.bild(f"kalender_{name.split()[0].lower()}")
 
 
 async def ansicht(tab, name):
@@ -100,7 +122,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nele: Garage mit dem Punkt für ihren Antrag (Kais Warnung nicht), Urlaub beantragt gestrichelt", await tab.js(BALKEN_JE_ZEILE + "('Nele Neu')"),
              [["Garage Lindenweg 7", "vorlaeufig ·"], ["Urlaub · beantragt", "beantragt"]])
     p.pruefe("Bea: Termine aus dem Kalender, privat „Belegt“", await tab.js(BALKEN_JE_ZEILE + "('Bea Bauer')"),
-             [["10:00 Aufmaß", "termin"], ["08:00 Angebot vor Ort", "termin"], ["09:00 Belegt", "termin"], ["14:00 Abnahme", "termin"]])
+             [["10:00 Aufmaß", "termin"], ["08:00 Angebot vor Ort", "termin"], ["09:00 Belegt", "termin"], ["14:00 Abnahme", "termin"],
+              ["08:00 Jour fixe", "termin"]])
+    p.pruefe("Bea: jeder Termin ein Knopf, „Belegt“ nicht", await tab.js(TERMIN_KNOEPFE + "('Bea Bauer')"),
+             [["10:00 Aufmaß", True], ["08:00 Angebot vor Ort", True], ["09:00 Belegt", False], ["14:00 Abnahme", True], ["08:00 Jour fixe", True]])
     p.pruefe("Termin zweizeilig: Uhrzeit über dem Titel", await tab.js(
         "(()=>{const t=[...document.querySelectorAll('#planner .slot.termin')].find(s=>s.textContent.includes('Aufmaß')).querySelector('.slot-text');"
         "const [a,b]=[...t.children].map(x=>x.getBoundingClientRect());return [t.children.length,b.top>=a.bottom-1]})()"), [2, True])
@@ -130,6 +155,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Geräte: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("Geräte: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
     await tab.bild("geraete_1440_hell")
+
+    # --- seit 1.9.254: Termin einer Person öffnet den Kalender ---
+    await ansicht(tab, "employees")
+    await kalender_aus_der_tafel(tab, p, "Aufmaß", "document.getElementById('eventModal').classList.contains('open')&&document.getElementById('eTitle').value==='Aufmaß'",
+                                 ["?tag=2026-11-03&termin=" + str(seed["aufmass"]), "03.11.2026", "day", None], "Termin Aufmaß geöffnet am 03.11.")
+    await tab.oeffnen("/planning", BEREIT)
+    await tab.warte_auf_ruhe()
+    await ansicht(tab, "employees")
+    await kalender_aus_der_tafel(tab, p, "Jour fixe", "document.getElementById('seriesModal').classList.contains('open')&&document.getElementById('seriesDetails').textContent.includes('Jour fixe')",
+                                 ["?tag=2026-11-04&serie=" + str(seed["jour_fixe"]), "04.11.2026", "day", None], "Serie Jour fixe geöffnet am 04.11.")
 
     # --- dunkel ---
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="try{localStorage.setItem('erp_theme','dark')}catch(e){}")
@@ -166,8 +201,8 @@ async def pruefen(tab, seed, p):
     await ansicht(tab, "employees")
     p.pruefe("Büro – Auftrag: Abwesenheit ohne Art", [await tab.js(BALKEN_JE_ZEILE + "('Tom Monteur')"), await tab.js(BALKEN_JE_ZEILE + "('Nele Neu')")],
              [[["Am Wasserturm 4", "fest"], ["abwesend", "abwesend"]], [["Garage Lindenweg 7", "vorlaeufig ·"], ["beantragt", "beantragt"]]])
-    p.pruefe("Bea sieht ihren privaten Termin mit Titel", await tab.js(BALKEN_JE_ZEILE + "('Bea Bauer')"),
-             [["10:00 Aufmaß", "termin"], ["08:00 Angebot vor Ort", "termin"], ["09:00 Zahnarzt", "termin"], ["14:00 Abnahme", "termin"]])
+    p.pruefe("Bea sieht ihren privaten Termin mit Titel, als Knopf", await tab.js(TERMIN_KNOEPFE + "('Bea Bauer')"),
+             [["10:00 Aufmaß", True], ["08:00 Angebot vor Ort", True], ["09:00 Zahnarzt", True], ["14:00 Abnahme", True], ["08:00 Jour fixe", True]])
     await tab.bild("personen_buero_auftrag")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
