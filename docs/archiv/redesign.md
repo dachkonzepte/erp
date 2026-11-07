@@ -9003,3 +9003,30 @@ Termins ohne Warnung, gespeichert als „Vermietung · Kai“, Serie ohne Knopf,
 
 Fund im ersten Lauf des Klicktests (Bild): der Dialog zeigte „Anfahrt je Tag“, die Übernahme nahm sie aber nicht an -- ein geänderter Wert wäre still
 verloren gegangen. Seitdem nimmt die Übernahme die Anfahrt an. Dazu das Schließen-Symbol wie im Einsatz-Dialog.
+
+### Umsetzung 1.9.252 (Punkt 6): aus der Akte und zurück
+
+Akte (`app/templates/akte.html`): der Link „Einsatz planen“ der Karte „Einsätze“ und die Hauptaktion „Einsatz planen“ führen auf
+`/planning?auftrag=<id>&zurueck=<encodeURIComponent('/projects/<p>?auftrag=<id>#ausfuehrung')>` -- die Adresse steht an beiden Stellen aus, mit festem lokalem
+Anfang (Regel 30, `test_v401`).
+
+Plantafel: `startAusAdresse()` nach dem ersten Laden öffnet „Einsatz planen“ für den Auftrag (wie seit 1.9.155) und merkt sich das Ziel nur, wenn es ein
+lokaler Pfad ist (`istLokalesZiel()` aus `_weiterleitung.html`, jetzt eingebunden) und der Dialog aufging; `nachDemDialog()` am Ereignis `close` des Dialogs
+-- nach dem Speichern, nach „Abbrechen“, „×“ oder Escape -- geht einmal dorthin (`sicheresZiel()`), danach nicht wieder.
+
+#### Festlegungen 1.9.252 (Bitte bestätigen)
+
+1. „Einsatz planen“ der Akte (Karte „Einsätze“ und Hauptaktion) öffnet den Dialog der Plantafel für den Auftrag und nennt als Rücksprung die Akte mit dem
+   Auftrag auf dem Reiter „Ausführung“.
+2. Nach dem Dialog -- gespeichert oder abgebrochen -- geht es einmal dorthin zurück; ohne Rücksprung in der Adresse bleibt die Tafel.
+3. Der Rücksprung gilt nur für einen lokalen Pfad und nur, wenn der Dialog aufging (ein gesperrter Auftrag zeigt den Grund auf der Tafel, ein späterer
+   Dialog führt nicht in die Akte).
+
+#### Tests und Prüfung 1.9.252
+
+Neu: `tests/test_v652_einsatz_aus_der_akte.py` (`startAusAdresse()`/`nachDemDialog()` in node: zurück nur einmal, nur lokal -- fremde Seite, `//`,
+`javascript:`, leer --, nur wenn der Dialog aufging, ohne Auftrag nichts; die beiden Adressen der Akte; der Rücksprung am Ereignis `close`) und
+`scripts/klicktest_plantafel_aus_der_akte.py` (Akte -> Link -> Dialog -> Speichern -> Akte mit dem Einsatz; Abbrechen -> Akte ohne zweiten Einsatz;
+Hauptaktion -> Escape -> Akte; ohne Rücksprung bleibt die Tafel; `ALLEIN`, ein Fenster von 1 s ohne Navigation). Gegenproben: Archiv
+`gegenproben-stufe6-r4.md`. Angepasste Erwartungen (Regel 28): `test_v413::test_echte_reihenfolge_mit_vier_zugleich` -- alt sechs Klicktests mit `ALLEIN`,
+neu sieben (dazu `klicktest_plantafel_aus_der_akte`); gefunden im ersten Suitenlauf.

@@ -1563,3 +1563,9 @@ anderen Tag.
 1. Ziehen mit der Maus im Klicktest nur über `Tab.ziehen()` (`scripts/cdp_klicktest.py`: drücken, Bewegungen mit gedrückter Taste, loslassen oder nicht),
    wie Zeichnen nur über `Tab.strich()`; der Wächter `test_v490` bleibt, wie er ist (eine Bewegung mit gedrückter Taste nur im Werkzeug). Gegenprobe: die
    Fassung davor (Bewegungen im Klicktest selbst) -- `test_v490::test_kein_klicktest_zeichnet_an_strich_vorbei` rot (erster Suitenlauf 1.9.249).
+
+**Festlegungen 1.9.252 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. `klicktest_plantafel_aus_der_akte` läuft allein (`ALLEIN`): er prüft in einem Fenster von 1 s, dass ohne Rücksprung keine Navigation beginnt -- unter Last
+   wäre die Prüfung still schwächer (Regel aus 1.8.108). Gegenprobe: ohne `ALLEIN` -- `test_v413::test_jeder_zeitkritische_klicktest_laeuft_allein` und `test_echte_reihenfolge_mit_vier_zugleich` rot (Strukturtests
+   über die Datei).

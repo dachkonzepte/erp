@@ -494,7 +494,7 @@ aktion('hauptaktion',()=>{
   const h=akte&&akte.hauptaktion;if(!h)return;
   if(h.art==='angebot')location.href='/quotes/new?project_id='+projectId;
   else if(h.art==='beauftragen'&&akte.angebot_id)location.href='/quotes/'+Number(akte.angebot_id)+'/edit?beauftragen=1';
-  else if(h.art==='einsatz')location.href='/planning?auftrag='+Number(orderId);
+  else if(h.art==='einsatz')location.href='/planning?auftrag='+Number(orderId)+'&zurueck='+encodeURIComponent('/projects/'+Number(projectId)+'?auftrag='+Number(orderId)+'#ausfuehrung');  // seit 1.9.252 mit Rücksprung (Reiter „Ausführung“)
   else if(h.art==='rechnung'||h.art==='schlussrechnung'){reiterZeigen('rechnungen');const s=el('newInvoiceType');if(s){auswahlWert(s,h.art==='schlussrechnung'?'schluss':'abschlag_leistungsstand');toggleNewInvoiceFields();s.focus()}}
   else if(h.art==='abnahme'){reiterZeigen('abnahme');openAcceptanceDialog()}
   else if(h.art==='maengel')reiterZeigen('abnahme');
@@ -639,7 +639,7 @@ function ausfuehrungZeichnen(){
   el('avLink').href='/orders/'+orderId+'/work-preparation';
   const av=a.arbeitsvorbereitung;
   el('avStand').innerHTML=av?`<div class="zeile-flex"><span class="badge" data-art="${esc(statusKennzeichen('arbeitsvorbereitung',av.status).art)}">${esc(statusKennzeichen('arbeitsvorbereitung',av.status).text)}</span><span class="mut">${av.planned_start?'geplant '+esc(tagLang(av.planned_start))+(av.planned_end?' – '+esc(tagLang(av.planned_end)):''):'ohne geplanten Zeitraum'}</span></div>`:'<span class="mut">Noch keine Arbeitsvorbereitung – sie entsteht beim ersten Speichern.</span>';
-  el('einsatzLink').href='/planning?auftrag='+orderId;
+  el('einsatzLink').href='/planning?auftrag='+Number(orderId)+'&zurueck='+encodeURIComponent('/projects/'+Number(projectId)+'?auftrag='+Number(orderId)+'#ausfuehrung');  // seit 1.9.252: nach dem Dialog der Plantafel zurück hierher
   el('einsatzLink').hidden=!!a.einsatz_gesperrt;  // seit 1.9.155 (L6): abgeschlossen oder storniert -- kein Weg, der ins Leere führt, sondern der Grund
   el('einsatzGesperrt').textContent=a.einsatz_gesperrt||'';el('einsatzGesperrt').hidden=!a.einsatz_gesperrt;
   el('einsatzListe').innerHTML=a.einsaetze.length?a.einsaetze.map(s=>`<div class="li"><div class="li-text"><span class="li-titel">${esc(s.team)} · ${zahlText(s.personen,0)} ${s.personen===1?'Person':'Personen'}</span><span class="mut sml">${esc(tagKurz(s.start_date))}–${esc(tagKurz(s.end_date))}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch kein Einsatz in der Plantafel.</p>';

@@ -185,3 +185,17 @@ Kein Marker unter `app/` nach den Läufen.
 
 Ohne eigene Gegenprobe: „nichts wird geschrieben“ -- die Vorschau geht über `einsatz_pruefen()` (rollback, Gegenprobe `248_2a`); `test_v651` zählt
 Einsätze, Projekte und Termine davor und danach. Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.252 (Punkt 6): aus der Akte und zurück
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Link der Karte mit Rücksprung | ohne (`252_1a`) | 1 rot: v652::test_akte_fuehrt_mit_ruecksprung_zur_plantafel |
+| Nr. 1 – Hauptaktion mit Rücksprung | ohne (`252_1b`) | 1 rot: v652::test_akte_fuehrt_mit_ruecksprung_zur_plantafel |
+| Nr. 1 – im Browser | Link ohne Rücksprung (`252_1c`, Klicktest aus der Akte) | rot: klicktest_plantafel_aus_der_akte „Link mit Rücksprung“ (und alle Rücksprünge danach) |
+| Nr. 2 – nach dem Dialog zurück | Rücksprung nicht am Dialog (`252_2a`, Klicktest aus der Akte) | rot: klicktest_plantafel_aus_der_akte „gespeichert: zurück in der Akte …“, „abgebrochen …“ |
+| Nr. 2 – nur einmal | Ziel bleibt (`252_2b`) | 1 rot: v652::test_zurueck_in_die_akte |
+| Nr. 3 – nur ein lokaler Pfad | jedes Ziel (`252_3a`) | 3 rot: v652::test_nur_ein_lokaler_pfad (fremde Seite, //, javascript:) |
+| Nr. 3 – nur wenn der Dialog aufging | auch ohne Dialog (`252_3b`) | 1 rot: v652::test_nur_wenn_der_dialog_aufging |
+
+Kein Marker unter `app/` nach den Läufen.

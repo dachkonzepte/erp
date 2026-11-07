@@ -297,7 +297,8 @@ def test_reihenfolge_allein_zuerst_dann_die_laengsten(tmp_path, monkeypatch):
 def test_echte_reihenfolge_mit_vier_zugleich():
     (allein, _), (rest, _) = ALLE.gruppen(ALLE.klicktests([], None), 4)
     assert {p.stem for p in allein} == {"klicktest_abschliessen", "klicktest_anmelden", "klicktest_feierabend",
-                                        "klicktest_fremde_seite", "klicktest_hochladen", "klicktest_veraltete_antworten"}
+                                        "klicktest_fremde_seite", "klicktest_hochladen", "klicktest_veraltete_antworten",
+                                        "klicktest_plantafel_aus_der_akte"}  # seit 1.9.252 (1 s ohne Navigation)
     assert len(allein) + len(rest) == len(ALLE.klicktests([], None)) and "klicktest_alle" not in {p.stem for p in rest}
 
 

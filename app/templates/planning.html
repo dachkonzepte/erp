@@ -271,6 +271,7 @@
 {% include "_kalendertag_frage.html" %}
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_weiterleitung.html" %}
 {% include "_zahl.html" %}
 {% include "_fehlertext.html" %}
 <script>
@@ -576,6 +577,14 @@ document.getElementById('absenceCategory').addEventListener('change',()=>artNach
 let neuZeichnen=null;window.addEventListener('resize',()=>{cancelAnimationFrame(neuZeichnen);neuZeichnen=requestAnimationFrame(()=>renderBoard())});
 try{if(localStorage.getItem('plantafel_rueckstand')==='zu')rueckstandZeigen(false)}catch(e){}
 // seit 1.9.129: ?auftrag=<id> (Hauptaktion „Einsatz planen“ der Akte) öffnet gleich „Neuer Einsatz“ mit dem Auftrag
-loadBoard().then(()=>{const a=new URLSearchParams(location.search).get('auftrag');if(a&&/^\d{1,9}$/.test(a))openCreate(Number(a))});
+/* seit 1.9.252 (Stufe 6, R4, Punkt 6): /planning?auftrag=<id> öffnet „Einsatz planen“ für den Auftrag; mit zurueck=<lokaler Pfad> (aus der Akte) geht es
+   nach dem Dialog -- gespeichert oder abgebrochen -- dorthin zurück. Nur ein lokaler Pfad (Regel 30) und nur, wenn der Dialog aufging (ein gesperrter
+   Auftrag zeigt den Grund auf der Tafel). */
+let zurueckZiel='';
+async function startAusAdresse(){const q=new URLSearchParams(location.search),a=q.get('auftrag');if(!a||!/^\d{1,9}$/.test(a))return;await openCreate(Number(a));
+  const z=q.get('zurueck');zurueckZiel=document.getElementById('einsatzDialog').open&&z&&istLokalesZiel(z)?z:''}
+function nachDemDialog(){if(!zurueckZiel)return;const z=zurueckZiel;zurueckZiel='';location.href=sicheresZiel(z)}
+document.getElementById('einsatzDialog').addEventListener('close',nachDemDialog);
+loadBoard().then(startAusAdresse);
 </script>
 </body></html>
