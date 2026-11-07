@@ -71,17 +71,30 @@ def auftrag_nach_aufwand(
 def create_quick_service_order(
     db: Session, *, customer_id: int, property_id: int | None, order_type: str, title: str,
     description: str | None = None, caseworker_employee_id: int | None = None,
-    execution_start: date | None = None, confirm_property_customer: bool = False,
+    execution_start: date | None = None, confirm_property_customer: bool = False, commit: bool = True,
 ) -> dict:
     """confirm_property_customer (seit 1.8.70, Befund 2f): ein Objekt eines anderen Kunden (Generalunternehmer,
     Hausverwaltung) nur mit Bestätigung -- sonst PropertyCustomerMismatch (Router 409). Vorher verband der Schnellauftrag
     jeden Kunden mit jedem Objekt; Auftrag und Rechnung tragen das Objekt als Schnappschuss. Aufrufe im Prozess, die Kunde
-    und Objekt aus einem bestehenden Datensatz übernehmen (Vertrag, Mangel), bestätigen selbst."""
+    und Objekt aus einem bestehenden Datensatz übernehmen (Vertrag, Mangel), bestätigen selbst.
+
+    Seit 1.9.245 (Stufe 6, R4, Punkt 0c, Befund R3b 5b) eine Transaktion wie die Kranvermietung: Projekt, Angebot, Position und Auftrag mit einem
+    Commit am Ende (bis 1.9.244 dreimal unterwegs -- scheiterte ein späterer Schritt, blieben Projekt und Angebot ohne Auftrag stehen). Scheitert
+    ein Schritt, nimmt die Sitzung alles zurück. commit=False: der Aufrufer committet den Schnellauftrag mit seiner eigenen Änderung zusammen
+    (Folgeauftrag aus einem Befund, Wartung durchführen) und nimmt bei einem Fehler selbst zurück."""
     if order_type not in ORDER_TYPES:
         raise ValueError(f"Unbekannte Auftragsart: {order_type}")
-    project, order = auftrag_nach_aufwand(
-        db, customer_id=customer_id, property_id=property_id, title=title, position=f"{ORDER_TYPE_LABELS[order_type]} nach Aufwand",
-        description=description, caseworker_employee_id=caseworker_employee_id, execution_start=execution_start,
-        confirm_property_customer=confirm_property_customer,
-    )
-    return {"project_id": project.id, "order_id": order.id, "order_number": order.order_number}
+    try:
+        project, order = auftrag_nach_aufwand(
+            db, customer_id=customer_id, property_id=property_id, title=title, position=f"{ORDER_TYPE_LABELS[order_type]} nach Aufwand",
+            description=description, caseworker_employee_id=caseworker_employee_id, execution_start=execution_start,
+            confirm_property_customer=confirm_property_customer, commit=False,
+        )
+        ergebnis = {"project_id": project.id, "order_id": order.id, "order_number": order.order_number}
+        if commit:
+            db.commit()
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return ergebnis

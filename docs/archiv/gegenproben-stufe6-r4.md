@@ -27,3 +27,14 @@ Kein Marker unter `app/` nach den Läufen.
 
 Ohne Gegenprobe: Nr. 2 „nur lokal“ (ohne den Ordner übersprungen -- das zeigt der Lauf auf einem Rechner ohne `lohn_echt`), Nr. 3 (Arbeitsweise), 0e
 (reine Doku). Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.245 (Punkt 0c): Schnellauftrag in einer Transaktion
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ein Commit | `auftrag_nach_aufwand()` wieder mit Commit unterwegs (`245_1a`) | 4 rot: v645 (ein Commit, Auftrag scheitert, Folgeauftrag, Wartung) |
+| Nr. 1 – bei einem Fehler bleibt nichts | ohne `rollback()` beim Fehler (`245_1b`) | 1 rot: v645::test_scheitert_der_auftrag_bleibt_nichts |
+| Nr. 2 – Folgeauftrag mit dem Verweis am Befund | Schnellauftrag dort für sich festgeschrieben (`245_2a`) | 1 rot: v645::test_folgeauftrag_aus_einem_befund_ein_commit_und_bei_fehler_nichts |
+| Nr. 2 – Wartung durchführen mit dem Vertrag | Schnellauftrag dort für sich festgeschrieben (`245_2b`) | 1 rot: v645::test_wartung_durchfuehren_vorgang_und_vertrag_in_einem_commit |
+
+Kein Marker unter `app/` nach den Läufen.

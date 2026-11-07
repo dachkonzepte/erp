@@ -8648,3 +8648,23 @@ Angepasste Erwartungen (Regel 28) -- je Test die Nummer im Aufbau und in der Erw
 (eine Nummer im Kreis 00000–00099 -> 00093), `test_v617::test_kreis_ist_keine_sperre` (00091 statt einer echten im selben Kreis), `test_v626` (sieben Tests: Azubi
 00291, Abwesenheiten 00193, Eintritt 00194, Migration 00291), `test_v627` (zwei Tests: 00193), `test_v629` (zwei Tests: 00291), `test_v630` (ein Test: Azubi
 00291) -- alt jeweils eine Nummer, die es im Betrieb gibt.
+
+### Umsetzung 1.9.245 (Punkt 0c): Schnellauftrag in einer Transaktion
+
+`app/quick_service_orders.py::create_quick_service_order()` ruft `auftrag_nach_aufwand(commit=False)` -- derselbe Weg wie die Kranvermietung (1.9.240) --
+und committet einmal am Ende; scheitert ein Schritt, nimmt die Sitzung alles zurück (`rollback()`), auch die Nummern von Projekt, Angebot und Auftrag sind
+nicht verbraucht. Bis 1.9.244 schrieb er Position, Struktur des Angebots und Auftrag je für sich fest (Befund R3b, 5b). Neu `commit=False` für Aufrufer im
+Programm: `app/findings.py::create_follow_up_project_for_task()` (Folgeauftrag aus einem Befund, mit dem Verweis am Befund) und
+`app/maintenance_contracts.py::create_maintenance_visit()` („Wartung durchführen“, mit dem Vertrag am Projekt) committen den Schnellauftrag mit ihrer eigenen
+Änderung und nehmen bei einem Fehler zurück; der Bericht der Wartung entsteht wie bisher danach (eigener Commit, `create_report()`).
+
+#### Festlegungen 1.9.245 (Bitte bestätigen)
+
+1. Der Schnellauftrag (Projekt, Angebot, Position, Auftrag) entsteht mit einem Commit; scheitert ein Schritt, bleibt nichts zurück und keine Nummer ist verbraucht.
+2. Folgeauftrag aus einem Befund und „Wartung durchführen“ schreiben den Schnellauftrag mit ihrer eigenen Änderung in einem Commit fest; scheitert etwas, bleibt
+   nichts zurück.
+
+#### Tests und Prüfung 1.9.245
+
+Neu: `tests/test_v645_schnellauftrag_eine_transaktion.py` (ein Commit, Fehler beim Auftrag lässt nichts und keine Nummer zurück, Folgeauftrag und Wartung
+durchführen mit Fehler und ohne). Gegenproben: Archiv `gegenproben-stufe6-r4.md`. Angepasste Erwartungen: keine.

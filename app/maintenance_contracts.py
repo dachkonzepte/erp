@@ -688,14 +688,18 @@ def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_
 
     title = f"Wartung {contract.title} vom {berlin_today().strftime('%d.%m.%Y')}"
     # Ein Objekt eines anderen Kunden ist am Vertrag bereits bestätigt (create_contract()/update_contract()).
-    result = create_quick_service_order(
-        db, customer_id=contract.customer_id, property_id=contract.property_id,
-        order_type="wartung", title=title, caseworker_employee_id=contract.responsible_employee_id,
-        confirm_property_customer=True,
-    )
-    profile = get_or_create_project_profile(db, result["project_id"])
-    profile.source_maintenance_contract_id = contract.id
-    db.commit()
+    try:  # seit 1.9.245: Vorgang und Verweis auf den Vertrag in einem Commit -- scheitert etwas, bleibt nichts zurück
+        result = create_quick_service_order(
+            db, customer_id=contract.customer_id, property_id=contract.property_id,
+            order_type="wartung", title=title, caseworker_employee_id=contract.responsible_employee_id,
+            confirm_property_customer=True, commit=False,
+        )
+        profile = get_or_create_project_profile(db, result["project_id"])
+        profile.source_maintenance_contract_id = contract.id
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     roof_area_ids = None
     if contract.property_id is not None:

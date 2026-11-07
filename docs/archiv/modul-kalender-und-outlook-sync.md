@@ -1418,7 +1418,7 @@ Vorgabe Tobias (06.11.2026), Start bcfd155. Zeichnung `bildgrundlage/entwurf-stu
 - **Schnellauftrag** (`app/quick_service_orders.py`, `POST /api/quick-service-orders`, nur mit Modul „Wartungen“, ab Büro – Auftrag): Kunde, Objekt (ein
   fremdes nur mit Bestätigung), Art Reparatur/Wartung, Bezeichnung. Normale Kette Projekt -> Angebot (eine Position „<Art> nach Aufwand“, 1 pauschal,
   0,00 €) -> Auftrag (läuft, ohne Vertragsentwurf); abgerechnet über „Rechnung aus Aufwand“ (Auftrag nach Aufwand). Er committet unterwegs dreimal
-  (Position, Struktur des Angebots, Auftrag).
+  (Position, Struktur des Angebots, Auftrag) -- seit 1.9.245 einmal am Ende (Stufe 6, R4, Punkt 0c, Archiv `redesign.md`).
 - **Kran (Gerät)**: `OperationalResource`, seit 1.9.234 je Einsatz mit Tagen (`PlanningSlotResource`). Es gibt kein Merkmal „Kran“: ein Gerät mit
   eigenem Postfach (`outlook_mailbox`, seit 1.9.161) hat einen Kalender. Prüffrist über das Betriebsmittel (seit 1.9.236).
 - **Kran-Postfach**: Termine am Gerät sind `CalendarEvent` mit `resource_id`; Abgleich nur per Cron (Festlegung 1.9.161 Nr. 1), beide Richtungen, „letzte

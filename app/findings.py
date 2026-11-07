@@ -244,20 +244,25 @@ def create_follow_up_project_for_task(db: Session, task_id: int) -> dict:
     order = report.order
     project = order.project
     title = (finding.description.strip().splitlines()[0] or "Mangel")[:200]
-    result = create_quick_service_order(
-        db, customer_id=project.customer_id, property_id=project.property_id, order_type="reparatur",
-        title=f"Folgeauftrag: {title}",
-        description=(
-            f"{finding.description}\n\nErstellt aus Mangel im Einsatzbericht {report.id} "
-            f"(Auftrag {order.order_number}) am {berlin_today():%d.%m.%Y}."
-        ),
-        caseworker_employee_id=order.caseworker_employee_id,
-        confirm_property_customer=True,  # Kunde und Objekt aus dem bestehenden Projekt, nicht neu gewählt (seit 1.8.70)
-    )
-    finding.follow_up_project_id = result["project_id"]
-    finding.follow_up_order_id = result["order_id"]
-    finding.status = "in_bearbeitung"
-    db.commit()
+    try:  # seit 1.9.245: Vorgang und Verweis am Befund in einem Commit -- scheitert etwas, bleibt nichts zurück
+        result = create_quick_service_order(
+            db, customer_id=project.customer_id, property_id=project.property_id, order_type="reparatur",
+            title=f"Folgeauftrag: {title}",
+            description=(
+                f"{finding.description}\n\nErstellt aus Mangel im Einsatzbericht {report.id} "
+                f"(Auftrag {order.order_number}) am {berlin_today():%d.%m.%Y}."
+            ),
+            caseworker_employee_id=order.caseworker_employee_id,
+            confirm_property_customer=True,  # Kunde und Objekt aus dem bestehenden Projekt, nicht neu gewählt (seit 1.8.70)
+            commit=False,
+        )
+        finding.follow_up_project_id = result["project_id"]
+        finding.follow_up_order_id = result["order_id"]
+        finding.status = "in_bearbeitung"
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return result
 
 
