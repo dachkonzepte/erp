@@ -314,11 +314,12 @@ def test_namen_im_planungsvorschlag_bleiben_text(threaded_db_session, router_tes
     """Befund 1.8.100 Nr. 8: Planungsvorschlag der Plantafel setzt Namen abwesender Mitarbeiter und Feiertage ohne Schutz in den Hinweis
     (innerHTML). -- seit 1.8.102 behoben (bis dahin xfail).
 
-    Seit 1.8.116 (Vorgabe vom 16.10.2026, Punkt 5): bis dahin prüfte der Test nichts -- die Attrappe kannte element.remove() nicht, das
-    Speichern scheiterte mit einem TypeError, die Seite schrieb dessen Text in den Hinweis, und darin stand kein <img>. Jetzt kommt die
-    Antwort vom echten Dienst (POST /api/planning/suggestion mit einer abwesenden Mitarbeiterin und einem Feiertag, beide mit Skript im
-    Namen), die Seite schickt genau die Werte der Felder, der Hinweis ist wirklich gezeichnet (Name und Feiertag als Text), und eine
-    JS-Ausnahme -- auch eine gefangene -- lässt den Test scheitern (tests/node_lauf.py)."""
+    Seit 1.8.116 (Vorgabe vom 16.10.2026, Punkt 5): die Antwort kommt vom echten Dienst, die Seite schickt genau die Werte der Felder, der Hinweis ist
+    wirklich gezeichnet, und eine JS-Ausnahme -- auch eine gefangene -- lässt den Test scheitern (tests/node_lauf.py).
+
+    Seit 1.9.248 zeigt der Dialog keinen Planungsvorschlag mehr, sondern prüft den Einsatz (POST /api/planning/slots/pruefen): dieselbe Prüfung gilt
+    jetzt der Besetzung mit ihrem Zustand und dem Kasten der Warnungen und Hinweise -- eine Mitarbeiterin mit Skript im Namen, abwesend, und ein
+    Feiertag mit Skript im Namen; beide stehen als Text in der Liste und im Kasten."""
     from datetime import date
     from decimal import Decimal
 
@@ -335,24 +336,27 @@ def test_namen_im_planungsvorschlag_bleiben_text(threaded_db_session, router_tes
     db.add(EmployeeAbsence(employee_id=mitarbeiter[0].id, absence_type="Urlaub", start_date=date(2026, 9, 7), end_date=date(2026, 9, 7)))
     db.add(PlanningHoliday(holiday_date=date(2026, 9, 8), name=SKRIPT + " Feiertag", active=True))
     db.commit()
-    anfrage = {"order_id": order.id, "team_id": team.id, "start_date": "2026-09-07", "daily_work_hours": 8,
-               "travel_hours_per_employee_day": 0.5}
-    dienst = router_test_client(db, planning_router.router).post("/api/planning/suggestion", json=anfrage)
+    anfrage = {"art": "baustelle", "order_id": order.id, "team_id": team.id, "start_date": "2026-09-07", "end_date": "2026-09-08", "status": "vorlaeufig",
+               "notes": None, "planned_hours": None, "travel_hours_per_employee_day": "0.5", "weitere_personen": [], "weitere_geraete": []}
+    dienst = router_test_client(db, planning_router.router).post("/api/planning/slots/pruefen", json=anfrage)
     assert dienst.status_code == 200, dienst.text
-    vorschlag = dienst.json()
-    assert any(t["absent_employees"] for t in vorschlag["days"]) and any(t["holiday"] for t in vorschlag["days"])
+    pruefung = dienst.json()
+    texte = json.dumps(pruefung, ensure_ascii=False)
+    assert SKRIPT.replace('"', '\\"') in texte and "Feiertag" in texte
 
     vorspann = FAKE_DOM.replace("const antwort = methode === 'GET' ? ANTWORTEN[url] : {};", "const antwort = ANTWORTEN[url];")
     berlin = re.findall(r"<script>(.*?)</script>", (TEMPLATES / "_berlin_date.html").read_text(encoding="utf-8"), flags=re.S)[0]
     skript = vorspann + berlin + seite("planning.html", "\nloadBoard().then(")[len(FAKE_DOM):]
-    felder = (f"_element('newOrder').value='{order.id}'; _element('newTeam').value='{team.id}'; "
-              "_element('newStart').value='2026-09-07'; _element('newTravelHours').value='0,5'; ")
-    lauf = im_browser(skript, felder + "board={settings:{daily_work_hours:8}}; await calculateSuggestion(); "
-                      "return [_element('suggestionBox').innerHTML, _element('newEnd').value];",
-                      {"/api/planning/suggestion": vorschlag})
-    hinweis, ende = lauf["ergebnis"]
-    assert [a["body"] for a in lauf["aufrufe"] if a["url"] == "/api/planning/suggestion"] == [anfrage]
-    assert "Planungsvorschlag" in hinweis and "Berücksichtigte Einschränkungen" in hinweis, hinweis
-    assert "&lt;img src=x onerror=&quot;window.__dkXss=1&quot;&gt;" in hinweis and "Feiertag" in hinweis
-    assert "<img" not in hinweis
-    assert ende == vorschlag["suggested_end"]
+    tafel = {"settings": {"default_travel_hours_per_employee_day": "0.5"}, "teams": [{"id": team.id, "name": "Kolonne", "employees": [], "resources": []}],
+             "employees": [], "resources": [], "slots": [], "backlog": []}
+    # einsatzDialog ist im Browser das Element mit dieser ID (benannter Zugriff über window)
+    ablauf = ("globalThis.einsatzDialog=Object.assign(_element('einsatzDialog'),{showModal(){},close(){}}); "
+              f"board={json.dumps(tafel)}; await openCreate({order.id},'2026-09-07',{team.id}); _element('edBis').value='2026-09-08'; await pruefenJetzt();"
+              "return [_element('edPersonen').innerHTML, _element('edWarnungen').innerHTML];")
+    lauf = im_browser(skript, ablauf, {"/api/planning/auftraege": [{"id": order.id, "order_number": order.order_number}],
+                                       "/api/planning/slots/pruefen": pruefung})
+    personen, kasten = lauf["ergebnis"]
+    assert [a["body"] for a in lauf["aufrufe"] if a["url"] == "/api/planning/slots/pruefen"][-1] == anfrage
+    for html in (personen, kasten):
+        assert "&lt;img src=x onerror=&quot;window.__dkXss=1&quot;&gt;" in html and "<img" not in html, html
+    assert "Feiertag" in kasten

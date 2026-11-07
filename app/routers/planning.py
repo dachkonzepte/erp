@@ -23,9 +23,9 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung
 
 router = APIRouter()
 
@@ -253,6 +253,43 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
     except ValueError as exc:  # seit 1.9.233 auch BesetzungUngueltig (unbekannte oder inaktive Person, ohne Kolonne ohne Personen)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _einsatz_antwort(db, slot, _role)
+
+
+def _pruefung_antwort(ergebnis: dict, role: AppUser) -> dict:
+    """Seit 1.9.248: Warnungen und Hinweise mit der Fassung je Rolle (wie beim Speichern), Kapazität und Zustände."""
+    return {**ergebnis, "warnungen": _konflikte_fuer_rolle(ergebnis["warnungen"], role), "hinweise": _konflikte_fuer_rolle(ergebnis["hinweise"], role)}
+
+
+@router.post("/api/planning/slots/pruefen")
+def pruefe_neuen_einsatz(payload: EinsatzPruefungNeu, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.248 (Stufe 6, R4, Punkt 4): der Dialog „Einsatz planen“ prüft, bevor gespeichert wird -- Warnungen und Hinweise, Kapazität mit Rechnung,
+    Zustand je Person und Gerät. Dieselben Regeln und Antworten wie POST /api/planning/slots (422, 404, 409), schreibt nichts (rollback)."""
+    werte = payload.model_dump()
+    weitere = {"weitere_personen": werte.pop("weitere_personen"), "weitere_geraete": werte.pop("weitere_geraete")}
+    try:
+        ergebnis = einsatz_pruefen(db, None, mit_art=has_min_role(_role, ROLE_OFFICE_FINANZEN), **weitere, **werte)
+    except (AuftragGeschlossen, PropertyCustomerMismatch) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _pruefung_antwort(ergebnis, _role)
+
+
+@router.post("/api/planning/slots/{slot_id}/pruefen")
+def pruefe_einsatz(slot_id: int, payload: EinsatzPruefungAenderung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.248: der Dialog „Einsatz bearbeiten“ prüft mit den geänderten Feldern (Teil-Update wie PUT), schreibt nichts. Alle Warnungen des Einsatzes,
+    auch ohne Änderung."""
+    werte = payload.model_dump(exclude_unset=True)
+    weitere = {"weitere_personen": werte.pop("weitere_personen", []), "weitere_geraete": werte.pop("weitere_geraete", [])}
+    try:
+        ergebnis = einsatz_pruefen(db, slot_id, mit_art=has_min_role(_role, ROLE_OFFICE_FINANZEN), **weitere, **werte)
+    except BesetzungUngueltig as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "nicht gefunden" in str(exc) else 422, detail=str(exc)) from exc
+    return _pruefung_antwort(ergebnis, _role)
 
 
 @router.post("/api/planning/kran-termine/{event_id}/kranvermietung")

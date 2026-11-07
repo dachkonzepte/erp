@@ -107,11 +107,35 @@
   .feld{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ds-text);min-width:0}
   .feld.breit{grid-column:1/-1}
   .feld input,.feld select,.feld textarea{width:100%;box-sizing:border-box}
+  .feld input,.feld select,.leiste select,#edPersonWahl,#edGeraetWahl{height:40px;padding:0 12px;font:400 14px var(--ds-schrift-text);color:var(--ds-text)}
+  .feld textarea{padding:8px 12px;font:400 14px var(--ds-schrift-text);color:var(--ds-text)}
+  .feld input[aria-invalid="true"]{border-color:var(--ds-fehler);outline:2px solid var(--ds-fehler)}
+  .dialog-karte [hidden]{display:none}
   .feld .klein,.dialog-karte .klein{font-size:12.5px;font-weight:400;color:var(--ds-text-2)}
   .dialog-fuss{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center;padding:12px 20px 18px;border-top:1px solid var(--ds-linie)}
   .dialog-fuss .links{margin-right:auto}
   .vorschlag-karte{border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche-2);padding:10px 12px;font-size:13px}
+  .einsatz-dialog{width:min(720px,calc(100vw - 32px))}
+  .ed-zeile{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
+  .ed-vier{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .ed-liste-kopf{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:600;margin-top:2px}
+  .link-knopf{border:0;background:none;padding:0;color:var(--ds-link);font:600 13px var(--ds-schrift-text);text-decoration:underline;cursor:pointer}
+  .ed-karte{border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);overflow:hidden}
+  .wahl{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--ds-linie);font-size:14px;cursor:pointer;min-height:24px}
+  .wahl-gruppe:last-child .wahl,.ed-karte > .wahl:last-child{border-bottom:0}
+  .wahl input{width:18px;height:18px;flex:none;accent-color:var(--ds-aktion)}
+  .wahl-name{font-weight:600;flex:none}
+  .wahl-zustand{margin-left:auto;font-size:12.5px;display:inline-flex;align-items:center;gap:5px;text-align:right}
+  .z-warn{color:var(--ds-fehler-text)}.z-hinweis,.z-leise{color:var(--ds-text-2)}
+  .tage-wahl{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px 40px}
+  .tag-knopf{height:30px;padding:0 9px;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);font:500 12.5px var(--ds-schrift-text);cursor:pointer}
+  .tag-knopf[aria-pressed="true"]{background:var(--ds-aktion-hell);border-color:var(--ds-aktion-rand);color:var(--ds-aktion-text);font-weight:600}
+  .ed-warnkarte{border:1px solid var(--ds-signal-rand);background:var(--ds-signal-hell);border-radius:var(--ds-ecke-karte);padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:13.5px}
+  .ed-eb{font:500 11px var(--ds-schrift-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ds-signal-text);display:inline-flex;align-items:center;gap:8px}
+  .ed-eb .punkt{width:7px;height:7px;border-radius:50%;background:var(--ds-signal)}
+  .ed-hinweis{display:flex;align-items:baseline;gap:6px}
   .absence-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--ds-linie);font-size:13px}
+  @media (max-width:640px){.ed-vier{grid-template-columns:repeat(2,minmax(0,1fr))}.wahl{flex-wrap:wrap}.wahl-zustand{margin-left:28px;text-align:left}}
   @media (max-width:900px){.tafel-layout,.tafel-layout.rk-zu{grid-template-columns:minmax(0,1fr)}.rk-zu .rk-kopf{flex-direction:row}.rk-zu .rk-kopf h2{display:block}.filter{margin-left:0}.felder{grid-template-columns:minmax(0,1fr)}.tafel-main{padding:16px}}
 </style>
 </head>
@@ -124,7 +148,7 @@
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% call(teil) seitenkopf("Plantafel", untertitel="Wer ist wann wo – Einsätze, Kran und Geräte, Abwesenheiten", mit_aktion=true, mit_menue=true) %}
   {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="neuerEinsatz"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Einsatz</button>
-  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="menueAbwesenheit">Abwesenheit eintragen</button><button type="button" class="ds-menue-eintrag" id="menueKran" hidden>Kranvermietung anlegen</button><a class="ds-menue-eintrag" href="/settings#planning">Einstellungen der Planung</a>{% endif %}
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="menueAbwesenheit">Abwesenheit eintragen</button><button type="button" class="ds-menue-eintrag" id="menueKran">Kranvermietung anlegen</button><a class="ds-menue-eintrag" href="/settings#planning">Einstellungen der Planung</a>{% endif %}
 {% endcall %}
 <div class="leiste" role="toolbar" aria-label="Zeitraum und Ansicht">
   <button type="button" class="ds-knopf ds-knopf-symbol" id="zurueck" aria-label="Eine Woche zurück"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
@@ -160,36 +184,44 @@
 </div>
 </div>
 
-<dialog id="createDialog" class="dialog-karte" aria-labelledby="cdTitel">
-  <div class="dialog-kopf"><h2 id="cdTitel">Einsatz planen</h2><button type="button" class="ds-knopf ds-knopf-symbol" data-klick="schliessen" data-dialog="createDialog" aria-label="Schließen">×</button></div>
-  <div class="dialog-inhalt"><div class="felder">
-    <label class="feld breit">Auftrag / Projekt<select id="newOrder"></select></label>
-    <label class="feld breit">Kolonne<select id="newTeam"></select></label>
-    <label class="feld">Von<input id="newStart" type="date"></label>
-    <label class="feld">Bis<input id="newEnd" type="date"></label>
-    <label class="feld">Stunden<input id="newPlannedHours" type="text" inputmode="decimal" data-zahl data-min="0" placeholder="leer = Reststunden des Auftrags"></label>
-    <label class="feld">Anfahrt je Tag (h)<input id="newTravelHours" type="text" inputmode="decimal" data-zahl data-min="0"></label>
-    <div class="feld breit"><button type="button" class="ds-knopf" data-klick="vorschlag">Planungsvorschlag aus Soll-Stunden berechnen</button></div>
-    <label class="feld breit">Status<select id="newStatus">{# seit 1.9.235 vorläufig | fest #}<option value="vorlaeufig">vorläufig</option><option value="fest">fest</option></select></label>
-    <label class="feld breit">Notiz für die Monteure<textarea id="newNotes" rows="2"></textarea></label>
+{# Seit 1.9.248 (Stufe 6, R4, Punkt 4): ein Dialog für „Einsatz planen“ und „Einsatz bearbeiten“ nach bildgrundlage/entwurf-stufe6/plantafel-einsatz.html --
+   Art, Status, Zeitraum, Stunden, Anfahrt, Kapazität mit Rechnung, Kolonne, Besetzung mit Zustand je Person, Geräte mit Tagen, Notiz für die Monteure,
+   Warnungen und Hinweise. Was der Dialog zeigt, rechnet der Server (POST /api/planning/slots/pruefen bzw. …/{id}/pruefen, schreibt nichts). #}
+<dialog id="einsatzDialog" class="dialog-karte einsatz-dialog" aria-labelledby="edTitel">
+  <div class="dialog-kopf"><div><h2 id="edTitel">Einsatz planen</h2><p class="unter" id="edUnter"></p></div>
+    <button type="button" class="ds-knopf ds-knopf-symbol" data-klick="schliessen" data-dialog="einsatzDialog" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="dialog-inhalt">
+    <div class="ed-zeile">
+      <div class="segment" role="group" aria-label="Art des Einsatzes" id="edArt"><button type="button" data-art="baustelle" aria-pressed="true">Baustelle</button><button type="button" data-art="kranvermietung" aria-pressed="false">Kranvermietung</button></div>
+      <div class="segment" role="group" aria-label="Status" id="edStatus"><button type="button" data-status="vorlaeufig" aria-pressed="true">vorläufig</button><button type="button" data-status="fest" aria-pressed="false">fest</button></div>
+    </div>
+    <div class="felder" id="edNeuFelder">
+      <label class="feld breit" id="edAuftragFeld">Auftrag<select id="edAuftrag"></select></label>
+      <label class="feld" id="edBezugFeld" hidden>Kranvermietung<select id="edBezug"><option value="kunde">mit Kunde – legt Projekt und Auftrag an</option><option value="auftrag">an einem bestehenden Auftrag</option></select></label>
+      <label class="feld" id="edKundeFeld" hidden>Kunde<select id="edKunde"></select></label>
+      <label class="feld breit" id="edTitelFeld" hidden>Titel (optional)<input id="edTitel2" type="text" maxlength="255" placeholder="Kranvermietung"></label>
+    </div>
+    <div class="ed-vier">
+      <label class="feld">Von<input id="edVon" type="date"></label>
+      <label class="feld">Bis<input id="edBis" type="date"></label>
+      <label class="feld">Stunden<input id="edStunden" type="text" inputmode="decimal" data-zahl data-min="0" placeholder="Rest"></label>
+      <label class="feld">Anfahrt je Tag (h)<input id="edAnfahrt" type="text" inputmode="decimal" data-zahl data-min="0"></label>
+    </div>
+    <p class="klein" id="edRechnung" aria-live="polite"></p>
+    <label class="feld" id="edKolonneFeld">Kolonne<select id="edKolonne"></select></label>
+    <div class="ed-liste-kopf"><span id="edPersonenTitel">Besetzung dieses Einsatzes</span><button type="button" class="link-knopf" id="edPersonPlus" aria-expanded="false" aria-controls="edPersonWahl">+ Person</button></div>
+    <select id="edPersonWahl" hidden aria-label="Person dazunehmen"></select>
+    <div class="ed-karte" id="edPersonen"></div>
+    <div class="ed-liste-kopf"><span>Geräte</span><button type="button" class="link-knopf" id="edGeraetPlus" aria-expanded="false" aria-controls="edGeraetWahl">+ Gerät</button></div>
+    <select id="edGeraetWahl" hidden aria-label="Gerät dazunehmen"></select>
+    <div class="ed-karte" id="edGeraete"></div>
+    <label class="feld">Notiz für die Monteure<textarea id="edNotiz" rows="2"></textarea></label>
+    <div class="ed-warnkarte" id="edWarnungen" hidden></div>
+    <div class="ds-status" id="edMeldung" role="status"></div>
   </div>
-  <div id="newInfo" class="klein"></div><div id="suggestionBox"></div></div>
-  <div class="dialog-fuss"><button type="button" class="ds-knopf" data-klick="schliessen" data-dialog="createDialog">Abbrechen</button><button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neuSpeichern">Einsatz speichern</button></div>
-</dialog>
-
-<dialog id="editDialog" class="dialog-karte" aria-labelledby="editTitle">
-  <div class="dialog-kopf"><div><h2 id="editTitle">Einsatz bearbeiten</h2><div id="editContext" class="unter"></div></div><button type="button" class="ds-knopf ds-knopf-symbol" data-klick="schliessen" data-dialog="editDialog" aria-label="Schließen">×</button></div>
-  <div class="dialog-inhalt"><div class="felder">
-    <label class="feld breit">Kolonne<select id="editTeam"></select><span id="editBesetzung" class="klein"></span>{# seit 1.9.237: Personen und Geräte dieses Einsatzes (nur lesend; einzeln wählen kommt mit dem Dialog, Punkt 4) #}</label>
-    <label class="feld">Von<input id="editStart" type="date"></label>
-    <label class="feld">Bis<input id="editEnd" type="date"></label>
-    <label class="feld">Stunden<input id="editPlannedHours" type="text" inputmode="decimal" data-zahl data-min="0" placeholder="leer = unverändert"></label>
-    <label class="feld">Anfahrt je Tag (h)<input id="editTravelHours" type="text" inputmode="decimal" data-zahl data-min="0"></label>
-    <label class="feld breit">Status<select id="editStatus"><option value="vorlaeufig">vorläufig</option><option value="fest">fest</option></select></label>
-    <label class="feld breit">Notiz für die Monteure<textarea id="editNotes" rows="2"></textarea></label>
-  </div>
-  <div id="editConflicts"></div></div>
-  <div class="dialog-fuss"><button type="button" class="ds-knopf links" data-klick="loeschen">Einsatz löschen …</button><a id="editPrep" class="ds-knopf" href="#">Arbeitsvorbereitung</a><a id="editProject" class="ds-knopf" href="#">Akte</a><button type="button" class="ds-knopf ds-knopf-aktion" data-klick="bearbeitenSpeichern">Speichern</button></div>
+  <div class="dialog-fuss"><button type="button" class="ds-knopf links" id="edLoeschen" data-klick="loeschen">Einsatz löschen …</button>
+    <button type="button" class="ds-knopf" data-klick="schliessen" data-dialog="einsatzDialog">Abbrechen</button>
+    <button type="button" class="ds-knopf ds-knopf-aktion" id="edSpeichern" data-klick="einsatzSpeichern">Speichern</button></div>
 </dialog>
 
 <dialog id="absenceDialog" class="dialog-karte" aria-labelledby="adTitel">
@@ -303,27 +335,99 @@ function rueckstandZeigen(offen){document.getElementById('tafelLayout').classLis
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Plantafel zeichnet nie über eine neuere.
 async function loadBoard(){const d=datumsliste(),start=d[0],end=d[d.length-1];document.getElementById('zeitraum').textContent=zeitraumText();document.getElementById('status').textContent='Lädt …';try{await lesen('tafel',()=>api(`/api/planning?start=${start}&end=${end}`),b=>{board=b;renderBoard();document.getElementById('status').textContent=''})}catch(e){document.getElementById('planner').innerHTML=`<div class="leer">Fehler: ${esc(e.message)}</div>`;document.getElementById('status').textContent='Fehler'}}
 
-/* --- Dialoge (bis zum neuen Einsatz-Dialog, Punkt 4, die bisherigen Felder) --------------------------------------------------------- */
-function teamOptions(selected,opt={}){return auswahlOptionen(board.teams,selected,x=>(x.number?x.number+' · ':'')+x.name+' · '+x.employees.length+' MA',opt)}
+/* --- Einsatz-Dialog (seit 1.9.248, Stufe 6, R4, Punkt 4; Zeichnung plantafel-einsatz.html) -----------------------------------------------
+   einsatz = der Stand im Dialog; geaendert = was beim Bearbeiten gesendet wird (Teil-Update, Regel 22: nur, was der Dialog geändert hat). Der Server prüft
+   bei jeder Änderung (prüfen, schreibt nichts) und liefert Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen und Hinweise. */
+let einsatz=null,geaendert=new Set(),pruefung=null,pruefungFuer=null,weiterePersonen=[],weitereGeraete=[],kunden=null,pruefenZeit=null;
+function teamOptions(selected,opt={}){return auswahlOptionen(board.teams,selected,x=>x.name+' – schlägt '+(x.employees.map(e=>e.vorname||e.name).join(', ')||'niemanden')+' vor',opt)}
 function orderOptions(selected){return orders.map(x=>`<option value="${x.id}" ${x.id===selected?'selected':''}>${esc(x.order_number+' · '+x.project_number+' · '+x.project_name)}</option>`).join('')}
-function selectedBacklog(orderId){return board.backlog.find(x=>x.order_id===orderId)}function clearSuggestion(){document.getElementById('suggestionBox').innerHTML=''}
+function selectedBacklog(orderId){return board.backlog.find(x=>x.order_id===orderId)}
 // Seit 1.9.144 lädt erst das Öffnen die Auswahl (nur offene Aufträge, Server); seit 1.9.155 (L6) ein Auftrag, der nicht in der Auswahl steht -- der Grund statt eines Dialogs
 async function einsatzGesperrt(id){const z=document.getElementById('einsatzHinweis');try{await lesen('auftrag-sperre',()=>api(`/api/planning/auftraege/${id}`),a=>{z.innerHTML=`<b>Kein neuer Einsatz für ${esc(a.order_number)}:</b> ${esc(a.gesperrt||'Der Auftrag steht nicht zur Auswahl.')}`})}catch(e){z.innerHTML=`<b>Kein neuer Einsatz:</b> ${esc(e.message)}`}}
-async function openCreate(orderId=null,startDate=null,teamId=null){try{await lesen('auftraege',()=>api('/api/planning/auftraege'),o=>{orders=o})}catch(e){document.getElementById('status').textContent='Fehler: '+e.message;return}if(orderId&&!orders.some(x=>x.id===orderId)){await einsatzGesperrt(orderId);return}document.getElementById('einsatzHinweis').innerHTML='';document.getElementById('newOrder').innerHTML=orderOptions(orderId);document.getElementById('newTeam').innerHTML=teamOptions(teamId);if(orderId)document.getElementById('newOrder').value=orderId;if(teamId)document.getElementById('newTeam').value=teamId;const b=selectedBacklog(Number(orderId));const st=startDate||b?.suggested_start||iso(periodStart);document.getElementById('newStart').value=st;document.getElementById('newEnd').value=b?.suggested_end||addDays(st,4);document.getElementById('newPlannedHours').value=zahlText(b?.planned_hours||'');document.getElementById('newTravelHours').value=zahlText(board.settings?.default_travel_hours_per_employee_day??0);document.getElementById('newStatus').value='vorlaeufig';document.getElementById('newNotes').value='';document.getElementById('newInfo').textContent=b?`${b.project_number} · ${b.property_address||''} · Soll ${zahlText(b.planned_hours,2)} h`:(orders.length?'':'Es gibt keinen offenen Auftrag.');clearSuggestion();createDialog.showModal()}
-async function calculateSuggestion(){const box=document.getElementById('suggestionBox');try{box.innerHTML='<div class="klein">Berechne Kapazität …</div>';const payload={order_id:Number(document.getElementById('newOrder').value),team_id:Number(document.getElementById('newTeam').value),start_date:document.getElementById('newStart').value,daily_work_hours:Number(board.settings?.daily_work_hours||8),travel_hours_per_employee_day:zahlFeld('newTravelHours',{leer:0})};const s=await speichern('vorschlag',()=>api('/api/planning/suggestion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));document.getElementById('newEnd').value=s.suggested_end;document.getElementById('newPlannedHours').value=zahlText(s.planned_hours);const notes=s.days.filter(x=>x.absent_employees?.length||x.holiday).map(x=>`${esc(fmt(x.date))}: ${esc(x.holiday||x.absent_employees.map(a=>a.type?a.name+' ('+a.type+')':a.name).join(', '))}`).join('<br>');box.innerHTML=`<div class="vorschlag-karte"><div class="klein">Planungsvorschlag</div><b>${esc(zahlText(s.required_team_days_decimal,2))} Teamtage</b> · ${esc(s.calendar_workdays_needed)} Arbeitstage im Kalender<div><b>${esc(s.employee_count)} MA</b> · Sollzeit am ${esc(fmt(s.full_team_capacity_date))} − je ${esc(zahlText(s.travel_hours_per_employee_day,2))} h Anfahrt = <b>${esc(zahlText(s.full_team_daily_capacity,2))} Team-h/Tag</b></div><div>Vorschlag: <b>${esc(fmt(s.suggested_start))} bis ${esc(fmt(s.suggested_end))}</b></div><div class="klein">${esc(s.formula)}</div>${notes?`<div class="klein"><b>Berücksichtigte Einschränkungen:</b><br>${notes}</div>`:''}</div>`}catch(e){box.innerHTML=`<div class="conflict-row">${esc(e.message)}</div>`}}
-// Seit 1.9.143 (Stufe 6, R1, Punkt 1): der Server rechnet die Konflikte beim Speichern. Warnungen -> 409 mit Liste, nichts gespeichert (konfliktFrage()); Hinweise stehen in der Antwort (einsatzHinweise()).
+function findSlot(id){return board.slots.find(x=>x.id===id)}
+// die Einsätze einer Zeile der Ansicht (wie bis 1.9.246; die Klicktests fragen danach)
+function slotsForRow(row){if(view==='employees')return board.slots.filter(s=>s.employees.some(x=>x.id===row.id));if(view==='resources')return board.slots.filter(s=>s.resources.some(x=>x.id===row.id));return board.slots.filter(s=>s.team_id===row.id)}
+/* seit 1.9.237 (Stufe 6, R3a, Punkt 6): wer und was an diesem Einsatz steht -- seit 1.9.248 im title des Balkens und als Liste im Dialog */
+function besetzungText(s){const g=s.resources.map(r=>r.name+(r.tage?' ('+r.tage.map(t=>fmt(t)).join(', ')+')':'')).join(', ');return 'Besetzung: '+(s.employees.map(e=>e.name).join(', ')||'niemand')+(g?' · Geräte: '+g:'')+'. Eine andere Kolonne setzt ihre Mitglieder und Geräte.'}
+async function openCreate(orderId=null,startDate=null,teamId,mehr={}){try{await lesen('auftraege',()=>api('/api/planning/auftraege'),o=>{orders=o})}catch(e){document.getElementById('status').textContent='Fehler: '+e.message;return}
+  if(orderId&&!orders.some(x=>x.id===orderId)){await einsatzGesperrt(orderId);return}document.getElementById('einsatzHinweis').innerHTML='';
+  const art=mehr.art||'baustelle',b=selectedBacklog(Number(orderId)),st=startDate||b?.suggested_start||iso(periodStart);
+  einsatz={id:null,art,order_id:orderId||(art==='baustelle'&&orders.length?orders[0].id:null),customer_id:null,titel:'',team_id:art==='kranvermietung'?null:(teamId===undefined?(board.teams[0]?.id??null):teamId),
+    employee_ids:mehr.employee_ids??null,geraete:mehr.geraete??null,start_date:st,end_date:startDate&&!b?st:(b?.suggested_end||addDays(st,4)),status:'vorlaeufig',notes:'',planned_hours:null,travel:board.settings?.default_travel_hours_per_employee_day??0,bezug:'kunde',kran_termin_id:mehr.kran_termin_id??null};
+  geaendert=new Set();weiterePersonen=[];weitereGeraete=[];pruefung=null;if(art==='kranvermietung')await kundenLaden();dialogFuellen();einsatzDialog.showModal();pruefenJetzt()}
+function openEdit(id){const s=findSlot(id);if(!s)return;currentSlot=s;einsatz={id:s.id,art:s.art,order_id:s.order_id,customer_id:null,titel:'',team_id:s.team_id,employee_ids:s.employees.map(e=>e.id),geraete:s.resources.map(r=>({resource_id:r.id,tage:r.tage})),start_date:s.start_date,end_date:s.end_date,status:s.status,notes:s.notes||'',planned_hours:s.planned_hours,travel:s.travel_hours_per_employee_day,slot:s};geaendert=new Set();weiterePersonen=[];weitereGeraete=[];pruefung=null;dialogFuellen();einsatzDialog.showModal();pruefenJetzt()}
+async function kundenLaden(){if(kunden)return;try{await lesen('kunden',()=>api('/api/customers'),k=>{kunden=k})}catch(e){kunden=[];document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
+function dialogFuellen(){const neu=einsatz.id==null,kran=einsatz.art==='kranvermietung',s=einsatz.slot;
+  document.getElementById('edTitel').textContent=neu?(kran?'Kranvermietung anlegen':'Einsatz planen'):'Einsatz bearbeiten';
+  document.querySelectorAll('#edArt button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.art===einsatz.art));b.disabled=!neu});
+  document.querySelectorAll('#edStatus button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.status===einsatz.status)));
+  document.getElementById('edNeuFelder').hidden=!neu;
+  document.getElementById('edAuftragFeld').hidden=!neu||(kran&&einsatz.bezug==='kunde');document.getElementById('edBezugFeld').hidden=!neu||!kran;
+  document.getElementById('edKundeFeld').hidden=!neu||!kran||einsatz.bezug!=='kunde';document.getElementById('edTitelFeld').hidden=!neu||!kran||einsatz.bezug!=='kunde';
+  if(neu){document.getElementById('edAuftrag').innerHTML=orderOptions(einsatz.order_id);document.getElementById('edBezug').value=einsatz.bezug;
+    if(kran)document.getElementById('edKunde').innerHTML=auswahlOptionen(kunden||[],einsatz.customer_id,x=>x.name+(x.customer_number?' · '+x.customer_number:''),{leer:'Kunde wählen …'});document.getElementById('edTitel2').value=einsatz.titel}
+  document.getElementById('edVon').value=einsatz.start_date;document.getElementById('edBis').value=einsatz.end_date;
+  // seit 1.9.148 (P4): leer heißt beim Planen „Reststunden des Auftrags“, beim Bearbeiten „unverändert“ (der Dialog schickt dann nichts)
+  {const st=document.getElementById('edStunden'),rest=einsatz.id==null||einsatz.planned_hours==null;st.value=einsatz.planned_hours==null?'':zahlText(einsatz.planned_hours,2);st.placeholder=rest?'Rest':'unverändert';st.title=rest?'leer = Reststunden des Auftrags':'leer = unverändert'}document.getElementById('edAnfahrt').value=zahlText(einsatz.travel??0,2);
+  document.getElementById('edKolonneFeld').hidden=kran;document.getElementById('edKolonne').innerHTML=teamOptions(einsatz.team_id,{leer:'ohne Kolonne – Personen selbst wählen'});
+  document.getElementById('edPersonenTitel').textContent=kran?'Bediener':'Besetzung dieses Einsatzes';document.getElementById('edNotiz').value=einsatz.notes;
+  document.getElementById('edLoeschen').hidden=neu;document.getElementById('edMeldung').textContent='';einsatzKopf();zustandZeichnen()}
+function einsatzKopf(){const s=einsatz.slot,o=orders.find(x=>x.id===einsatz.order_id),u=document.getElementById('edUnter');
+  if(s)u.innerHTML=`<a href="/projects/${s.project_id}?auftrag=${s.order_id}">${esc(s.project_number+' · '+s.project_name)}</a> · ${esc(s.customer_name||'')}${s.art==='kranvermietung'?' · Kranvermietung':''}`;
+  else if(o&&!(einsatz.art==='kranvermietung'&&einsatz.bezug==='kunde'))u.innerHTML=`<a href="/projects/${o.project_id}?auftrag=${o.id}">${esc(o.project_number+' · '+o.project_name)}</a> · ${esc(o.customer_name||'')}`;
+  else u.textContent=einsatz.art==='kranvermietung'?'Projekt und Auftrag „Kranvermietung nach Aufwand“ entstehen beim Speichern.':''}
+// was der Dialog sendet: neu alles, beim Bearbeiten nur, was geändert ist
+function einsatzWerte(){const w={};const alle=einsatz.id==null;const neu=(k,v)=>{if(alle||geaendert.has(k))w[k]=v};
+  if(alle){w.art=einsatz.art;if(einsatz.art==='kranvermietung'&&einsatz.bezug==='kunde'){w.order_id=null;w.customer_id=einsatz.customer_id;w.titel=einsatz.titel.trim()||null}else w.order_id=einsatz.order_id;if(einsatz.kran_termin_id)w.kran_termin_id=einsatz.kran_termin_id}
+  if(einsatz.art!=='kranvermietung')neu('team_id',einsatz.team_id);if(einsatz.employee_ids!=null)neu('employee_ids',einsatz.employee_ids);if(einsatz.geraete!=null)neu('geraete',einsatz.geraete);
+  neu('start_date',einsatz.start_date);neu('end_date',einsatz.end_date);neu('status',einsatz.status);neu('notes',einsatz.notes.trim()||null);if(einsatz.planned_hours!=null||alle)neu('planned_hours',einsatz.planned_hours);neu('travel_hours_per_employee_day',einsatz.travel??0);return w}
+// liest die Felder (auch wenn jemand einen Wert setzt, ohne ein Ereignis auszulösen) -- false, wenn eine Zahl nicht gelesen werden kann
+function felderLesen(){const k=document.getElementById('edKolonne').value,team=k===''?null:Number(k);if(einsatz.art!=='kranvermietung'&&team!==einsatz.team_id){einsatz.team_id=team;geaendert.add('team_id');if(team!=null){if(!geaendert.has('employee_ids'))einsatz.employee_ids=null;if(!geaendert.has('geraete'))einsatz.geraete=null}}
+  const feld=(id,key,wert)=>{if(wert!==einsatz[key]){einsatz[key]=wert;geaendert.add(key)}};feld('edVon','start_date',document.getElementById('edVon').value);feld('edBis','end_date',document.getElementById('edBis').value);
+  feld('edNotiz','notes',document.getElementById('edNotiz').value);if(einsatz.id==null){const a=document.getElementById('edAuftrag').value;einsatz.order_id=a?Number(a):null;einsatz.bezug=document.getElementById('edBezug').value;const c=document.getElementById('edKunde').value;einsatz.customer_id=c?Number(c):null;einsatz.titel=document.getElementById('edTitel2').value}
+  try{const st=zahlFeld('edStunden',{leer:null});if(String(st)!==String(einsatz.planned_hours)){einsatz.planned_hours=st;geaendert.add('planned_hours')}const an=zahlFeld('edAnfahrt',{leer:0});if(String(an)!==String(einsatz.travel)){einsatz.travel=an;geaendert.add('travel_hours_per_employee_day')}}catch(e){document.getElementById('edMeldung').textContent='Fehler: '+e.message;return false}return true}
+function pruefen(){clearTimeout(pruefenZeit);pruefenZeit=setTimeout(pruefenJetzt,200)}
+// seit 1.9.155 (Befund L6): ohne Auftrag bzw. Kunde eine Meldung statt einer Anfrage -- seit 1.9.248 vor dem Prüfen und dem Speichern
+function fehltBezug(){if(einsatz.id!=null)return '';if(einsatz.art==='kranvermietung'&&einsatz.bezug==='kunde')return einsatz.customer_id?'':'Bitte einen Kunden wählen.';if(einsatz.order_id)return '';return orders.length?'Bitte einen Auftrag wählen.':'Es gibt keinen offenen Auftrag.'}
+async function pruefenJetzt(){if(!einsatz||!felderLesen())return;einsatzKopf();const fehlt=fehltBezug();if(fehlt){pruefung=null;pruefungFuer=null;zustandZeichnen();document.getElementById('edMeldung').textContent=fehlt;return}
+  const url=einsatz.id==null?'/api/planning/slots/pruefen':`/api/planning/slots/${einsatz.id}/pruefen`,body=JSON.stringify({...einsatzWerte(),weitere_personen:weiterePersonen,weitere_geraete:weitereGeraete});
+  try{await speichern('pruefen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{anwenden:p=>{pruefung=p;einsatz.employee_ids=p.personen.filter(x=>x.gewaehlt).map(x=>x.id);einsatz.geraete=p.geraete.filter(x=>x.gewaehlt).map(x=>({resource_id:x.id,tage:x.tage}));pruefungFuer=pruefStand();document.getElementById('edMeldung').textContent='';zustandZeichnen()}})}
+  catch(e){pruefung=null;pruefungFuer=null;zustandZeichnen();document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
+// wie der Server (1.9.143): Warnungen fragen beim Anlegen und wenn sich Kolonne, Zeitraum, Besetzung oder Geräte ändern -- nur die Notiz oder der Status nicht
+function einsatzFragt(){return einsatz.id==null||['team_id','start_date','end_date','employee_ids','geraete'].some(k=>geaendert.has(k))}
+function pruefStand(){return JSON.stringify({...einsatzWerte(),weitere_personen:weiterePersonen,weitere_geraete:weitereGeraete})}
+const ZUSTAND_KLASSE={doppelt:'z-warn',abwesend:'z-warn',pruefung:'z-warn',antrag:'z-hinweis',belegt:'z-leise',frei:'z-leise'};
+function personZeile(p){return `<label class="wahl"><input type="checkbox" data-aenderung="personWahl" data-id="${p.id}" ${p.gewaehlt?'checked':''}><span class="wahl-name">${esc(p.name)}</span><span class="wahl-zustand ${ZUSTAND_KLASSE[p.zustand]||'z-leise'}">${p.zustand==='doppelt'||p.zustand==='abwesend'?WARNZEICHEN:''}${p.zustand==='antrag'?'<span class="hinweis-punkt" aria-hidden="true"></span>':''}${esc(p.text)}</span></label>`}
+function geraetZeile(g){return `<div class="wahl-gruppe"><label class="wahl"><input type="checkbox" data-aenderung="geraetWahl" data-id="${g.id}" ${g.gewaehlt?'checked':''}><span class="wahl-name">${esc(g.name)}</span><span class="wahl-zustand ${ZUSTAND_KLASSE[g.zustand]||'z-leise'}">${g.zustand==='doppelt'||g.zustand==='pruefung'?WARNZEICHEN:''}${esc([g.text,g.gewaehlt?'':''].filter(Boolean).join(' · '))}</span>${g.gewaehlt?`<button type="button" class="link-knopf" data-klick="geraetTage" data-id="${g.id}" aria-expanded="false">${esc(g.tage_text)}</button>`:''}</label><div class="tage-wahl" data-tage-von="${g.id}" hidden></div></div>`}
+function zustandZeichnen(){const p=pruefung;const personen=p?p.personen:(einsatz.employee_ids||[]).map(id=>({id,name:(board.employees.find(e=>e.id===id)||{}).name||'#'+id,gewaehlt:true,zustand:'frei',text:''}));
+  document.getElementById('edPersonen').innerHTML=personen.map(personZeile).join('')||'<div class="klein">Noch niemand gewählt.</div>';
+  const geraete=p?p.geraete:(einsatz.geraete||[]).map(g=>({id:g.resource_id,name:(board.resources.find(r=>r.id===g.resource_id)||{}).name||'#'+g.resource_id,gewaehlt:true,tage:g.tage,tage_text:g.tage?'einzelne Tage':'alle Tage',zustand:'frei',text:''}));
+  document.getElementById('edGeraete').innerHTML=geraete.map(geraetZeile).join('')||'<div class="klein">Kein Gerät.</div>';
+  const k=p&&p.kapazitaet;document.getElementById('edRechnung').textContent=k?[k.rest!=null?'Rest laut Kalkulation '+zahlText(k.rest,2)+' h':'','Kapazität '+k.text].filter(Boolean).join(' · '):'';
+  const w=p?p.warnungen:[],h=p?p.hinweise:[],box=document.getElementById('edWarnungen');box.hidden=!(w.length||h.length);
+  box.innerHTML=(w.length||h.length)?`<span class="ed-eb"><span class="punkt"></span>${esc([w.length?w.length+(w.length===1?' Warnung':' Warnungen'):'',h.length?h.length+(h.length===1?' Hinweis':' Hinweise'):''].filter(Boolean).join(' · '))}</span>${w.map(konfliktZeile).join('')}${h.map(c=>`<div class="klein ed-hinweis"><span class="hinweis-punkt" aria-hidden="true"></span>${konfliktZeile(c)}</div>`).join('')}`:'';
+  document.getElementById('edSpeichern').textContent=w.length?'Trotzdem planen':(einsatz.id==null?'Einsatz speichern':'Speichern');
+  const nicht=(liste,alle)=>alle.filter(x=>!liste.some(y=>y.id===x.id));document.getElementById('edPersonWahl').innerHTML='<option value="">Person wählen …</option>'+nicht(personen,board.employees).map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  document.getElementById('edGeraetWahl').innerHTML='<option value="">Gerät wählen …</option>'+nicht(geraete,geraeteSortiert()).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}
+// Tage eines Geräts wählen: alle oder einzelne (Knöpfe je Tag des Einsatzes)
+function tageZeigen(id){const box=document.querySelector(`[data-tage-von="${Number(id)}"]`),g=(einsatz.geraete||[]).find(x=>x.resource_id===Number(id));if(!box||!g)return;if(!box.hidden){box.hidden=true;return}
+  const tage=[];for(let d=einsatz.start_date;d<=einsatz.end_date;d=addDays(d,1))tage.push(d);box.innerHTML=tage.map(d=>`<button type="button" class="tag-knopf" data-klick="geraetTag" data-id="${Number(id)}" data-tag="${esc(d)}" aria-pressed="${!g.tage||g.tage.includes(d)}">${esc(wochentag(d)+' '+fmt(d))}</button>`).join('');box.hidden=false}
+function geraetTagUmschalten(id,tag){const g=(einsatz.geraete||[]).find(x=>x.resource_id===id);if(!g)return;const alle=[];for(let d=einsatz.start_date;d<=einsatz.end_date;d=addDays(d,1))alle.push(d);let t=g.tage?g.tage.slice():alle.slice();t=t.includes(tag)?t.filter(x=>x!==tag):t.concat([tag]).sort();if(!t.length)return;g.tage=t.length===alle.length?null:t;geaendert.add('geraete');pruefenJetzt()}
+async function einsatzSpeichern(){if(!einsatz||!felderLesen())return;clearTimeout(pruefenZeit);const fehlt=fehltBezug();if(fehlt){document.getElementById('edMeldung').textContent=fehlt;return}
+  if(pruefStand()!==pruefungFuer){await pruefenJetzt();if(!pruefung)return;if(pruefung.warnungen.length&&einsatzFragt()){document.getElementById('edMeldung').textContent='Bitte die Warnungen prüfen – dann „Trotzdem planen“.';return}}
+  const trotzdem=!!(pruefung&&pruefung.warnungen.length);const w={...einsatzWerte(),trotzdem_planen:trotzdem};
+  const url=einsatz.id==null?(einsatz.kran_termin_id?`/api/planning/kran-termine/${einsatz.kran_termin_id}/kranvermietung`:'/api/planning/slots'):`/api/planning/slots/${einsatz.id}`,methode=einsatz.id==null?'POST':'PUT';if(einsatz.kran_termin_id)delete w.kran_termin_id;
+  try{const a=await speichern('tafel',()=>api(url,{method:methode,headers:{'Content-Type':'application/json'},body:JSON.stringify(w)}));einsatzDialog.close();einsatzHinweise(a);await loadBoard()}
+  catch(e){if(e.status===409&&e.warnungen){/* seit 1.9.143: neue Warnungen seit der Prüfung -- jetzt im Dialog, „Trotzdem planen“ */pruefung={...(pruefung||{personen:[],geraete:[],kapazitaet:null}),warnungen:e.warnungen,hinweise:e.hinweise||[]};zustandZeichnen();document.getElementById('edMeldung').textContent='Nichts gespeichert – bitte prüfen oder trotzdem planen.'}else document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
+// bis 1.9.247 zwei Dialoge -- die Namen bleiben (Klicktests, Akte)
+function saveNew(){return einsatzSpeichern()}function saveEdit(){return einsatzSpeichern()}
+// Seit 1.9.143 (Stufe 6, R1, Punkt 1): der Server rechnet die Konflikte beim Speichern. Warnungen -> 409 mit Liste, nichts gespeichert (beim Ziehen: konfliktFrage()); Hinweise stehen in der Antwort (einsatzHinweise()).
 function konfliktZeile(c){return `<div class="conflict-row"><b>${esc((KONFLIKT_ART[c.type]||'')+c.label)}</b>${c.other_project?` · gleichzeitig in ${esc(c.other_project)} · ${esc(c.other_project_name)}`:''}${c.date?` · ${esc(fmt(c.date))}`:''}</div>`}
 let konfliktWeiter=null;
 function konfliktFrage(e,weiter){if(e.status!==409||!e.warnungen)return false;konfliktWeiter=weiter;document.getElementById('konfliktWarnungen').innerHTML=e.warnungen.map(konfliktZeile).join('');document.getElementById('konfliktHinweise').innerHTML=(e.hinweise||[]).length?'<div class="klein">Dazu als Hinweis:</div>'+e.hinweise.map(konfliktZeile).join(''):'';document.getElementById('konfliktFehler').textContent='';if(!konfliktDialog.open)konfliktDialog.showModal();return true}
 async function trotzdemPlanen(){const weiter=konfliktWeiter;if(!weiter)return;try{await weiter();konfliktWeiter=null;konfliktDialog.close()}catch(e){document.getElementById('konfliktFehler').textContent='Fehler: '+e.message}}
 function einsatzHinweise(a){const h=(a&&a.hinweise)||[];document.getElementById('einsatzHinweis').innerHTML=h.length?`<b>Einsatz gespeichert – zur Kenntnis:</b>${h.map(konfliktZeile).join('')}`:''}
-async function saveNew(trotzdem=false){if(!document.getElementById('newOrder').value){document.getElementById('newInfo').textContent=orders.length?'Bitte einen Auftrag wählen.':'Es gibt keinen offenen Auftrag.';return}try{const body=JSON.stringify({order_id:Number(document.getElementById('newOrder').value),team_id:Number(document.getElementById('newTeam').value),start_date:document.getElementById('newStart').value,end_date:document.getElementById('newEnd').value,status:document.getElementById('newStatus').value,notes:document.getElementById('newNotes').value.trim()||null,planned_hours:zahlFeld('newPlannedHours',{leer:null}),/* seit 1.9.148 (P4): leer = Reststunden des Auftrags (Server) */travel_hours_per_employee_day:zahlFeld('newTravelHours',{leer:0}),trotzdem_planen:trotzdem===true});const a=await speichern('tafel',()=>api('/api/planning/slots',{method:'POST',headers:{'Content-Type':'application/json'},body:body}));createDialog.close();einsatzHinweise(a);await loadBoard()}catch(e){if(trotzdem===true)throw e;if(!konfliktFrage(e,()=>saveNew(true)))document.getElementById('newInfo').textContent='Fehler: '+e.message}}
-function findSlot(id){return board.slots.find(x=>x.id===id)}
-// die Einsätze einer Zeile der Ansicht (wie bis 1.9.246; die Klicktests fragen danach)
-function slotsForRow(row){if(view==='employees')return board.slots.filter(s=>s.employees.some(x=>x.id===row.id));if(view==='resources')return board.slots.filter(s=>s.resources.some(x=>x.id===row.id));return board.slots.filter(s=>s.team_id===row.id)}
-function openEdit(id){const s=findSlot(id);if(!s)return;currentSlot=s;document.getElementById('editTitle').textContent=`${s.project_number} · ${s.project_name}`;document.getElementById('editContext').textContent=`${s.order_number} · ${s.customer_name} · ${s.property_address||s.property_name||''}`;document.getElementById('editTeam').innerHTML=teamOptions(s.team_id,{leer:'ohne Kolonne – die Personen bleiben'});/* seit 1.9.233 */document.getElementById('editBesetzung').textContent=besetzungText(s);document.getElementById('editStart').value=s.start_date;document.getElementById('editEnd').value=s.end_date;document.getElementById('editPlannedHours').value=zahlText(s.planned_hours);document.getElementById('editTravelHours').value=zahlText(s.travel_hours_per_employee_day);/* seit 1.9.12 über auswahlWert() (_auswahl.html) */auswahlWert(document.getElementById('editStatus'),s.status);document.getElementById('editNotes').value=s.notes||'';document.getElementById('editPrep').href=`/orders/${s.order_id}/work-preparation`;document.getElementById('editProject').href=`/projects/${s.project_id}?auftrag=${s.order_id}`;document.getElementById('editConflicts').innerHTML=s.conflicts.length?`<b>Warnungen und Hinweise</b>${s.conflicts.map(konfliktZeile).join('')}`:'<div class="klein">Keine Überschneidungen oder Kapazitätsprobleme erkannt.</div>';editDialog.showModal()}
-async function saveEdit(trotzdem=false){if(!currentSlot)return;try{const stunden=zahlFeld('editPlannedHours',{leer:null}),url=`/api/planning/slots/${currentSlot.id}`,body=JSON.stringify({team_id:document.getElementById('editTeam').value===''?null:Number(document.getElementById('editTeam').value),start_date:document.getElementById('editStart').value,end_date:document.getElementById('editEnd').value,status:document.getElementById('editStatus').value,notes:document.getElementById('editNotes').value.trim()||null,...(stunden===null?{}:{planned_hours:stunden}),/* seit 1.9.148: leer = unverändert */travel_hours_per_employee_day:zahlFeld('editTravelHours',{leer:0}),trotzdem_planen:trotzdem===true});const a=await speichern('tafel',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}));editDialog.close();einsatzHinweise(a);await loadBoard()}catch(e){if(trotzdem===true)throw e;if(!konfliktFrage(e,()=>saveEdit(true)))document.getElementById('editConflicts').innerHTML=`<div class="conflict-row">Fehler: ${esc(e.message)}</div>`}}
-async function deleteCurrent(){if(!currentSlot||!confirm('Einsatz wirklich aus der Plantafel löschen? Die Kolonne an der Arbeitsvorbereitung bleibt.'))return;const url=`/api/planning/slots/${currentSlot.id}`;try{await speichern('tafel',()=>api(url,{method:'DELETE'}));editDialog.close();await loadBoard()}catch(e){document.getElementById('editConflicts').innerHTML=`<div class="conflict-row">Fehler: ${esc(e.message)}</div>`}}
+async function deleteCurrent(){if(!einsatz||einsatz.id==null||!confirm('Einsatz wirklich aus der Plantafel löschen? Die Kolonne an der Arbeitsvorbereitung bleibt.'))return;const url=`/api/planning/slots/${einsatz.id}`;try{await speichern('tafel',()=>api(url,{method:'DELETE'}));einsatzDialog.close();await loadBoard()}catch(e){document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
 
 /* --- Ziehen (Maus) in „Kolonnen“; mit Finger und Rückfrage seit Punkt 2 ------------------------------------------------------------- */
 function tagAnX(x){const s=geo.spalten;for(let i=s.length-1;i>=0;i--)if(x>=s[i].x)return i;return 0}
@@ -353,9 +457,7 @@ async function deleteAbsence(id){if(!confirm('Abwesenheit wirklich löschen? Ein
 aktion('einsatz',el=>openEdit(Number(el.dataset.id)));
 aktion('einplanen',el=>openCreate(Number(el.dataset.auftrag)));
 aktion('schliessen',el=>document.getElementById(el.dataset.dialog).close());
-aktion('vorschlag',()=>calculateSuggestion());
-aktion('neuSpeichern',()=>saveNew());
-aktion('bearbeitenSpeichern',()=>saveEdit());
+aktion('einsatzSpeichern',()=>einsatzSpeichern());
 aktion('loeschen',()=>deleteCurrent());
 aktion('trotzdem',()=>trotzdemPlanen());
 aktion('abwesenheitSpeichern',()=>saveAbsence());
@@ -369,7 +471,20 @@ document.getElementById('filterKnopf').addEventListener('click',()=>{filterAn=!f
 document.getElementById('rkKnopf').addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu')));
 document.getElementById('neuerEinsatz').addEventListener('click',()=>openCreate());
 document.getElementById('menueAbwesenheit').addEventListener('click',()=>openAbsences());
-['newOrder','newTeam','newStart'].forEach(id=>document.getElementById(id).addEventListener('change',()=>clearSuggestion()));
+document.getElementById('menueKran').addEventListener('click',()=>openCreate(null,null,null,{art:'kranvermietung'}));
+// der Dialog prüft bei jeder Änderung (Server, schreibt nichts)
+['edAuftrag','edBezug','edKunde','edKolonne','edVon','edBis'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{if(id==='edBezug'||id==='edKunde'){felderLesen();dialogFuellen()}pruefen()}));
+['edStunden','edAnfahrt','edNotiz','edTitel2'].forEach(id=>document.getElementById(id).addEventListener('change',()=>pruefen()));
+document.querySelectorAll('#edStatus button').forEach(b=>b.addEventListener('click',()=>{einsatz.status=b.dataset.status;geaendert.add('status');document.querySelectorAll('#edStatus button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))}));
+document.querySelectorAll('#edArt button').forEach(b=>b.addEventListener('click',async()=>{if(einsatz.id!=null||einsatz.art===b.dataset.art)return;felderLesen();einsatz.art=b.dataset.art;einsatz.team_id=b.dataset.art==='kranvermietung'?null:(board.teams[0]?.id??null);einsatz.employee_ids=b.dataset.art==='kranvermietung'?[]:null;einsatz.geraete=null;if(einsatz.art==='kranvermietung')await kundenLaden();dialogFuellen();pruefen()}));
+document.getElementById('edPersonPlus').addEventListener('click',()=>{const w=document.getElementById('edPersonWahl');w.hidden=!w.hidden;document.getElementById('edPersonPlus').setAttribute('aria-expanded',String(!w.hidden));if(!w.hidden)w.focus()});
+document.getElementById('edGeraetPlus').addEventListener('click',()=>{const w=document.getElementById('edGeraetWahl');w.hidden=!w.hidden;document.getElementById('edGeraetPlus').setAttribute('aria-expanded',String(!w.hidden));if(!w.hidden)w.focus()});
+document.getElementById('edPersonWahl').addEventListener('change',()=>{const w=document.getElementById('edPersonWahl'),id=Number(w.value);if(!id)return;weiterePersonen.push(id);einsatz.employee_ids=(einsatz.employee_ids||[]).concat([id]);geaendert.add('employee_ids');w.hidden=true;pruefenJetzt()});
+document.getElementById('edGeraetWahl').addEventListener('change',()=>{const w=document.getElementById('edGeraetWahl'),id=Number(w.value);if(!id)return;weitereGeraete.push(id);einsatz.geraete=(einsatz.geraete||[]).concat([{resource_id:id,tage:null}]);geaendert.add('geraete');w.hidden=true;pruefenJetzt()});
+aktion('personWahl',el=>{const id=Number(el.dataset.id);einsatz.employee_ids=el.checked?(einsatz.employee_ids||[]).concat([id]):(einsatz.employee_ids||[]).filter(x=>x!==id);geaendert.add('employee_ids');if(!el.checked&&!weiterePersonen.includes(id))weiterePersonen.push(id);pruefenJetzt()},'change');
+aktion('geraetWahl',el=>{const id=Number(el.dataset.id);einsatz.geraete=el.checked?(einsatz.geraete||[]).concat([{resource_id:id,tage:null}]):(einsatz.geraete||[]).filter(x=>x.resource_id!==id);geaendert.add('geraete');if(!el.checked&&!weitereGeraete.includes(id))weitereGeraete.push(id);pruefenJetzt()},'change');
+aktion('geraetTage',el=>tageZeigen(el.dataset.id));
+aktion('geraetTag',el=>geraetTagUmschalten(Number(el.dataset.id),el.dataset.tag));
 document.getElementById('absenceCategory').addEventListener('change',()=>artNachKategorie());
 let neuZeichnen=null;window.addEventListener('resize',()=>{cancelAnimationFrame(neuZeichnen);neuZeichnen=requestAnimationFrame(()=>renderBoard())});
 try{if(localStorage.getItem('plantafel_rueckstand')==='zu')rueckstandZeigen(false)}catch(e){}

@@ -3156,6 +3156,12 @@ class PlanningSlotGeraet(BaseModel):
     tage: list[date] | None = None
 
 
+class EinsatzPruefungWeitere(BaseModel):
+    """Seit 1.9.248: wofür der Dialog dazu den Zustand braucht (seine Auswahl „+ Person“ / „+ Gerät“, noch nicht im Einsatz)."""
+    weitere_personen: list[int] = Field(default_factory=list, max_length=200)
+    weitere_geraete: list[int] = Field(default_factory=list, max_length=200)
+
+
 class PlanningSlotCreate(BaseModel):
     """Seit 1.9.240 (Stufe 6, R3b, Punkt 2): art „kranvermietung“ an einem Auftrag (order_id) oder mit Kunde (customer_id, Objekt wahlweise, ein
     fremdes nur mit Bestätigung; titel wahlweise, sonst „Kranvermietung“) -- ohne Kolonne, mit mindestens einem Gerät, Bediener als employee_ids."""
@@ -3242,6 +3248,14 @@ class PlanningSlotUpdate(PartialUpdate):
         if self.start_date is not None and self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
         return self
+
+
+class EinsatzPruefungNeu(PlanningSlotCreate, EinsatzPruefungWeitere):
+    """Seit 1.9.248 (Stufe 6, R4, Punkt 4): POST /api/planning/slots/pruefen -- dieselben Felder wie das Anlegen, dazu „+ Person“/„+ Gerät“."""
+
+
+class EinsatzPruefungAenderung(PlanningSlotUpdate, EinsatzPruefungWeitere):
+    """Seit 1.9.248: POST /api/planning/slots/{id}/pruefen -- dieselben Felder wie das Ändern (Teil-Update), dazu „+ Person“/„+ Gerät“."""
 
 
 class PlanningSettingsOut(BaseModel):

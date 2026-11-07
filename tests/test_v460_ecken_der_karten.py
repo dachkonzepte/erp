@@ -98,7 +98,8 @@ NICHT_KARTEN = {
         "secondary", "tile", "view-toggle", "checklist-link",
         "knopf-neutral", "knopf-gesperrt",  # seit 1.9.45 die Knöpfe von „Heute“ (/mobil)
         "feld-text", "feld-zahl", "knopf-symbol", "schritt", "segment", "zeit-nachtragen",  # seit 1.9.67 der Einsatzbericht
-        "auftragswahl")},  # seit 1.9.129 die Auftragswahl im Kopf der Akte (Knopfgruppe)
+        "auftragswahl",  # seit 1.9.129 die Auftragswahl im Kopf der Akte (Knopfgruppe)
+        "tag-knopf")},  # seit 1.9.248 ein Tag eines Geräts im Einsatz-Dialog der Plantafel
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
         "status-pill", "einsatz-zu", "phase-kreis", "muster")},  # muster seit 1.9.247: Farbmuster der Legende der Plantafel  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“

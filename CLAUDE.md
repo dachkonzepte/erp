@@ -1224,7 +1224,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (umgezogen): Zeilen je Kolonne, „Ohne Kolonne“ immer, darunter die Geräte; Balken nach Status und Art, Warnung rot mit Zeichen, Hinweis grauer Punkt,
   Überschneidungen in Spuren untereinander, der title beginnt mit dem Text des Balkens; Knopf „Warnungen · Hinweise“ (`tafel_zaehler()`) als Filter; keine
   Kapazität je Zelle; Daten `geraete_termine()`, `abwesenheiten_der_tafel()` (Art nur ab Büro – Finanzen); Klicktest `scripts/klicktest_plantafel_tafel.py`
-  (`tests/test_v647_plantafel_tafel.py`). Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
+  (`tests/test_v647_plantafel_tafel.py`); seit 1.9.248 ein Einsatz-Dialog nach `plantafel-einsatz.html`, der vor dem Speichern prüft
+  (`app/planning.py::einsatz_pruefen()`, `POST /api/planning/slots/pruefen` und `…/{id}/pruefen`: derselbe Weg wie Anlegen/Ändern, danach rollback --
+  Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen; `tests/test_v648_einsatz_pruefen.py`, Klicktest `klicktest_plantafel_dialog.py`).
+  Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener
   = Besetzung (`tests/test_v640_kranvermietung.py`). Seit 1.9.241 steht ein Einsatz mit einem Gerät mit Postfach im Kalender des Geräts

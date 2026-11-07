@@ -157,15 +157,15 @@ async def pruefen(tab, seed, p):
     # --- Plantafel ---
     await tab.oeffnen("/planning", BEREIT)
     await tab.js(f"void openCreate({seed['order']},null,{seed['team']})")
-    await tab.warten("document.getElementById('createDialog').open")
-    await tab.js("document.getElementById('newStart').value='2026-11-02';document.getElementById('newEnd').value='2026-11-04';document.getElementById('newPlannedHours').value='1'")
+    await tab.warten("document.getElementById('einsatzDialog').open")
+    await tab.js("document.getElementById('edVon').value='2026-11-02';document.getElementById('edBis').value='2026-11-04';document.getElementById('edStunden').value='1'")
     await tab.js("void saveNew()")
-    p.pruefe("Plantafel: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    text = await tab.js("document.getElementById('konfliktWarnungen').textContent")
+    p.pruefe("Plantafel: Warnliste", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)  # seit 1.9.248 im Einsatz-Dialog
+    text = await tab.js("[...document.querySelectorAll('#edWarnungen > .conflict-row')].map(x=>x.textContent).join('')")
     p.pruefe("Plantafel: nennt Kran und Termin", "Gerät doppelt: Kran 30 m · Termin: Vermietung Müller" in text, True)
     await tab.bild("plantafel_warnliste")
-    await tab.js("document.getElementById('konfliktTrotzdem').click()")
-    p.pruefe("Plantafel: trotzdem geplant", await tab.warten("!document.getElementById('konfliktDialog').open&&!document.getElementById('createDialog').open"), True)
+    await tab.js("document.getElementById('edSpeichern').click()")
+    p.pruefe("Plantafel: trotzdem geplant", await tab.warten("!document.getElementById('konfliktDialog').open&&!document.getElementById('einsatzDialog').open"), True)
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

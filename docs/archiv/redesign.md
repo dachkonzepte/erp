@@ -8772,3 +8772,97 @@ Angepasste Erwartungen (Regel 28):
   `test_v600::test_lange_abwesenheit…` alt `klasse:'abwesend'`, neu `klasse:antrag?'beantragt':'abwesend'` (zweite Anpassung in derselben Version).
   `klicktest_plantafel_tafel` wartet nach dem Umschalten der Breite auf das neu gezeichnete Bild statt 0,3 s (`test_v413`: sonst zeitkritisch ohne `ALLEIN`).
   Befund der Gegenproben: die angepasste Erwartung in `test_v414` hatte selbst einen Syntaxfehler (der Kommentar verschluckte `),`), behoben.
+
+### Umsetzung 1.9.248 (Punkt 4): der Einsatz-Dialog
+
+Reihenfolge der Runde: Punkt 4 vor Punkt 2 -- „Klick in eine freie Zelle plant für diese Zeile und diesen Tag“ (Punkt 2) braucht für „Ohne Kolonne“, eine Person
+oder ein Gerät einen Dialog, der Personen und Geräte einzeln wählt. Danach 1.9.249 Punkt 2, 1.9.250 Punkt 3, 1.9.251 Punkt 5, 1.9.252 Punkt 6.
+
+Server (`app/planning.py`): `einsatz_pruefen()` -- derselbe Weg wie `create_slot()` bzw. `update_slot()` (alle Regeln, dieselben Antworten 422/404/409), nach dem
+Flush `_nur_pruefen()`: Warnungen und Hinweise (`einsatz_konflikte()`, beim Ändern alle, auch ohne Änderung), Kapazität mit Rechnung (`_kapazitaet_rechnung()`),
+Zustand je Person (`_personen_zustand()`) und je Gerät (`_geraete_zustand()`), dann rollback -- auch das Projekt einer Kranvermietung mit Kunde und seine Nummer
+bleiben nicht. Endpunkte `POST /api/planning/slots/pruefen` (Felder wie das Anlegen) und `POST /api/planning/slots/{id}/pruefen` (Teil-Update wie PUT), dazu
+`weitere_personen`/`weitere_geraete` („+ Person“, „+ Gerät“); die Art einer Abwesenheit im Text nur für Admin und Büro – Finanzen. `offene_auftraege()` nennt
+dazu Projekt und Kunde (Kopf des Dialogs).
+
+Seite: `einsatzDialog` statt „createDialog“ und „editDialog“ (die Namen `openCreate`, `openEdit`, `saveNew`, `saveEdit` bleiben). Der Dialog führt seinen Stand
+(`einsatz`) und was geändert ist (`geaendert`); beim Bearbeiten schickt er nur das (Regel 22). Jede Änderung prüft auf dem Server (200 ms verzögert, Bereich
+„pruefen“); die Listen der Besetzung und Geräte übernimmt er aus der Antwort (die Kolonne schlägt vor). Speichern: hat sich seit der letzten Prüfung etwas
+geändert, erst prüfen; Warnungen fragen („Trotzdem planen“) beim Anlegen und wenn Kolonne, Zeitraum, Besetzung oder Geräte sich ändern -- eine Änderung nur
+der Notiz, des Status oder der Stunden nicht (wie der Server seit 1.9.143). Eine 409 beim Speichern zeigt die Warnungen im Dialog. Die Rückfrage über dem Dialog
+gibt es nur noch beim Ziehen. Der Planungsvorschlag aus den Soll-Stunden ist nicht mehr im Dialog (die Zeichnung zeigt die Kapazität mit Rechnung);
+`POST /api/planning/suggestion` bleibt.
+
+#### Festlegungen 1.9.248 (Bitte bestätigen)
+
+1. Ein Dialog für Planen und Bearbeiten nach der Zeichnung: Art (beim Bearbeiten fest), Status, Von/Bis/Stunden/Anfahrt nebeneinander (412 px zu zweit),
+   Kapazität mit Rechnung, Kolonne mit „ohne Kolonne – Personen selbst wählen“, Besetzung mit Zustand und „+ Person“, Geräte mit Tagen und „+ Gerät“, Notiz für
+   die Monteure, Warnungen und Hinweise, „Einsatz löschen …“ beim Bearbeiten; „Kranvermietung anlegen“ im Menü öffnet ihn als Kranvermietung (Kunde oder Auftrag,
+   Titel, Bediener, keine Kolonne).
+2. Der Dialog prüft bei jeder Änderung auf dem Server auf demselben Weg wie das Speichern und schreibt nichts (rollback, keine Nummer verbraucht); beim
+   Bearbeiten zeigt er alle Warnungen des Einsatzes.
+3. Kapazität = Sollzeit der Besetzung an den Arbeitstagen minus Anfahrt; gleich je Person und Tag als „n Personen × m Arbeitstage × x h = y h“, sonst je Person;
+   mit Anfahrt der Zusatz „(Sollzeit je Tag − a h Anfahrt)“; „Rest laut Kalkulation“ nur mit Soll am Auftrag (Soll minus die anderen Einsätze).
+4. Zustand je Person (Besetzung, Vorschlag der Kolonne, „+ Person“): gewählt und anderswo eingeplant „auch bei P-… · Zeitraum“ (Warnung), nicht gewählt
+   „Kranvermietung …“ bzw. „bei P-…“, abwesend (die Art nur ab Büro – Finanzen), „<Art> beantragt <ganzer Antrag>“, sonst frei.
+5. Zustand je Gerät (Einsatz, Vorschlag der Kolonne, „+ Gerät“): „alle Tage“ bzw. „nur …“, „vermietet …“ (Kranvermietung) bzw. „bei P-…“, Termin im Kalender,
+   abgelaufene Prüfung; Tage je Gerät über einen Knopf je Tag, alle = alle Tage, mindestens einer.
+6. Speichern prüft zuerst neu, wenn sich seit der letzten Prüfung etwas geändert hat; Warnungen fragen beim Anlegen und bei Kolonne, Zeitraum, Besetzung oder
+   Geräten, nicht bei Notiz, Status oder Stunden allein.
+7. Eine andere Kolonne schlägt ihre Mitglieder und Geräte vor, solange Besetzung bzw. Geräte im Dialog nicht von Hand geändert sind.
+8. Der Planungsvorschlag aus den Soll-Stunden entfällt im Dialog (Schnittstelle bleibt).
+9. Die Rückfrage über dem Dialog entfällt; beim Ziehen bleibt sie.
+10. Die Auswahl der Aufträge nennt Projekt und Kunde.
+11. Ohne Auftrag (bzw. bei einer Kranvermietung ohne Kunde) meldet sich der Dialog vor dem Prüfen und vor dem Speichern -- „Es gibt keinen offenen
+    Auftrag.“ bzw. „Bitte einen Auftrag wählen.“ --, ohne eine Anfrage (wie seit 1.9.155, Befund L6).
+12. „Stunden“ leer heißt beim Planen „Reststunden des Auftrags“ (der Dialog schickt null), beim Bearbeiten eines Einsatzes mit Stunden „unverändert“ (er
+    schickt nichts); der Platzhalter sagt es (wie seit 1.9.148, P4).
+
+#### Tests und Prüfung 1.9.248
+
+Neu: `tests/test_v648_einsatz_pruefen.py` (neu ohne Spuren, Anfahrt und ungleiche Tage, Zustand je Person und je Gerät, Kranvermietung ohne Projekt und Nummer,
+Ändern mit allen Warnungen ohne Spuren, Rest laut Kalkulation, Schnittstelle mit Rolle und Fehlern) und `scripts/klicktest_plantafel_dialog.py` (Zeichnung
+nachgestellt: Kopf, Art und Status, Felder nebeneinander, Rechnung, Kolonne, Zustände, Warnungen; sofort speichern nach Wechsel der Kolonne; Ändern; Tage eines
+Geräts; Kranvermietung anlegen; neu, dabei Kolonne Süd -> Nord -> Person von Hand ab -> Süd; 1440/1280/412 px; dunkel). Gegenproben: Archiv
+`gegenproben-stufe6-r4.md`.
+
+Fund im ersten Suitenlauf: zehn Tests prüften noch den früheren Dialog (Planungsvorschlag, `createDialog`/`saveNew()`, Auswahl „editTeam“ und
+„newStatus“). Einer davon zeigte einen echten Rückschritt: ohne gewählten Auftrag fragte der neue Dialog den Server und zeigte dessen Fehler statt
+„Es gibt keinen offenen Auftrag.“ bzw. „Bitte einen Auftrag wählen.“ (Befund L6, 1.9.155) -- behoben über `fehltBezug()` vor dem Prüfen und dem
+Speichern (Festlegung 11). Dabei der Platzhalter der Stunden beim Bearbeiten („unverändert“ statt „Rest“, Festlegung 12). Die übrigen Tests auf den
+neuen Dialog umgestellt, gleicher Zweck (unten).
+
+Fund bei den Gegenproben: `248_7` blieb zuerst grün -- der Klicktest Besetzung wechselt die Kolonne nur beim Bearbeiten, und dort schickt der Dialog die
+Besetzung nicht mit (nicht geändert), der Server schlägt die neue Kolonne ohnehin vor. Geprüft wird jetzt ein neuer Einsatz im Klicktest Dialog. Dabei
+fiel auf: die Geräte wurden nur neu vorgeschlagen, wenn auch die Besetzung nicht von Hand geändert war -- jetzt unabhängig, wie Festlegung 7 sagt
+(„bzw.“); Gegenprobe `248_7b`.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v373`: neu eingeordnet `POST /api/planning/slots/pruefen order_id`, `customer_id` (FREI) und `property_id` (GEPRUEFT) -- Aufbau.
+- `test_v424`: alt `newPlannedHours`, `newTravelHours`, `editPlannedHours`, `editTravelHours`; neu `edStunden`, `edAnfahrt` (mit den Schemas des Prüfens).
+- `test_v447`: `KLASSEN` alt `newOrder`/`newTeam` (neu), neu `edBezug` (neu); `test_plantafel_status` alt die Auswahl „editStatus“ mit Altwert in node, neu der
+  Umschalter schickt den Status nur, wenn er geändert ist; Prüfabfrage `planning_slots.status` alt Optionen der Auswahl, neu `EINSATZ_STATUS`.
+- `test_v460`: `NICHT_KARTEN` um „tag-knopf“ (Aufbau).
+- `test_v564::test_auswahl_nur_offene_auftraege_nur_was_sie_zeigt_eine_abfrage`: alt vier Schlüssel, neu dazu `project_id`, `customer_name`.
+- `test_v616::test_seite_nennt_die_sollzeit`: alt der Planungsvorschlag „Sollzeit am …“, neu `'Kapazität '+k.text` (Rechnung vom Server).
+- `test_v637::test_dialog_fuellt_die_zeile_beim_oeffnen`: alt `editBesetzung` mit `besetzungText()`, neu die Listen aus `openEdit()` und `#edPersonen`.
+- `klicktest_plantafel_besetzung`: Status alt Auswahl, neu Umschalter; „Dialog: Besetzung und Geräte“ alt ein Satz, neu die gewählten Listen; erste Option der
+  Kolonne alt „ohne Kolonne – die Personen bleiben“, neu „ohne Kolonne – Personen selbst wählen“; „Süd: Rückfrage“ und „ohne Kolonne: fragt …“ alt die
+  Rückfrage über dem Dialog, neu „Trotzdem planen“ im Dialog; Status fest alt Auswahl, neu Umschalter.
+- `klicktest_plantafel_konflikte`: Warnliste alt eigene Rückfrage (`konfliktDialog`), neu im Einsatz-Dialog (`#edWarnungen`, „Trotzdem planen“); „Abbrechen:
+  zurück im Dialog“ prüft jetzt den offenen Dialog ohne Rückfrage; Felder `ed…` statt `new…`/`edit…`; L6 alt `newOrder`, neu `edAuftrag`.
+- `klicktest_plantafel_kalender`, `klicktest_zahleneingaben`, `klicktest_outlook_postfaecher`, `klicktest_plantafel_tafel`: Felder und Dialog `ed…`/`einsatzDialog`
+  statt `new…`/`edit…`/`createDialog`/`editDialog`; die Meldung in `#edMeldung`; die Warnliste im Dialog. Erwartete Texte unverändert.
+- `test_v405::test_namen_im_planungsvorschlag_bleiben_text`: alt der Planungsvorschlag (`calculateSuggestion()`, `#suggestionBox`), neu der Einsatz-Dialog
+  mit der echten Antwort von `POST /api/planning/slots/pruefen` (Mitarbeiterin mit Skript im Namen abwesend, Feiertag mit Skript) -- Namen als Text in
+  `#edPersonen` und `#edWarnungen`.
+- `test_v568::test_seite_schickt_leer_als_null_und_beim_bearbeiten_nichts`: alt Wortlaut von `saveNew()`/`saveEdit()` und zwei Platzhalter, neu
+  `felderLesen()`/`einsatzWerte()` in node (neu `planned_hours: null`, Bearbeiten nichts) und der Platzhalter je Fall.
+- `test_v568::test_vorschlag_nennt_die_art_nur_wenn_sie_da_ist`: Schnittstelle unverändert; alt der Wortlaut der Anzeige im Vorschlag, neu: keine Anzeige
+  des Vorschlags und keine Art, die die Seite selbst anhängt.
+- `test_v573` (vier Tests über `openCreate()`/`saveNew()`): alt `createDialog` und `#newInfo`, neu `einsatzDialog`, `einsatzSpeichern()` und `#edMeldung`
+  -- dieselben Meldungen; „Bitte einen Auftrag wählen.“ jetzt nach geleertem Auftrag (der Dialog wählt den ersten offenen vor); neu
+  `test_pruefen_ohne_auftrag_meldet_sich_vor_der_anfrage`.
+- `test_v633::test_tafel_zeigt_besetzung_und_ohne_kolonne`: alt `editTeam` mit „ohne Kolonne – die Personen bleiben“, neu `edKolonne` mit „ohne Kolonne –
+  Personen selbst wählen“.
+- `test_v635::test_dialog_und_verlauf`: alt die Auswahl `newStatus`/`editStatus`, neu der Umschalter `#edStatus` (vorläufig, fest; neu vorläufig).

@@ -84,3 +84,26 @@ Kein Marker unter `app/` nach den Läufen (die Gegenprobe ändert nur den Test).
 
 Ohne Gegenprobe: Nr. 9 (entfallene Anzeige, keine Regel mehr da), Nr. 10 „Stand im Browser“ (Bequemlichkeit, `localStorage`). Kein Marker unter `app/` nach den
 Läufen.
+
+## 1.9.248 (Punkt 4): der Einsatz-Dialog
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Kranvermietung anlegen“ im Menü | ausgeblendet (`248_1`, Klicktest) | rot: klicktest_plantafel_dialog „Menü: Kranvermietung anlegen steht im Menü“ |
+| Nr. 2 – schreibt nichts | commit statt rollback (`248_2a`) | 5 rot: v648 (test_neu_mit_kapazitaet_und_ohne_spuren, test_aendern_nennt_alle_warnungen_und_laesst_alles, test_kranvermietung_mit_kunde_laesst_kein_projekt_und_keine_nummer, test_zustand_je_person, test_schnittstelle_mit_rolle_und_fehlern) |
+| Nr. 2 – beim Ändern nichts, alle Warnungen | Prüfen beim Ändern ausgeschaltet (`248_2b`) | 1 rot: v648::test_aendern_nennt_alle_warnungen_und_laesst_alles |
+| Nr. 3 – Rechnung gleich je Person und Tag | immer je Person (`248_3a`) | 2 rot: v648 (test_neu_mit_kapazitaet_und_ohne_spuren, test_aendern_nennt_alle_warnungen_und_laesst_alles) |
+| Nr. 3 – Zusatz Anfahrt | ohne (`248_3b`) | 1 rot: v648::test_anfahrt_und_ungleiche_tage_je_person |
+| Nr. 3 – Rest nur mit Soll | immer ein Rest (`248_3c`) | 1 rot: v648::test_kranvermietung_mit_kunde_laesst_kein_projekt_und_keine_nummer |
+| Nr. 4 – „auch bei …“ | ohne „auch“ (`248_4a`) | 1 rot: v648::test_zustand_je_person |
+| Nr. 4 – Art nur ab Büro – Finanzen | immer die Art (`248_4b`) | 1 rot: v648::test_schnittstelle_mit_rolle_und_fehlern |
+| Nr. 4 – ganzer Antrag | gekürzt auf den Einsatz (`248_4c`) | 1 rot: v648::test_zustand_je_person |
+| Nr. 5 – „vermietet …“ | immer „bei P-…“ (`248_5a`) | 1 rot: v648::test_zustand_je_geraet_und_einzelne_tage |
+| Nr. 5 – „nur …“ | immer „alle Tage“ (`248_5b`) | 1 rot: v648::test_zustand_je_geraet_und_einzelne_tage |
+| Nr. 6 – Warnungen fragen nur bei Kolonne, Zeitraum, Besetzung, Geräten | fragt immer (`248_6a`, Klicktest Konflikte) | rot: klicktest_plantafel_konflikte „nur Notiz“ |
+| Nr. 6 – Speichern prüft zuerst neu | ohne neue Prüfung (`248_6b`, Klicktest Dialog) | rot: klicktest_plantafel_dialog „Kolonne gewechselt und sofort gespeichert“ (dazu Folgeprüfungen) |
+| Nr. 7 – eine andere Kolonne schlägt ihre Mitglieder vor | Besetzung bleibt (`248_7`, Klicktest Dialog) | zuerst GRÜN gegen klicktest_plantafel_besetzung (siehe Fund) -- Prüfung im Klicktest Dialog ergänzt, dieselbe Gegenprobe: rot „Neu, Kolonne Süd“ |
+| Nr. 7 – Geräte unabhängig von der Besetzung | Geräte nur neu, wenn auch die Besetzung unverändert ist (`248_7b`, Klicktest Dialog) | rot: klicktest_plantafel_dialog „Tom von Hand ab, dann Kolonne Süd“ |
+| Nr. 10 – Projekt und Kunde in der Auswahl | ohne (`248_10`) | 1 rot: v564::test_auswahl_nur_offene_auftraege_nur_was_sie_zeigt_eine_abfrage |
+
+Ohne Gegenprobe: Nr. 8 und Nr. 9 (entfallene Anzeige). Kein Marker unter `app/` nach den Läufen.

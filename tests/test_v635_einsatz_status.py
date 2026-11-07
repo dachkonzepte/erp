@@ -77,11 +77,11 @@ def test_vorlaeufig_zaehlt_wie_fest(welt):
 
 
 def test_dialog_und_verlauf():
+    """Seit 1.9.248 ein Umschalter im Einsatz-Dialog (bis 1.9.247 die Auswahl „newStatus“/„editStatus“): genau vorläufig und fest, neu vorläufig."""
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    for feld in ("newStatus", "editStatus"):
-        auswahl = re.search(rf'<select id="{feld}">(.*?)</select>', seite, re.S).group(1)
-        assert re.findall(r'<option value="([^"]*)">', auswahl) == ["vorlaeufig", "fest"], feld
-    assert "document.getElementById('newStatus').value='vorlaeufig';" in seite
+    umschalter = re.search(r'<div[^>]*id="edStatus"[^>]*>(.*?)</div>', seite, re.S).group(1)
+    assert re.findall(r'data-status="([^"]*)"', umschalter) == ["vorlaeufig", "fest"]
+    assert "status:'vorlaeufig',notes:''" in seite[seite.index("async function openCreate("):]
     assert (_STATUS["vorlaeufig"], _STATUS["fest"]) == ("Vorläufig", "Fest")
 
 

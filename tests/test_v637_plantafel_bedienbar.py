@@ -27,9 +27,10 @@ def test_dialog_nennt_besetzung_und_geraete():
 
 def test_dialog_fuellt_die_zeile_beim_oeffnen():
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    assert '<span id="editBesetzung" class="klein"' in seite  # seit 1.9.247 im Feld „Kolonne“ (bis dahin ein div darunter)
+    # seit 1.9.248 (Einsatz-Dialog, Punkt 4): Besetzung und Geräte als Liste mit Zustand je Person (vom Server) -- die Zeile füllt das Öffnen
     oeffnen = re.search(r"function openEdit\(id\)\{.*?\n", seite).group(0)
-    assert "document.getElementById('editBesetzung').textContent=besetzungText(s);" in oeffnen
+    assert "employee_ids:s.employees.map(e=>e.id),geraete:s.resources.map(r=>({resource_id:r.id,tage:r.tage}))" in oeffnen and "dialogFuellen()" in oeffnen
+    assert "document.getElementById('edPersonen').innerHTML=personen.map(personZeile)" in seite
 
 
 def test_klicktest_deckt_die_ablaeufe():

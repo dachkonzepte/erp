@@ -195,9 +195,9 @@ async def pruefen(tab, seed, p):
 
     # --- Klick öffnet den Einsatz ---
     await tab.js("[...document.querySelectorAll('#planner .slot')].find(s=>s.textContent.includes('Garage Lindenweg 7')).click()")
-    p.pruefe("Klick: Einsatz öffnet sich", await tab.warten("document.getElementById('editDialog').open&&document.getElementById('editTitle').textContent.includes('Garage Lindenweg 7')"), True)
+    p.pruefe("Klick: Einsatz öffnet sich", await tab.warten("document.getElementById('einsatzDialog').open&&document.getElementById('edUnter').textContent.includes('Garage Lindenweg 7')"), True)
     await tab.bild("tafel_einsatz_offen")
-    await tab.js("document.getElementById('editDialog').close()")
+    await tab.js("document.getElementById('einsatzDialog').close()")
 
     # --- 1280 px und dunkel ---
     await tab.fenster(1280, 900)

@@ -105,13 +105,15 @@ async def pruefen(tab, seed, p):
 
     # --- Neu mit Kolonne Nord ---
     await tab.js(f"void openCreate({seed['a']},null,{seed['nord']})")
-    await tab.warten("document.getElementById('createDialog').open")
-    p.pruefe("Neu: Status vorläufig und fest, vorläufig gewählt", await tab.js(
-        "[[...document.getElementById('newStatus').options].map(o=>o.value),document.getElementById('newStatus').value]"), [["vorlaeufig", "fest"], "vorlaeufig"])
-    await tab.js("document.getElementById('newStart').value='2026-10-19';document.getElementById('newEnd').value='2026-10-21';"
-                 "document.getElementById('newPlannedHours').value='1'")
+    await tab.warten("document.getElementById('einsatzDialog').open")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Neu: Status vorläufig und fest, vorläufig gewählt", await tab.js(  # seit 1.9.248 Umschalter statt Auswahl
+        "[[...document.querySelectorAll('#edStatus button')].map(b=>b.dataset.status),document.querySelector('#edStatus [aria-pressed=true]').dataset.status]"),
+        [["vorlaeufig", "fest"], "vorlaeufig"])
+    await tab.js("document.getElementById('edVon').value='2026-10-19';document.getElementById('edBis').value='2026-10-21';"
+                 "document.getElementById('edStunden').value='1'")
     await tab.warte_auf_neu_geladene_liste("void saveNew()", "#planner")
-    await tab.warten(BEREIT + "&&board.slots.length===1&&!document.getElementById('createDialog').open")
+    await tab.warten(BEREIT + "&&board.slots.length===1&&!document.getElementById('einsatzDialog').open")
     p.pruefe("Neu: ohne Rückfrage gespeichert", await tab.js("document.getElementById('konfliktDialog').open"), False)
     p.pruefe("Neu: Besetzung und Geräte der Kolonne", await tab.js(
         f"[{EINSATZ}.team_id,{EINSATZ}.employees.map(e=>e.name),{EINSATZ}.resources.map(r=>[r.name,r.tage]),{EINSATZ}.status]"),
@@ -128,30 +130,33 @@ async def pruefen(tab, seed, p):
 
     # --- Dialog ---
     await tab.js(f"openEdit({EINSATZ}.id)")
-    p.pruefe("Dialog: Besetzung und Geräte", await tab.js("document.getElementById('editBesetzung').textContent"),
-             "Besetzung: Tom Test, Mia Test · Geräte: Pritsche. Eine andere Kolonne setzt ihre Mitglieder und Geräte.")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Dialog: Besetzung und Geräte", await tab.js(  # seit 1.9.248 als Listen mit Häkchen (bis 1.9.247 ein Satz)
+        "[[...document.querySelectorAll('#edPersonen .wahl')].filter(l=>l.querySelector('input').checked).map(l=>l.querySelector('.wahl-name').textContent),"
+        "[...document.querySelectorAll('#edGeraete .wahl')].filter(l=>l.querySelector('input').checked).map(l=>l.querySelector('.wahl-name').textContent)]"),
+        [["Tom Test", "Mia Test"], ["Pritsche"]])
     p.pruefe("Dialog: Status und Kolonne", await tab.js(
-        "[[...document.getElementById('editStatus').options].map(o=>o.value),document.getElementById('editStatus').value,"
-        "[...document.getElementById('editTeam').options].map(o=>o.textContent)[0],document.getElementById('editTeam').value]"),
-        [["vorlaeufig", "fest"], "vorlaeufig", "ohne Kolonne – die Personen bleiben", str(seed["nord"])])
+        "[[...document.querySelectorAll('#edStatus button')].map(b=>b.dataset.status),document.querySelector('#edStatus [aria-pressed=true]').dataset.status,"
+        "[...document.getElementById('edKolonne').options].map(o=>o.textContent)[0],document.getElementById('edKolonne').value]"),
+        [["vorlaeufig", "fest"], "vorlaeufig", "ohne Kolonne – Personen selbst wählen", str(seed["nord"])])
     await tab.bild("dialog_besetzung")
 
     # --- Kolonne Süd: Prüffrist des Krans ---
-    await tab.js(f"document.getElementById('editTeam').value='{seed['sued']}';void saveEdit()")
-    p.pruefe("Süd: Rückfrage", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    p.pruefe("Süd: Prüffrist abgelaufen", await tab.js("document.getElementById('konfliktWarnungen').textContent"),
+    await tab.js(f"document.getElementById('edKolonne').value='{seed['sued']}';void saveEdit()")
+    p.pruefe("Süd: Rückfrage", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)  # seit 1.9.248 im Dialog („Trotzdem planen“), bis 1.9.247 eine eigene Rückfrage
+    p.pruefe("Süd: Prüffrist abgelaufen", await tab.js("[...document.querySelectorAll('#edWarnungen > .conflict-row')].map(x=>x.textContent).join('')"),
              "Prüffrist abgelaufen: Kran 30 m · UVV fällig am 20.10.2026 · 21.10.")
     await tab.bild("rueckfrage_prueffrist")
-    await tab.warte_auf_neu_geladene_liste("document.getElementById('konfliktTrotzdem').click()", "#planner")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('edSpeichern').click()", "#planner")
     await tab.warten(BEREIT + f"&&{EINSATZ}.team_id==={seed['sued']}")
     p.pruefe("Süd: Kai und der Kran", await tab.js(f"[{EINSATZ}.employees.map(e=>e.name),{EINSATZ}.resources.map(r=>r.name)]"),
              [["Kai Test"], ["Kran 30 m"]])
 
     # --- ohne Kolonne ---
     await tab.js(f"openEdit({EINSATZ}.id)")
-    await tab.js("document.getElementById('editTeam').value='';void saveEdit()")
-    p.pruefe("ohne Kolonne: fragt wie jeder Wechsel der Kolonne (der Kran)", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    await tab.warte_auf_neu_geladene_liste("document.getElementById('konfliktTrotzdem').click()", "#planner")
+    await tab.js("document.getElementById('edKolonne').value='';void saveEdit()")
+    p.pruefe("ohne Kolonne: fragt wie jeder Wechsel der Kolonne (der Kran)", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('edSpeichern').click()", "#planner")
     await tab.warten(BEREIT + f"&&{EINSATZ}.team_id===null")
     p.pruefe("ohne Kolonne: Kai bleibt, der Kran bleibt", await tab.js(f"[{EINSATZ}.employees.map(e=>e.name),{EINSATZ}.resources.map(r=>r.name)]"),
              [["Kai Test"], ["Kran 30 m"]])
@@ -171,7 +176,8 @@ async def pruefen(tab, seed, p):
 
     # --- Status fest ---
     await tab.js(f"openEdit({EINSATZ}.id)")
-    await tab.warte_auf_neu_geladene_liste("document.getElementById('editStatus').value='fest';void saveEdit()", "#planner")
+    await tab.warte_auf_ruhe()
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#edStatus [data-status=fest]').click();void saveEdit()", "#planner")
     await tab.warten(BEREIT + f"&&{EINSATZ}.status==='fest'", 10)
     p.pruefe("Status fest gespeichert", await tab.js(f"[{EINSATZ}.status,{EINSATZ}.status_label]"), ["fest", "fest"])
     p.pruefe("keine JS-Fehler", tab.fehler, [])

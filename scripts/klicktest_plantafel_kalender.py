@@ -126,11 +126,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Satz zu Warnungen und Hinweisen nennt Freistellungen", "Freistellungen" in await tab.js("document.getElementById('filterKnopf').title"), True)
     await tab.bild("1_kolonnen_heiligabend")
     await tab.js(f"openEdit({seed['slot']})")
-    await tab.warten("document.getElementById('editDialog').open")
-    p.pruefe("Dialog des Einsatzes: Freistellung mit Tag und Namen", await tab.js("[...document.querySelectorAll('#editConflicts .conflict-row')].map(x=>x.textContent)"),
+    await tab.warten("document.getElementById('einsatzDialog').open")
+    await tab.warten("!!pruefung")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Dialog des Einsatzes: Freistellung mit Tag und Namen", await tab.js("[...document.querySelectorAll('#edWarnungen .conflict-row')].map(x=>x.textContent)"),
              ["Freistellung: Heiligabend – Mia Test, Tom Test · 24.12."])
     await tab.bild("2_einsatz_freistellung")
-    await tab.js("editDialog.close()")
+    await tab.js("einsatzDialog.close()")
 
     # --- Personen ---
     await tab.js("document.querySelector('.viewtabs button[data-view=employees]').click()")
@@ -145,12 +147,12 @@ async def pruefen(tab, seed, p):
 
     # --- Einplanen über Silvester: Hinweis, keine Rückfrage ---
     await tab.js(f"void openCreate({seed['b']},null,{seed['nord']})")
-    await tab.warten("document.getElementById('createDialog').open")
-    await tab.js("document.getElementById('newStart').value='2026-12-28';document.getElementById('newEnd').value='2026-12-31';"
-                 "document.getElementById('newPlannedHours').value='1'")
+    await tab.warten("document.getElementById('einsatzDialog').open")
+    await tab.js("document.getElementById('edVon').value='2026-12-28';document.getElementById('edBis').value='2026-12-31';"
+                 "document.getElementById('edStunden').value='1'")
     await tab.js("void saveNew()")
     p.pruefe("Silvester: gespeichert ohne Rückfrage", await tab.warten(
-        "!document.getElementById('createDialog').open&&!document.getElementById('konfliktDialog').open&&board.slots.length===2", 15), True)
+        "!document.getElementById('einsatzDialog').open&&!document.getElementById('konfliktDialog').open&&board.slots.length===2", 15), True)
     p.pruefe("Silvester: Hinweis über der Tafel", await tab.js("document.getElementById('einsatzHinweis').textContent"),
              "Einsatz gespeichert – zur Kenntnis:Freistellung: Silvester – Mia Test, Tom Test · 31.12.")
     await tab.bild("4_hinweis_silvester")

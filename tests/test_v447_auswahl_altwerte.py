@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from app.auftragsstatus import STATUS as AUFTRAGSSTATUS
+from app.planning import EINSATZ_STATUS
 
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
 
@@ -159,16 +160,13 @@ def test_einstellungen_schichttyp_auswahlliste():
     assert lauf("settings.html", "load().catch(e=>alert(", ablauf) == ["layer_alt", "layer_alt (nicht mehr verfügbar)"]
 
 
-@nur_mit_node
 def test_plantafel_status():
-    slot = {"id": 1, "status": "unterbrochen", "project_number": "P-1", "order_number": "A-1", "team_id": None, "start_date": "2026-10-01",
-            "end_date": "2026-10-02", "planned_hours": "8", "travel_hours_per_employee_day": "0", "notes": "", "project_name": "N",
-            "customer_name": "K", "conflicts": [],
-            "employees": [], "resources": []}  # seit 1.9.237: wie die Antwort des Servers (slot_to_dict), der Dialog nennt Besetzung und Geräte
-    ablauf = (statisch("planning.html", "editStatus") + f"board = {{slots: [{json.dumps(slot)}], teams: [], employees: []}};"
-              "globalThis.editDialog = _element('editDialog');"  # im Browser über die id als Name erreichbar
-              "openEdit(1); return _feld('editStatus');")
-    assert lauf("planning.html", "\nloadBoard().then(", ablauf) == ["unterbrochen", "unterbrochen (nicht mehr verfügbar)"]
+    """Seit 1.9.248 ist der Status im Einsatz-Dialog ein Umschalter (vorläufig | fest), keine Auswahl mehr -- ein anderer gespeicherter Wert bleibt, weil das
+    Ändern ihn nur schickt, wenn er im Dialog geändert wurde (einsatzWerte(), Teil-Update). Bis 1.9.247 hier die Auswahl „editStatus“ in node."""
+    from tests import vorlagen_js as vj
+    text = (vj.TEMPLATES / "planning.html").read_text(encoding="utf-8")
+    assert "neu('status',einsatz.status)" in text and "const neu=(k,v)=>{if(alle||geaendert.has(k))w[k]=v}" in text
+    assert "einsatz.status=b.dataset.status;geaendert.add('status')" in text
 
 
 PREP = {"id": 1, "order_id": 1, "status": "storniert", "materials": [], "tasks": [], "delivery_notes": [], "teams": [], "employees": []}
@@ -277,8 +275,7 @@ KLASSEN = {
     ('master_data_form.html', 'P2', 'resourceType'): ('eigen', 'Optionen vorher über auswahlOptionen() mit demselben Wert gebaut'),
     ('akte.html', 'P2', 'payment'): ('eigen', 'Zahlungsbedingung: ein gespeicherter Text außerhalb der Liste erscheint als „· bisher“'),
     ('planning.html', 'P1', 'x.id===selected'): ('neu', 'Auftrag eines neuen Planungsabschnitts'),
-    ('planning.html', 'P2', 'newOrder'): ('neu', 'neuer Einsatz'),
-    ('planning.html', 'P2', 'newTeam'): ('neu', 'neuer Einsatz'),
+    ('planning.html', 'P2', 'edBezug'): ('neu', 'Kranvermietung im neuen Einsatz: mit Kunde oder an einem Auftrag -- kein gespeicherter Wert (seit 1.9.248)'),
     ('planning.html', 'P2', 'absenceEmployee'): ('neu', 'neue Abwesenheit: vorgewählt ist die eigene Person (seit 1.9.146)'),
     ('akte.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
     ('akte.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
@@ -416,7 +413,7 @@ def _konstante(vorlage: str, name: str) -> list[str]:
     ("'customer_extra_infos.info_type", lambda: _konstante("customer.html", "ZUSATZINFO_ARTEN")),
     ("'orders.status", lambda: list(AUFTRAGSSTATUS)),  # seit 1.9.124 vom Server (app/auftragsstatus.py), keine Auswahl mehr
     ("'quotes.status", lambda: _optionen_der_vorlage("quote_editor.html", "hStatus")),
-    ("'planning_slots.status", lambda: _optionen_der_vorlage("planning.html", "editStatus")),
+    ("'planning_slots.status", lambda: list(EINSATZ_STATUS)),  # seit 1.9.248 ein Umschalter im Dialog, die Werte vom Server (app/planning.py)
     ("'work_preparations.status", lambda: _optionen_der_vorlage("work_preparation.html", "prepStatus")),
     ("'work_preparation_materials.status", lambda: _konstante("work_preparation.html", "MATERIAL_STATUS")),
     ("'work_preparation_tasks.status", lambda: _konstante("work_preparation.html", "AUFGABE_STATUS")),

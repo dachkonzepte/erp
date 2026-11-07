@@ -102,10 +102,11 @@ ABGLEICH = [
     Z("akte.html", None, ("OrderAddendumCreate.quantity", "OrderItemUpdate.quantity"), lesen=("zahlFeld('iQty')",)),
     Z("akte.html", None, ("OrderAddendumCreate.unit_price", "OrderItemUpdate.unit_price"), lesen=("zahlFeld('iPrice')",)),
     # -- Plantafel
-    Z("planning.html", "id=newPlannedHours", ("PlanningSlotCreate.planned_hours",)),
-    Z("planning.html", "id=newTravelHours", ("PlanningSuggestionRequest.travel_hours_per_employee_day", "PlanningSlotCreate.travel_hours_per_employee_day")),
-    Z("planning.html", "id=editPlannedHours", ("PlanningSlotUpdate.planned_hours",)),
-    Z("planning.html", "id=editTravelHours", ("PlanningSlotUpdate.travel_hours_per_employee_day",)),
+    # seit 1.9.248 ein Dialog für Anlegen und Bearbeiten (bis 1.9.247 newPlannedHours/newTravelHours und editPlannedHours/editTravelHours)
+    Z("planning.html", "id=edStunden", ("PlanningSlotCreate.planned_hours", "PlanningSlotUpdate.planned_hours", "EinsatzPruefungNeu.planned_hours",
+                                         "EinsatzPruefungAenderung.planned_hours")),
+    Z("planning.html", "id=edAnfahrt", ("PlanningSlotCreate.travel_hours_per_employee_day", "PlanningSlotUpdate.travel_hours_per_employee_day",
+                                         "EinsatzPruefungNeu.travel_hours_per_employee_day", "EinsatzPruefungAenderung.travel_hours_per_employee_day")),
     # -- Angebot
     Z("quote_editor.html", "class=inline-input", ("QuoteItemUpdate.quantity",)),
     Z("quote_editor.html", None, ("QuoteFreeItemCreate.quantity", "QuoteItemUpdate.quantity"), lesen=("zahlFeld('iQty')",)),

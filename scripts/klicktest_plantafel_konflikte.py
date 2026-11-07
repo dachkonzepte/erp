@@ -2,8 +2,9 @@
 
 Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom, Kran), Kolonne West (Sol), zwei Aufträge, Auftrag A eingeplant auf Nord.
 
-    Neu         „+ Einsatz planen“ für Auftrag B auf Süd, derselbe Zeitraum -> Dialog mit Warnliste (Person doppelt, Gerät doppelt, gleichzeitig in Projekt),
-                nichts gespeichert; „Abbrechen“ -> zurück im Dialog „Einsatz planen“; „Trotzdem planen“ -> gespeichert, beide Dialoge zu, Tafel neu
+    Neu         „+ Einsatz“ für Auftrag B auf Süd, derselbe Zeitraum -> Warnliste im Dialog (Person doppelt, Gerät doppelt, gleichzeitig in Projekt),
+                nichts gespeichert, der Dialog bleibt offen; „Trotzdem planen“ -> gespeichert, Dialog zu, Tafel neu (seit 1.9.248 die Warnungen im
+                Einsatz-Dialog; bis 1.9.247 eine eigene Rückfrage über dem Dialog)
     Wochenende  Auftrag C auf West über ein Wochenende -> gespeichert, kein Dialog, kein Hinweis (seit 1.9.150)
     Hinweis     Auftrag E auf Ost über einen betriebsfreien Tag -> kein Dialog, Hinweis über der Tafel
     Bearbeiten  Einsatz B auf West schieben im Dialog -> Warnliste; nur die Notiz ändern -> keine Warnliste
@@ -106,8 +107,8 @@ async def _zeile_im_balken(tab, text):
 
 async def _neu(tab, order, team, von, bis):
     await tab.js(f"void openCreate({order},null,{team})")
-    await tab.warten("document.getElementById('createDialog').open")
-    await tab.js(f"document.getElementById('newStart').value='{von}';document.getElementById('newEnd').value='{bis}';document.getElementById('newPlannedHours').value='1'")
+    await tab.warten("document.getElementById('einsatzDialog').open")
+    await tab.js(f"document.getElementById('edVon').value='{von}';document.getElementById('edBis').value='{bis}';document.getElementById('edStunden').value='1'")
     await tab.js("void saveNew()")
 
 
@@ -123,31 +124,28 @@ async def pruefen(tab, seed, p):
 
     # --- Neuer Einsatz: Warnliste ---
     await _neu(tab, seed["b"], seed["sued"], "2026-10-19", "2026-10-21")
-    p.pruefe("Warnliste erscheint", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    text = await tab.js("document.getElementById('konfliktWarnungen').textContent")
+    p.pruefe("Warnliste erscheint", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)
+    text = await tab.js("[...document.querySelectorAll('#edWarnungen > .conflict-row')].map(x=>x.textContent).join('')")
     p.pruefe("nennt die Person", "Person doppelt: Tom Test" in text, True)
     p.pruefe("nennt das Gerät", "Gerät doppelt: Kran 30 m" in text, True)
     p.pruefe("nennt das andere Projekt", "gleichzeitig in P-A · Dach A" in text, True)
     p.pruefe("nichts gespeichert", await tab.js("board.slots.length"), 1)
     await tab.bild("warnliste_neu")
-    await tab.js("konfliktDialog.close()")
-    p.pruefe("Abbrechen: zurück im Dialog", await tab.js("document.getElementById('createDialog').open&&!document.getElementById('konfliktDialog').open"), True)
+    p.pruefe("Abbrechen: zurück im Dialog", await tab.js("document.getElementById('einsatzDialog').open&&!document.getElementById('konfliktDialog').open"), True)
     await tab.js("void saveNew()")
-    await tab.warten("document.getElementById('konfliktDialog').open")
-    await tab.js("document.getElementById('konfliktTrotzdem').click()")
-    p.pruefe("Trotzdem planen: gespeichert", await tab.warten("!document.getElementById('konfliktDialog').open&&!document.getElementById('createDialog').open&&board.slots.length===2"), True)
+    p.pruefe("Trotzdem planen: gespeichert", await tab.warten("!document.getElementById('einsatzDialog').open&&board.slots.length===2"), True)
     p.pruefe("beide rot", await tab.js("document.querySelectorAll('.track[data-team-id] .slot.conflict').length"), 2)  # seit 1.9.247 nur die Kolonnen-Zeilen (der Einsatz steht auch beim Gerät)
 
     # --- Über ein Wochenende: meldet nichts (seit 1.9.150) ---
     await _neu(tab, seed["c"], seed["west"], "2026-10-23", "2026-10-26")
-    p.pruefe("Wochenende: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Wochenende: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('einsatzDialog').open"), True)
     p.pruefe("Wochenende: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     p.pruefe("Wochenende: kein Hinweis", await tab.js("document.getElementById('einsatzHinweis').textContent"), "")
     p.pruefe("Wochenende: Balken nicht rot", await tab.js(f"board.slots.find(s=>s.order_id==={seed['c']}).conflicts.length"), 0)
 
     # --- Hinweis ohne Rückfrage ---
     await _neu(tab, seed["e"], seed["ost"], "2026-10-27", "2026-10-29")
-    p.pruefe("Hinweis: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===4&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Hinweis: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===4&&!document.getElementById('einsatzDialog').open"), True)
     p.pruefe("Hinweis: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     hinweis = await tab.js("document.getElementById('einsatzHinweis').textContent")
     p.pruefe("Hinweis: steht über der Tafel", "Einsatz gespeichert" in hinweis and "Feiertag: Betriebsausflug · 28.10." in hinweis, True)
@@ -156,14 +154,15 @@ async def pruefen(tab, seed, p):
     # --- Bearbeiten ---
     einsatz_b = await tab.js(f"board.slots.find(s=>s.order_id==={seed['b']}).id")
     await tab.js(f"openEdit({einsatz_b})")
-    await tab.js("document.getElementById('editNotes').value='Kran ab 8 Uhr';void saveEdit()")
-    p.pruefe("nur Notiz: keine Warnliste, gespeichert", await tab.warten(f"!document.getElementById('editDialog').open&&board.slots.find(s=>s.id==={einsatz_b}).notes==='Kran ab 8 Uhr'"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("document.getElementById('edNotiz').value='Kran ab 8 Uhr';void saveEdit()")
+    p.pruefe("nur Notiz: keine Warnliste, gespeichert", await tab.warten(f"!document.getElementById('einsatzDialog').open&&board.slots.find(s=>s.id==={einsatz_b}).notes==='Kran ab 8 Uhr'"), True)
     p.pruefe("nur Notiz: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     einsatz_c = await tab.js(f"board.slots.find(s=>s.order_id==={seed['c']}).id")
     await tab.js(f"openEdit({einsatz_c})")
-    await tab.js(f"document.getElementById('editTeam').value='{seed['nord']}';document.getElementById('editStart').value='2026-10-19';document.getElementById('editEnd').value='2026-10-20';void saveEdit()")
-    p.pruefe("Kolonne geändert: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    await tab.js("konfliktDialog.close();editDialog.close()")
+    await tab.js(f"document.getElementById('edKolonne').value='{seed['nord']}';document.getElementById('edVon').value='2026-10-19';document.getElementById('edBis').value='2026-10-20';void saveEdit()")
+    p.pruefe("Kolonne geändert: Warnliste", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)
+    await tab.js("einsatzDialog.close()")
     p.pruefe("Kolonne geändert: nichts verschoben", await tab.js(f"board.slots.find(s=>s.id==={einsatz_c}).team_id"), seed["west"])
 
     # --- Ziehen ---
@@ -179,14 +178,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("Abgeschlossen: Balken sagt es", await tab.js("[...document.querySelectorAll('.track[data-team-id] .slot')].some(s=>s.title.includes('Auftrag abgeschlossen')&&s.classList.contains('zu'))"), True)
     p.pruefe("Abgeschlossen: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag abgeschlossen"), True)
     await _neu(tab, seed["g"], seed["ost"], "2026-11-03", "2026-11-04")
-    p.pruefe("Abgeschlossen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===2&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Abgeschlossen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===2&&!document.getElementById('einsatzDialog').open"), True)
     p.pruefe("Abgeschlossen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     p.pruefe("Abgeschlossen: nichts rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 0)
     await tab.bild("abgeschlossen_zaehlt_nicht")
 
     # --- Offener Antrag: Hinweis, keine Rückfrage, nicht rot (seit 1.9.152) ---
     await _neu(tab, seed["h"], seed["west"], "2026-11-09", "2026-11-11")
-    p.pruefe("Antrag offen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Antrag offen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('einsatzDialog').open"), True)
     p.pruefe("Antrag offen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     hinweis = await tab.js("document.getElementById('einsatzHinweis').textContent")
     p.pruefe("Antrag offen: steht über der Tafel, mit Art", "Antrag offen: Sol Test · Krankheit · 10.11." in hinweis, True)
@@ -205,7 +204,7 @@ async def pruefen(tab, seed, p):
     for name, order, projekt, grund in (("abgeschlossen", seed["f"], seed["projekt_f"], "Der Auftrag ist abgeschlossen"), ("storniert", seed["s"], seed["projekt_s"], "Der Auftrag ist storniert")):
         await tab.oeffnen(f"/planning?auftrag={order}", BEREIT)
         p.pruefe(f"L6 {name}: der Grund über der Tafel", await tab.warten(f"document.getElementById('einsatzHinweis').textContent.includes('{grund}')"), True)
-        p.pruefe(f"L6 {name}: kein Dialog", await tab.js("document.getElementById('createDialog').open"), False)
+        p.pruefe(f"L6 {name}: kein Dialog", await tab.js("document.getElementById('einsatzDialog').open"), False)
         await tab.bild(f"l6_tafel_{name}")
         await tab.oeffnen(f"/projects/{projekt}?auftrag={order}#ausfuehrung", "typeof akte!=='undefined'&&akte&&akte.ausfuehrung")
         await tab.warte_auf_ruhe()
@@ -215,14 +214,14 @@ async def pruefen(tab, seed, p):
         p.pruefe(f"L6 {name}: keine Hauptaktion „Einsatz planen“", await tab.js("!!(akte.hauptaktion&&akte.hauptaktion.art==='einsatz')"), False)
     await tab.oeffnen("/planning?auftrag=99999", BEREIT)
     p.pruefe("L6 unbekannt: Meldung", await tab.warten("document.getElementById('einsatzHinweis').textContent.includes('Auftrag wurde nicht gefunden.')"), True)
-    p.pruefe("L6 unbekannt: kein Dialog", await tab.js("document.getElementById('createDialog').open"), False)
+    p.pruefe("L6 unbekannt: kein Dialog", await tab.js("document.getElementById('einsatzDialog').open"), False)
     await tab.oeffnen(f"/projects/{seed['projekt_b']}?auftrag={seed['b']}", "typeof akte!=='undefined'&&akte&&akte.ausfuehrung")
     await tab.warte_auf_ruhe()
     p.pruefe("L6 laufend: Akte mit „Einsatz planen“", await tab.js("document.getElementById('einsatzLink').hidden"), False)
     p.pruefe("L6 laufend: kein Grund", await tab.js("document.getElementById('einsatzGesperrt').hidden"), True)
-    await tab.oeffnen(f"/planning?auftrag={seed['b']}", BEREIT + "&&document.getElementById('createDialog').open")
-    p.pruefe("L6 laufend: der Dialog öffnet", await tab.js("document.getElementById('newOrder').value"), str(seed["b"]))
-    await tab.js("createDialog.close()")
+    await tab.oeffnen(f"/planning?auftrag={seed['b']}", BEREIT + "&&document.getElementById('einsatzDialog').open")
+    p.pruefe("L6 laufend: der Dialog öffnet", await tab.js("document.getElementById('edAuftrag').value"), str(seed["b"]))
+    await tab.js("einsatzDialog.close()")
     p.pruefe("Admin: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Auftrag: Art der Abwesenheit nicht in der Liste ---
@@ -231,11 +230,11 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("movePeriod(7)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===4")
     await _neu(tab, seed["d"], seed["ost"], "2026-10-19", "2026-10-19")
-    p.pruefe("Büro – Auftrag: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
-    text = await tab.js("document.getElementById('konfliktWarnungen').textContent")
+    p.pruefe("Büro – Auftrag: Warnliste", await tab.warten("document.getElementById('edSpeichern').textContent==='Trotzdem planen'"), True)
+    text = await tab.js("[...document.querySelectorAll('#edWarnungen > .conflict-row')].map(x=>x.textContent).join('')")
     p.pruefe("Büro – Auftrag: nur „abwesend“", "Mia Test · abwesend" in text and "Krankheit" not in text, True)
     await tab.bild("warnliste_buero_auftrag")
-    await tab.warte_auf_neu_geladene_liste("konfliktDialog.close();createDialog.close();movePeriod(21)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
+    await tab.warte_auf_neu_geladene_liste("einsatzDialog.close();movePeriod(21)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.some(s=>s.order_id===" + str(seed["h"]) + ")")
     p.pruefe("Büro – Auftrag: Antrag offen ohne Art", await tab.js(f"board.slots.find(s=>s.order_id==={seed['h']}).conflicts.map(c=>c.label).join()"), "Sol Test")
     p.pruefe("Büro – Auftrag: Art nicht auf dem Balken", "Krankheit" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), False)

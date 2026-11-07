@@ -180,19 +180,20 @@ async def pruefen(tab, seed, p):
     # --- 4. Plantafel ---
     await tab.oeffnen("/planning", "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0")
     await tab.js(f"openCreate({a},null,{seed['team']})")
-    await _tippen(tab, "newTravelHours", "1.25")
+    await tab.warte_auf_ruhe()
+    await _tippen(tab, "edAnfahrt", "1.25")
     await tab.js("saveNew()")
     await tab.warte_auf_ruhe()
-    p.pruefe("Anfahrt 1.25: Meldung", (await tab.js("document.getElementById('newInfo').textContent")).split(" – ")[0],
+    p.pruefe("Anfahrt 1.25: Meldung", (await tab.js("document.getElementById('edMeldung').textContent")).split(" – ")[0],
              "Fehler: Anfahrt je Tag (h): „1.25“ ist nicht eindeutig")  # seit 1.9.247 Feldname der Zeichnung
-    await _tippen(tab, "newTravelHours", "30")
+    await _tippen(tab, "edAnfahrt", "30")
     await tab.js("saveNew()")
     p.pruefe("Anfahrt 30: 422 lesbar", await tab.warten(
-        "document.getElementById('newInfo').textContent.includes('Bitte die Eingabe')"), True)
-    p.pruefe("Anfahrt 30: Text", await tab.js("document.getElementById('newInfo').textContent"),
+        "document.getElementById('edMeldung').textContent.includes('Bitte die Eingabe')"), True)
+    p.pruefe("Anfahrt 30: Text", await tab.js("document.getElementById('edMeldung').textContent"),
              "Fehler: Bitte die Eingabe prüfen – Anfahrt je Tag ist zu groß.")  # seit 1.9.247
     await tab.bild("plantafel_422")
-    await tab.js("createDialog.close()")
+    await tab.js("einsatzDialog.close()")
     p.pruefe("Plantafel: JS-Fehler", tab.fehler, [])
 
     # --- 5. Arbeitsvorbereitung: Team entfernen ---

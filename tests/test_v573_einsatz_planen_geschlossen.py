@@ -90,20 +90,20 @@ def test_akte_versteckt_den_link_nach_dem_server():
 
 
 def _plantafel(ausdruck, orders="[]", antworten="{}"):
-    """openCreate() und saveNew() in node, die übrige Seite als Attrappe."""
-    text = (TEMPLATES / "planning.html").read_text(encoding="utf-8")
-    teile = [re.search(r"async function einsatzGesperrt\(id\)\{.*?\n", text).group(0),
-             re.search(r"async function openCreate\(orderId=null,.*?\n", text).group(0),
-             "function saveNewKopf(){" + re.search(r"async function saveNew\(trotzdem=false\)\{(if\(.*?return\})try\{", text).group(1) + "return 'weiter'}"]
+    """openCreate(), fehltBezug() und einsatzSpeichern() in node, die übrige Seite als Attrappe -- seit 1.9.248 der Einsatz-Dialog (bis 1.9.247
+    createDialog und saveNew())."""
+    from tests.test_v399_teil_updates_geld import js_funktion
+    teile = [js_funktion("planning.html", name) for name in ("einsatzGesperrt", "openCreate", "fehltBezug", "einsatzSpeichern")]
     return node_lauf("""
 const felder={};
-const document={getElementById:i=>felder[i]||(felder[i]={value:'',innerHTML:'',textContent:'',showModal(){this.offen=true}})};
-const createDialog=document.getElementById('createDialog');let geoeffnet=false;createDialog.showModal=()=>{geoeffnet=true};
-const esc=s=>String(s);const board={settings:{}};const periodStart='2026-11-02';const iso=x=>x;const addDays=x=>x;const zahlText=x=>String(x);const num=x=>String(x);const clearSuggestion=()=>{};
-const orderOptions=()=>'';const teamOptions=()=>'';const selectedBacklog=()=>null;
-let orders=[];const ANTWORTEN=""" + antworten + """;
-const api=async u=>{if(u==='/api/planning/auftraege')return """ + orders + """;if(ANTWORTEN[u])return ANTWORTEN[u];throw new Error('Auftrag wurde nicht gefunden.')};
-const lesen=async (b,f,a)=>a(await f());
+const document={getElementById:i=>felder[i]||(felder[i]={value:'',innerHTML:'',textContent:''})};
+let geoeffnet=false;const einsatzDialog={showModal(){geoeffnet=true},close(){}};
+const esc=s=>String(s);const board={settings:{},teams:[]};const periodStart='2026-11-02';const iso=x=>x;const addDays=x=>x;
+const selectedBacklog=()=>null;const dialogFuellen=()=>{};const kundenLaden=async()=>{};const pruefenJetzt=()=>{};const felderLesen=()=>true;
+let einsatz=null,geaendert=null,weiterePersonen=[],weitereGeraete=[],pruefung=null,pruefungFuer=null,pruefenZeit=null;
+let orders=[];const ANTWORTEN=""" + antworten + """;const GESENDET=[];
+const api=async (u,o)=>{if(o&&o.method)GESENDET.push(u);if(u==='/api/planning/auftraege')return """ + orders + """;if(ANTWORTEN[u])return ANTWORTEN[u];throw new Error('Auftrag wurde nicht gefunden.')};
+const lesen=async (b,f,a)=>a(await f());const speichern=async (b,f)=>f();
 """ + "\n".join(teile) + """
 (async()=>{console.log(JSON.stringify(await (""" + ausdruck + """)()))})();
 """).stdout.strip()
@@ -127,7 +127,27 @@ def test_offener_auftrag_oeffnet_den_dialog():
     assert aus is True
 
 
-@pytest.mark.parametrize("orders, text", [("[]", "Es gibt keinen offenen Auftrag."), ('[{"id":9}]', "Bitte einen Auftrag wählen.")])
-def test_speichern_ohne_auftrag_meldet_sich_vor_dem_senden(orders, text):
-    aus = json.loads(_plantafel("async()=>{orders=" + orders + ";return [saveNewKopf()||null,document.getElementById('newInfo').textContent]}"))
-    assert aus == [None, text]
+@pytest.mark.parametrize("orders, leeren, text", [("[]", False, "Es gibt keinen offenen Auftrag."), ('[{"id":9}]', True, "Bitte einen Auftrag wählen.")])
+def test_speichern_ohne_auftrag_meldet_sich_vor_dem_senden(orders, leeren, text):
+    """Seit 1.9.248 im Einsatz-Dialog: „+ Einsatz“ wählt den ersten offenen Auftrag vor; ohne Auftrag meldet sich das Speichern, ohne zu senden."""
+    aus = json.loads(_plantafel("async()=>{await openCreate();" + ("einsatz.order_id=null;" if leeren else "")
+                                + "await einsatzSpeichern();return [GESENDET,document.getElementById('edMeldung').textContent]}", orders=orders))
+    assert aus == [[], text]
+
+
+def test_pruefen_ohne_auftrag_meldet_sich_vor_der_anfrage():
+    """Seit 1.9.248 prüft der Dialog bei jeder Änderung auf dem Server -- ohne Auftrag (bzw. bei einer Kranvermietung ohne Kunde) erst gar nicht:
+    keine Anfrage, die Meldung, die alte Prüfung verworfen."""
+    from tests.test_v399_teil_updates_geld import js_funktion
+    teile = [js_funktion("planning.html", name) for name in ("fehltBezug", "pruefenJetzt")]
+    aus = node_lauf("""
+const felder={};const document={getElementById:i=>felder[i]||(felder[i]={value:'',innerHTML:'',textContent:''})};
+const felderLesen=()=>true;const einsatzKopf=()=>{};const zustandZeichnen=()=>{};const einsatzWerte=()=>({});const GESENDET=[];
+const api=async (u,o)=>{GESENDET.push(u);return {}};const speichern=async (b,f)=>f();
+let pruefung={alt:true},pruefungFuer='alt',weiterePersonen=[],weitereGeraete=[],orders=[];let einsatz={id:null,art:'baustelle',order_id:null};
+""" + "\n".join(teile) + """
+(async()=>{await pruefenJetzt();const ohneAuftrag=[GESENDET.length,document.getElementById('edMeldung').textContent,pruefung,pruefungFuer];
+einsatz={id:null,art:'kranvermietung',bezug:'kunde',customer_id:null};await pruefenJetzt();
+console.log(JSON.stringify([ohneAuftrag,[GESENDET.length,document.getElementById('edMeldung').textContent]]))})();
+""").stdout.strip()
+    assert json.loads(aus) == [[0, "Es gibt keinen offenen Auftrag.", None, None], [0, "Bitte einen Kunden wählen."]]

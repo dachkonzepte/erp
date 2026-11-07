@@ -688,7 +688,7 @@ def _create_slot(
     status: str = "vorlaeufig", notes: str | None = None, planned_hours: Decimal | None = None,
     travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
     geraete: list[dict] | None = None, art: str = "baustelle", customer_id: int | None = None, property_id: int | None = None,
-    confirm_property_customer: bool = False, titel: str | None = None, kran_termin_id: int | None = None,
+    confirm_property_customer: bool = False, titel: str | None = None, kran_termin_id: int | None = None, _pruefen: dict | None = None,
 ) -> PlanningSlot:
     """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
     angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung.
@@ -757,6 +757,8 @@ def _create_slot(
         termin = db.get(CalendarEvent, kran_termin_id)
         termin.planning_slot_id, termin.external_source = slot.id, "erp"
     db.flush()
+    if _pruefen is not None:  # seit 1.9.248: nur prüfen (einsatz_pruefen()), nichts bleibt
+        return _nur_pruefen(db, slot.id, **_pruefen)
     if not trotzdem_planen:
         _warnungen_pruefen(db, slot.id)
     zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241: Termine im Kalender des Krans
@@ -779,7 +781,7 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
         raise
 
 
-def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
+def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _pruefen: dict | None = None, **changes) -> PlanningSlot:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
@@ -858,12 +860,176 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **
     elif capacity.travel_hours_per_employee_day is None:
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
+    if _pruefen is not None:  # seit 1.9.248: nur prüfen (einsatz_pruefen()) -- alle Warnungen, auch ohne Änderung; nichts bleibt
+        return _nur_pruefen(db, slot.id, **_pruefen)
     if not trotzdem_planen and (neues_team, start_date, end_date, tuple(x.employee_id for x in slot.besetzung), _geraete_stand(slot)) != vorher:
         _warnungen_pruefen(db, slot.id)
     zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241
     db.commit()
     kran_kalender.senden(db, zu_senden)
     return _load_slot(db, slot.id)
+
+
+# --- seit 1.9.248 (Stufe 6, R4, Punkt 4): der Einsatz-Dialog prüft, bevor gespeichert wird ---------------------------------------------------
+
+def einsatz_pruefen(db: Session, slot_id: int | None = None, *, mit_art: bool = False, weitere_personen=(), weitere_geraete=(), **werte) -> dict:
+    """Rechnet einen Einsatz wie beim Speichern (dieselben Regeln, dieselbe Prüfung der Warnungen), schreibt nichts: nach dem Flush die Warnungen und
+    Hinweise (einsatz_konflikte()), die Kapazität mit ihrer Rechnung, der Zustand je Person und je Gerät -- dann rollback. Ohne slot_id wie das Anlegen
+    (create_slot()), sonst wie das Ändern (update_slot(), werte = die Änderungen). mit_art: die Art einer Abwesenheit darf im Text stehen (Admin und
+    Büro – Finanzen, der Router entscheidet). weitere_personen/weitere_geraete: dazu der Zustand dieser IDs („+ Person“, „+ Gerät“ im Dialog)."""
+    pruefen = {"mit_art": mit_art, "weitere_personen": [int(x) for x in weitere_personen], "weitere_geraete": [int(x) for x in weitere_geraete]}
+    werte.pop("trotzdem_planen", None)
+    try:
+        if slot_id is None:
+            return _create_slot(db, trotzdem_planen=True, _pruefen=pruefen, **werte)
+        return _update_slot(db, slot_id, trotzdem_planen=True, _pruefen=pruefen, **werte)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _nur_pruefen(db: Session, slot_id: int, *, mit_art: bool, weitere_personen: list[int], weitere_geraete: list[int]) -> dict:
+    slot = _load_slot(db, slot_id, frisch=True)
+    konflikte = einsatz_konflikte(db, slot)
+    andere = [s for s in db.scalars(_einsatz_abfrage().where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date,
+                                                            PlanningSlot.end_date >= slot.start_date)).all() if not geschlossen(s.preparation.order)]
+    ergebnis = {"warnungen": konflikte["warnungen"], "hinweise": konflikte["hinweise"], "kapazitaet": _kapazitaet_rechnung(db, slot),
+                "personen": _personen_zustand(db, slot, andere, weitere_personen, mit_art), "geraete": _geraete_zustand(db, slot, andere, weitere_geraete)}
+    db.rollback()
+    return ergebnis
+
+
+def _spanne(von: date, bis: date) -> str:
+    """„03.–05.11.“, ein Tag „05.11.“, über den Monat „30.10.–04.11.“ -- wie die Tafel."""
+    if von == bis:
+        return f"{von:%d.%m.}"
+    return f"{von:%d.}–{bis:%d.%m.}" if (von.year, von.month) == (bis.year, bis.month) else f"{von:%d.%m.}–{bis:%d.%m.}"
+
+
+def _folgen_der_tage(tage) -> list[tuple[date, date]]:
+    out: list[tuple[date, date]] = []
+    for t in sorted(tage):
+        if out and t == out[-1][1] + timedelta(days=1):
+            out[-1] = (out[-1][0], t)
+        else:
+            out.append((t, t))
+    return out
+
+
+def _kapazitaet_rechnung(db: Session, slot: PlanningSlot) -> dict:
+    """Die Kapazität des Einsatzes aus der Sollzeit der Besetzung an den Arbeitstagen minus Anfahrt (dieselbe Rechnung wie die Konflikte, 1.9.211/1.9.233),
+    mit ihrer Rechnung als Text: gleich je Person und Tag „2 Personen × 3 Arbeitstage × 7,50 h = 45,00 h“, sonst je Person. Dazu der Rest laut Kalkulation
+    (Soll des Auftrags minus die Stunden der anderen Einsätze des Auftrags)."""
+    settings = load_planning_settings(db)
+    feiertage = set(_combined_holiday_map(db, slot.start_date, slot.end_date)[0])
+    tage = [t for t in _date_range(slot.start_date, slot.end_date) if _is_workday(t, settings, feiertage)]
+    sichtbar = planning_visible_employee_ids(db)
+    personen = [x.employee for x in slot.besetzung if x.employee is not None and x.employee_id in sichtbar]
+    ids = {p.id for p in personen}
+    abwesend = _abwesend_map(db, _absence_rows(db, slot.start_date, slot.end_date, ids), personen, slot.start_date, slot.end_date) if ids else {}
+    soll = _soll_je_tag(db, personen, slot.start_date, slot.end_date) if ids else {}
+    anfahrt = _slot_travel(slot, settings)
+    je_person = [(p, [n for t in tage if not abwesend.get((p.id, t)) and (n := _netto(soll.get((p.id, t), Decimal("0")), anfahrt)) > 0]) for p in personen]
+    summe = sum((sum(w, Decimal("0")) for _, w in je_person), Decimal("0"))
+    alle = [w for _, ws in je_person for w in ws]
+    if not je_person:
+        text = f"niemand eingeplant = {stunden_text(Decimal('0'))}"
+    elif alle and len(set(alle)) == 1 and all(len(ws) == len(tage) for _, ws in je_person):
+        n, m = len(je_person), len(tage)
+        text = f"{n} {'Person' if n == 1 else 'Personen'} × {m} {'Arbeitstag' if m == 1 else 'Arbeitstage'} × {stunden_text(alle[0])} = {stunden_text(summe)}"
+    else:
+        teile = []
+        for p, ws in je_person:
+            name = (p.first_name or _employee_name(p)).strip()
+            teile.append(f"{name} {len(ws)} × {stunden_text(ws[0])}" if ws and len(set(ws)) == 1 else f"{name} {stunden_text(sum(ws, Decimal('0')))}")
+        text = " + ".join(teile) + f" = {stunden_text(summe)}"
+    if anfahrt > 0:
+        text += f" (Sollzeit je Tag − {stunden_text(anfahrt)} Anfahrt)"
+    order = slot.preparation.order
+    soll_auftrag = planned_hours(order)
+    andere = sum((_stored_slot_hours(x) or Decimal("0") for x in db.scalars(select(PlanningSlot).options(selectinload(PlanningSlot.capacity)).where(
+        PlanningSlot.preparation_id == slot.preparation_id, PlanningSlot.id != slot.id))), Decimal("0"))
+    rest = round_hours(max(Decimal("0"), soll_auftrag - andere)) if soll_auftrag > 0 else None
+    return {"summe": round_hours(summe), "text": text, "rest": rest, "stunden": round_hours(_infer_slot_hours(db, slot))}
+
+
+def _personen_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot], weitere: list[int], mit_art: bool) -> list[dict]:
+    """Je Person der Besetzung, der Kolonne (ihr Vorschlag) und „+ Person“: frei, anderer Einsatz im Zeitraum („auch bei …“ für eine gewählte -- eine Warnung),
+    abwesend (genehmigt oder Freistellung -- die Art nur mit mit_art), Antrag offen."""
+    gewaehlt = [x.employee_id for x in slot.besetzung]
+    vorschlag = _kolonne_schlaegt_vor(db, slot.team_assignment.team_id) if slot.team_assignment is not None and slot.team_assignment.team_id else []
+    ids = list(dict.fromkeys([*gewaehlt, *vorschlag, *weitere]))
+    sichtbar = planning_visible_employee_ids(db)
+    personen = {p.id: p for p in db.scalars(select(Employee).where(Employee.id.in_(ids)))} if ids else {}
+    ids = [i for i in ids if i in personen and (i in sichtbar or i in gewaehlt)]
+    von, bis = slot.start_date, slot.end_date
+    abwesend = _abwesend_map(db, _absence_rows(db, von, bis, set(ids)), list(personen.values()), von, bis) if ids else {}
+    antraege = _offene_antraege(db, von, bis, set(ids))
+    out = []
+    for i in ids:
+        teile, stufe = [], "frei"
+        for o in andere:
+            if any(x.employee_id == i for x in o.besetzung):
+                sp = _spanne(max(von, o.start_date), min(bis, o.end_date))
+                if i in gewaehlt:
+                    teile.append(f"auch bei {o.preparation.order.project.project_number} · {sp}")
+                    stufe = "doppelt"
+                else:
+                    teile.append(f"Kranvermietung {sp}" if o.art == "kranvermietung" else f"bei {o.preparation.order.project.project_number} · {sp}")
+                    stufe = stufe if stufe != "frei" else "belegt"
+        tage_weg = sorted(t for (eid, t) in abwesend if eid == i and von <= t <= bis)
+        for a, b in _folgen_der_tage(tage_weg):
+            art = abwesend[(i, a)].kalendertag if isinstance(abwesend[(i, a)], Freistellung) else abwesend[(i, a)].absence_type
+            teile.append(f"{art if mit_art and art else 'abwesend'} {_spanne(a, b)}")
+            stufe = "abwesend" if stufe in ("frei", "belegt", "antrag") else stufe
+        for a in antraege.get(i, []):
+            teile.append(f"{a.absence_type + ' ' if mit_art and a.absence_type else ''}beantragt {_spanne(a.start_date, a.end_date)}")  # der ganze Antrag (Zeichnung)
+            stufe = "antrag" if stufe in ("frei", "belegt") else stufe
+        out.append({"id": i, "name": _employee_name(personen[i]), "gewaehlt": i in gewaehlt, "vorschlag": i in vorschlag, "zustand": stufe,
+                    "text": " · ".join(teile) or "frei"})
+    return out
+
+
+def _geraete_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot], weitere: list[int]) -> list[dict]:
+    """Je Gerät des Einsatzes, der Kolonne und „+ Gerät“: seine Tage (alle oder einzelne), an diesen Tagen ein anderer Einsatz („vermietet …“ bei einer
+    Kranvermietung), ein Termin in seinem Kalender, eine abgelaufene Prüffrist."""
+    zeilen = {x.resource_id: x for x in slot.geraete}
+    vorschlag = [g["resource_id"] for g in _kolonne_schlaegt_geraete_vor(db, slot.team_assignment.team_id)] \
+        if slot.team_assignment is not None and slot.team_assignment.team_id else []
+    ids = list(dict.fromkeys([*zeilen, *vorschlag, *weitere]))
+    geraete = {r.id: r for r in db.scalars(select(OperationalResource).where(OperationalResource.id.in_(ids)))} if ids else {}
+    ids = [i for i in ids if i in geraete]
+    alle_tage = set(_date_range(slot.start_date, slot.end_date))
+    pruefungen = _pruefungen(db, set(ids))
+    termine = {}
+    for t in geraete_termine(db, set(ids), slot.start_date, slot.end_date):
+        termine.setdefault(t["resource_id"], []).append(t)
+    out = []
+    for i in ids:
+        row = zeilen.get(i)
+        meine = _geraet_tage(slot, row) if row is not None else alle_tage
+        teile, stufe = [], "frei"
+        for o in andere:
+            for x in o.geraete:
+                if x.resource_id != i:
+                    continue
+                for a, b in _folgen_der_tage(meine & _geraet_tage(o, x)):
+                    teile.append(("vermietet " if o.art == "kranvermietung" else f"bei {o.preparation.order.project.project_number} · ") + _spanne(a, b))
+                    stufe = "doppelt" if row is not None else "belegt"
+        for t in termine.get(i, []):
+            if any(t["von"] <= d <= t["bis"] for d in meine):
+                teile.append(f"Termin {t['titel']} {_spanne(t['von'], t['bis'])}")
+                stufe = "doppelt" if row is not None else ("belegt" if stufe == "frei" else stufe)
+        for art, faellig in pruefungen.get(i, []):
+            if any(d > faellig for d in meine):
+                teile.append(f"{art} fällig seit {faellig:%d.%m.%Y}")
+                stufe = "pruefung" if stufe in ("frei", "belegt") else stufe
+        tage = sorted(_tage_lesen(row)) if row is not None and row.tage else None
+        out.append({"id": i, "name": geraete[i].name, "gewaehlt": row is not None, "vorschlag": i in vorschlag,
+                    "tage": [t.isoformat() for t in tage] if tage else None,
+                    "tage_text": ("alle Tage" if not tage else "nur " + ", ".join(f"{t:%d.}" for t in tage[:-1]) + (", " if len(tage) > 1 else "") + f"{tage[-1]:%d.%m.}")
+                    if row is not None else "", "zustand": stufe, "text": " · ".join(teile)})
+    return out
 
 
 def delete_slot(db: Session, slot_id: int) -> int:
@@ -1613,9 +1779,9 @@ def planning_suggestion(
 def offene_auftraege(db: Session) -> list[dict]:
     """Die Auswahl im Dialog „Einsatz planen“ (seit 1.9.144, GET /api/planning/auftraege): nur offene Aufträge, nur was die Auswahl zeigt, eine Abfrage.
     Bis 1.9.143 lud die Tafel dafür bei jedem Laden GET /api/orders -- rund 39 Abfragen je Auftrag, 53 s bei 4000 Aufträgen (Befund Stufe 6, 7.3)."""
-    return [{"id": i, "order_number": nummer, "project_number": projekt, "project_name": name}
-            for i, nummer, projekt, name in db.execute(
-                select(Order.id, Order.order_number, Project.project_number, Project.name)
+    return [{"id": i, "order_number": nummer, "project_number": projekt, "project_name": name, "project_id": pid, "customer_name": kunde}  # seit 1.9.248 Projekt und Kunde (Kopf des Dialogs)
+            for i, nummer, projekt, name, pid, kunde in db.execute(
+                select(Order.id, Order.order_number, Project.project_number, Project.name, Project.id, Order.customer_name)
                 .join(Project, Order.project_id == Project.id).where(offen_bedingung()).order_by(Order.id.desc()))]
 
 

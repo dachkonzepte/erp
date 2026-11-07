@@ -78,12 +78,22 @@ def test_leere_stunden_sind_die_reststunden_des_auftrags(tafel):
 
 
 def test_seite_schickt_leer_als_null_und_beim_bearbeiten_nichts():
+    """Seit 1.9.248 im Einsatz-Dialog (bis 1.9.247 saveNew()/saveEdit()): neu schickt ein leeres Feld „Stunden“ null (Reststunden des Auftrags),
+    beim Bearbeiten ein geleertes Feld gar nichts (unverändert); der Platzhalter sagt es."""
+    from tests.test_v399_teil_updates_geld import im_browser
+    felder = ("['edKolonne','1'],['edVon','2026-11-02'],['edBis','2026-11-02'],['edNotiz',''],['edStunden',''],['edAnfahrt','0'],['edAuftrag','5'],"
+              "['edBezug','kunde'],['edKunde',''],['edTitel2','']")
+    vorbereitung = (f"for (const [i, v] of [{felder}]) document.getElementById(i).value = v; var geaendert = new Set(); "
+                    "var einsatz = {id: null, art: 'baustelle', order_id: 5, team_id: 1, employee_ids: null, geraete: null, start_date: '2026-11-02', "
+                    "end_date: '2026-11-02', status: 'vorlaeufig', notes: '', planned_hours: null, travel: 0, bezug: 'kunde'};")
+    ablauf = ("felderLesen(); AUFRUFE.push({neu: einsatzWerte()});"
+              "einsatz = {...einsatz, id: 3, planned_hours: '30'}; geaendert = new Set(); felderLesen(); AUFRUFE.push({aendern: einsatzWerte()});")
+    aufrufe = im_browser("planning.html", ["felderLesen", "einsatzWerte"], vorbereitung, ablauf)
+    neu, aendern = aufrufe[-2]["neu"], aufrufe[-1]["aendern"]
+    assert "planned_hours" in neu and neu["planned_hours"] is None
+    assert "planned_hours" not in aendern and aendern == {}
     html = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    neu = html[html.index("async function saveNew("):]
-    assert "planned_hours:zahlFeld('newPlannedHours',{leer:null})" in neu[:neu.index("\n")]
-    aendern = html[html.index("async function saveEdit("):]
-    assert "...(stunden===null?{}:{planned_hours:stunden})" in aendern[:aendern.index("\n")]
-    assert 'placeholder="leer = Reststunden des Auftrags"' in html and 'placeholder="leer = unverändert"' in html
+    assert "st.placeholder=rest?'Rest':'unverändert';st.title=rest?'leer = Reststunden des Auftrags':'leer = unverändert'" in html
 
 
 # --- P3 ------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -99,9 +109,10 @@ def test_vorschlag_nennt_die_art_nur_wenn_sie_da_ist(tafel, threaded_db_session,
     tag = lambda rolle: router_test_client(db, planning_router, role=rolle).post("/api/planning/suggestion", json=payload).json()["days"][0]["absent_employees"][0]  # noqa: E731
     assert tag("buero_auftrag") == {"name": "Lia Test"}
     assert tag("buero_finanzen") == {"name": "Lia Test", "type": "Krankheit"}
+    # seit 1.9.248 zeigt der Dialog keinen Planungsvorschlag mehr (die Schnittstelle bleibt); den Zustand je Person, die Art nur ab Büro – Finanzen,
+    # liefert der Server (test_v648::test_schnittstelle_mit_rolle_und_fehlern) -- die Seite setzt keine Art selbst zusammen
     html = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    assert "a=>a.type?a.name+' ('+a.type+')':a.name" in html
-    assert "a.name+' ('+a.type+')').join" not in html
+    assert "calculateSuggestion" not in html and "+' ('+a.type+')'" not in html
 
 
 # --- P13 -----------------------------------------------------------------------------------------------------------------------------------------------------------

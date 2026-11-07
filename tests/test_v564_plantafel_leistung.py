@@ -121,7 +121,7 @@ def test_auswahl_nur_offene_auftraege_nur_was_sie_zeigt_eine_abfrage(tafel):
     assert z.anzahl == 1
     daten = antwort.json()
     assert [x["id"] for x in daten] == [pausiert.id, laeuft.id]
-    assert set(daten[0]) == {"id", "order_number", "project_number", "project_name"}
+    assert set(daten[0]) == {"id", "order_number", "project_number", "project_name", "project_id", "customer_name"}  # seit 1.9.248 Projekt und Kunde (Kopf des Dialogs)
 
 
 def test_auftrag_ohne_status_gilt_als_offen(tafel):
