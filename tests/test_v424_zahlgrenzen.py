@@ -104,9 +104,10 @@ ABGLEICH = [
     # -- Plantafel
     # seit 1.9.248 ein Dialog für Anlegen und Bearbeiten (bis 1.9.247 newPlannedHours/newTravelHours und editPlannedHours/editTravelHours)
     Z("planning.html", "id=edStunden", ("PlanningSlotCreate.planned_hours", "PlanningSlotUpdate.planned_hours", "EinsatzPruefungNeu.planned_hours",
-                                         "EinsatzPruefungAenderung.planned_hours")),
+                                         "EinsatzPruefungAenderung.planned_hours", "KranTerminUebernahme.planned_hours", "KranTerminPruefung.planned_hours")),
     Z("planning.html", "id=edAnfahrt", ("PlanningSlotCreate.travel_hours_per_employee_day", "PlanningSlotUpdate.travel_hours_per_employee_day",
-                                         "EinsatzPruefungNeu.travel_hours_per_employee_day", "EinsatzPruefungAenderung.travel_hours_per_employee_day")),
+                                         "EinsatzPruefungNeu.travel_hours_per_employee_day", "EinsatzPruefungAenderung.travel_hours_per_employee_day",
+                                         "KranTerminUebernahme.travel_hours_per_employee_day", "KranTerminPruefung.travel_hours_per_employee_day")),  # seit 1.9.251
     # -- Angebot
     Z("quote_editor.html", "class=inline-input", ("QuoteItemUpdate.quantity",)),
     Z("quote_editor.html", None, ("QuoteFreeItemCreate.quantity", "QuoteItemUpdate.quantity"), lesen=("zahlFeld('iQty')",)),

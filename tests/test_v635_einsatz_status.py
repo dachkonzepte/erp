@@ -81,7 +81,7 @@ def test_dialog_und_verlauf():
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
     umschalter = re.search(r'<div[^>]*id="edStatus"[^>]*>(.*?)</div>', seite, re.S).group(1)
     assert re.findall(r'data-status="([^"]*)"', umschalter) == ["vorlaeufig", "fest"]
-    assert "status:'vorlaeufig',notes:''" in seite[seite.index("async function openCreate("):]
+    assert "status:'vorlaeufig',notes:mehr.notes||''" in seite[seite.index("async function openCreate("):]  # seit 1.9.251 die Notiz aus einem Termin
     assert (_STATUS["vorlaeufig"], _STATUS["fest"]) == ("Vorläufig", "Fest")
 
 

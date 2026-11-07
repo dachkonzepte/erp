@@ -1231,7 +1231,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Zeile und Tag (`planenAn()`; `tests/test_v649_plantafel_bedienen.py`, Klicktest `klicktest_plantafel_bedienen.py` mit echten Eingaben); seit 1.9.250
   „Personen“ nach Kolonnen gruppiert, dazu „Ohne Kolonne“ und „Bauleitung“ (mit Konto), mit den Terminen aus dem Kalender der Personen mit Konto
   (`app/planning.py::personen_termine()`, privat „Belegt“ außer für den Besitzer, ohne Modul „Kalender“ keine; `tests/test_v650_plantafel_personen.py`,
-  Klicktest `klicktest_plantafel_personen.py`).
+  Klicktest `klicktest_plantafel_personen.py`); seit 1.9.251 ist ein Termin am Gerät ein Knopf: „Als Kranvermietung übernehmen …“ öffnet den Dialog
+  mit Zeitraum und Gerät vom Termin, geprüft über `POST /api/planning/kran-termine/{id}/pruefen` (`kran_termin_pruefen()`, wie die Übernahme, schreibt
+  nichts; `tests/test_v651_kran_termin_uebernehmen.py`, Klicktest `klicktest_plantafel_kran_termin.py`).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

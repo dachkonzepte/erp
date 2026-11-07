@@ -23,9 +23,9 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung
 
 router = APIRouter()
 
@@ -290,6 +290,23 @@ def pruefe_einsatz(slot_id: int, payload: EinsatzPruefungAenderung, db: Session 
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404 if "nicht gefunden" in str(exc) else 422, detail=str(exc)) from exc
+    return _pruefung_antwort(ergebnis, _role)
+
+
+@router.post("/api/planning/kran-termine/{event_id}/pruefen")
+def pruefe_kran_termin(event_id: int, payload: KranTerminPruefung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.251 (Stufe 6, R4, Punkt 5): der Dialog „Als Kranvermietung übernehmen …“ prüft, bevor übernommen wird -- dieselben Regeln und Antworten
+    wie POST …/kranvermietung (404, 409, 422), schreibt nichts."""
+    werte = payload.model_dump()
+    weitere = {"weitere_personen": werte.pop("weitere_personen"), "weitere_geraete": werte.pop("weitere_geraete")}
+    try:
+        ergebnis = kran_termin_pruefen(db, event_id, mit_art=has_min_role(_role, ROLE_OFFICE_FINANZEN), **weitere, **werte)
+    except (AuftragGeschlossen, KranTerminUngueltig, PropertyCustomerMismatch) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if str(exc) == "Termin nicht gefunden." else 422, detail=str(exc)) from exc
     return _pruefung_antwort(ergebnis, _role)
 
 

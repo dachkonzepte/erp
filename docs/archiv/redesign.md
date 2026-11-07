@@ -8963,3 +8963,43 @@ Angepasste Erwartungen (Regel 28), beide nur Aufbau, gefunden im ersten Suitenla
   das Skript war unvollständig), neu die ganze Funktion über `js_funktion()`; erwartete Werte unverändert.
 - `test_v600::test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip`: alt die Regel `.slot-text{…}` irgendwo (jetzt auch `.slot.zwei .slot-text{…}`), neu
   am Zeilenanfang; Erwartung unverändert.
+
+### Umsetzung 1.9.251 (Punkt 5): Termin aus dem Kran-Postfach
+
+Server (`app/planning.py`): die Prüfung des Termins (`_kran_termin()`: gesperrt, 404 „Termin nicht gefunden.“, 409 ohne Gerät oder schon übernommen) und
+seine Werte (`_kran_termin_werte()`: Gerät für alle Tage, erster bis letzter Tag, ohne Notiz der Titel außer privat, `kran_termin_id`) teilen sich
+`kran_termin_uebernehmen()` (seit 1.9.241) und neu `kran_termin_pruefen()` -- die Vorschau über `einsatz_pruefen()`: der Termin gehört schon im Flush
+zum Einsatz und warnt nicht gegen sich selbst, danach rollback. Route `POST /api/planning/kran-termine/{id}/pruefen` (`KranTerminPruefung`: die Felder
+der Übernahme, dazu „+ Person“/„+ Gerät“), Antworten wie die Übernahme. `geraete_termine()` nennt dazu `privat`.
+
+Seite: der Termin am Gerät ist ein Knopf (`data-klick="kranTermin"`, title mit dem nächsten Schritt wie in der Zeichnung), `terminZeigen()` füllt den
+Dialog `terminDialog` (Titel, Tage, „ab hh:mm“ bzw. „ganztägig“, Gerät, Hinweis; der Knopf zur Übernahme nur bei einem Einzeltermin),
+`terminUebernehmen()` öffnet `openCreate()` als Kranvermietung mit `kran_termin_id`, dem Termin (`einsatz.termin`), dem Gerät, dem letzten Tag (`bis`)
+und der Notiz. Der Dialog sperrt dann Art, Von und Bis, das Gerät und seine Tage, ohne „+ Gerät“; Prüfen über `…/kran-termine/{id}/pruefen`, Speichern
+über `…/kranvermietung`, beide mit `terminWerte()` (ohne Art, Zeitraum, Geräte, Kolonne -- was die Übernahme nicht nimmt). Die Übernahme nimmt seit
+1.9.251 die Anfahrt an (`KranTerminUebernahme.travel_hours_per_employee_day`, Grenzen wie beim Anlegen) -- der Dialog zeigt das Feld.
+
+#### Festlegungen 1.9.251 (Bitte bestätigen)
+
+1. Ein Termin direkt im Postfach eines Geräts ist auf der Tafel ein Knopf; sein title nennt den nächsten Schritt („· belegt das Gerät · „Als
+   Kranvermietung übernehmen …““ bzw. „· Termin einer Serie“). Ein Klick zeigt ihn in einem Dialog: Titel, Tage, „ab hh:mm“ oder „ganztägig“, Gerät.
+2. „Als Kranvermietung übernehmen …“ nur bei einem Einzeltermin; bei einem Termin einer Serie der Hinweis, ihn in Outlook zu ändern.
+3. Die Übernahme öffnet „Einsatz planen“ als Kranvermietung: Art, Zeitraum und Gerät vom Termin und gesperrt (kein „+ Gerät“, keine Tage), Notiz = Titel
+   des Termins (nicht bei einem privaten); Kunde oder Auftrag, Bediener, Stunden und Anfahrt wie beim Anlegen.
+4. Der Dialog prüft auf dem Weg der Übernahme (`…/kran-termine/{id}/pruefen`): der eigene Termin warnt nicht, dieselben Ablehnungen, nichts wird
+   geschrieben; er schickt nur, was die Übernahme nimmt.
+
+#### Tests und Prüfung 1.9.251
+
+Neu: `tests/test_v651_kran_termin_uebernehmen.py` (Vorschau ohne Warnung gegen den eigenen Termin und ohne Spuren, danach die Übernahme; Warnung bei
+einem anderen Einsatz am Kran, 404, 409 ohne Gerät und schon übernommen, 422 ohne Kunde und Auftrag; `privat` an den Terminen; Dialog des Termins und
+Übernahme in node -- Serie ohne Knopf, privat ohne Notiz; `terminWerte()`) und `scripts/klicktest_plantafel_kran_termin.py` (Testdaten der Tafel mit einem
+Termin einer Serie: Knöpfe mit title, Dialog, Übernahme mit gesperrtem Zeitraum und Gerät, ohne Kunde die Meldung ohne Anfrage, Prüfung über den Weg des
+Termins ohne Warnung, gespeichert als „Vermietung · Kai“, Serie ohne Knopf, 1440/1280, hell und dunkel). Gegenproben: Archiv
+`gegenproben-stufe6-r4.md`. Angepasste Erwartungen: `test_v373` neu eingeordnet `POST /api/planning/kran-termine/{event_id}/pruefen` `order_id`,
+`customer_id` (FREI) und `property_id` (GEPRUEFT) -- Aufbau; `test_v424` (`ABGLEICH`): `edStunden` und `edAnfahrt` auch zu `KranTerminUebernahme` und
+`KranTerminPruefung` -- Aufbau; `test_v635::test_dialog_und_verlauf`: alt `status:'vorlaeufig',notes:''` in `openCreate()`, neu
+`status:'vorlaeufig',notes:mehr.notes||''` (die Notiz aus einem Termin) -- Aufbau, gefunden im ersten Suitenlauf.
+
+Fund im ersten Lauf des Klicktests (Bild): der Dialog zeigte „Anfahrt je Tag“, die Übernahme nahm sie aber nicht an -- ein geänderter Wert wäre still
+verloren gegangen. Seitdem nimmt die Übernahme die Anfahrt an. Dazu das Schließen-Symbol wie im Einsatz-Dialog.

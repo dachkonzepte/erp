@@ -3215,6 +3215,7 @@ class KranTerminUebernahme(BaseModel):
     status: Literal["vorlaeufig", "fest"] = "vorlaeufig"
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
+    travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)  # seit 1.9.251 (der Dialog zeigt die Anfahrt)
     trotzdem_planen: bool = False
 
     @model_validator(mode="after")
@@ -3256,6 +3257,10 @@ class EinsatzPruefungNeu(PlanningSlotCreate, EinsatzPruefungWeitere):
 
 class EinsatzPruefungAenderung(PlanningSlotUpdate, EinsatzPruefungWeitere):
     """Seit 1.9.248: POST /api/planning/slots/{id}/pruefen -- dieselben Felder wie das Ändern (Teil-Update), dazu „+ Person“/„+ Gerät“."""
+
+
+class KranTerminPruefung(KranTerminUebernahme, EinsatzPruefungWeitere):
+    """Seit 1.9.251: POST /api/planning/kran-termine/{id}/pruefen -- dieselben Felder wie die Übernahme, dazu „+ Person“/„+ Gerät“."""
 
 
 class PlanningSettingsOut(BaseModel):

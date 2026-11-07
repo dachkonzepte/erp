@@ -1635,7 +1635,7 @@ def geraete_termine(db: Session, geraet_ids: set[int], start: date, end: date) -
             erster, letzter = termin_tage(zeile)
             out.append({"id": zeile.id, "resource_id": zeile.resource_id, "titel": BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title,
                         "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}",
-                        "uebernehmbar": modell is CalendarEvent})
+                        "uebernehmbar": modell is CalendarEvent, "privat": bool(zeile.is_private)})  # seit 1.9.251 privat
     return out
 
 
@@ -1713,6 +1713,18 @@ def kran_termin_uebernehmen(db: Session, event_id: int, **werte) -> PlanningSlot
     an einem Auftrag oder mit Kunde wie create_slot(), mit dem Gerät des Termins für alle Tage, an seinen Tagen (ein ganztägiger von erstem bis letztem
     Tag, sonst der Tag des Beginns bis zum Tag vor dem Ende um Mitternacht). Der Termin wird der Termin des neuen Einsatzes (die Plantafel ist ab jetzt
     führend, der nächste Abgleich überschreibt ihn in Outlook). Ohne Notiz übernimmt der Einsatz den Titel des Termins, außer der Termin ist privat."""
+    return create_slot(db, **_kran_termin_werte(_kran_termin(db, event_id), werte))
+
+
+def kran_termin_pruefen(db: Session, event_id: int, *, mit_art: bool = False, weitere_personen=(), weitere_geraete=(), **werte) -> dict:
+    """Seit 1.9.251 (Stufe 6, R4, Punkt 5): die Vorschau des Dialogs „Als Kranvermietung übernehmen …“ -- derselbe Weg wie kran_termin_uebernehmen()
+    (der Termin gehört schon im Flush zum Einsatz, warnt also nicht gegen sich selbst), schreibt nichts (einsatz_pruefen(), rollback)."""
+    return einsatz_pruefen(db, mit_art=mit_art, weitere_personen=weitere_personen, weitere_geraete=weitere_geraete,
+                           **_kran_termin_werte(_kran_termin(db, event_id), werte))
+
+
+def _kran_termin(db: Session, event_id: int) -> CalendarEvent:
+    """Der Termin am Gerät, gesperrt bis zum Commit -- 404 („Termin nicht gefunden.“) bzw. KranTerminUngueltig (kein Gerät, schon übernommen)."""
     termin = db.scalar(select(CalendarEvent).where(CalendarEvent.id == event_id).with_for_update())
     if termin is None:
         db.rollback()
@@ -1721,11 +1733,16 @@ def kran_termin_uebernehmen(db: Session, event_id: int, **werte) -> PlanningSlot
         db.rollback()
         raise KranTerminUngueltig("Nur ein Termin aus dem Kalender eines Geräts lässt sich als Kranvermietung übernehmen." if termin.resource_id is None
                                   else "Dieser Termin gehört schon zu einem Einsatz der Plantafel.")
+    return termin
+
+
+def _kran_termin_werte(termin: CalendarEvent, werte: dict) -> dict:
+    """Gerät und Zeitraum vom Termin, ohne Notiz sein Titel (nicht bei einem privaten)."""
     von, bis = termin_tage(termin)
     if werte.get("notes") is None and not termin.is_private:
         werte["notes"] = termin.title
-    return create_slot(db, art="kranvermietung", team_id=None, geraete=[{"resource_id": termin.resource_id}], start_date=von, end_date=max(von, bis),
-                       kran_termin_id=termin.id, **werte)
+    return {"art": "kranvermietung", "team_id": None, "geraete": [{"resource_id": termin.resource_id}], "start_date": von, "end_date": max(von, bis),
+            "kran_termin_id": termin.id, **werte}
 
 
 def _warnungen_pruefen(db: Session, slot_id: int) -> None:

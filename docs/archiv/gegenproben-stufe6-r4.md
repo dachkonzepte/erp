@@ -164,3 +164,24 @@ Kein Marker unter `app/` nach den Läufen.
 | Nr. 5 – im Browser | alle des Einsatzes (`250_5f`, Klicktest Personen) | rot: klicktest_plantafel_personen „Mia …“, „Kai …“, „Nele …“, „Büro – Auftrag …“ |
 
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.251 (Punkt 5): Termin aus dem Kran-Postfach
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Termin ist ein Knopf | kein Knopf (`251_1a`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „Kran: Termine als Knöpfe“ (dazu alle Folgeschritte) |
+| Nr. 1 – title nennt den nächsten Schritt | ohne (`251_1b`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „Kran: Termine als Knöpfe“ |
+| Nr. 2 – Knopf nur beim Einzeltermin | immer (`251_2a`) | 1 rot: v651::test_dialog_des_termins_und_uebernahme |
+| Nr. 2 – Serie: keine Übernahme | übernimmt auch sie (`251_2b`) | 1 rot: v651::test_dialog_des_termins_und_uebernahme |
+| Nr. 3 – privat ohne Notiz | Titel auch dann (`251_3a`) | 1 rot: v651::test_dialog_des_termins_und_uebernahme |
+| Nr. 3 – Anfahrt wie beim Anlegen | Feld nicht in der Übernahme (`251_3e`) | 1 rot: v651::test_pruefen_wie_uebernehmen_ohne_spuren |
+| Nr. 3 – Zeitraum gesperrt | frei (`251_3b`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „Übernehmen: Kopf, Art fest, Zeitraum und Gerät vom Termin, Notiz“ |
+| Nr. 3 – Gerät gesperrt | frei (`251_3c`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „Übernehmen: …“ |
+| Nr. 3 – Art gesperrt | frei (`251_3d`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „Übernehmen: …“ |
+| Nr. 4 – Prüfen über den Weg des Termins | über `…/slots/pruefen` (`251_4a`, Klicktest Kran-Termin) | rot: klicktest_plantafel_kran_termin „geprüft über den Weg des Termins, ohne Warnung“ |
+| Nr. 4 – der eigene Termin warnt nicht | Termin nicht am Einsatz (`251_4b`) | 2 rot: v651::test_pruefen_wie_uebernehmen_ohne_spuren, test_pruefen_warnt_wie_uebernehmen_und_lehnt_ab_wie_uebernehmen |
+| Nr. 4 – dieselben Ablehnungen | ohne Prüfung des Termins (`251_4d`) | 1 rot: v651::test_pruefen_warnt_wie_uebernehmen_und_lehnt_ab_wie_uebernehmen |
+| Nr. 4 – nur, was die Übernahme nimmt | alles (`251_4e`) | 1 rot: v651::test_aus_dem_termin_nur_was_die_uebernahme_nimmt |
+
+Ohne eigene Gegenprobe: „nichts wird geschrieben“ -- die Vorschau geht über `einsatz_pruefen()` (rollback, Gegenprobe `248_2a`); `test_v651` zählt
+Einsätze, Projekte und Termine davor und danach. Kein Marker unter `app/` nach den Läufen.
