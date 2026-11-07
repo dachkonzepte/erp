@@ -8,7 +8,8 @@ Kranvermietung (Lia, 04.–05.); zwei Aufträge nicht eingeplant.
 
     Zeilen       Nord, Süd, Ohne Kolonne, dann GERÄTE (Kran, Pritschen); Nord nennt „Tom (KF), Mia, Ole“ und „Tom Urlaub 02.–06.“; der Kran „UVV gültig bis
                  03/2027“ und „mit Outlook-Kalender“
-    Balken       fest / vorläufig / Kranvermietung / Termin, Warnung mit rotem Rand und Zeichen, Hinweis mit Punkt; der Kran nur an seinen Tagen
+    Balken       fest / vorläufig / Kranvermietung / Termin, Warnung mit rotem Rand und Zeichen, Hinweis mit Punkt; der Kran nur an seinen Tagen;
+                 seit 1.9.255 tragen Kran und Pritschen nur Warnungen zum Gerät -- nicht Kais Warnung, nicht Neles Punkt
     Maße         14 Tage passen bei 1440 px ohne Bildlauf in der Tafel, Sa/So schmal; kein Balken verdeckt einen anderen; jeder Text im Balken ist
                  sichtbar oder steht im title
     Leiste       „KW 45–46 · 02.11.–15.11.2026“, Knopf „1 Warnung · 1 Hinweis“ filtert (nur Einsätze mit Warnung oder Hinweis) und zurück
@@ -146,13 +147,13 @@ async def pruefen(tab, seed, p):
         ["Kolonne Süd", "Garage Lindenweg 7 · Kai, Nele", "vorlaeufig conflict", True],
         ["Kolonne Süd", "Wartung · Kai", "fest", False],
         ["Ohne Kolonne", "Notdienst · Lia", "fest", False],
-        ["Kran Böcker AHK 36", "Am Wasserturm 4", "fest conflict", False],
+        ["Kran Böcker AHK 36", "Am Wasserturm 4", "fest", False],  # seit 1.9.255 ohne Kais Warnung
         ["Kran Böcker AHK 36", "Vermietung · Lia", "fest kran", False],
         ["Kran Böcker AHK 36", "Am Wasserturm 4", "fest", False],
         ["Kran Böcker AHK 36", "Outlook · Müller", "termin", False],
-        ["Pritsche HS-DK 202", "Am Wasserturm 4", "fest conflict", False],
         ["Pritsche HS-DK 202", "Am Wasserturm 4", "fest", False],
-        ["Pritsche HS-DK 204", "Garage Lindenweg 7", "vorlaeufig conflict", True],
+        ["Pritsche HS-DK 202", "Am Wasserturm 4", "fest", False],
+        ["Pritsche HS-DK 204", "Garage Lindenweg 7", "vorlaeufig", False],  # ohne Kais Warnung und Neles Punkt
         ["Pritsche HS-DK 204", "Wartung", "fest", False],
     ])
     p.pruefe("Warnung: rotes Zeichen im Balken", await tab.js("[...document.querySelectorAll('#planner .slot.conflict')].every(s=>!!s.querySelector('svg.warnzeichen'))"), True)
@@ -180,7 +181,7 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('filterKnopf').click()")
     p.pruefe("Filter: nur Einsätze mit Warnung oder Hinweis", await tab.js(
         "[document.getElementById('filterKnopf').getAttribute('aria-pressed'),[...document.querySelectorAll('#planner .slot')].map(s=>s.querySelector('.slot-text').textContent.trim())]"),
-        ["true", ["Am Wasserturm 4 · Mia, Ole, Kai", "Garage Lindenweg 7 · Kai, Nele", "Am Wasserturm 4", "Am Wasserturm 4", "Garage Lindenweg 7"]])
+        ["true", ["Am Wasserturm 4 · Mia, Ole, Kai", "Garage Lindenweg 7 · Kai, Nele"]])  # seit 1.9.255 keine Gerätezeile (deren Warnungen betreffen Personen)
     await tab.bild("tafel_filter")
     await tab.js("document.getElementById('filterKnopf').click()")
     p.pruefe("Filter: wieder alle", await tab.js("document.querySelectorAll('#planner .slot').length"), 13)

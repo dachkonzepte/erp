@@ -9146,3 +9146,41 @@ Termin -- erster Tag, Serie, unbekannte Kennung ohne Ziel; der Kalender liest Ta
 das Vorkommen „Jour fixe“ -> 04.11.2026 mit der Leseansicht, die gemerkte Ansicht leer; als Bea ihr privater Termin ein Knopf (29 statt 26 Prüfungen, zwei neue
 Bilder). Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: `klicktest_plantafel_personen` -- Beas Termine alt vier, neu fünf (das
 Vorkommen der Serie dazu); „Bea sieht ihren privaten Termin“ prüft dazu den Knopf.
+
+### Umsetzung 1.9.255 (Punkt 5): Gerätezeilen nur mit Warnungen zum Gerät
+
+Fund aus den Bildern von R4: Kran und Pritsche HS-DK 202 trugen Kais Warnung („Person doppelt“), die Pritsche HS-DK 204 dazu Neles Punkt („Antrag offen“) --
+`einsatzBalken()` filterte die Konflikte seit 1.9.250 nur für „Personen“. Jetzt bekommt die Zeile eines Geräts (`geraetItems()` in „Kolonnen“ und „Geräte“)
+die ID des Geräts und zeigt nur Konflikte mit dieser `resource_id`. Server (`_conflicts()`): „Gerät doppelt“ zwischen zwei Einsätzen und „Prüffrist
+abgelaufen“ nennen das Gerät.
+
+Termin im Postfach: bis 1.9.254 nur beim Speichern (`einsatz_konflikte()` + `_termine_der_geraete()`), auf der Tafel nicht (`test_v579::
+test_die_tafel_zeichnet_ihn_noch_nicht`: „kommt mit R4“ -- R4 hat ihn nicht gebracht). Jetzt `termin_warnungen_der_tafel()`: die Einträge der Kalender aller
+Geräte im Bild mit einer Abfrage je Tabelle (`_termin_zeilen()`), je Einsatz dieselbe Auswahl der Tage wie beim Speichern (`_termine_am_einsatz()`: Arbeitstage
+des Geräts, hat der Einsatz keinen, alle seine Tage), als Warnung „Gerät doppelt“ mit dem Gerät (`_termin_warnung()`, dieselbe beim Speichern);
+`termine_der_geraete()` nimmt dieselben Teile. Einsätze geschlossener Aufträge zählen nicht. Die Warnung färbt den Einsatz in der Zeile der Kolonne und am
+Gerät und zählt im Knopf „Warnungen“; in „Personen“ fehlt sie (Festlegung 1.9.250 Nr. 5).
+
+#### Festlegungen 1.9.255 (Bitte bestätigen)
+
+1. Die Zeile eines Geräts -- in „Kolonnen“ unter GERÄTE und in „Geräte“ -- trägt nur die Warnungen und Hinweise zu diesem Gerät: Gerät doppelt, Termin im
+   Postfach, Prüffrist abgelaufen; nicht die der Personen, keinen Feiertag und keine Kapazität. Die stehen in der Zeile der Kolonne bzw. „Ohne Kolonne“ und
+   im Dialog; bei einer Kranvermietung (sie steht nur in der Zeile ihres Geräts) die des Bedieners in „Personen“.
+2. „Gerät doppelt“ und „Prüffrist abgelaufen“ nennen dafür das Gerät.
+3. Ein Termin direkt im Postfach eines Geräts warnt auch auf der Tafel (bis 1.9.254 nur beim Speichern): als „Gerät doppelt“ am Einsatz, an den
+   Arbeitstagen des Geräts, nicht bei geschlossenen Aufträgen; er zählt im Knopf „Warnungen“.
+
+#### Tests und Prüfung 1.9.255
+
+Neu: `tests/test_v655_geraetezeilen.py` (Person und Gerät doppelt nennen wen, nur das gemeinsame Gerät; Prüffrist mit dem Gerät; Termin im Postfach auf der
+Tafel an den Tagen des Geräts, nicht am Wochenende, nicht an einem Einsatz mit dem Gerät an einem anderen Tag, nicht bei storniertem Auftrag; in node die
+Gerätezeile ohne die Konflikte der Personen und mit ihren eigenen, die Zeile der Kolonne mit allem, „Personen“ unverändert). `scripts/klicktest_plantafel_personen.py`
+dazu: „Wagner“ im Postfach des Krans am 13.11. und eine abgelaufene UVV an der Pritsche HS-DK 204 -- in „Geräte“ nur in ihren Zeilen, title mit dem Gerät; die
+Zeile der Kolonne Nord mit der Warnung des Krans; neues Bild `kolonnen_mit_geraetewarnungen` (32 statt 29 Prüfungen). Gegenproben: Archiv
+`gegenproben-stufe6-r4b.md`.
+
+Angepasste Erwartungen (Regel 28): `test_v579::test_die_tafel_zeichnet_ihn_noch_nicht` -- alt conflict_count 0 (die Tafel zeigte den Termin nicht), neu
+`test_die_tafel_zeigt_ihn_als_warnung_am_geraet`: eine Warnung „Gerät doppelt“ mit dem Kran; `klicktest_plantafel_tafel` -- Balken alt Kran und Pritsche
+HS-DK 202 „Am Wasserturm 4“ mit Warnung, Pritsche HS-DK 204 „Garage“ mit Warnung und Punkt, neu ohne; der Filter alt fünf Balken (drei in Gerätezeilen), neu
+die zwei der Kolonnen; `klicktest_plantafel_personen` -- Kran alt „Am Wasserturm 4“ (KW 45) mit Kais Warnung und ohne „Wagner“, neu KW 45 ohne, KW 46 mit
+der Warnung des Termins, dazu „Outlook · 07:00 Wagner“.

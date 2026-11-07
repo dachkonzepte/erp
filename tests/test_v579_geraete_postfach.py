@@ -377,14 +377,17 @@ def test_geschlossener_auftrag_warnt_nicht(welt):
     assert antwort.status_code == 200, antwort.text
 
 
-def test_die_tafel_zeichnet_ihn_noch_nicht(welt):
-    """Anzeige auf der Tafel kommt mit R4: dort steht der Einsatz bis dahin ohne diese Warnung."""
+def test_die_tafel_zeigt_ihn_als_warnung_am_geraet(welt):
+    """Seit 1.9.255 (Stufe 6, R4b, Punkt 5) warnt der Termin im Postfach auch auf der Tafel, mit dem Gerät (bis 1.9.254
+    test_die_tafel_zeichnet_ihn_noch_nicht: der Einsatz stand auf der Tafel ohne diese Warnung, conflict_count 0)."""
     w = welt
     team, order = _einsatz_welt(w)
     _am_kran(w, MONTAG)
     assert w.client.post("/api/planning/slots", json=_body(order, team, trotzdem_planen=True)).status_code == 200
     tafel = planning_board(w.db, MONTAG, MONTAG + timedelta(days=6))
-    assert tafel["conflict_count"] == 0
+    assert tafel["conflict_count"] == 1
+    [k] = tafel["slots"][0]["conflicts"]
+    assert (k["type"], k["stufe"], k["resource_id"]) == ("resource", "warnung", w.kran.id) and "· Termin: " in k["label"]
 
 
 # --- Genau eines von beiden --------------------------------------------------------------------------

@@ -1241,7 +1241,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   einplanbar), einplanbar ohne Kolonne unter „Ohne Kolonne“; „nicht zeigen“ fehlt in Tafel, „+ Person“ und Kapazität; ohne Zeile die Vorgabe aus Gruppe und
   Funktion (`tests/test_v653_plantafel_kennzeichen.py`); seit 1.9.254 ist ein Termin einer Person ein Knopf in den Kalender (`/kalender?tag=…&termin=…` bzw.
   `serie=…`, Tagesansicht nur für diesen Aufruf), ein privater Termin eines anderen („belegt“ in `personen_termine`) nicht
-  (`tests/test_v654_termin_einer_person.py`).
+  (`tests/test_v654_termin_einer_person.py`); seit 1.9.255 trägt die Zeile eines Geräts nur dessen Warnungen (Gerät doppelt, Termin im Postfach, Prüffrist;
+  die Konflikte nennen `resource_id`), der Termin im Postfach warnt auch auf der Tafel (`termin_warnungen_der_tafel()`, eine Abfrage je Tabelle;
+  `tests/test_v655_geraetezeilen.py`).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

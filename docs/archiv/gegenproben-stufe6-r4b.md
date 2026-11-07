@@ -50,3 +50,22 @@ Kein Marker unter `app/` nach den Läufen.
 
 Ohne eigene Gegenprobe: `termin`/`serie` nur als Zahl -- derselbe Prüfausdruck wie der Tag, der statische Test liest beide; ein falscher Wert öffnet ohnehin
 nichts (`openEdit()` findet keinen Termin). Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.255 (Punkt 5): Gerätezeilen nur mit Warnungen zum Gerät
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur die Konflikte des Geräts | Zeile des Geräts ohne Filter (`255_1a`) | 2 rot: v655::test_geraetezeile_mit_ihren_eigenen, v655::test_geraetezeile_ohne_konflikte_der_personen |
+| Nr. 1 – nur die Konflikte des Geräts | dasselbe (`255_1b`, Klicktest Tafel) | rot: plantafel_tafel (Balken; Filter) |
+| Nr. 1 – je Gerät seine Zeile | Zeile ohne die ID des Geräts (`255_1c`, Klicktest Tafel) | rot: plantafel_tafel (Balken; Filter) |
+| Nr. 2 – Gerät doppelt nennt das Gerät | ohne (`255_2a`) | 1 rot: v655::test_geraet_doppelt_und_person_doppelt_nennen_wen |
+| Nr. 2 – Prüffrist nennt das Gerät | ohne (`255_2b`) | 1 rot: v655::test_pruefung_nennt_das_geraet |
+| Nr. 2 – Prüffrist nennt das Gerät | ohne (`255_2c`, Klicktest Personen) | rot: plantafel_personen (Geräte) |
+| Nr. 3 – Termin im Postfach warnt auf der Tafel | nur beim Speichern (`255_3a`) | 2 rot: v579::test_die_tafel_zeigt_ihn_als_warnung_am_geraet, v655::test_termin_im_postfach_warnt_auf_der_tafel |
+| Nr. 3 – Termin im Postfach warnt auf der Tafel | nur beim Speichern (`255_3e`, Klicktest Personen) | rot: plantafel_personen (Geräte; Kolonnen) |
+| Nr. 3 – an den Tagen des Geräts | an allen Arbeitstagen des Einsatzes (`255_3b`) | 1 rot: v655::test_termin_im_postfach_warnt_auf_der_tafel |
+| Nr. 3 – nicht bei geschlossenen Aufträgen | auch dann (`255_3c`) | 1 rot: v655::test_termin_eines_geschlossenen_auftrags_warnt_nicht |
+| Nr. 3 – mit dem Gerät | ohne (`255_3d`) | 2 rot: v579::test_die_tafel_zeigt_ihn_als_warnung_am_geraet, v655::test_termin_im_postfach_warnt_auf_der_tafel |
+
+Ohne eigene Gegenprobe: „zählt im Knopf Warnungen“ -- `tafel_zaehler()` zählt jede Warnung der Einsätze (Gegenproben 1.9.247 Nr. 2), der Test prüft den
+Zähler mit. Kein Marker unter `app/` nach den Läufen.

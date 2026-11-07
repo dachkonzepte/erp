@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.255 – Plantafel: Gerätezeilen nur mit Warnungen zum Gerät (Stufe 6, R4b, Punkt 5)
+
+In den Bildern von R4 trugen die Zeilen der Geräte die Warnungen der Personen mit: der Kran und die Pritsche HS-DK 202 die Warnung, dass Kai doppelt eingeplant ist, die Pritsche HS-DK 204 dazu den Punkt für Neles offenen Antrag. Wie in der Zeichnung und wie seit 1.9.250 in „Personen“ zeigt die Zeile eines Geräts jetzt nur, was dieses Gerät betrifft: Gerät doppelt, Termin im Postfach, Prüffrist abgelaufen -- in „Kolonnen“ unter GERÄTE und in der Ansicht „Geräte“. Die Zeile der Kolonne zeigt weiter alles. Dafür nennen „Gerät doppelt“ und „Prüffrist abgelaufen“ das Gerät.
+
+Der Termin direkt im Postfach eines Geräts warnte bisher nur beim Speichern eines Einsatzes, nicht auf der Tafel. Jetzt steht er auch dort als Warnung am Einsatz -- an den Arbeitstagen des Geräts, nicht bei geschlossenen Aufträgen, mit einer Abfrage je Tabelle für alle Einsätze im Bild.
+
 ## 1.9.254 – Plantafel: Termin einer Person öffnet den Kalender (Stufe 6, R4b, Punkt 2)
 
 Ein Termin aus dem Kalender in der Ansicht „Personen“ ist jetzt ein Knopf. Ein Klick öffnet den Kalender in der Tagesansicht am ersten Tag des Termins und öffnet dort den Termin, ein Vorkommen einer Outlook-Serie in seiner Leseansicht. Die gemerkte Ansicht des Kalenders (Tag, Woche, Monat) bleibt dabei unverändert. Ein privater Termin eines anderen steht weiter nur als „Belegt“ da und ist kein Knopf; für den Besitzer selbst schon. Dafür nennt die Plantafel je Termin, ob er für den Betrachter „belegt“ ist, und der Kalender liest `?tag=JJJJ-MM-TT&termin=<id>` bzw. `&serie=<id>`.

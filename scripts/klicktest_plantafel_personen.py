@@ -17,7 +17,9 @@ Stehende Uhr Di 03.11.2026 10:00.
                  ebenso; „Belegt“ (privat, für Anna) ist kein Knopf, für Bea selbst schon; die gemerkte Ansicht des Kalenders bleibt
     Formular     seit 1.9.253: im Mitarbeiterformular „Plantafel“ auf „Bauleitung“ -> Paul steht danach im Abschnitt Bauleitung
     Büro – Auftrag  als Bea: Tom „abwesend“ und Nele „beantragt“ ohne Art; ihr eigener privater Termin mit Titel
-    Geräte       Kran mit dem Termin aus seinem Postfach („Müller“, 10.–11.11.) und der Vermietung, die Pritschen
+    Geräte       Kran mit dem Termin aus seinem Postfach („Müller“, 10.–11.11.) und der Vermietung, die Pritschen; seit 1.9.255 nur Warnungen zum
+                 Gerät: Kran mit „Wagner“ (13.11., Termin im Postfach) am Wasserturm der KW 46, Pritsche HS-DK 204 mit abgelaufener UVV (fällig 02.11.)
+                 an Garage und Wartung, Pritsche HS-DK 202 ohne; die Zeile der Kolonne Nord mit der Warnung am Kran, „Personen“ ohne beide
     keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -59,6 +61,14 @@ def befuellen(db, k):
     for tag, stunde, titel, privat in ((3, 10, "Aufmaß", False), (5, 8, "Angebot vor Ort", False), (6, 9, "Zahnarzt", True), (13, 14, "Abnahme", False)):
         db.add(CalendarEvent(title=titel, start_at=datetime(2026, 11, tag, stunde), end_at=datetime(2026, 11, tag, stunde + 1), owner_user_id=konto.id,
                              is_private=privat))
+    # seit 1.9.255: ein Termin im Postfach des Krans am Tag des Krans in KW 46, eine abgelaufene UVV an der Pritsche HS-DK 204
+    from app.models import OperationalAsset, OperationalAssetInspection, OperationalResource
+    kran = db.scalar(select(OperationalResource).where(OperationalResource.name == "Kran Böcker AHK 36"))
+    db.add(CalendarEvent(title="Wagner", start_at=datetime(2026, 11, 13, 7), end_at=datetime(2026, 11, 13, 9), resource_id=kran.id,
+                         external_source="outlook", outlook_postfach="kran@dachkonzepte.example", outlook_event_id="kran-2"))
+    asset = OperationalAsset(resource_id=db.scalar(select(OperationalResource.id).where(OperationalResource.name == "Pritsche HS-DK 204")))
+    db.add(asset); db.flush()
+    db.add(OperationalAssetInspection(asset_id=asset.id, inspection_type="UVV", next_due_date=datetime(2026, 11, 2).date()))
     db.add(OutlookSeriesOccurrence(owner_user_id=konto.id, outlook_postfach="bea@dachkonzepte.example", outlook_event_id="bea-jf-1", occurrence_type="occurrence",
                                    title="Jour fixe", start_at=datetime(2026, 11, 4, 8), end_at=datetime(2026, 11, 4, 9)))  # seit 1.9.254
     db.commit()
@@ -150,11 +160,29 @@ async def pruefen(tab, seed, p):
     # --- Geräte ---
     await tab.fenster(1440, 1000)
     await ansicht(tab, "resources")
-    p.pruefe("Geräte: Kran mit dem Termin aus seinem Postfach und der Vermietung", await tab.js(BALKEN_JE_ZEILE + "('Kran Böcker AHK 36')"),
-             [["Am Wasserturm 4", "fest !"], ["Vermietung · Lia", "kran"], ["Am Wasserturm 4", "fest"], ["Outlook · Müller", "termin"]])  # erst die Einsätze
+    p.pruefe("Geräte: Kran mit den Terminen aus seinem Postfach und der Vermietung, nur seine Warnung (Wagner am 13.11.)",
+             await tab.js(BALKEN_JE_ZEILE + "('Kran Böcker AHK 36')"),
+             [["Am Wasserturm 4", "fest"], ["Vermietung · Lia", "kran"], ["Am Wasserturm 4", "fest !"], ["Outlook · Müller", "termin"],
+              ["Outlook · 07:00 Wagner", "termin"]])  # erst die Einsätze
+    p.pruefe("Geräte: die Pritschen nur mit ihren Warnungen (204: UVV abgelaufen, 202: keine)",
+             [await tab.js(BALKEN_JE_ZEILE + "('Pritsche HS-DK 202')"), await tab.js(BALKEN_JE_ZEILE + "('Pritsche HS-DK 204')"),
+              await tab.js(UNTER + "('Pritsche HS-DK 204')")],
+             [[["Am Wasserturm 4", "fest"], ["Am Wasserturm 4", "fest"]], [["Garage Lindenweg 7", "vorlaeufig !"], ["Wartung", "fest !"]],
+              ["UVV fällig seit 02.11.2026"]])
+    p.pruefe("Geräte: die Warnung am Gerät nennt das Gerät", await tab.js(
+        "[...[...document.querySelectorAll('#planner .planner-row')].find(z=>z.querySelector('.row-label b').textContent.trim()==='Pritsche HS-DK 204')"
+        ".querySelectorAll('.slot.conflict')].every(s=>s.title.includes('Prüffrist abgelaufen: Pritsche HS-DK 204 · UVV'))"), True)
     p.pruefe("Geräte: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("Geräte: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
     await tab.bild("geraete_1440_hell")
+
+    # --- seit 1.9.255: die Zeile der Kolonne zeigt alles, auch die Warnung am Kran ---
+    await ansicht(tab, "teams")
+    p.pruefe("Kolonnen: Nord mit Kais Warnung (KW 45) und der des Krans (KW 46), Süd mit Prüffrist an beiden",
+             [await tab.js(BALKEN_JE_ZEILE + "('Kolonne Nord')"), await tab.js(BALKEN_JE_ZEILE + "('Kolonne Süd')")],
+             [[["Am Wasserturm 4 · Mia, Ole, Kai", "fest !"], ["Am Wasserturm 4 · Tom, Mia, Ole", "fest !"]],
+              [["Garage Lindenweg 7 · Kai, Nele", "vorlaeufig ! ·"], ["Wartung · Kai", "fest !"]]])
+    await tab.bild("kolonnen_mit_geraetewarnungen")
 
     # --- seit 1.9.254: Termin einer Person öffnet den Kalender ---
     await ansicht(tab, "employees")

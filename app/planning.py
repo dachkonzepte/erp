@@ -1486,16 +1486,16 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             # seit 1.9.236 kein „Kolonne doppelt“ mehr: zwei Einsätze derselben Kolonne mit verschiedenen Personen sind kein Konflikt (Zeichnung)
             for eid in sorted(a_emps & b_emps):
                 name = next((_employee_name(x.employee) for x in a.besetzung if x.employee_id == eid), f"Mitarbeiter #{eid}")
-                issues.append(("employee", name, eid))
+                issues.append(("employee", name, {"employee_id": eid}))  # seit 1.9.250: wen der Konflikt betrifft („Personen“ zeigt ihn nur bei ihr)
             for rid in sorted(a_res & b_res):  # seit 1.9.234 nur, wenn sich die Tage des Geräts in beiden Einsätzen treffen
                 ra = next(x for x in a.geraete if x.resource_id == rid)
                 rb = next(x for x in b.geraete if x.resource_id == rid)
                 if _geraet_tage(a, ra) & _geraet_tage(b, rb):
-                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", None))
-            for kind, label, eid in issues:
-                person = {} if eid is None else {"employee_id": eid}  # seit 1.9.250: wen der Konflikt betrifft („Personen“ zeigt ihn nur bei ihr)
-                result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name, **person})
-                result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name, **person})
+                    # seit 1.9.255: welches Gerät -- die Zeile eines Geräts zeigt nur seine Warnungen
+                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", {"resource_id": rid}))
+            for kind, label, wen in issues:
+                result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name, **wen})
+                result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name, **wen})
 
     for slot in slots:
         distribution, shortfall = _slot_distribution(db, slot, settings, holiday_dates, absences, visible_employee_ids, soll)
@@ -1539,6 +1539,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 if spaeter:
                     name = row.resource.name if row.resource else f"Gerät #{row.resource_id}"
                     result[slot.id].append({"type":"pruefung", "label":f"{name} · {art} fällig am {faellig:%d.%m.%Y}", "date":spaeter[0],
+                                            "resource_id":row.resource_id,  # seit 1.9.255
                                             "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
@@ -1553,30 +1554,68 @@ def termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSetti
     ganze Tage, deshalb zählt jeder Termin an einem dieser Tage, auch einer von zwei Stunden. Tage, an denen nicht gearbeitet wird, belegen das Gerät nicht (1.9.150); hat der Einsatz gar keinen
     Arbeitstag, zählen alle seine Tage. Serienvorkommen zählen wie Einzeltermine."""
     # seit 1.9.234 die Geräte des Einsatzes, je an seinen Tagen (bis 1.9.233 die der Kolonne, alle Tage)
-    geraete = {x.resource_id: x.resource.name if x.resource else f"Gerät #{x.resource_id}" for x in slot.geraete}
-    if not geraete:
+    if not slot.geraete:
         return []
     feiertage = set(_combined_holiday_map(db, slot.start_date, slot.end_date)[0])
+    return _termine_am_einsatz(slot, settings, feiertage, _termin_zeilen(db, {x.resource_id for x in slot.geraete}, slot.start_date, slot.end_date))
+
+
+def _termin_zeilen(db: Session, geraete: set[int], von: date, bis: date) -> list:
+    """Die Einträge in den Kalendern der Geräte, die den Zeitraum berühren -- Termine (ohne die der Einsätze selbst, seit 1.9.241) und Serienvorkommen,
+    je Tabelle eine Abfrage (seit 1.9.255 auch für die Tafel, alle Einsätze im Bild auf einmal)."""
+    out = []
+    for modell in (CalendarEvent, OutlookSeriesOccurrence):
+        bedingung = [modell.resource_id.in_(geraete), modell.start_at <= datetime.combine(bis, time.max), modell.end_at >= datetime.combine(von, time.min)]
+        if modell is CalendarEvent:
+            bedingung.append(CalendarEvent.planning_slot_id.is_(None))  # seit 1.9.241: die Termine der Einsätze selbst sind keine fremde Belegung
+        out.extend(db.scalars(select(modell).where(*bedingung).order_by(modell.start_at)))
+    return out
+
+
+def _termine_am_einsatz(slot: PlanningSlot, settings: PlanningSettings, feiertage: set[date], zeilen: list) -> list[tuple[str, CalendarEvent | OutlookSeriesOccurrence, date]]:
+    """Welche dieser Einträge die Tage der Geräte des Einsatzes treffen (Arbeitstage; hat der Einsatz keinen, alle seine Tage) -- mit dem ersten Tag."""
+    geraete = {x.resource_id: x.resource.name if x.resource else f"Gerät #{x.resource_id}" for x in slot.geraete}
     alle_tage = list(_date_range(slot.start_date, slot.end_date))
     arbeitstage = [t for t in alle_tage if _is_workday(t, settings, feiertage)] or alle_tage
     tage_je = {x.resource_id: [t for t in arbeitstage if t in _geraet_tage(slot, x)] or sorted(_geraet_tage(slot, x)) for x in slot.geraete}
-    von, bis = datetime.combine(slot.start_date, time.min), datetime.combine(slot.end_date, time.max)
     out = []
-    for modell in (CalendarEvent, OutlookSeriesOccurrence):
-        bedingung = [modell.resource_id.in_(geraete), modell.start_at <= bis, modell.end_at >= von]
-        if modell is CalendarEvent:
-            bedingung.append(CalendarEvent.planning_slot_id.is_(None))  # seit 1.9.241: die Termine der Einsätze selbst sind keine fremde Belegung
-        for zeile in db.scalars(select(modell).where(*bedingung).order_by(modell.start_at)):
-            tag = next((t for t in tage_je[zeile.resource_id] if zeile.start_at.date() <= t <= zeile.end_at.date()), None)
-            if tag is not None:
-                out.append((geraete[zeile.resource_id], zeile, tag))
+    for zeile in zeilen:
+        if zeile.resource_id not in tage_je:
+            continue
+        tag = next((t for t in tage_je[zeile.resource_id] if zeile.start_at.date() <= t <= zeile.end_at.date()), None)
+        if tag is not None:
+            out.append((geraete[zeile.resource_id], zeile, tag))
+    return out
+
+
+def _termin_warnung(name: str, zeile, tag: date) -> dict:
+    """Ein Eintrag im Kalender eines Geräts als Warnung „Gerät doppelt“ (seit 1.9.255 mit dem Gerät); der Titel eines privaten Termins heißt „Belegt“."""
+    return {"type": "resource", "label": f"{name} · Termin: {BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title}", "date": tag, "stufe": "warnung",
+            "resource_id": zeile.resource_id, "other_slot_id": None, "other_project": None, "other_project_name": None}
+
+
+def termin_warnungen_der_tafel(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> dict[int, list[dict]]:
+    """Seit 1.9.255 (Stufe 6, R4b, Punkt 5): die Einträge im Postfach eines Geräts warnen auch auf der Tafel -- wie beim Speichern
+    (termine_der_geraete()), für alle Einsätze im Bild mit einer Abfrage je Tabelle. Einsätze geschlossener Aufträge zählen nicht (1.9.143/1.9.151)."""
+    slots = [s for s in slots if s.geraete and not geschlossen(s.preparation.order)]
+    if not slots:
+        return {}
+    von, bis = min(s.start_date for s in slots), max(s.end_date for s in slots)
+    zeilen = _termin_zeilen(db, {x.resource_id for s in slots for x in s.geraete}, von, bis)
+    if not zeilen:
+        return {}
+    feiertage = set(_combined_holiday_map(db, von, bis)[0])
+    out: dict[int, list[dict]] = {}
+    for slot in slots:
+        treffer = [_termin_warnung(*t) for t in _termine_am_einsatz(slot, settings, feiertage, zeilen)]
+        if treffer:
+            out[slot.id] = treffer
     return out
 
 
 def _termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSettings) -> list[dict]:
     """Dasselbe als Warnung „Gerät doppelt“ beim Speichern; der Titel eines privaten Termins steht als „Belegt“ da."""
-    return [{"type": "resource", "label": f"{name} · Termin: {BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title}", "date": tag, "stufe": "warnung",
-             "other_slot_id": None, "other_project": None, "other_project_name": None} for name, zeile, tag in termine_der_geraete(db, slot, settings)]
+    return [_termin_warnung(name, zeile, tag) for name, zeile, tag in termine_der_geraete(db, slot, settings)]
 
 
 def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
@@ -1884,6 +1923,8 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
     # seit 1.9.247: die offenen Anträge einmal für Konflikte und die Abwesenheiten der Tafel (test_v570: eine Abfrage)
     antraege=_offene_antraege(db,soll_von,soll_bis,{x.id for x in employees}|{x.employee_id for s in relevant for x in s.besetzung})
     conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids, soll=soll, antraege=antraege)
+    for slot_id, warnungen in termin_warnungen_der_tafel(db, visible, settings).items():  # seit 1.9.255 (bis 1.9.254 nur beim Speichern)
+        conflict_map[slot_id] = conflict_map.get(slot_id, []) + warnungen
 
     teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
     used_team_ids = {x.team_assignment.team_id for x in visible if x.team_assignment is not None}
