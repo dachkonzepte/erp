@@ -8668,3 +8668,13 @@ Programm: `app/findings.py::create_follow_up_project_for_task()` (Folgeauftrag a
 
 Neu: `tests/test_v645_schnellauftrag_eine_transaktion.py` (ein Commit, Fehler beim Auftrag lässt nichts und keine Nummer zurück, Folgeauftrag und Wartung
 durchführen mit Fehler und ohne). Gegenproben: Archiv `gegenproben-stufe6-r4.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.246 (Punkt 0d): test_v224 auf den Tag der App-Uhr
+
+Nur Tests: `tests/test_v224_field_view.py` legt die Einsätze von sechs Tests auf `berlin_today()` statt `date.today()`. Herleitung und Festlegung (zu Werkzeug
+und Testablauf) im Archiv `testablauf-und-klicktests.md`, „test_v224 auf den Tag der App-Uhr“.
+
+Angepasste Erwartungen (Regel 28), nur Aufbau: `test_v224` -- `test_team_path_returns_todays_assignment`, `test_individual_path_returns_todays_assignment`,
+`test_employee_on_both_paths_for_same_slot_is_not_duplicated`, `test_address_falls_back_to_order_snapshot_without_linked_property`,
+`test_address_uses_linked_property_when_present`, `test_field_view_today_returns_assignments_and_drafts_for_linked_employee`: Tag des Einsatzes alt
+`date.today()`, neu `berlin_today()`; die Erwartungen bleiben.

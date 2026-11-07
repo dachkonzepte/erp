@@ -12,6 +12,7 @@ from starlette.datastructures import Headers, UploadFile
 from starlette.requests import Request
 
 from app.auth import COOKIE_NAME, hash_password
+from app.berlin_time import berlin_today  # seit 1.9.246: Einsätze auf den Tag der App-Uhr, nicht date.today()
 from app.mobile_manifest import build_icon_png, build_manifest
 from app.mobile_settings import load_mobile_settings, is_past_shift_end, update_mobile_settings
 from app.models import (
@@ -105,7 +106,7 @@ def test_team_path_returns_todays_assignment():
     order, _ = make_order_with_item(db)
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    make_slot_for_team(db, order, team, emp, date.today(), date.today())
+    make_slot_for_team(db, order, team, emp, berlin_today(), berlin_today())
     rows = list_todays_assignments_for_employee(db, emp.id)
     assert len(rows) == 1
     assert rows[0]["order_id"] == order.id
@@ -116,7 +117,7 @@ def test_individual_path_returns_todays_assignment():
     order, _ = make_order_with_item(db)
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    make_slot_for_individual(db, order, team, emp, date.today(), date.today())
+    make_slot_for_individual(db, order, team, emp, berlin_today(), berlin_today())
     rows = list_todays_assignments_for_employee(db, emp.id)
     assert len(rows) == 1
     assert rows[0]["order_id"] == order.id
@@ -127,7 +128,7 @@ def test_employee_on_both_paths_for_same_slot_is_not_duplicated():
     order, _ = make_order_with_item(db)
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    slot, prep = make_slot_for_team(db, order, team, emp, date.today(), date.today())
+    slot, prep = make_slot_for_team(db, order, team, emp, berlin_today(), berlin_today())
     # Derselbe Mitarbeiter zusätzlich über den Einzelweg an derselben AV zugeordnet.
     db.add(WorkPreparationEmployee(preparation_id=prep.id, employee_id=emp.id))
     db.commit()
@@ -155,7 +156,7 @@ def test_address_falls_back_to_order_snapshot_without_linked_property():
     db.commit()
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    make_slot_for_team(db, order, team, emp, date.today(), date.today())
+    make_slot_for_team(db, order, team, emp, berlin_today(), berlin_today())
     rows = list_todays_assignments_for_employee(db, emp.id)
     assert rows[0]["property_name"] == "Baustelle Nord"
     assert rows[0]["property_address"] == "Feldweg 3, 99999 Nirgendwo"
@@ -171,7 +172,7 @@ def test_address_uses_linked_property_when_present():
     db.commit()
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    make_slot_for_team(db, order, team, emp, date.today(), date.today())
+    make_slot_for_team(db, order, team, emp, berlin_today(), berlin_today())
     rows = list_todays_assignments_for_employee(db, emp.id)
     assert rows[0]["property_name"] == "Hauptobjekt"
     assert rows[0]["property_address"] == "Dachweg 1, 52531 Übach-Palenberg"
@@ -207,7 +208,7 @@ def test_field_view_today_returns_assignments_and_drafts_for_linked_employee(mon
     order, _ = make_order_with_item(db)
     emp = make_employee(db, "M-1", "Erika", "Eins")
     team = make_team(db, "K-1", "Kolonne 1")
-    make_slot_for_team(db, order, team, emp, date.today(), date.today())
+    make_slot_for_team(db, order, team, emp, berlin_today(), berlin_today())
     report = create_report(db, order.id, "rapport", created_by_employee_id=emp.id)
     user = make_non_admin(db, emp.id, "mont1")
     result = get_field_view_today(request_with_user(user), db=db)

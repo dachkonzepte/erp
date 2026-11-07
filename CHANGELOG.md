@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.246 – test_v224: Einsätze auf den Tag der App-Uhr (Stufe 6, R4, Punkt 0d)
+
+Sechs Tests der Monteursansicht legten ihren Einsatz auf `date.today()`, die App liest „heute“ aus ihrer Uhr (`berlin_today()`). An einem gewöhnlichen Tag ist das derselbe Tag; mit `--wanduhr` (ein anderer Lauftag, wie in der Samstags-Probe von 1.9.242) oder kurz nach Mitternacht in UTC liefen beide auseinander und die sechs Tests waren rot, ohne dass am Code etwas falsch war. Jetzt nehmen sie den Tag der App-Uhr. Nur Tests geändert.
+
 ## 1.9.245 – Schnellauftrag in einer Transaktion (Stufe 6, R4, Punkt 0c)
 
 Der Schnellauftrag schrieb Projekt, Angebot und Auftrag mit drei Commits unterwegs fest (Befund R3b, 5b): scheiterte ein späterer Schritt, blieben Projekt und Angebot ohne Auftrag stehen. Jetzt entsteht die ganze Kette in einer Transaktion wie bei der Kranvermietung – ein Commit am Ende, bei einem Fehler nimmt die Sitzung alles zurück, keine Nummer ist verbraucht. Die beiden Wege im Programm, die einen Schnellauftrag anlegen, schreiben ihn jetzt mit ihrer eigenen Änderung zusammen fest: der Folgeauftrag aus einem Befund mit dem Verweis am Befund, „Wartung durchführen“ mit dem Vertrag am Projekt.

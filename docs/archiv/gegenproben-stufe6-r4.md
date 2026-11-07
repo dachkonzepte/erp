@@ -38,3 +38,11 @@ Ohne Gegenprobe: Nr. 2 „nur lokal“ (ohne den Ordner übersprungen -- das zei
 | Nr. 2 – Wartung durchführen mit dem Vertrag | Schnellauftrag dort für sich festgeschrieben (`245_2b`) | 1 rot: v645::test_wartung_durchfuehren_vorgang_und_vertrag_in_einem_commit |
 
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.246 (Punkt 0d): test_v224 auf den Tag der App-Uhr
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Werkzeug Nr. 1 – Daten auf „heute“ der App über `berlin_today()` | ein Einsatz wieder auf `date.today()`, Lauf mit `--wanduhr "2026-11-10 10:00"` (`246_1`) | 1 rot: v224::test_individual_path_returns_todays_assignment (mit --wanduhr "2026-11-10 10:00") |
+
+Kein Marker unter `app/` nach den Läufen (die Gegenprobe ändert nur den Test).

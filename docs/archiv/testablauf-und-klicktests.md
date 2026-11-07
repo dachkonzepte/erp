@@ -1545,3 +1545,15 @@ Vorgabe Tobias (04.11.2026): jede neue Festlegung bekommt in derselben Runde ihr
 1. Die Regel oben gilt ab Stufe 5 für jede Runde; für Stufe 4 ist sie nachgeholt (Tabelle „Stufe 4 und 5“ in `docs/archiv/gegenproben-lohn-l1a.md`).
 2. Je Aussage eine Gegenprobe, auch wenn ein Test mehrere Aussagen zugleich trägt -- sonst bleibt unbemerkt, welche Aussage nur nebenbei geprüft ist.
 3. Die Gegenproben dieser Regel selbst: keine (Arbeitsweise) -- geprüft wird sie daran, dass die Tabelle der Runde jede Festlegung nennt.
+
+## test_v224 auf den Tag der App-Uhr (1.9.246, Stufe 6, R4, Punkt 0d)
+
+In der Samstags-Probe von 1.9.242 (`--wanduhr "2026-11-07 10:00"`) waren sechs Tests von `tests/test_v224_field_view.py` rot: sie legten den Einsatz auf
+`date.today()` (die Uhr des Rechners), `list_todays_assignments_for_employee()` und `GET /api/field-view/today` lesen „heute“ aus `berlin_today()` (die Uhr
+der App, die `--wanduhr` verstellt). Seit 1.9.246 nehmen die Tests `berlin_today()`; mit einem anderen Lauftag (`--wanduhr "2026-11-10 10:00"`) vorher 6 rot,
+jetzt 23 grün. Am echten Lauftag ist es nicht nachzustellen (beide Uhren zeigen denselben Tag) -- die Gegenprobe läuft deshalb mit `--wanduhr` auf einen
+anderen Tag.
+
+**Festlegungen 1.9.246 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Ein Test, der Daten auf „heute“ der App legt, nimmt `berlin_today()` (die Uhr der App, die `--wanduhr` und `feste_uhr` verstellen), nicht `date.today()`.
