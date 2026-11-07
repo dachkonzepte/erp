@@ -308,7 +308,8 @@ function setView(v){view=v;renderBoard()}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
 const LABEL_W=168,WE_W=22,MIN_TAG=44,SPUR_H=30,SPUR_OBEN=8;
-function geometrie(dates){const box=document.getElementById('planner');const breite=Math.max(0,(box&&box.clientWidth?box.clientWidth:1100)-LABEL_W-2);const we=dates.filter(istWochenende).length,arbeit=dates.length-we;const tag=Math.max(MIN_TAG,Math.floor((breite-we*WE_W)/Math.max(1,arbeit)));let x=0;const spalten=dates.map(d=>{const w=istWochenende(d)?WE_W:tag;const c={d,x,w};x+=w;return c});return {spalten,breite:x,index:Object.fromEntries(spalten.map((c,i)=>[c.d,i]))}}
+let geoBreite=null;  // die Breite der Tafel, mit der geometrie() zuletzt gerechnet hat (seit 1.9.258, Nachtrag)
+function geometrie(dates){const box=document.getElementById('planner');geoBreite=box?box.clientWidth:null;const breite=Math.max(0,(box&&box.clientWidth?box.clientWidth:1100)-LABEL_W-2);const we=dates.filter(istWochenende).length,arbeit=dates.length-we;const tag=Math.max(MIN_TAG,Math.floor((breite-we*WE_W)/Math.max(1,arbeit)));let x=0;const spalten=dates.map(d=>{const w=istWochenende(d)?WE_W:tag;const c={d,x,w};x+=w;return c});return {spalten,breite:x,index:Object.fromEntries(spalten.map((c,i)=>[c.d,i]))}}
 function lage(von,bis){const s=geo.spalten,erste=s[0].d,letzte=s[s.length-1].d;const a=von<erste?erste:von,b=bis>letzte?letzte:bis;if(b<a)return null;const i=geo.index[a],j=geo.index[b];return {i,j,left:s[i].x+2,width:s[j].x+s[j].w-s[i].x-4}}
 // Spuren: was sich überschneidet, steht untereinander -- nie verdeckt (jeder Balken bekommt die erste freie Spur ab seinem ersten Tag)
 function spurenVerteilen(items){const ende=[];for(const it of items.slice().sort((a,b)=>a.i-b.i||(b.j-b.i)-(a.j-a.i))){let n=ende.findIndex(e=>e<it.i);if(n<0){n=ende.length;ende.push(it.j)}else ende[n]=it.j;it.spur=n}return Math.max(1,ende.length)}
@@ -604,6 +605,9 @@ aktion('geraetTage',el=>tageZeigen(el.dataset.id));
 aktion('geraetTag',el=>geraetTagUmschalten(Number(el.dataset.id),el.dataset.tag));
 document.getElementById('absenceCategory').addEventListener('change',()=>artNachKategorie());
 let neuZeichnen=null;window.addEventListener('resize',()=>{cancelAnimationFrame(neuZeichnen);neuZeichnen=requestAnimationFrame(()=>renderBoard())});
+/* seit 1.9.258 (Nachtrag): neu zeichnen, sobald die Tafel eine andere Breite hat als beim Rechnen -- auch ohne resize des Fensters, etwa wenn die Seite
+   durch die Zeilen höher wird und ihr Bildlauf erscheint (rund 15 px schmaler); sonst rollte die Tafel bei 1440 px waagrecht (Bild „Personen“, R4b) */
+if(window.ResizeObserver)new ResizeObserver(()=>{const b=document.getElementById('planner').clientWidth;if(board&&geo&&b!==geoBreite){cancelAnimationFrame(neuZeichnen);neuZeichnen=requestAnimationFrame(()=>renderBoard())}}).observe(document.getElementById('planner'));
 /* seit 1.9.257 (Stufe 6, R4b, Punkt 8): unter 1440 px startet „Nicht eingeplant“ eingeklappt, solange im Browser nichts anderes gemerkt ist -- ohne es zu
    merken; was der Knopf merkt (offen oder zu), gilt bei jeder Breite (seit 1.9.247). */
 function rueckstandStartZu(breite){let gemerkt=null;try{gemerkt=localStorage.getItem('plantafel_rueckstand')}catch(e){}return gemerkt==='zu'||(gemerkt!=='offen'&&breite<1440)}

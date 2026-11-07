@@ -91,3 +91,11 @@ def test_werkzeug_legt_trenndaten_ins_profil(tmp_path):
     assert (profil / "hyphen-data" / "120.0" / "hyph-de-1996.hyb").read_bytes() == b"x"
     shutil.rmtree(profil / "hyphen-data")
     assert trenndaten_einlegen(profil, tmp_path / "fehlt") is False and not (profil / "hyphen-data").exists()
+
+
+def test_neu_zeichnen_wenn_die_tafel_schmaler_wird():
+    """1.9.258 (Nachtrag): erscheint der Bildlauf der Seite (sie wird durch die Zeilen höher als das Fenster), ist die Tafel rund 15 px schmaler -- ohne
+    resize des Fensters. Bis zum Nachtrag rechnete sie mit der alten Breite und rollte bei 1440 px waagrecht (Bild „Personen“ im Endlauf von R4b)."""
+    assert "geoBreite=box?box.clientWidth:null;" in SEITE[SEITE.index("function geometrie(dates){"):]
+    beobachter = re.search(r"if\(window\.ResizeObserver\)new ResizeObserver\(\(\)=>\{(.*?)\}\)\.observe\(document\.getElementById\('planner'\)\);", SEITE)
+    assert beobachter and "b!==geoBreite" in beobachter.group(1) and "renderBoard()" in beobachter.group(1)

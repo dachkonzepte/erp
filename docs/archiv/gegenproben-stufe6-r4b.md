@@ -122,3 +122,12 @@ des Fensters nicht um“ hätte keine Gegenstelle im Code (es gibt keinen zweite
 
 Ohne eigene Gegenprobe: „erst dann „…““ in zwei Zeilen -- das zeichnet `-webkit-line-clamp` (Chrome), kein eigener Code; die Prüfung „ab 2 Arbeitstagen
 ungekürzt“ ist eine Messung der Testdaten, keine Festlegung. Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.258, Nachtrag: neu zeichnen, wenn die Tafel schmaler wird
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| N1 – neu zeichnen bei anderer Breite | ohne den Beobachter (`258_n1a`) | 1 rot: v658::test_neu_zeichnen_wenn_die_tafel_schmaler_wird |
+| N1 – 14 Tage ohne waagrechten Bildlauf, auch mit Bildlauf der Seite | ohne den Beobachter (`258_n1b`, Klicktest Personen) | rot: plantafel_personen (1440 px; dunkel, 1440 px) |
+
+Kein Marker unter `app/` nach den Läufen.

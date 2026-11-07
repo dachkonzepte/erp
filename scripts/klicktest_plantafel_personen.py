@@ -86,6 +86,9 @@ BALKEN_JE_ZEILE = ("(n=>[...[...document.querySelectorAll('#planner .planner-row
                    "+(s.querySelector('.hinweis-punkt')?' ·':'')]))")
 
 
+# seit 1.9.258 (Nachtrag): [die Seite ist höher als das Fenster (ihr Bildlauf erscheint), die Tafel rollt nicht waagrecht]
+OHNE_WAAGRECHT = ("(()=>{const s=document.getElementById('planner');return [document.documentElement.scrollHeight>innerHeight,"
+                  "s.scrollWidth<=s.clientWidth+1]})()")
 # seit 1.9.254: je Termin einer Zeile [Text, ist ein Knopf]
 TERMIN_KNOEPFE = ("(n=>[...[...document.querySelectorAll('#planner .planner-row')].find(z=>z.querySelector('.row-label b').textContent.trim()===n)"
                   ".querySelectorAll('.slot.termin')].map(s=>[s.querySelector('.slot-text').textContent.trim(),s.tagName==='BUTTON'&&s.dataset.klick==='personTermin']))")
@@ -146,6 +149,8 @@ async def pruefen(tab, seed, p):
         "const [a,b]=[...t.children].map(x=>x.getBoundingClientRect());return [t.children.length,b.top>=a.bottom-1]})()"), [2, True])
     p.pruefe("1440 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1440 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
+    await tab.warten(f"(r=>r[0]&&r[1])({OHNE_WAAGRECHT})", 5, melden=False)  # das Neuzeichnen folgt der neuen Breite im nächsten Frame
+    p.pruefe("1440 px: die Seite rollt senkrecht, die 14 Tage passen ohne waagrechten Bildlauf", await tab.js(OHNE_WAAGRECHT), [True, True])  # 1.9.258 (Nachtrag)
     await tab.bild("personen_1440_hell")
     # seit 1.9.253: „+ Person“ bietet Bea (Bauleitung, weiter einplanbar) und Paul an, Vera („nicht zeigen“) nicht
     await tab.js("[...document.querySelectorAll('#planner .slot')].find(s=>s.textContent.includes('Garage Lindenweg 7')).click()")
@@ -217,6 +222,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/planning", BEREIT)
     await tab.warte_auf_ruhe()
     await ansicht(tab, "employees")
+    await tab.warten(f"(r=>r[0]&&r[1])({OHNE_WAAGRECHT})", 5, melden=False)
+    p.pruefe("dunkel, 1440 px: die 14 Tage ohne waagrechten Bildlauf", await tab.js(OHNE_WAAGRECHT), [True, True])  # 1.9.258 (Nachtrag)
     await tab.bild("personen_1440_dunkel")
     await ansicht(tab, "resources")
     await tab.bild("geraete_1440_dunkel")

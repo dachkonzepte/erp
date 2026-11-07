@@ -9264,3 +9264,27 @@ Zusatz ganz weg; bei 1280 px der Text der neun Balken ab 2 Arbeitstagen ungekür
 Trenndaten) -- 33 statt 29 Prüfungen. `scripts/klicktest_plantafel_personen.py`: bei 1280 px in „Personen“ (zwölf Balken) und „Geräte“ (fünf) ab 2
 Arbeitstagen ungekürzt, „Wartung“ (1 Tag) ohne „…“ -- 38 statt 35. Beide mit `silbentrennung=True`. Gegenproben: Archiv `gegenproben-stufe6-r4b.md`.
 Angepasste Erwartungen: keine. Eine Festlegung zu Werkzeug und Testablauf steht im Archiv `testablauf-und-klicktests.md`.
+
+### Nachtrag 1.9.258: die Tafel zeichnet neu, wenn sie schmaler wird
+
+Gefunden beim Ansehen der Bilder des Endlaufs (83594fe): in „Personen“ bei 1440 px ein waagrechter Bildlauf unter der Tafel, die Sonntage am Rand
+abgeschnitten. Ursache: seit 1.9.253 steht Paul unter „Ohne Kolonne“, die Seite wurde höher als das Fenster (1000 px), ihr Bildlauf erschien und machte die
+Tafel rund 15 px schmaler. `geometrie()` rechnet die Spalten aus der Breite der Tafel beim Zeichnen; neu gezeichnet wurde bis dahin nur bei `resize` des
+Fensters -- das kommt beim Erscheinen des Bildlaufs nicht. In R4 passte „Personen“ mit den Testdaten noch ins Fenster; mit vielen Mitarbeitern träfe es im
+Betrieb immer zu (Festlegung 1.9.247 Nr. 3: 14 Tage passen auf 1440 px). Jetzt merkt `geometrie()` die Breite (`geoBreite`), ein `ResizeObserver` an der
+Tafel zeichnet neu, sobald sie anders ist (nur wo der Browser ihn kennt; node-Tests laufen ohne). Die Höhe der Zeilen hängt nicht an der Breite -- kein
+Hin und Her zwischen Bildlauf und keinem.
+
+#### Festlegungen 1.9.258, Nachtrag (Bitte bestätigen)
+
+N1. Die Tafel zeichnet neu, sobald sich ihre Breite ändert -- auch ohne Ändern des Fensters, etwa wenn der Bildlauf der Seite erscheint; die 14 Tage passen
+    bei 1440 px auch dann ohne waagrechten Bildlauf.
+
+#### Tests und Prüfung, Nachtrag
+
+`tests/test_v658_kurze_balken.py::test_neu_zeichnen_wenn_die_tafel_schmaler_wird` (Breite gemerkt, Beobachter an der Tafel); `scripts/klicktest_plantafel_personen.py`
+misst in „Personen“ bei 1440 px hell und dunkel: die Seite rollt senkrecht, die Tafel nicht waagrecht (40 statt 38 Prüfungen). Im ersten Lauf zu viert war
+der dunkle Fall einmal rot: die Prüfung las, bevor die Tafel im nächsten Frame neu gezeichnet hatte -- sie wartet jetzt bis zu 5 s auf den Zustand (ohne den
+Beobachter bleibt sie rot, Gegenprobe `258_n1b` danach neu). Gegenproben: Archiv
+`gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine. Im Endlauf auf 83594fe dazu ein Wackler (`klicktest_abnahme_aus_protokoll`, einmal wiederholt,
+Archiv „Testablauf“, laufende Liste).

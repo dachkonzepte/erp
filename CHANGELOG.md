@@ -10,6 +10,8 @@ Kurze Balken schnitten ihren Text bisher nach wenigen Buchstaben ab -- „A…�
 
 Die Klicktests der Plantafel prüfen bei 1280 px, dass der Text jedes Balkens ab zwei Arbeitstagen ungekürzt zu sehen ist. Damit headless Chrome im Klicktest trennt wie ein normaler Chrome, legt das Werkzeug die Trenndaten des installierten Chrome in das Profil des Klicktests (`klicktest_main(silbentrennung=True)`).
 
+Nachtrag (gefunden beim Ansehen der Bilder des Endlaufs): in „Personen“ rollte die Tafel bei 1440 px waagrecht, die letzten Tage lagen hinter dem Rand. Mit der neuen Zeile „Ohne Kolonne“ war die Seite höher als das Fenster, ihr Bildlauf erschien und nahm der Tafel rund 15 px -- ohne dass sich das Fenster änderte, rechnete die Tafel weiter mit der alten Breite. Jetzt zeichnet sie neu, sobald sich ihre Breite ändert; mit vielen Mitarbeitern träfe das im Betrieb immer zu.
+
 ## 1.9.257 – Plantafel: „Nicht eingeplant“ startet unter 1440 px eingeklappt (Stufe 6, R4b, Punkt 8)
 
 Bei einem schmaleren Fenster nahm die Liste „Nicht eingeplant“ der Tafel Platz weg, und kurze Balken wurden noch kürzer. Unter 1440 px Fensterbreite startet sie jetzt eingeklappt, solange im Browser nichts anderes gemerkt ist; ab 1440 px offen wie bisher. Der Start merkt sich nichts -- was man mit dem Knopf einstellt (offen oder zu), gilt wie seit 1.9.247 und dann bei jeder Breite. Diese Version kommt vor Punkt 7, weil dessen Messung (Text der Balken bei 1280 px) mit dem eingeklappten Rückstand rechnet.
