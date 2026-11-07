@@ -4,7 +4,7 @@ docs/archiv/teil-updates.md; Vorgehen wie tests/test_v399_teil_updates_geld.py):
     Einstellungen   toggleDocumentLayoutBlock        "anzeigen": alle Felder des Bausteins aus dem Stand beim Laden
     Einstellungen   saveContinuationHeaderPosition   Position des Folgeseiten-Kopfs: ebenso
     Einstellungen   saveEmailTemplate (Mahnstufe)    schon seit 1.8.80 nur Betreff und Text -- hier nur abgesichert
-    Plantafel       dropSlot                         Verschieben: Status, Notiz, Planstunden, Anfahrt aus der Tafel
+    Plantafel       verschieben                      Verschieben: Status, Notiz, Planstunden, Anfahrt aus der Tafel
     Kostenposten    toggleActive                     aktivieren/deaktivieren: der ganze Kostenposten aus der Liste
 
 Gleichzeitig (PostgreSQL, opt-in): der Jahresbetrag eines Kostenpostens wird aus Betrag und Rhythmus abgeleitet, Ende vor Beginn
@@ -157,16 +157,15 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     neu = {"status": "fest", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}  # seit 1.9.235 (bis dahin „bestaetigt“)
     assert client.put(tafel["url"], json=neu).status_code == 200
     aufrufe = im_browser(
-        "planning.html", ["dropSlot", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt", "tagAnX"],
-        f"var board = {js(beim_laden)}; var dragData = {{id: {tafel['id']}, days: 5}}; var view = 'teams'; "
+        "planning.html", ["findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt", "verschieben"],  # seit 1.9.249 verschieben() statt dropSlot()
+        f"var board = {js(beim_laden)}; var view = 'teams'; "
         # seit 1.9.247 die Geometrie der neuen Tafel (Spalten mit Lage und Breite) statt fester 120 px je Tag
         "var geo = {spalten: Array.from({length: 14}, (_, i) => ({d: addDays('2026-10-12', i), x: i * 120, w: 120}))}; const KONFLIKT_ART = {}; "
         "var periodStart = new Date('2026-10-12T12:00:00'); async function loadBoard() {} "
         "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); "
         "return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; } "
         "document.getElementById('rangeDays').value = '14';",
-        f"await dropSlot({{preventDefault() {{}}, clientX: 245, currentTarget: {{classList: {{remove() {{}}}}, "
-        f"getBoundingClientRect: () => ({{left: 0}})}}}}, {tafel['team_b']});")
+        f"await verschieben({tafel['id']}, {{dataset: {{zeile: 'kolonne', id: '{tafel['team_b']}'}}}}, 2);")  # in die Zeile der Kolonne B, ab dem dritten Tag
     body = {"team_id": tafel["team_b"], "start_date": "2026-10-14", "end_date": "2026-10-18"}
     assert schreibende(aufrufe) == [("PUT", tafel["url"], body)]
     senden(client, aufrufe)

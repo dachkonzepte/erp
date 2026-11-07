@@ -200,7 +200,8 @@ def test_tafel_zeigt_besetzung_und_ohne_kolonne(welt):
     assert [e["id"] for e in slots[mit.id]["employees"]] == [welt["kai"].id]
     assert (slots[ohne.id]["team_id"], [e["id"] for e in slots[ohne.id]["employees"]]) == (None, [welt["ole"].id])
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    assert "name:'Ohne Kolonne',team:'null',unter:['Personen einzeln gewählt']" in seite  # seit 1.9.247 (neue Tafel) immer, auch leer
+    # seit 1.9.247 (neue Tafel) immer, auch leer; seit 1.9.249 mit Art und ID der Zeile (Ziehen, Klick in eine freie Zelle)
+    assert "name:'Ohne Kolonne',team:'null',zeile:'ohne',id:'',unter:['Personen einzeln gewählt']" in seite
     # seit 1.9.248 der Einsatz-Dialog (bis 1.9.247 „editTeam“ mit „ohne Kolonne – die Personen bleiben“)
     assert "teamOptions(einsatz.team_id,{leer:'ohne Kolonne – Personen selbst wählen'})" in seite
     assert "const k=document.getElementById('edKolonne').value,team=k===''?null:Number(k)" in seite

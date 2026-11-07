@@ -107,3 +107,31 @@ Läufen.
 | Nr. 10 – Projekt und Kunde in der Auswahl | ohne (`248_10`) | 1 rot: v564::test_auswahl_nur_offene_auftraege_nur_was_sie_zeigt_eine_abfrage |
 
 Ohne Gegenprobe: Nr. 8 und Nr. 9 (entfallene Anzeige). Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.249 (Punkt 2): die Tafel bedienen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nach dem Ziehen kein Klick | Sperre nicht beachtet (`249_1a`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Maus: … kein Dialog danach“ (dazu „freie Zelle Süd“) |
+| Nr. 1 – Sperre endet beim nächsten Drücken | nicht zurückgesetzt (`249_1b`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „nach dem Finger: der nächste Klick öffnet“ |
+| Nr. 2 – erst ab 6 px | Schwelle 1 px (`249_2a`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Klick: der Einsatz öffnet sich“ |
+| Nr. 2 – Escape bricht ab | Escape ohne Wirkung (`249_2b`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Escape: abgebrochen, nichts verschoben“ |
+| Nr. 2 – Escape: das Loslassen öffnet nicht | ohne Sperre (`249_2c`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Escape: abgebrochen, nichts verschoben“ (der Dialog öffnete) |
+| Nr. 2 – `touch-action: none` | entfernt (`249_2d`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Finger: Notdienst auf 09.–10.11.“ |
+| Nr. 3 – Zeile einer Kolonne | Kolonne nicht gesetzt (`249_3a`) | 1 rot: v649::test_ziehen_je_zielzeile |
+| Nr. 3 – „Ohne Kolonne“ | Kolonne bleibt (`249_3b`) | 1 rot: v649::test_ziehen_je_zielzeile |
+| Nr. 3 – Person, Gerät: nur Zeitraum | dort ohne Kolonne (`249_3c`) | 1 rot: v649::test_ziehen_je_zielzeile |
+| Nr. 3 – Kranvermietung nie mit Kolonne | auch dort (`249_3d`) | 1 rot: v649::test_ziehen_je_zielzeile |
+| Nr. 3 – gefasster Tag bleibt unter dem Zeiger | Abstand 0 (`249_3e`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Finger: Notdienst auf 09.–10.11.“ |
+| Nr. 3 – die ganze Zeile | `height` statt `min-height` (`249_3f`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Rückfrage beim Ziehen in die Zeile Nord“ |
+| Nr. 4 – ohne Änderung keine Anfrage | immer senden (`249_4`) | 1 rot: v649::test_ziehen_je_zielzeile |
+| Nr. 5 – Warnungen fragen zurück | ohne Rückfrage (`249_5`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Rückfrage beim Ziehen in die Zeile Nord“ |
+| Nr. 6 – Zelle einer Kolonne | ohne Kolonne (`249_6a`) | 1 rot: v649::test_freie_zelle_plant_fuer_zeile_und_tag |
+| Nr. 6 – Zelle eines Geräts | ohne Gerät (`249_6b`) | 1 rot: v649::test_freie_zelle_plant_fuer_zeile_und_tag |
+| Nr. 6 – Zelle einer Person | ohne Person (`249_6c`) | 1 rot: v649::test_freie_zelle_plant_fuer_zeile_und_tag |
+| Nr. 6 – Zelle „Ohne Kolonne“ | mit einer Kolonne (`249_6f`) | 1 rot: v649::test_freie_zelle_plant_fuer_zeile_und_tag |
+| Nr. 6 – Klick in die Zelle | ohne Wirkung (`249_6d`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „freie Zelle …“ (alle vier) und „Art Kranvermietung“ |
+| Nr. 6 – Tag = Beginn und Ende | Ende wie „+ Einsatz“ (`249_6e`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „freie Zelle Süd am 02.11.“, „freie Zelle Ohne Kolonne am 06.11.“ |
+| Nr. 7 – Art wechseln behält die Geräte | Geräte zurückgesetzt (`249_7`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Art Kranvermietung: der Kran bleibt gewählt“ |
+
+Kein Marker unter `app/` nach den Läufen.

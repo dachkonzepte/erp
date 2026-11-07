@@ -167,8 +167,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("ohne_kolonne")
 
     # --- Ziehen in die Zeile Nord ---
-    await tab.js(f"dragData={{id:{EINSATZ}.id,days:3}};void dropSlot({{preventDefault(){{}},clientX:0,currentTarget:Object.assign(document.createElement('div'),"
-                 f"{{getBoundingClientRect:()=>({{left:0}})}})}},{seed['nord']})")
+    await tab.js(f"void verschieben({EINSATZ}.id,{{dataset:{{zeile:'kolonne',id:'{seed['nord']}'}}}},0)")  # seit 1.9.249 (bis dahin dropSlot); echte Eingaben: klicktest_plantafel_bedienen
     await tab.warten(BEREIT + f"&&{EINSATZ}.team_id==={seed['nord']}", 10)
     p.pruefe("Ziehen nach Nord: Tom, Mia und die Pritsche", await tab.js(
         f"[{EINSATZ}.employees.map(e=>e.name),{EINSATZ}.resources.map(r=>r.name),{EINSATZ}.start_date]"),

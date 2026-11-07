@@ -1072,6 +1072,17 @@ class Tab:
         await self.netz_melden()
         return False
 
+    async def ziehen(self, x: float, y: float, dx: float, dy: float, *, schritte: int = 8, loslassen: bool = True) -> None:
+        """Seit 1.9.249: eine Ziehbewegung mit der Maus -- drücken bei (x, y), in `schritte` Bewegungen mit gedrückter Taste um (dx, dy), loslassen
+        (oder nicht, z. B. für Escape mitten im Ziehen). Für Balken der Plantafel u. ä.; zum Zeichnen auf einer Fläche gilt strich() (Ruhe, Lage,
+        Tinte) -- test_v490 lässt Bewegungen mit gedrückter Taste nur hier und dort zu."""
+        await self.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x, y=y, button="none")
+        await self.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button="left", buttons=1, clickCount=1)
+        for i in range(1, schritte + 1):
+            await self.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x + dx * i / schritte, y=y + dy * i / schritte, button="left", buttons=1)
+        if loslassen:
+            await self.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x + dx, y=y + dy, button="left", buttons=0, clickCount=1)
+
     async def ruhig_im_bild(self, element: str, *, timeout: float = 10) -> list | None:
         """Seit 1.9.64: rückt das Element (JS-Ausdruck) in die Mitte und wartet, bis es ruhig liegt -- kein Speichern der Seite mehr
         unterwegs (warte_auf_ruhe(): manche Seiten zeichnen danach neu) und zweimal hintereinander dieselbe Lage (100 ms Abstand).

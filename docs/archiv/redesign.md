@@ -8866,3 +8866,51 @@ Angepasste Erwartungen (Regel 28):
 - `test_v633::test_tafel_zeigt_besetzung_und_ohne_kolonne`: alt `editTeam` mit „ohne Kolonne – die Personen bleiben“, neu `edKolonne` mit „ohne Kolonne –
   Personen selbst wählen“.
 - `test_v635::test_dialog_und_verlauf`: alt die Auswahl `newStatus`/`editStatus`, neu der Umschalter `#edStatus` (vorläufig, fest; neu vorläufig).
+
+### Umsetzung 1.9.249 (Punkt 2): die Tafel bedienen
+
+Seite (`app/templates/planning.html`): Ziehen über Pointer Events an `#planner` (`ziehenEinrichten()`, einmal je Seite): `pointerdown` auf einem Balken merkt den
+gefassten Tag (Abstand zum Beginn), `pointermove` zieht ab 6 px (darunter ist es ein Klick) und markiert die Zielzeile, `pointerup` verschiebt
+(`verschieben(id, Zielzeile, Tag)`), `pointercancel` und Escape brechen ab. Der Balken trägt `touch-action: none` -- der Finger zieht, statt die Seite zu rollen.
+Nach einem Ziehen oder Abbruch öffnet der Klick derselben Geste den Einsatz nicht (`nachZiehen`); die Sperre endet beim nächsten Drücken, ohne Timer (ein
+Ziehen mit dem Finger bringt keinen Klick, ein Timer vergaß die Sperre in Chrome nicht verlässlich). Jede Spur trägt ihre Zeile (`data-zeile` kolonne, ohne,
+person, geraet und `data-id`) und füllt sie (`min-height` statt `height`). `verschieben()`: Beginn = Tag unter dem Zeiger minus gefasster Abstand, Dauer
+bleibt; Kolonne nur aus „kolonne“ bzw. „ohne“, nie bei einer Kranvermietung; ohne Änderung keine Anfrage; nur Kolonne, Beginn und Ende (Regel 22); Warnungen
+über die Rückfrage (`konfliktFrage()`). Ein Klick in eine freie Zelle (`click` auf `.day-cell` außerhalb eines Balkens) ruft `planenAn(zeile, id, tag)`:
+`openCreate()` mit der Kolonne, ohne Kolonne, mit dem Gerät (`geraete`, alle Tage) oder der Person (`employee_ids`), Beginn und Ende der Tag. Der Wechsel der Art
+im neuen Dialog setzt die Geräte nicht mehr zurück. `dropSlot()` und `dragData` (HTML5-Drag-and-drop bis 1.9.248) entfallen.
+
+#### Festlegungen 1.9.249 (Bitte bestätigen)
+
+1. Ein Klick auf einen Balken öffnet den Einsatz; nach einem Ziehen oder Abbruch öffnet der Klick derselben Geste nicht, die Sperre endet beim nächsten Drücken.
+2. Ziehen mit Maus und Finger über Pointer Events (am Balken `touch-action: none`); erst ab 6 px Bewegung, darunter ist es ein Klick; Escape bricht ab.
+3. Ziel: der gefasste Tag bleibt unter dem Zeiger, die Dauer bleibt; Zeile einer Kolonne -> diese Kolonne (der Server setzt ihre Mitglieder und Geräte), „Ohne
+   Kolonne“ -> keine Kolonne (die Personen bleiben), Zeile einer Person oder eines Geräts -> nur der Zeitraum; eine Kranvermietung bekommt nie eine Kolonne;
+   die ganze Zeile ist Ziel, auch unter den Balken.
+4. Ohne Änderung (derselbe Beginn, dieselbe Kolonne) keine Anfrage.
+5. Warnungen fragen beim Ziehen zurück wie bisher; „Trotzdem planen“ verschiebt, Abbrechen lässt den Einsatz, wie er war.
+6. Ein Klick in eine freie Zelle öffnet „Einsatz planen“ für diesen Tag (Beginn und Ende) und diese Zeile: mit der Kolonne, ohne Kolonne, mit dem Gerät (alle Tage)
+   oder mit der Person.
+7. Der Wechsel der Art im neuen Dialog behält die gewählten Geräte.
+
+#### Tests und Prüfung 1.9.249
+
+Neu: `tests/test_v649_plantafel_bedienen.py` (`verschieben()` je Zielzeile in node: Kolonne, ohne, Gerät, Person, ohne Änderung, Kranvermietung; `planenAn()` je
+Zeile; Pointer Events und `touch-action` im Markup, kein HTML5-Ziehen, die Sperre ohne Timer) und `scripts/klicktest_plantafel_bedienen.py` (echte Eingaben über
+CDP: Maus einen Tag nach rechts, Escape, Klick mit 3 px Zittern, Finger mit Touch-Emulation am zweiten Tag gefasst, danach ein Klick, Ziehen in die Zeile Nord
+mit Rückfrage und Abbrechen, Klick in freie Zellen von Kolonne, „Ohne Kolonne“, Kran und Person, Art wechseln behält den Kran). Gegenproben: Archiv
+`gegenproben-stufe6-r4.md`.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v090::test_v09_planning_ui_and_routes_exist`: alt `addEventListener('drop',e=>dropSlot(e,team))`, neu `pl.addEventListener('pointerup'` und
+  `async function verschieben(id,ziel,startIdx)`.
+- `test_v399::test_plantafel_verschieben_schickt_nur_team_und_zeitraum`: alt `dropSlot()` mit `dragData` und `clientX: 245`, neu `verschieben()` in die Zeile
+  der Kolonne B ab dem dritten Tag -- erwarteter Körper unverändert.
+- `klicktest_plantafel_besetzung` „Ziehen nach Nord“ und `klicktest_plantafel_konflikte` „Ziehen“: alt `dropSlot()` mit `dragData`, neu `verschieben()` --
+  erwartete Werte unverändert.
+- `test_v633::test_tafel_zeigt_besetzung_und_ohne_kolonne`: alt der Wortlaut der Zeile „Ohne Kolonne“ ohne `zeile`/`id`, neu mit `zeile:'ohne',id:''`.
+- `test_v490` (Wächter „Zeichnen nur über `tab.strich()`“): unverändert; im Kopf ergänzt, dass ein Klicktest Balken über `Tab.ziehen()` zieht.
+
+Fund im ersten Suitenlauf: `test_v490` fand im neuen Klicktest „Bedienen“ Mausbewegungen mit gedrückter Taste -- Ziehen, kein Zeichnen. Statt einer
+Ausnahme im Wächter zieht der Klicktest jetzt über den neuen Helfer `Tab.ziehen()` in `scripts/cdp_klicktest.py` (drücken, Bewegungen, loslassen oder
+nicht -- für Escape mitten im Ziehen); dieselben Eingaben, die Klicktest-Gegenproben danach noch einmal. Dazu der Wortlaut in `test_v633` (oben).

@@ -1226,7 +1226,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Kapazität je Zelle; Daten `geraete_termine()`, `abwesenheiten_der_tafel()` (Art nur ab Büro – Finanzen); Klicktest `scripts/klicktest_plantafel_tafel.py`
   (`tests/test_v647_plantafel_tafel.py`); seit 1.9.248 ein Einsatz-Dialog nach `plantafel-einsatz.html`, der vor dem Speichern prüft
   (`app/planning.py::einsatz_pruefen()`, `POST /api/planning/slots/pruefen` und `…/{id}/pruefen`: derselbe Weg wie Anlegen/Ändern, danach rollback --
-  Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen; `tests/test_v648_einsatz_pruefen.py`, Klicktest `klicktest_plantafel_dialog.py`).
+  Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen; `tests/test_v648_einsatz_pruefen.py`, Klicktest `klicktest_plantafel_dialog.py`); seit 1.9.249
+  bedient: Klick öffnet, Ziehen verschiebt mit Maus und Finger (Pointer Events, `verschieben()`, Rückfrage bei Warnungen), Klick in eine freie Zelle plant für
+  Zeile und Tag (`planenAn()`; `tests/test_v649_plantafel_bedienen.py`, Klicktest `klicktest_plantafel_bedienen.py` mit echten Eingaben).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener
@@ -1234,8 +1236,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`app/kran_kalender.py`, `CalendarEvent.planning_slot_id`, je Folge von Tagen ein ganztägiger Termin): die Plantafel ist führend -- der Abgleich
   überschreibt Änderungen aus Outlook und legt Gelöschtes neu an, der Büro-Kalender ändert ihn nicht (409); ein Termin direkt in Outlook bleibt Termin am
   Kran und wird über `POST /api/planning/kran-termine/{id}/kranvermietung` eine Kranvermietung (`tests/test_v641_kran_kalender.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
-  `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
-  nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
+  `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Zeitachse; Ziehen seit 1.9.249 über Pointer Events, auch mit dem
+  Finger (bis 1.9.248 HTML5-Drag-and-drop, auf Touch-Geräten ohne Wirkung). Details:
   `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,
   `app/planning.py::_soll_je_tag()` über `app/sollzeit.py::soll_fuer_personen()`, nie unter 0; ohne Sollzeit 0 und weder verfügbar noch
   abwesend; Feiertag 0): Auslastung, Verteilung, „Kapazität reicht nicht“ und Planungsvorschlag rechnen damit -- nicht mehr mit Wochenstunden,

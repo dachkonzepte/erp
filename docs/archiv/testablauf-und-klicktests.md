@@ -1557,3 +1557,9 @@ anderen Tag.
 **Festlegungen 1.9.246 zu Werkzeug und Testablauf (Bitte bestätigen)**
 
 1. Ein Test, der Daten auf „heute“ der App legt, nimmt `berlin_today()` (die Uhr der App, die `--wanduhr` und `feste_uhr` verstellen), nicht `date.today()`.
+
+**Festlegungen 1.9.249 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Ziehen mit der Maus im Klicktest nur über `Tab.ziehen()` (`scripts/cdp_klicktest.py`: drücken, Bewegungen mit gedrückter Taste, loslassen oder nicht),
+   wie Zeichnen nur über `Tab.strich()`; der Wächter `test_v490` bleibt, wie er ist (eine Bewegung mit gedrückter Taste nur im Werkzeug). Gegenprobe: die
+   Fassung davor (Bewegungen im Klicktest selbst) -- `test_v490::test_kein_klicktest_zeichnet_an_strich_vorbei` rot (erster Suitenlauf 1.9.249).

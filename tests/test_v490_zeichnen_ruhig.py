@@ -5,7 +5,8 @@
     Helfer       strich() wartet über ruhig_im_bild(), bis kein Speichern mehr unterwegs ist (die Checkliste zeichnet danach neu) und die
                  Fläche zweimal hintereinander dieselbe Lage hat, zeichnet dann und prüft danach, dass Tinte auf der Fläche ist -- sonst
                  ist der Lauf nicht wie erwartet (nicht_geladen) statt still eine leere Unterschrift zu senden.
-    Wächter      kein Klicktest schickt selbst eine Mausbewegung mit gedrückter Taste (Zeichnen an strich() vorbei).
+    Wächter      kein Klicktest schickt selbst eine Mausbewegung mit gedrückter Taste (Zeichnen an strich() vorbei); seit 1.9.249 zieht ein Klicktest
+                 Balken der Plantafel über Tab.ziehen() -- auch das nur im Werkzeug.
 """
 
 import ast

@@ -8,7 +8,7 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Wochenende  Auftrag C auf West über ein Wochenende -> gespeichert, kein Dialog, kein Hinweis (seit 1.9.150)
     Hinweis     Auftrag E auf Ost über einen betriebsfreien Tag -> kein Dialog, Hinweis über der Tafel
     Bearbeiten  Einsatz B auf West schieben im Dialog -> Warnliste; nur die Notiz ändern -> keine Warnliste
-    Ziehen      Einsatz C mit „dropSlot“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
+    Ziehen      Einsatz C mit „verschieben“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
     Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
     Antrag offen  Sol hat einen offenen Antrag: ein Einsatz auf West meldet „Antrag offen“ ohne Rückfrage, der Balken ist nicht rot und nennt ihn; Büro – Auftrag sieht die Art nicht (seit 1.9.152)
     L6          /planning?auftrag=<abgeschlossen> und <storniert>: kein Dialog, der Grund; unbekannt: Meldung; Akte des geschlossenen Auftrags ohne „Einsatz planen“, mit dem Grund, der laufende mit (seit 1.9.155)
@@ -166,7 +166,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kolonne geändert: nichts verschoben", await tab.js(f"board.slots.find(s=>s.id==={einsatz_c}).team_id"), seed["west"])
 
     # --- Ziehen ---
-    await tab.js(f"dragData={{id:{einsatz_c},days:2}};void dropSlot({{preventDefault(){{}},clientX:0,currentTarget:Object.assign(document.createElement('div'),{{getBoundingClientRect:()=>({{left:0}})}})}},{seed['nord']})")
+    await tab.js(f"void verschieben({einsatz_c},{{dataset:{{zeile:'kolonne',id:'{seed['nord']}'}}}},0)")  # seit 1.9.249 (bis dahin dropSlot); echte Eingaben: klicktest_plantafel_bedienen
     p.pruefe("Ziehen: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
     p.pruefe("Ziehen: nichts verschoben", await tab.js(f"board.slots.find(s=>s.id==={einsatz_c}).team_id"), seed["west"])
     await tab.js("document.getElementById('konfliktTrotzdem').click()")
