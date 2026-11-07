@@ -97,3 +97,28 @@ Kein Marker unter `app/` nach den Läufen.
 
 Ohne eigene Gegenprobe: Nr. 3 (beim Laden gemessen) -- die Tafel ruft `rueckstandStartZu()` nur einmal beim Laden auf; ein Prüfen „klappt beim Ziehen
 des Fensters nicht um“ hätte keine Gegenstelle im Code (es gibt keinen zweiten Aufruf, den man entfernen könnte). Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.258 (Punkt 7): kurze Balken zweizeilig mit Silbentrennung
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – zwei Zeilen mit den Vornamen | ohne den Schritt (`258_1a`) | 2 rot: v658::test_reihenfolge[zu_hoch-False-klassen6], v658::test_reihenfolge[zwei_zeilen-True-klassen1] |
+| Nr. 1 – zwei Zeilen mit den Vornamen | ohne den Schritt (`258_1c`, Klicktest Tafel) | rot: plantafel_tafel (Kurz; 1280 px; 1280 px) |
+| Nr. 1 – mit Silbentrennung | ohne `hyphens` (`258_1b`) | 1 rot: v658::test_aussehen_und_aufruf |
+| Nr. 1 – mit Silbentrennung | ohne `hyphens` (`258_1d`, Klicktest Tafel) | rot: plantafel_tafel (1280 px) |
+| Nr. 2 – die Vornamen fallen ganz weg | nie (`258_2a`) | 4 rot: v658::test_reihenfolge[eine_ohne-True-klassen2], v658::test_reihenfolge[wort_zu_breit-True-klassen5], v658::test_reihenfolge[zu_hoch-True-klassen4], v658::test_reihenfolge[zwei_ohne-True-klassen3] |
+| Nr. 2 – die Vornamen fallen ganz weg | nie (`258_2d`, Klicktest Tafel) | rot: plantafel_tafel (Kurz; Kurz) |
+| Nr. 2 – ganz, ohne „· …“ | Zusatz bleibt sichtbar (`258_2b`) | 1 rot: v658::test_aussehen_und_aufruf |
+| Nr. 2 – ganz, ohne „· …“ | Zusatz bleibt sichtbar (`258_2e`, Klicktest Tafel) | rot: plantafel_tafel (Kurz; Kurz) |
+| Nr. 1/2 – erst zwei Zeilen, dann ohne Vornamen | umgekehrt (`258_2c`) | 1 rot: v658::test_reihenfolge[zwei_zeilen-True-klassen1] |
+| Nr. 3 – ein Wort zu breit: eine Zeile mit „…“ | bleibt zweizeilig (`258_3a`) | 1 rot: v658::test_reihenfolge[wort_zu_breit-True-klassen5] |
+| Nr. 3 – ein Wort zu breit: eine Zeile mit „…“ | bleibt zweizeilig (`258_3b`, Klicktest Tafel) | rot: plantafel_tafel (Kurz) |
+| Nr. 4 – nicht die Termine einer Person | auch sie (`258_4a`) | 1 rot: v658::test_aussehen_und_aufruf |
+| Nr. 5 – die Breite genau | `scrollWidth` mit 1 px Spiel (`258_5a`) | 5 rot: v658::test_aussehen_und_aufruf, v658::test_reihenfolge[eine_ohne-True-klassen2], v658::test_reihenfolge[eine_zeile-True-klassen0], v658::test_reihenfolge[zwei_ohne-True-klassen3], v658::test_reihenfolge[zwei_zeilen-True-klassen1] |
+| Nr. 5 – die Breite genau | `scrollWidth` mit 1 px Spiel (`258_5c`, Klicktest Personen) | rot: plantafel_personen (1280 px) |
+| Nr. 5 – nach jedem Zeichnen | nie aufgerufen (`258_5b`) | 1 rot: v658::test_aussehen_und_aufruf |
+| Nr. 5 – nach jedem Zeichnen | nie aufgerufen (`258_5d`, Klicktest Personen) | rot: plantafel_personen (1280 px; 1280 px) |
+| W1 – Trenndaten ins Profil | nichts kopiert (`258_w1`) | 1 rot: v658::test_werkzeug_legt_trenndaten_ins_profil |
+
+Ohne eigene Gegenprobe: „erst dann „…““ in zwei Zeilen -- das zeichnet `-webkit-line-clamp` (Chrome), kein eigener Code; die Prüfung „ab 2 Arbeitstagen
+ungekürzt“ ist eine Messung der Testdaten, keine Festlegung. Kein Marker unter `app/` nach den Läufen.

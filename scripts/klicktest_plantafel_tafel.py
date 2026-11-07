@@ -17,7 +17,9 @@ Kranvermietung (Lia, 04.–05.); zwei Aufträge nicht eingeplant.
     Rückstand    „Nicht eingeplant“ mit 2, einklappbar; seit 1.9.257 startet er unter 1440 px eingeklappt, ohne es zu merken -- bei 1440 px offen,
                  was der Knopf gemerkt hat („offen“), gilt auch bei 1280 px
     Klick        ein Balken öffnet den Einsatz
-    1280 px      die Seite läuft nicht über; hell und dunkel als Bild
+    1280 px      die Seite läuft nicht über; hell und dunkel als Bild; seit 1.9.258 ist der Text jedes Balkens ab 2 Arbeitstagen ungekürzt zu sehen
+    Kurz         seit 1.9.258: was nicht auf eine Zeile passt, steht auf zwei (Silbentrennung -- die Trenndaten des installierten Chrome im Profil); passen
+                 die Vornamen nicht, fallen sie ganz weg; erst dann „…“ -- an Probebalken verschiedener Breite und am Kran („Am Wasser-turm 4“, 1 Tag)
     keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -133,6 +135,26 @@ RAND = ("((zeile,text)=>{const z=[...document.querySelectorAll('#planner .planne
         "return [c.borderTopStyle,c.borderTopWidth,c.borderTopColor]})")
 
 
+# seit 1.9.258: ob ein Text ganz zu sehen ist -- die Breite genau (Range), die Höhe mit 1 px Spiel; eigene Messung, nicht die der Seite
+GANZ = "(x=>{const r=document.createRange();r.selectNodeContents(x);return r.getBoundingClientRect().width<=x.getBoundingClientRect().width&&x.scrollHeight<=x.clientHeight+1})"
+# seit 1.9.258: die Balken ab 2 Arbeitstagen -- [wie viele, die Texte derer, die nicht ganz zu sehen sind]
+AB_2_TAGEN = ("(()=>{const tage=[...document.querySelectorAll('#planner .tagkopf:not(.we)')].map(k=>k.getBoundingClientRect());"
+              "const m=[...document.querySelectorAll('#planner .slot')].filter(s=>{const r=s.getBoundingClientRect();"
+              "return tage.filter(k=>Math.min(r.right,k.right)-Math.max(r.left,k.left)>k.width/2).length>=2});"
+              "return [m.length,m.filter(s=>{const t=s.querySelector('.slot-text');const teile=s.classList.contains('zwei')?[...t.children]:[t];"
+              "return s.classList.contains('ohne-namen')||s.classList.contains('gekuerzt')||teile.some(x=>{const r=document.createRange();r.selectNodeContents(x);"
+              "return r.getBoundingClientRect().width>x.getBoundingClientRect().width||x.scrollHeight>x.clientHeight+1})})"
+              ".map(s=>s.querySelector('.slot-text').textContent.trim())]})()")
+# seit 1.9.258: ein Probebalken „Garage Lindenweg 7 · Kai, Nele“ mit der Breite b in der ersten Zeile -- die Klassen nach balkenEinpassen() und ob der
+# sichtbare Text ganz zu sehen ist
+PROBE = ("(b=>{const z=document.querySelector('#planner .track');const s=document.createElement('button');s.className='slot fest';"
+         "s.style.cssText='left:0;top:0;width:'+b+'px';s.innerHTML='<span class=\"slot-text\">Garage Lindenweg 7<span class=\"leise\"> · Kai, Nele</span></span>';"
+         "z.appendChild(s);balkenEinpassen(z);const t=s.querySelector('.slot-text');"
+         "const k=['zweizeilig','ohne-namen','gekuerzt'].filter(c=>s.classList.contains(c)).concat([" + GANZ + "(t)]);"
+         "s.remove();return k})")
+KLASSEN = "(n=>{const s=[...document.querySelectorAll('#planner .slot')].filter(x=>x.textContent.includes(n));return s.map(x=>['zweizeilig','ohne-namen','gekuerzt'].filter(c=>x.classList.contains(c)))})"
+
+
 async def raender(tab, p, wo):
     """Seit 1.9.256: vorläufig mit Warnung rot gestrichelt, fest mit Warnung rot durchgezogen, dieselbe Farbe; vorläufig ohne Warnung gestrichelt in Grün."""
     garage, turm, notdienst = [await tab.js(RAND + f"('{z}','{t}')") for z, t in (("Kolonne Süd", "Garage"), ("Kolonne Nord", "Mia, Ole, Kai"),
@@ -173,6 +195,13 @@ async def pruefen(tab, seed, p):
         ["Pritsche HS-DK 204", "Wartung", "fest", False],
     ])
     await raender(tab, p, "Rand hell")
+    p.pruefe("Kurz: eine Zeile, zwei Zeilen, ohne Vornamen, „…“ -- Probebalken 400/170/80/30 px",
+             [await tab.js(PROBE + f"({b})") for b in (400, 170, 80, 30)],
+             [[True], ["zweizeilig", True], ["zweizeilig", "ohne-namen", True], ["ohne-namen", "gekuerzt", False]])
+    p.pruefe("Kurz: ohne Vornamen kein „· …“ -- der Zusatz ist ganz weg", await tab.js(
+        "(()=>{const z=document.querySelector('#planner .track');const s=document.createElement('button');s.className='slot fest';s.style.cssText='left:0;top:0;width:80px';"
+        "s.innerHTML='<span class=\"slot-text\">Garage Lindenweg 7<span class=\"leise\"> · Kai, Nele</span></span>';z.appendChild(s);balkenEinpassen(z);"
+        "const l=s.querySelector('.leise');const r=[getComputedStyle(l).display,l.getClientRects().length];s.remove();return r})()"), ["none", 0])
     p.pruefe("Warnung: rotes Zeichen im Balken", await tab.js("[...document.querySelectorAll('#planner .slot.conflict')].every(s=>!!s.querySelector('svg.warnzeichen'))"), True)
     p.pruefe("Maße: 14 Tage ohne Bildlauf in der Tafel (1440 px)", await tab.js(
         "(()=>{const s=document.getElementById('planner');return [document.querySelectorAll('#planner .tagkopf').length,s.scrollWidth<=s.clientWidth+1]})()"), [14, True])
@@ -224,6 +253,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("1280 px: „Nicht eingeplant“ startet eingeklappt, nichts gemerkt", await tab.js(
         "[document.getElementById('rkKnopf').getAttribute('aria-expanded'),Math.round(document.querySelector('.rueckstand').getBoundingClientRect().width),"
         "localStorage.getItem('plantafel_rueckstand')]"), ["false", 52, None])
+    p.pruefe("1280 px: der Text jedes Balkens ab 2 Arbeitstagen ungekürzt zu sehen (neun Balken)", await tab.js(AB_2_TAGEN), [9, []])
+    if tab.silbentrennung:  # wie „Wasser-turm“ in der Zeichnung: der Kran an einem Tag, zwei Zeilen mit Trennung, ohne „…“
+        p.pruefe("1280 px: „Am Wasserturm 4“ am Kran (1 Tag) zweizeilig getrennt, ungekürzt", await tab.js(KLASSEN + "('Am Wasserturm 4')"),
+                 [[], [], ["zweizeilig"], ["zweizeilig"], [], []])
+    else:
+        print("    Silbentrennung: keine Trenndaten -- die Prüfung am Kran entfällt")
     p.pruefe("1280 px: die Seite läuft nicht über", await tab.ueberlauf(), [])
     p.pruefe("1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1280 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
@@ -249,4 +284,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr=f"{HEUTE} 10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr=f"{HEUTE} 10:00", silbentrennung=True))

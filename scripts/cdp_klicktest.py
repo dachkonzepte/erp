@@ -798,6 +798,7 @@ class Tab:
         self.netz = Netzprotokoll(base_url, verbindungen)
         self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
         self.wachhund: "Wachhund | None" = None  # seit 1.8.126 (klicktest_main(..., zeitlimit_je_schritt=True))
+        self.silbentrennung = False  # seit 1.9.258: Trenndaten im Profil (klicktest_main(..., silbentrennung=True))
         self.geraet_breite: int | None = None  # seit 1.9.138: die Breite aus fenster(), für ueberlauf()
         self._uhr_skript: str | None = None  # seit 1.9.209: Kennung des Skripts der stehenden Browser-Uhr (browser_uhr_fest(), uhr_stellen())
 
@@ -1407,6 +1408,20 @@ _STEHENDE_UHR_DATEI: Path | None = None
 # Arbeitstag, _uhr_marke()) -- jeder Tab bekommt diesen Versatz (_browser_tage()), sonst sähe die Seite den echten Tag und die Instanz einen
 # anderen. An einem Arbeitstag und bei stehender Uhr 0: dort ändert sich nichts.
 _BROWSER_TAGE_MS = 0
+# Seit 1.9.258: ob Chrome im Klicktest deutsch trennt -- headless trennt nur mit den Trenndaten (Komponente „hyphen-data“), die ein frisches Profil nicht
+# hat; klicktest_main(silbentrennung=True) legt die des installierten Chrome dieses Rechners in das eigene Profil (trenndaten_einlegen()).
+_SILBENTRENNUNG = False
+TRENNDATEN = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data" / "hyphen-data"
+
+
+def trenndaten_einlegen(profil: Path, quelle: Path | None = None) -> bool:
+    """Kopiert die Trenndaten (hyphen-data) des installierten Chrome in das Profil des Klicktests -- nur lesend aus dem Ordner des Nutzers, nichts an seiner
+    Sitzung (Regel 12). Ohne Trenndaten False: Chrome trennt dann nicht, der Klicktest sagt es (Tab.silbentrennung)."""
+    quelle = quelle or TRENNDATEN
+    if not quelle.is_dir() or not any(quelle.iterdir()):
+        return False
+    shutil.copytree(quelle, profil / "hyphen-data", dirs_exist_ok=True)
+    return True
 
 
 def _uhr_marke(uhrzeit: str) -> str:
@@ -1543,11 +1558,12 @@ def _isolierte_umgebung(ordner: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | None = None, zeitlimit_je_schritt: bool = False,
-                   umgebung: dict | None = None, chrome_argumente: list[str] | None = None) -> int:
+                   umgebung: dict | None = None, chrome_argumente: list[str] | None = None, silbentrennung: bool = False) -> int:
     """uhr: "HH:MM" -- die Instanz läuft heute ab dieser Uhrzeit (Europe/Berlin), siehe FESTE UHR oben; seit 1.8.126 auch
     "JJJJ-MM-TT HH:MM" -- eine stehende Uhr an diesem Tag. zeitlimit_je_schritt (seit 1.8.126): das Zeitlimit (--zeitlimit, Gegenprobe)
     gilt je Schritt, pruefen() setzt es mit tab.wachhund.neu_starten() zurück. umgebung (seit 1.8.126): weitere Variablen für Befüllen
-    und Instanz. chrome_argumente (seit 1.8.126): weitere Schalter für Chrome (scripts/bildgrundlage.py: --disable-lcd-text)."""
+    und Instanz. chrome_argumente (seit 1.8.126): weitere Schalter für Chrome (scripts/bildgrundlage.py: --disable-lcd-text). silbentrennung
+    (seit 1.9.258): Trenndaten des installierten Chrome ins Profil (trenndaten_einlegen()), Tab.silbentrennung sagt, ob es sie gab."""
     parser = argparse.ArgumentParser(description=(beschreibung or "").strip().splitlines()[0] if beschreibung else None)
     parser.add_argument("--app-port", type=int, default=0)
     parser.add_argument("--cdp-port", type=int, default=0)
@@ -1574,14 +1590,14 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
         print(f"Zeitlimit {int(wachhund.sekunden)} s{' je Schritt' if zeitlimit_je_schritt else ''} ({wachhund.grund})", flush=True)
         wachhund.starten()
     try:
-        return _ablauf(befuellen, pruefen, args, uhr, wachhund, umgebung, chrome_argumente)
+        return _ablauf(befuellen, pruefen, args, uhr, wachhund, umgebung, chrome_argumente, silbentrennung)
     finally:
         if wachhund:  # ist er abgelaufen, endet der Prozess hier mit CODE_ZEITLIMIT -- auch wenn der Ablauf schon zurückkam,
             wachhund.anhalten()  # weil das Beenden seiner Kindprozesse ihn weiterlaufen ließ ("Befüllen fehlgeschlagen.")
 
 
 def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | None", umgebung: dict | None = None,
-            chrome_argumente: list[str] | None = None) -> int:
+            chrome_argumente: list[str] | None = None, silbentrennung: bool = False) -> int:
     ordner = klicktest_ordner(args.arbeitsordner, "erp-klicktest-")  # seit 1.9.185 nie direkt unter einem Laufwerk
     if ordner.exists() and any(ordner.iterdir()):
         raise SystemExit(f"Arbeitsordner ist nicht leer: {ordner}")
@@ -1645,6 +1661,11 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
             return 2
         server, app_port = gestartet
 
+        if silbentrennung:  # seit 1.9.258
+            global _SILBENTRENNUNG
+            _SILBENTRENNUNG = trenndaten_einlegen(ordner / "chrome-profile")
+            print("Silbentrennung: " + ("Trenndaten des installierten Chrome im Profil" if _SILBENTRENNUNG
+                                        else f"keine Trenndaten unter {TRENNDATEN} -- Chrome trennt nicht"), flush=True)
         # Seit 1.9.85: ohne --cdp-port wählt Chrome den Port selbst (0) und nennt ihn in DevToolsActivePort (_chrome_port())
         chrome = subprocess.Popen([_chrome_pfad(args.chrome), "--headless=new", f"--remote-debugging-port={args.cdp_port or 0}",
                                    f"--user-data-dir={ordner / 'chrome-profile'}", "--no-first-run",
@@ -1688,6 +1709,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbin
     async with websockets.connect(seite["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
         tab = Tab(ws, base_url, shots, cdp_port, verbindungen)
         tab.wachhund = wachhund  # seit 1.8.126, für zeitlimit_je_schritt
+        tab.silbentrennung = _SILBENTRENNUNG  # seit 1.9.258
         p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")

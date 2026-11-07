@@ -12,7 +12,8 @@ Stehende Uhr Di 03.11.2026 10:00.
     Balken       nur die Warnungen und Hinweise der Person: Kai „Am Wasserturm 4 · mit Nord“ und „Garage“ mit Warnung (doppelt), Mia und Ole am selben
                  Einsatz ohne, Nele „Garage“ mit dem Punkt für ihren Antrag; Tom „Urlaub · genehmigt“ schraffiert; Nele „Urlaub · beantragt“ gestrichelt; Lia
                  „Kran Böcker AHK 36 · Vermietung“ blau; Bea die Termine zweizeilig (Uhrzeit über dem Titel), der private „Belegt“
-    Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title; hell und dunkel als Bild -- seit 1.9.257 bei
+    Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title (seit 1.9.258 bei 1280 px ab 2 Arbeitstagen
+                 ungekürzt, in „Personen“ und „Geräte“); hell und dunkel als Bild -- seit 1.9.257 bei
                  1280 px neu geladen (Start mit eingeklapptem „Nicht eingeplant“), „Geräte“ ebenso bei 1440 und 1280 px, hell und dunkel
     Kalender     seit 1.9.254: ein Termin ist ein Knopf und öffnet den Kalender an seinem Tag (Tagesansicht) mit dem Termin, das Vorkommen der Serie
                  ebenso; „Belegt“ (privat, für Anna) ist kein Knopf, für Bea selbst schon; die gemerkte Ansicht des Kalenders bleibt
@@ -33,7 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
-from klicktest_plantafel_tafel import BEREIT, HEUTE, TEXTE, UHR_MS, UNTER, VERDECKT, ZEILEN  # noqa: E402
+from klicktest_plantafel_tafel import AB_2_TAGEN, BEREIT, GANZ, HEUTE, TEXTE, UHR_MS, UNTER, VERDECKT, ZEILEN  # noqa: E402
 from klicktest_plantafel_tafel import befuellen as tafel_befuellen  # noqa: E402
 
 
@@ -162,9 +163,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("1280 px: die Seite läuft nicht über", await tab.ueberlauf(), [])
     p.pruefe("1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1280 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
+    p.pruefe("1280 px: der Text jedes Balkens ab 2 Arbeitstagen ungekürzt zu sehen (zwölf Balken)", await tab.js(AB_2_TAGEN), [12, []])  # seit 1.9.258
+    p.pruefe("1280 px: „Wartung“ (1 Tag) bei Kai ohne „…“", await tab.js(  # seit 1.9.258 -- „Wartu…“ ragte 1 px über, scrollWidth zeigte es nicht
+        "[...document.querySelectorAll('#planner .slot')].filter(x=>x.textContent.trim()==='Wartung').map(x=>[x.classList.contains('gekuerzt')," + GANZ + "(x.querySelector('.slot-text'))])"),
+             [[False, True]])
     await tab.bild("personen_1280_hell")
     await ansicht(tab, "resources")
     p.pruefe("Geräte 1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
+    p.pruefe("Geräte 1280 px: der Text jedes Balkens ab 2 Arbeitstagen ungekürzt zu sehen (fünf Balken)", await tab.js(AB_2_TAGEN), [5, []])
     await tab.bild("geraete_1280_hell")
 
     # --- Geräte ---
@@ -254,4 +260,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr=f"{HEUTE} 10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr=f"{HEUTE} 10:00", silbentrennung=True))

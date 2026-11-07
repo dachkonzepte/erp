@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.258 – Plantafel: kurze Balken auf zwei Zeilen mit Silbentrennung (Stufe 6, R4b, Punkt 7)
+
+Kurze Balken schnitten ihren Text bisher nach wenigen Buchstaben ab -- „A…“, „Wart…“, „Garage Lindenweg 7 · …“. Jetzt bricht ein Text, der nicht auf eine Zeile passt, auf zwei Zeilen um, mit Silbentrennung wie „Wasser-turm“ in der Zeichnung. Passen die Vornamen auch so nicht, fallen sie ganz weg, statt mit „· …“ abzubrechen; erst danach endet der Text mit „…“. Der volle Text steht weiter im Hinweis des Balkens. Die Termine einer Person, die schon zweizeilig sind, bleiben, wie sie sind. Gemessen wird im Browser nach jedem Zeichnen, die Breite auf Bruchteile eines Pixels genau -- ein Überstand von weniger als einem Pixel zeigt schon „…“.
+
+Die Klicktests der Plantafel prüfen bei 1280 px, dass der Text jedes Balkens ab zwei Arbeitstagen ungekürzt zu sehen ist. Damit headless Chrome im Klicktest trennt wie ein normaler Chrome, legt das Werkzeug die Trenndaten des installierten Chrome in das Profil des Klicktests (`klicktest_main(silbentrennung=True)`).
+
 ## 1.9.257 – Plantafel: „Nicht eingeplant“ startet unter 1440 px eingeklappt (Stufe 6, R4b, Punkt 8)
 
 Bei einem schmaleren Fenster nahm die Liste „Nicht eingeplant“ der Tafel Platz weg, und kurze Balken wurden noch kürzer. Unter 1440 px Fensterbreite startet sie jetzt eingeklappt, solange im Browser nichts anderes gemerkt ist; ab 1440 px offen wie bisher. Der Start merkt sich nichts -- was man mit dem Knopf einstellt (offen oder zu), gilt wie seit 1.9.247 und dann bei jeder Breite. Diese Version kommt vor Punkt 7, weil dessen Messung (Text der Balken bei 1280 px) mit dem eingeklappten Rückstand rechnet.

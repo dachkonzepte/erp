@@ -9225,3 +9225,42 @@ Neu: `tests/test_v657_rueckstand_unter_1440.py` (Start je gemerktem Stand und Br
 statt 26 Prüfungen); `scripts/klicktest_plantafel_personen.py` lädt bei 1280 px neu (Start eingeklappt) und nimmt „Geräte“ dazu bei 1280 px hell und dunkel und
 1440 px dunkel auf (35 statt 33 Prüfungen, drei neue Bilder). Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine (die Bilder bei
 1280 px zeigen jetzt den eingeklappten Rückstand -- vorher wurde das Fenster ohne Neuladen schmaler gezogen).
+
+### Umsetzung 1.9.258 (Punkt 7): kurze Balken zweizeilig mit Silbentrennung
+
+Fund aus den Bildern von R4: „A…“ (Kran, 1 Tag), „Wart…“, „Garage Lindenweg 7 · …“ -- ein Balken hatte eine Zeile, was nicht passte, endete mit „…“.
+Die Zeichnung zeigt kurze Balken zweizeilig mit Trennung („Wasser-turm“, dort mit einem festen weichen Trennstrich). Jetzt `balkenEinpassen()` nach jedem
+Zeichnen (`renderBoard()`): je Balken eine Zeile mit Zusatz -> zwei Zeilen mit Zusatz (`.zweizeilig`: 10,5 px auf 11 px, höchstens zwei Zeilen über
+`-webkit-line-clamp`, `hyphens:auto` unter `lang="de"`) -> eine Zeile ohne Zusatz (`.ohne-namen`: der leise Teil „· …“ samt Punkt `display:none`) -> zwei
+Zeilen ohne -> `gekuerzt`: „…“ am Ende der zweiten Zeile, ist ein Wort breiter als der Balken, eine Zeile mit „…“. Der Zusatz sind bei Einsätzen die Vornamen,
+sonst was der Balken leise dazuschreibt (Bediener, „genehmigt“, Titel eines Termins am Gerät) -- er fällt nach derselben Regel. Die Termine einer Person
+(`.zwei`, seit 1.9.250 Uhrzeit über dem Titel) bleiben, wie sie sind.
+
+Messen (`textPasst()`): die Breite über einen Range um den Text, in Bruchteilen von Pixeln -- `scrollWidth` rundet, beim ersten Lauf blieb „Wartung“ (47,x px in
+47 px) auf einer Zeile und zeigte „Wartu…“; die Höhe mit 1 px Spiel (die Schrift ragt über 11 px Zeilenhöhe hinaus, eine Zeile misst 12 px).
+
+Silbentrennung im Klicktest: headless Chrome mit frischem Profil trennt nicht -- die Trenndaten sind eine Komponente („hyphen-data“), die ein Chrome erst
+nachlädt. Geprüft am 07.11.2026 (Wegwerf-Profil, dieselbe Seite): ohne die Daten keine Trennung, mit den Daten des installierten Chrome im Profil sofort.
+Deshalb legt `scripts/cdp_klicktest.py::trenndaten_einlegen()` sie bei `klicktest_main(silbentrennung=True)` ins Profil (nur lesend aus dem Ordner des
+Nutzers kopiert); gibt es sie nicht, sagt der Klicktest es und lässt die Prüfung der Trennung aus (`Tab.silbentrennung`). Ein Chrome im Büro hat die Daten,
+sobald er einmal getrennt hat.
+
+#### Festlegungen 1.9.258 (Bitte bestätigen)
+
+1. Passt der Text eines Balkens nicht auf eine Zeile, bricht er auf zwei Zeilen um, mit Silbentrennung (10,5 px auf 11 px, `lang="de"`, `hyphens:auto`) --
+   zuerst mit den Vornamen.
+2. Passen die Vornamen auch so nicht, fallen sie ganz weg (der Zusatz „· …“), dann zuerst auf einer Zeile, sonst auf zwei.
+3. Erst dann „…“: am Ende der zweiten Zeile; ist ein Wort breiter als der Balken, auf einer Zeile. Der volle Text steht im Hinweis (title).
+4. Das gilt für jeden Balken mit Zusatz (Einsatz, Kranvermietung, Abwesenheit, Termin am Gerät -- dort fällt der Titel weg, „Outlook“ bleibt), nicht für die
+   Termine einer Person.
+5. Gemessen wird im Browser nach jedem Zeichnen; die Breite auf Bruchteile eines Pixels.
+
+#### Tests und Prüfung 1.9.258
+
+Neu: `tests/test_v658_kurze_balken.py` (in node je Stufe ein nachgestellter Balken: eine Zeile, zwei Zeilen, ohne Vornamen ein- und zweizeilig, „…“ zwei- und
+einzeilig, ohne Zusatz; die Regeln im Stil, `.zwei` ausgenommen, Aufruf nach dem Zeichnen, Breite über den Range; `trenndaten_einlegen()` mit und ohne
+Quelle). `scripts/klicktest_plantafel_tafel.py`: Probebalken „Garage Lindenweg 7 · Kai, Nele“ bei 400/170/80/30 px (eine Zeile, zwei, ohne Vornamen, „…“), der
+Zusatz ganz weg; bei 1280 px der Text der neun Balken ab 2 Arbeitstagen ungekürzt; „Am Wasserturm 4“ am Kran (1 Tag) zweizeilig getrennt ohne „…“ (mit
+Trenndaten) -- 33 statt 29 Prüfungen. `scripts/klicktest_plantafel_personen.py`: bei 1280 px in „Personen“ (zwölf Balken) und „Geräte“ (fünf) ab 2
+Arbeitstagen ungekürzt, „Wartung“ (1 Tag) ohne „…“ -- 38 statt 35. Beide mit `silbentrennung=True`. Gegenproben: Archiv `gegenproben-stufe6-r4b.md`.
+Angepasste Erwartungen: keine. Eine Festlegung zu Werkzeug und Testablauf steht im Archiv `testablauf-und-klicktests.md`.

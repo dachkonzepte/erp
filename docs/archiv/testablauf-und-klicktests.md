@@ -1569,3 +1569,14 @@ anderen Tag.
 1. `klicktest_plantafel_aus_der_akte` läuft allein (`ALLEIN`): er prüft in einem Fenster von 1 s, dass ohne Rücksprung keine Navigation beginnt -- unter Last
    wäre die Prüfung still schwächer (Regel aus 1.8.108). Gegenprobe: ohne `ALLEIN` -- `test_v413::test_jeder_zeitkritische_klicktest_laeuft_allein` und `test_echte_reihenfolge_mit_vier_zugleich` rot (Strukturtests
    über die Datei).
+
+## Silbentrennung im Klicktest (seit 1.9.258)
+
+headless Chrome mit frischem Profil trennt nicht: `hyphens:auto` braucht die Trenndaten, eine Komponente („hyphen-data“), die Chrome erst nachlädt. Am
+07.11.2026 geprüft (Wegwerf-Profil, eine Seite mit „Wasserturm“ in 52 px): ohne die Daten eine Zeile, die überragt; mit den Daten des installierten Chrome
+(`%LOCALAPPDATA%\Google\Chrome\User Data\hyphen-data`, 1,8 MB) im Profil sofort zwei Zeilen. `klicktest_main(…, silbentrennung=True)` legt sie über
+`trenndaten_einlegen()` vor dem Start von Chrome ins Profil des Klicktests -- nur lesend kopiert, die Sitzung des Nutzers bleibt unberührt (Regel 12);
+`Tab.silbentrennung` sagt, ob es sie gab. Ohne sie meldet der Klicktest „keine Trenndaten“ und lässt nur die Prüfung der Trennung aus.
+
+- Festlegung 1.9.258 W1 (Bitte bestätigen): ein Klicktest, der Silbentrennung prüft, nimmt `silbentrennung=True` -- die Trenndaten des installierten Chrome im
+  eigenen Profil; fehlen sie, entfällt nur diese Prüfung, mit Hinweis im Protokoll.

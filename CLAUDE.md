@@ -1244,7 +1244,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`tests/test_v654_termin_einer_person.py`); seit 1.9.255 trägt die Zeile eines Geräts nur dessen Warnungen (Gerät doppelt, Termin im Postfach, Prüffrist;
   die Konflikte nennen `resource_id`), der Termin im Postfach warnt auch auf der Tafel (`termin_warnungen_der_tafel()`, eine Abfrage je Tabelle;
   `tests/test_v655_geraetezeilen.py`); seit 1.9.256 ist vorläufig mit Warnung rot gestrichelt (`.slot.vorlaeufig.conflict`, `tests/test_v656_vorlaeufig_mit_warnung.py`); seit 1.9.257 startet „Nicht eingeplant“ unter 1440 px eingeklappt, solange nichts
-  gemerkt ist (`rueckstandStartZu()`, merkt nichts; `tests/test_v657_rueckstand_unter_1440.py`).
+  gemerkt ist (`rueckstandStartZu()`, merkt nichts; `tests/test_v657_rueckstand_unter_1440.py`); seit 1.9.258 bricht ein kurzer Balken auf zwei Zeilen um
+  (Silbentrennung), ohne Platz fallen die Vornamen ganz weg, erst dann „…“ (`balkenEinpassen()`, Breite über einen Range; `tests/test_v658_kurze_balken.py`;
+  Klicktests mit `klicktest_main(silbentrennung=True)`: Trenndaten des installierten Chrome im Profil, sonst trennt headless Chrome nicht).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener
