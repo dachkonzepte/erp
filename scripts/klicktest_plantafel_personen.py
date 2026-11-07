@@ -12,7 +12,8 @@ Stehende Uhr Di 03.11.2026 10:00.
     Balken       nur die Warnungen und Hinweise der Person: Kai „Am Wasserturm 4 · mit Nord“ und „Garage“ mit Warnung (doppelt), Mia und Ole am selben
                  Einsatz ohne, Nele „Garage“ mit dem Punkt für ihren Antrag; Tom „Urlaub · genehmigt“ schraffiert; Nele „Urlaub · beantragt“ gestrichelt; Lia
                  „Kran Böcker AHK 36 · Vermietung“ blau; Bea die Termine zweizeilig (Uhrzeit über dem Titel), der private „Belegt“
-    Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title; hell und dunkel als Bild
+    Maße         1440 und 1280 px: kein Balken verdeckt einen anderen, jeder Text sichtbar oder im title; hell und dunkel als Bild -- seit 1.9.257 bei
+                 1280 px neu geladen (Start mit eingeklapptem „Nicht eingeplant“), „Geräte“ ebenso bei 1440 und 1280 px, hell und dunkel
     Kalender     seit 1.9.254: ein Termin ist ein Knopf und öffnet den Kalender an seinem Tag (Tagesansicht) mit dem Termin, das Vorkommen der Serie
                  ebenso; „Belegt“ (privat, für Anna) ist kein Knopf, für Bea selbst schon; die gemerkte Ansicht des Kalenders bleibt
     Formular     seit 1.9.253: im Mitarbeiterformular „Plantafel“ auf „Bauleitung“ -> Paul steht danach im Abschnitt Bauleitung
@@ -154,14 +155,22 @@ async def pruefen(tab, seed, p):
         "[...document.getElementById('edPersonWahl').options].map(o=>o.textContent).filter(t=>/Bea|Paul|Vera/.test(t))"), ["Bea Bauer", "Paul Pohl"])
     await tab.js("document.getElementById('einsatzDialog').close()")
     await tab.fenster(1280, 900)
+    await tab.oeffnen("/planning", BEREIT)  # seit 1.9.257: der Start bei 1280 px
     await tab.warte_auf_ruhe()
+    await ansicht(tab, "employees")
+    p.pruefe("1280 px: „Nicht eingeplant“ eingeklappt", await tab.js("document.getElementById('rkKnopf').getAttribute('aria-expanded')"), "false")
     p.pruefe("1280 px: die Seite läuft nicht über", await tab.ueberlauf(), [])
     p.pruefe("1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1280 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
     await tab.bild("personen_1280_hell")
+    await ansicht(tab, "resources")
+    p.pruefe("Geräte 1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
+    await tab.bild("geraete_1280_hell")
 
     # --- Geräte ---
     await tab.fenster(1440, 1000)
+    await tab.oeffnen("/planning", BEREIT)
+    await tab.warte_auf_ruhe()
     await ansicht(tab, "resources")
     p.pruefe("Geräte: Kran mit den Terminen aus seinem Postfach und der Vermietung, nur seine Warnung (Wagner am 13.11.)",
              await tab.js(BALKEN_JE_ZEILE + "('Kran Böcker AHK 36')"),
@@ -203,10 +212,16 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await ansicht(tab, "employees")
     await tab.bild("personen_1440_dunkel")
+    await ansicht(tab, "resources")
+    await tab.bild("geraete_1440_dunkel")
     await tab.fenster(1280, 900)
+    await tab.oeffnen("/planning", BEREIT)  # seit 1.9.257: der Start bei 1280 px
     await tab.warte_auf_ruhe()
+    await ansicht(tab, "employees")
     await tab.bild("personen_1280_dunkel")
     p.pruefe("dunkel: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
+    await ansicht(tab, "resources")
+    await tab.bild("geraete_1280_dunkel")
 
     # --- seit 1.9.253: das Kennzeichen im Mitarbeiterformular ---
     await tab.fenster(1440, 1000)

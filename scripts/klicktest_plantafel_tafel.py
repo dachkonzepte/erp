@@ -14,7 +14,8 @@ Kranvermietung (Lia, 04.–05.); zwei Aufträge nicht eingeplant.
     Maße         14 Tage passen bei 1440 px ohne Bildlauf in der Tafel, Sa/So schmal; kein Balken verdeckt einen anderen; jeder Text im Balken ist
                  sichtbar oder steht im title
     Leiste       „KW 45–46 · 02.11.–15.11.2026“, Knopf „1 Warnung · 1 Hinweis“ filtert (nur Einsätze mit Warnung oder Hinweis) und zurück
-    Rückstand    „Nicht eingeplant“ mit 2, einklappbar
+    Rückstand    „Nicht eingeplant“ mit 2, einklappbar; seit 1.9.257 startet er unter 1440 px eingeklappt, ohne es zu merken -- bei 1440 px offen,
+                 was der Knopf gemerkt hat („offen“), gilt auch bei 1280 px
     Klick        ein Balken öffnet den Einsatz
     1280 px      die Seite läuft nicht über; hell und dunkel als Bild
     keine JS-Fehler
@@ -218,7 +219,11 @@ async def pruefen(tab, seed, p):
 
     # --- 1280 px und dunkel ---
     await tab.fenster(1280, 900)
+    await tab.oeffnen("/planning", BEREIT)  # seit 1.9.257 neu geladen: der Start bei 1280 px (das Skript des Tabs löscht, was gemerkt war)
     await tab.warte_auf_ruhe()
+    p.pruefe("1280 px: „Nicht eingeplant“ startet eingeklappt, nichts gemerkt", await tab.js(
+        "[document.getElementById('rkKnopf').getAttribute('aria-expanded'),Math.round(document.querySelector('.rueckstand').getBoundingClientRect().width),"
+        "localStorage.getItem('plantafel_rueckstand')]"), ["false", 52, None])
     p.pruefe("1280 px: die Seite läuft nicht über", await tab.ueberlauf(), [])
     p.pruefe("1280 px: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
     p.pruefe("1280 px: jeder Text sichtbar oder im title", await tab.js(TEXTE), [])
@@ -228,10 +233,18 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await tab.bild("tafel_kolonnen_1280_dunkel")
     await tab.fenster(1440, 1000)
-    await tab.warten("document.querySelector('#planner .tagkopf').offsetWidth>=56")  # neu gezeichnet für 1440 px
+    await tab.oeffnen("/planning", BEREIT)  # seit 1.9.257: der Start bei 1440 px -- offen
+    await tab.warte_auf_ruhe()
+    p.pruefe("1440 px: „Nicht eingeplant“ startet offen", await tab.js("document.getElementById('rkKnopf').getAttribute('aria-expanded')"), "true")
     await tab.bild("tafel_kolonnen_1440_dunkel")
     await raender(tab, p, "Rand dunkel")
     p.pruefe("dunkel: kein Balken verdeckt einen anderen", await tab.js(VERDECKT), [])
+    # gemerkt „offen“ (der Knopf) gilt auch unter 1440 px
+    await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="try{localStorage.setItem('plantafel_rueckstand','offen')}catch(e){}")
+    await tab.fenster(1280, 900)
+    await tab.oeffnen("/planning", BEREIT)
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280 px: gemerkt „offen“ bleibt offen", await tab.js("document.getElementById('rkKnopf').getAttribute('aria-expanded')"), "true")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

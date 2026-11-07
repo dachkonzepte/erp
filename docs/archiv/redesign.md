@@ -9203,3 +9203,25 @@ Neu: `tests/test_v656_vorlaeufig_mit_warnung.py` (die Regel, nach der Warnung, o
 durchgezogenen Rand). `scripts/klicktest_plantafel_tafel.py` misst den Rand in „Kolonnen“ hell und dunkel: „Garage“ gestrichelt 2 px, „Am Wasserturm 4“
 durchgezogen 2 px, dieselbe Farbe, anders als ohne Warnung (26 statt 24 Prüfungen); `klicktest_plantafel_personen.py` in „Personen“ bei Kai (33 statt 32).
 Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.257 (Punkt 8): „Nicht eingeplant“ startet unter 1440 px eingeklappt
+
+Seit 1.9.247 (Festlegung Nr. 10) ist „Nicht eingeplant“ einklappbar und der Stand bleibt im Browser (`plantafel_rueckstand`: „offen“ oder „zu“); ohne
+gemerkten Stand startete die Liste offen. Jetzt `rueckstandStartZu(Breite)`: gemerkt „zu“ -> zu, gemerkt „offen“ -> offen, sonst zu unter 1440 px; ohne Zugriff
+auf den Speicher (privates Fenster) wie „nichts gemerkt“. Der Start klappt über `rueckstandZeigen(false, false)` ein -- der zweite Wert (neu, `merken`) lässt
+den Speicher stehen; der Knopf merkt wie bisher. Gemessen wird einmal beim Laden (`window.innerWidth`); ein späteres Ändern der Fensterbreite zeichnet die
+Tafel neu, klappt aber nicht um. Reihenfolge: vor Punkt 7, dessen Messung bei 1280 px den eingeklappten Rückstand braucht.
+
+#### Festlegungen 1.9.257 (Bitte bestätigen)
+
+1. Unter 1440 px Fensterbreite startet „Nicht eingeplant“ eingeklappt, solange im Browser nichts gemerkt ist; ab 1440 px offen.
+2. Was der Knopf merkt („offen“ oder „zu“), gilt bei jeder Breite; der Start selbst merkt nichts. Ist der Speicher des Browsers gesperrt, gilt die Breite.
+3. Gemessen wird beim Laden der Seite; wer danach das Fenster schmaler oder breiter zieht, behält den Stand.
+
+#### Tests und Prüfung 1.9.257
+
+Neu: `tests/test_v657_rueckstand_unter_1440.py` (Start je gemerktem Stand und Breite, 1439/1440 px, gesperrter Speicher; nur der Knopf merkt).
+`scripts/klicktest_plantafel_tafel.py`: bei 1280 px neu geladen eingeklappt (52 px breit) ohne Merken, bei 1440 px offen, gemerkt „offen“ bei 1280 px offen (29
+statt 26 Prüfungen); `scripts/klicktest_plantafel_personen.py` lädt bei 1280 px neu (Start eingeklappt) und nimmt „Geräte“ dazu bei 1280 px hell und dunkel und
+1440 px dunkel auf (35 statt 33 Prüfungen, drei neue Bilder). Gegenproben: Archiv `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine (die Bilder bei
+1280 px zeigen jetzt den eingeklappten Rückstand -- vorher wurde das Fenster ohne Neuladen schmaler gezogen).

@@ -81,3 +81,19 @@ Zähler mit. Kein Marker unter `app/` nach den Läufen.
 | Nr. 1 – Farbe der Warnung | grün gestrichelt (`256_1e`, Klicktest Tafel) | rot: plantafel_tafel (Rand hell; Rand dunkel) |
 
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.257 (Punkt 8): „Nicht eingeplant“ unter 1440 px eingeklappt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – unter 1440 px zu | nur gemerkt zählt (`257_1a`) | 3 rot: v657::test_ohne_speicher_wie_nichts_gemerkt, v657::test_start[None-1280-True], v657::test_start[None-1439-True] |
+| Nr. 1 – unter 1440 px zu | dasselbe (`257_1b`, Klicktest Tafel) | rot: plantafel_tafel (1280 px) |
+| Nr. 1 – Grenze 1440 px | Grenze 1280 px (`257_1d`) | 3 rot: v657::test_ohne_speicher_wie_nichts_gemerkt, v657::test_start[None-1280-True], v657::test_start[None-1439-True] |
+| Nr. 2 – gemerkt „offen“ gilt bei jeder Breite | Breite vor dem Gemerkten (`257_2a`) | 1 rot: v657::test_start[offen-1280-False] |
+| Nr. 2 – gemerkt „offen“ gilt bei jeder Breite | dasselbe (`257_2d`, Klicktest Tafel) | rot: plantafel_tafel (1280 px) |
+| Nr. 2 – der Start merkt nichts | Start merkt „zu“ (`257_2b`) | 1 rot: v657::test_nur_der_knopf_merkt |
+| Nr. 2 – der Start merkt nichts | dasselbe (`257_2e`, Klicktest Tafel) | rot: plantafel_tafel (1280 px) |
+| Nr. 2 – gesperrter Speicher: die Breite | gesperrt -> offen (`257_2c`) | 1 rot: v657::test_ohne_speicher_wie_nichts_gemerkt |
+
+Ohne eigene Gegenprobe: Nr. 3 (beim Laden gemessen) -- die Tafel ruft `rueckstandStartZu()` nur einmal beim Laden auf; ein Prüfen „klappt beim Ziehen
+des Fensters nicht um“ hätte keine Gegenstelle im Code (es gibt keinen zweiten Aufruf, den man entfernen könnte). Kein Marker unter `app/` nach den Läufen.
