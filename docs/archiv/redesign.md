@@ -8588,3 +8588,31 @@ Angepasste Erwartungen (Regel 28):
 - `klicktest_heute`: Testdaten dazu Pia (heute krank), Status fest, Notiz, Baustellenhinweis, ein Kran nur heute; „Nächste Tage“ alt „… · Fortsetzung“ und
   „… · Rinne erneuern“, neu „… · weiter“ und „… · mit Ole, Lea, Kai, Tom, Pia · vorläufig“; neu „Einsatz nach der Zeichnung …“ und „Die Art der Abwesenheit
   einer anderen steht nirgends“.
+
+## Stufe 6, R4: Plantafel-Oberfläche (ab 1.9.243)
+
+Vorgabe Tobias (07.11.2026), Start ee6f378. Maßgeblich die Zeichnung `bildgrundlage/entwurf-stufe6/` (`plantafel-kolonnen.html`, `-personen.html`,
+`-einsatz.html`, `-regeln.html`), Abweichungen nur, wo die Vorgabe sie nennt. Bestätigt vor der Runde: alle Festlegungen 1.9.238–1.9.242 und die drei zu
+Werkzeug und Testablauf. Vorweg 0a–0e, dann 1 Tafel „Kolonnen“, 2 Bedienen, 3 Ansichten „Personen“ und „Geräte“, 4 Einsatz-Dialog, 5 Termin aus dem
+Kran-Postfach, 6 „Einsatz planen“ aus der Akte -- je Punkt eine Version. Gegenproben: `docs/archiv/gegenproben-stufe6-r4.md`.
+
+### Umsetzung 1.9.243 (Punkt 0a): „Nächste Tage“ ohne Abwesende im „mit …“
+
+`app/heute.py::naechste_tage()`: der Zusatz gilt je Tag. Wer aus der Besetzung (ohne sie selbst) an dem Tag abwesend ist -- genehmigt oder Freistellung des
+Arbeitszeitkalenders (`app/planning.py::_abwesend_map()`, dieselbe Regel wie „ist nicht da“ auf der Karte, eine Abfrage für alle anderen im Fenster) --,
+fehlt im „mit …“; ein offener Antrag zählt nicht. Tage desselben Auftrags mit demselben Zusatz stehen weiter in einer Zeile, also teilt sich die Zeile,
+wo sich der Zusatz ändert. Fehlen alle anderen, bleibt „vorläufig“ bzw. der Titel des Auftrags. „weiter“ (der Einsatz läuft heute schon) nennt keine
+Namen und teilt sich nicht. Die Art einer fremden Abwesenheit steht nirgends in der Antwort.
+
+#### Festlegungen 1.9.243 (Bitte bestätigen)
+
+1. Im „mit …“ fehlt, wer an dem Tag abwesend ist: genehmigt oder Freistellung des Arbeitszeitkalenders (wie „ist nicht da“).
+2. Ein offener Antrag zählt dort nicht als abwesend.
+3. Der Zusatz gilt je Tag; die Zeile teilt sich, wo er sich ändert.
+4. „weiter“ bleibt ohne Namen; eine Abwesenheit teilt eine Zeile „weiter“ nicht.
+
+#### Tests und Prüfung 1.9.243
+
+Neu: `tests/test_v643_naechste_tage_ohne_abwesende.py` (abwesend an einem Tag teilt die Zeile und die Art steht nirgends, ohne Abwesenheit eine Zeile,
+offener Antrag zählt nicht, alle anderen weg, Freistellung an Heiligabend, „weiter“). Gegenproben: Archiv `gegenproben-stufe6-r4.md` (5, alle rot).
+Angepasste Erwartungen: keine.

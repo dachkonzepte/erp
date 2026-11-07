@@ -373,7 +373,8 @@ Behoben, drei Teile:
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.242** (Stufe 6, R3b, Zeichnung `entwurf-stufe6/heute-einsatz.html`) trägt die
   Karte `angaben` (`app/heute.py::einsatz_details()`: Status, „Mit dir“ -- wer fehlt nur „ist nicht da“, nie die Art --, Geräte an ihren Tagen, Notiz,
   Baustellenhinweise der AV), nur an Arbeitstagen ohne eigene Abwesenheit (`Tage`, sonst `heute_frei`); „Nächste Tage“ je Auftrag und Zusatz nach
-  Arbeitstagen, eigener Urlaub als Zeile (`tests/test_v642_heute_einsatz.py`). Eine laufende Test-Uhr beginnt an einem Tag ohne Arbeit am nächsten
+  Arbeitstagen, eigener Urlaub als Zeile (`tests/test_v642_heute_einsatz.py`); seit 1.9.243 fehlt im „mit …“, wer an dem Tag abwesend ist, die Zeile
+  teilt sich dort (`tests/test_v643_naechste_tage_ohne_abwesende.py`). Eine laufende Test-Uhr beginnt an einem Tag ohne Arbeit am nächsten
   Arbeitstag (`tests/uhr.py::arbeitstag_ab()`, Klicktest `_uhr_marke()`; der Browser jedes Tabs geht um dieselben ganzen Tage mit, `_browser_tage()`). **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
@@ -777,7 +778,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`.
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position

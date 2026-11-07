@@ -318,23 +318,31 @@ def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool
     """Seit 1.9.242 (Stufe 6, R3b, Punkt 4): je Einsatz die aufeinander folgenden Arbeitstage ab morgen (mit_heute: ab heute) für 14 Tage -- ohne
     Wochenende, Feiertag, betriebsfreien Tag und Tage eigener Abwesenheit, jede Lücke beginnt eine neue Zeile; mit_heute steht heute als eigene Zeile
     vorn. Zusatz: „weiter“, wenn der Einsatz heute schon läuft; sonst „mit <Vornamen der anderen>“ und „vorläufig“, ohne beides der Titel des
-    Auftrags; Tage desselben Auftrags mit demselben Zusatz stehen in einer Zeile (zwei Einsätze nebeneinander). Dazu jede eigene genehmigte
-    Abwesenheit („<Art> · genehmigt“) und jeder offene Antrag („<Art> · beantragt“) als eigene Zeile, von ihrem ersten bis letzten Arbeitstag im
-    Fenster. Bis 1.9.241: je Auftrag alle Kalendertage in einer Zeile, Zusatz „Fortsetzung“ oder der Titel."""
+    Auftrags; Tage desselben Auftrags mit demselben Zusatz stehen in einer Zeile (zwei Einsätze nebeneinander). Seit 1.9.243 (Stufe 6, R4, 0a) fehlt
+    im „mit …“, wer an dem Tag abwesend ist (genehmigt oder Freistellung, wie „ist nicht da“ auf der Karte; ein offener Antrag nicht) -- der Zusatz
+    gilt je Tag, die Zeile teilt sich, wo er sich ändert. Dazu jede eigene genehmigte Abwesenheit („<Art> · genehmigt“) und jeder offene Antrag
+    („<Art> · beantragt“) als eigene Zeile, von ihrem ersten bis letzten Arbeitstag im Fenster. Bis 1.9.241: je Auftrag alle Kalendertage in einer
+    Zeile, Zusatz „Fortsetzung“ oder der Titel."""
+    from .planning import _absence_rows, _abwesend_map
     beginn, ende = (heute if mit_heute else heute + timedelta(days=1)), heute + timedelta(days=NAECHSTE_TAGE)
     tage = tage or Tage(db, employee_id, heute, ende)
     tage_je: dict[tuple, set[date]] = {}  # (Auftrag, Zusatz) -> Tage: zwei Einsätze desselben Auftrags mit demselben Zusatz in einer Zeile
     info = {}
-    for s in _slots(db, employee_id, beginn, ende):
+    slots = _slots(db, employee_id, beginn, ende)
+    andere_personen = {x.employee_id: x.employee for s in slots for x in s.besetzung if x.employee_id != employee_id}
+    weg = set(_abwesend_map(db, _absence_rows(db, beginn, ende, set(andere_personen)), list(andere_personen.values()), beginn, ende)) \
+        if andere_personen else set()  # (Person, Tag): abwesend -- seit 1.9.243
+    for s in slots:
         order = s.preparation.order
         prop = order.project.property if order.project else None
         info[order.id] = {"order_number": order.order_number, "objekt": (prop.name if prop else order.property_name) or order.customer_name}
-        andere = [(x.employee.first_name or _name(x.employee)).strip() for x in s.besetzung if x.employee_id != employee_id]
-        teile = (["mit " + ", ".join(andere)] if andere else []) + (["vorläufig"] if s.status == "vorlaeufig" else [])
-        sonst = " · ".join(teile) or order.title or order.order_number
+        andere = [(x.employee_id, (x.employee.first_name or _name(x.employee)).strip()) for x in s.besetzung if x.employee_id != employee_id]
         tag = max(s.start_date, beginn)
         while tag <= min(s.end_date, ende):
             if tage.arbeitet(tag):
+                da = [n for eid, n in andere if (eid, tag) not in weg]
+                teile = (["mit " + ", ".join(da)] if da else []) + (["vorläufig"] if s.status == "vorlaeufig" else [])
+                sonst = " · ".join(teile) or order.title or order.order_number
                 neben = "weiter" if s.start_date <= heute <= s.end_date and tag > heute else sonst  # mit_heute: heute eigene Zeile vorn
                 tage_je.setdefault((order.id, neben), set()).add(tag)
             tag += timedelta(days=1)
