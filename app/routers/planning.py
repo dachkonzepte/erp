@@ -227,7 +227,8 @@ def get_planning_order_state(order_id: int, db: Session = Depends(get_db, scope=
 @router.get("/api/planning")
 def get_planning_board(start: date, end: date, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
-        return {**_redact_board_absences(planning_board(db, start, end), _role), "rechte": _tafel_rechte(db, _role)}
+        # seit 1.9.250 mit dem Betrachter: einen privaten Termin sieht nur sein Besitzer mit Titel
+        return {**_redact_board_absences(planning_board(db, start, end, getattr(_role, "id", None)), _role), "rechte": _tafel_rechte(db, _role)}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

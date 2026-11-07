@@ -135,3 +135,32 @@ Ohne Gegenprobe: Nr. 8 und Nr. 9 (entfallene Anzeige). Kein Marker unter `app/` 
 | Nr. 7 – Art wechseln behält die Geräte | Geräte zurückgesetzt (`249_7`, Klicktest Bedienen) | rot: klicktest_plantafel_bedienen „Art Kranvermietung: der Kran bleibt gewählt“ |
 
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.250 (Punkt 3): „Personen“ und „Geräte“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Kolonnenführer zuerst | nur nach Namen (`250_1a`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 1 – jede Person einmal | in jeder Kolonne (`250_1b`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 1 – „Bauleitung“ = mit Konto | alle unter „Ohne Kolonne“ (`250_1c`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 2 – geschlossene Aufträge zählen nicht | zählen mit (`250_2a`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 2 – auf das Bild begrenzt | nicht begrenzt (`250_2b`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 2 – zusammengefasst | je Paar (`250_2c`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 2 – nur offene Anträge | auch genehmigte (`250_2d`) | 1 rot: v650::test_gruppen_doppelt_und_antrag |
+| Nr. 2 – „doppelt“ rot | ohne Klasse (`250_2e`, Klicktest Personen) | rot: klicktest_plantafel_personen „doppelt“ rot, die übrigen Unterzeilen nicht |
+| Nr. 3 – „mit <Kolonne>“ | ohne (`250_3a`, Klicktest Personen) | rot: klicktest_plantafel_personen „Kai: mit Nord …“ |
+| Nr. 3 – Kranvermietung nach dem Gerät | „Vermietung“ wie in „Kolonnen“ (`250_3b`, Klicktest Personen) | rot: klicktest_plantafel_personen „Lia: Kranvermietung mit dem Gerät …“ |
+| Nr. 4 – nur aktive Konten | auch inaktive (`250_4a`) | 1 rot: v650::test_personen_mit_konto_und_ihre_termine |
+| Nr. 4 – privat „Belegt“ außer für den Besitzer | immer der Titel (`250_4b`) | 2 rot: v650::test_personen_mit_konto_und_ihre_termine, test_privat_nur_fuer_den_besitzer_mit_titel |
+| Nr. 4 – auch Serienvorkommen | ohne (`250_4c`) | 1 rot: v650::test_personen_mit_konto_und_ihre_termine |
+| Nr. 4 – ohne Modul „Kalender“ keine | trotzdem (`250_4d`) | 1 rot: v650::test_ohne_modul_kalender_keine_termine |
+| Nr. 4 – der Besitzer sieht den Titel (Schnittstelle) | Router ohne Betrachter (`250_4e`) | 1 rot: v650::test_privat_nur_fuer_den_besitzer_mit_titel |
+| Nr. 4 – zweizeilig | einzeilig (`250_4f`, Klicktest Personen) | rot: klicktest_plantafel_personen „Termin zweizeilig“ |
+| Nr. 5 – „doppelt“ nennt die Person | ohne (`250_5a`) | 1 rot: v650::test_konflikte_nennen_die_person |
+| Nr. 5 – „abwesend“ nennt die Person | ohne (`250_5b`) | 1 rot: v650::test_konflikte_nennen_die_person |
+| Nr. 5 – „Antrag offen“ nennt die Person | ohne (`250_5c`) | 1 rot: v650::test_konflikte_nennen_die_person |
+| Nr. 5 – die Freistellung nennt die Personen | ohne (`250_5d`) | 1 rot: v650::test_freistellung_nennt_die_personen |
+| Nr. 5 – der Balken nur mit den Konflikten der Person | alle des Einsatzes (`250_5e`) | 1 rot: v650::test_balken_einer_person_nur_mit_ihren_konflikten |
+| Nr. 5 – im Browser | alle des Einsatzes (`250_5f`, Klicktest Personen) | rot: klicktest_plantafel_personen „Mia …“, „Kai …“, „Nele …“, „Büro – Auftrag …“ |
+
+Kein Marker unter `app/` nach den Läufen.

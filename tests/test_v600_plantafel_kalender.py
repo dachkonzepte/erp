@@ -154,6 +154,6 @@ def test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip():
     text = vj.seitentext("planning.html")[0]
     # seit 1.9.247 (Stufe 6, R4): keine Zelle mit Kapazität mehr -- eine Abwesenheit ist in „Personen“ ein Balken; sein Text endet mit „…“, der volle
     # Text steht im title (jeder Balken)
-    [regel] = re.findall(r"\.slot-text\{([^}]*)\}", text)
+    [regel] = re.findall(r"^\s*\.slot-text\{([^}]*)\}", text, flags=re.M)  # seit 1.9.250 am Zeilenanfang (dazu .slot.zwei .slot-text)
     assert {"overflow:hidden", "text-overflow:ellipsis"} <= set(regel.split(";"))
     assert 'title="${esc(b.title)}"' in text and "klasse:antrag?'beantragt':'abwesend'" in text

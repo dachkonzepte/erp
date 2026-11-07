@@ -1487,15 +1487,16 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             # seit 1.9.236 kein „Kolonne doppelt“ mehr: zwei Einsätze derselben Kolonne mit verschiedenen Personen sind kein Konflikt (Zeichnung)
             for eid in sorted(a_emps & b_emps):
                 name = next((_employee_name(x.employee) for x in a.besetzung if x.employee_id == eid), f"Mitarbeiter #{eid}")
-                issues.append(("employee", name))
+                issues.append(("employee", name, eid))
             for rid in sorted(a_res & b_res):  # seit 1.9.234 nur, wenn sich die Tage des Geräts in beiden Einsätzen treffen
                 ra = next(x for x in a.geraete if x.resource_id == rid)
                 rb = next(x for x in b.geraete if x.resource_id == rid)
                 if _geraet_tage(a, ra) & _geraet_tage(b, rb):
-                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}"))
-            for kind, label in issues:
-                result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name})
-                result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name})
+                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", None))
+            for kind, label, eid in issues:
+                person = {} if eid is None else {"employee_id": eid}  # seit 1.9.250: wen der Konflikt betrifft („Personen“ zeigt ihn nur bei ihr)
+                result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name, **person})
+                result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name, **person})
 
     for slot in slots:
         distribution, shortfall = _slot_distribution(db, slot, settings, holiday_dates, absences, visible_employee_ids, soll)
@@ -1510,7 +1511,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 name = _employee_name(member.employee)
                 absence = absences.get((member.employee_id, day))
                 if isinstance(absence, Freistellung):
-                    frei.append((absence.kalendertag, name))
+                    frei.append((absence.kalendertag, name, member.employee_id))
                     continue
                 if absence and absence.id not in seen_absence:
                     seen_absence.add(absence.id)
@@ -1518,9 +1519,9 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     # "Krankheitssichtbarkeit") -- der Router entscheidet anhand der Rolle, welche
                     # der beiden Label-Varianten in der Antwort landet, diese Funktion bleibt
                     # rollenblind.
-                    result[slot.id].append({"type":"absence", "label":f"{name} · {absence.absence_type}", "label_redacted":f"{name} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+                    result[slot.id].append({"type":"absence", "label":f"{name} · {absence.absence_type}", "label_redacted":f"{name} · abwesend", "date":day, "employee_id":member.employee_id, "other_slot_id":None, "other_project":None, "other_project_name":None})
             if frei:
-                result[slot.id].append({"type":"kalendertag", "label":f"{frei[0][0]} – {', '.join(n for _, n in frei)}", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+                result[slot.id].append({"type":"kalendertag", "label":f"{frei[0][0]} – {', '.join(n for _, n, _i in frei)}", "date":day, "employee_ids":[i for *_, i in frei], "other_slot_id":None, "other_project":None, "other_project_name":None})
         # Seit 1.9.152 (R1 Nachrunde, Punkt 3): ein offener Antrag ist ein Hinweis -- keine Rückfrage, keine Kapazität. Die Art wie bei der Abwesenheit nur für
         # Admin und Büro – Finanzen, der Router wählt die Fassung (label_redacted).
         for member in slot.besetzung:
@@ -1528,7 +1529,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             name = _employee_name(member.employee)
             for antrag in offene_antraege.get(member.employee_id, ()):
                 if _ranges_overlap(antrag.start_date, antrag.end_date, slot.start_date, slot.end_date):
-                    result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":max(antrag.start_date, slot.start_date), "other_slot_id":None, "other_project":None, "other_project_name":None})
+                    result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":max(antrag.start_date, slot.start_date), "employee_id":member.employee_id, "other_slot_id":None, "other_project":None, "other_project_name":None})
         # Seit 1.9.236 (Punkt 5): ein Gerät, dessen Prüfung an einem seiner Tage abgelaufen ist (fällig vor dem Tag) -- eine Warnung je Gerät und
         # Prüfung, mit dem ersten solchen Tag; gezählt werden die Arbeitstage des Geräts (hat es keinen, alle seine Tage), wie beim Kalender des Geräts.
         for row in slot.geraete:
@@ -1636,6 +1637,32 @@ def geraete_termine(db: Session, geraet_ids: set[int], start: date, end: date) -
                         "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}",
                         "uebernehmbar": modell is CalendarEvent})
     return out
+
+
+def personen_termine(db: Session, employee_ids: set[int], start: date, end: date, betrachter_user_id: int | None = None) -> tuple[set[int], list[dict]]:
+    """Seit 1.9.250 (Stufe 6, R4, Punkt 3): die Personen mit Konto (aktives Konto mit Mitarbeiter) und die Termine aus ihrem Kalender im Zeitraum der
+    Tafel -- für ihre Zeile in „Personen“. Ein privater Termin heißt „Belegt“, außer für seinen Besitzer (calendar_events.is_redacted_for_viewer(), wie im
+    Kalender). Ohne Modul „Kalender“ keine Termine (die Personen mit Konto bleiben). Serienvorkommen zählen wie Einzeltermine."""
+    from .calendar_events import is_redacted_for_viewer
+    from .models import AppUser
+    from .modules import is_module_enabled
+
+    if not employee_ids:
+        return set(), []
+    konten = {u.id: u.employee_id for u in db.scalars(select(AppUser).where(AppUser.employee_id.in_(employee_ids), AppUser.active == True))}  # noqa: E712
+    mit_konto = set(konten.values())
+    if not konten or not is_module_enabled(db, "kalender"):
+        return mit_konto, []
+    von, bis = datetime.combine(start, time.min), datetime.combine(end, time.max)
+    out = []
+    for modell in (CalendarEvent, OutlookSeriesOccurrence):
+        for zeile in db.scalars(select(modell).where(modell.owner_user_id.in_(konten), modell.start_at <= bis, modell.end_at >= von)
+                                .order_by(modell.start_at, modell.id)):
+            erster, letzter = termin_tage(zeile)
+            belegt = is_redacted_for_viewer({"is_private": zeile.is_private, "owner_user_id": zeile.owner_user_id}, betrachter_user_id)
+            out.append({"id": zeile.id, "employee_id": konten[zeile.owner_user_id], "titel": BUSY_PLACEHOLDER_TITLE if belegt else zeile.title,
+                        "von": erster, "bis": letzter, "zeit": None if zeile.all_day else f"{zeile.start_at:%H:%M}", "serie": modell is OutlookSeriesOccurrence})
+    return mit_konto, out
 
 
 def _geraet_pruefung(pruefungen: list[tuple[str, date]], heute: date) -> str | None:
@@ -1814,7 +1841,7 @@ def rueckstand(db: Session) -> list[dict]:
     return zeilen
 
 
-def planning_board(db: Session, start_date: date, end_date: date) -> dict:
+def planning_board(db: Session, start_date: date, end_date: date, betrachter_user_id: int | None = None) -> dict:
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     if (end_date - start_date).days > 62:
@@ -1894,17 +1921,20 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
     slot_dicts=[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible]
     pruefungen=_pruefungen(db,{x.id for x in resources})
+    mit_konto,termine_der_personen=personen_termine(db,{x.id for x in employees},start_date,end_date,betrachter_user_id)  # seit 1.9.250
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
         "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"absence_category":x.absence_category,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
         "teams":team_rows,
-        "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"vorname":(x.first_name or _employee_name(x)).strip(),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
+        "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"vorname":(x.first_name or _employee_name(x)).strip(),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title,
+                     "konto":x.id in mit_konto} for x in employees],  # seit 1.9.250: mit Konto -> Termine aus dem Kalender, ohne Kolonne „Bauleitung“
         # seit 1.9.247: die nächste Prüfung (Betriebsmittel) und ob das Gerät einen Kalender hat (eigenes Postfach)
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier,
                       "pruefung":_geraet_pruefung(pruefungen.get(x.id,[]),berlin_today()),"kalender":bool(x.outlook_mailbox)} for x in resources],
         "slots":slot_dicts,"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if any(k["type"] not in FAERBT_NICHT for k in conflict_map.get(x.id,[]))),
         "zaehler":tafel_zaehler(slot_dicts),  # seit 1.9.247: Knopf „n Warnungen · n Hinweise“
         "geraete_termine":geraete_termine(db,{x.id for x in resources},start_date,end_date),  # seit 1.9.247: Termine direkt im Kalender eines Geräts
+        "personen_termine":termine_der_personen,  # seit 1.9.250: Termine aus dem Kalender der Personen mit Konto (privat „Belegt“, außer für den Besitzer)
         # seit 1.9.247: Abwesenheiten je Person als Zeiträume -- genehmigt, Freistellung, beantragt (Zeilen der Kolonnen und „Personen“)
         "abwesenheiten":abwesenheiten_der_tafel(db,absence_rows,absences,{x.id for x in employees},start_date,end_date,antraege=antraege),
         "team_capacity":team_capacity,"employee_capacity":employee_capacity,"resource_load":resource_load}

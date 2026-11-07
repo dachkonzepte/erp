@@ -1228,7 +1228,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`app/planning.py::einsatz_pruefen()`, `POST /api/planning/slots/pruefen` und `…/{id}/pruefen`: derselbe Weg wie Anlegen/Ändern, danach rollback --
   Kapazität mit Rechnung, Zustand je Person und Gerät, Warnungen; `tests/test_v648_einsatz_pruefen.py`, Klicktest `klicktest_plantafel_dialog.py`); seit 1.9.249
   bedient: Klick öffnet, Ziehen verschiebt mit Maus und Finger (Pointer Events, `verschieben()`, Rückfrage bei Warnungen), Klick in eine freie Zelle plant für
-  Zeile und Tag (`planenAn()`; `tests/test_v649_plantafel_bedienen.py`, Klicktest `klicktest_plantafel_bedienen.py` mit echten Eingaben).
+  Zeile und Tag (`planenAn()`; `tests/test_v649_plantafel_bedienen.py`, Klicktest `klicktest_plantafel_bedienen.py` mit echten Eingaben); seit 1.9.250
+  „Personen“ nach Kolonnen gruppiert, dazu „Ohne Kolonne“ und „Bauleitung“ (mit Konto), mit den Terminen aus dem Kalender der Personen mit Konto
+  (`app/planning.py::personen_termine()`, privat „Belegt“ außer für den Besitzer, ohne Modul „Kalender“ keine; `tests/test_v650_plantafel_personen.py`,
+  Klicktest `klicktest_plantafel_personen.py`).
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

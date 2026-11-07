@@ -26,7 +26,8 @@ FUNKTIONEN = ("fmt", "vornamen", "slotHinweis", "einsatzTitel", "balkenHtml", "e
 
 def _balken(**anders):
     text = (TEMPLATES / "planning.html").read_text(encoding="utf-8")
-    teile = [re.search(r"function " + n + r"\(.*?\n", text).group(0) for n in FUNKTIONEN]
+    from tests.test_v399_teil_updates_geld import js_funktion
+    teile = [js_funktion("planning.html", n) + "\n" for n in FUNKTIONEN]  # seit 1.9.250 die ganze Funktion (bis dahin die erste Zeile)
     konst = re.search(r"const KONFLIKT_ART=\{.*?\};", text).group(0) + re.search(r"const WARNZEICHEN='.*?';", text).group(0)
     skript = ("const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');" + konst + "".join(teile)
               + f"\nconst b=einsatzBalken({json.dumps({**BASIS, **anders})},'kolonne');"

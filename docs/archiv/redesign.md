@@ -8914,3 +8914,52 @@ Angepasste Erwartungen (Regel 28):
 Fund im ersten Suitenlauf: `test_v490` fand im neuen Klicktest „Bedienen“ Mausbewegungen mit gedrückter Taste -- Ziehen, kein Zeichnen. Statt einer
 Ausnahme im Wächter zieht der Klicktest jetzt über den neuen Helfer `Tab.ziehen()` in `scripts/cdp_klicktest.py` (drücken, Bewegungen, loslassen oder
 nicht -- für Escape mitten im Ziehen); dieselben Eingaben, die Klicktest-Gegenproben danach noch einmal. Dazu der Wortlaut in `test_v633` (oben).
+
+### Umsetzung 1.9.250 (Punkt 3): „Personen“ und „Geräte“
+
+Server (`app/planning.py`): `personen_termine()` -- die Personen der Tafel mit aktivem Konto (`AppUser.employee_id`, `active`) und die Termine aus ihrem
+Kalender im Bild (`CalendarEvent` und `OutlookSeriesOccurrence` mit `owner_user_id`, erster und letzter Tag über `termin_tage()`, Uhrzeit des Beginns,
+ganztägig ohne); privat „Belegt“ über `calendar_events.is_redacted_for_viewer()`, dieselbe Entscheidung wie im Kalender -- der Besitzer sieht den Titel
+(der Router gibt den Betrachter mit: `planning_board(…, betrachter_user_id)`); ohne Modul „Kalender“ keine Termine. `GET /api/planning` nennt je Person
+`konto` und dazu `personen_termine`. Abfragen fest: ein Konto-Lesen, die Modulprüfung, je Tabelle eine (test_v564 unverändert grün).
+
+Seite: `personenGruppen()` -- je Kolonne (Reihenfolge wie „Kolonnen“) ihre sichtbaren Mitglieder, der Kolonnenführer zuerst, dann nach Namen; jede Person in
+ihrer ersten Kolonne; danach „Ohne Kolonne“ (ohne Konto) und „Bauleitung · Termine aus dem Kalender“ (mit Konto). Unter dem Namen „Kolonnenführer“ bzw. die
+Funktion, `doppeltText()` (Überschneidungen ihrer Einsätze im Bild, geschlossene Aufträge zählen nicht, zusammengefasst, rot) und `antragText()` (offene
+Anträge, ohne Art). Balken: `einsatzBalken(s, 'person', Kolonne der Gruppe)` -- „· mit <Kolonne>“ an einem Einsatz einer anderen Kolonne, eine
+Kranvermietung nach dem Gerät mit „· Vermietung“, Warnung und Hinweis nur aus den Konflikten dieser Person (`employee_id`/`employee_ids`, die
+`_conflicts()` seit 1.9.250 an doppelt, abwesend, Antrag offen und Freistellung setzt); `abwesenheitItems()` wie seit 1.9.247; `personTermine()` zweizeilig (`.slot.zwei`: Uhrzeit bzw.
+„ganztägig“ über dem Titel, title mit Tag und „Termin im Kalender“). „Geräte“ unverändert (Termine aus dem Postfach seit 1.9.247), jetzt im Klicktest
+gemessen.
+
+#### Festlegungen 1.9.250 (Bitte bestätigen)
+
+1. „Personen“ in Abschnitten: je Kolonne (Reihenfolge wie in „Kolonnen“) ihre sichtbaren Mitglieder, Kolonnenführer zuerst, dann nach Namen; danach „Ohne
+   Kolonne“ (in keiner Kolonne, ohne Konto) und „Bauleitung · Termine aus dem Kalender“ (in keiner Kolonne, mit Konto); jede Person genau einmal, in ihrer
+   ersten Kolonne; eine Kolonne ohne sichtbare Mitglieder ohne Abschnitt.
+2. Unter dem Namen: „Kolonnenführer“ (sonst die Funktion), rot „doppelt <Zeitraum>“, wo sie im Bild zugleich in zwei Einsätzen steht (Einsätze
+   geschlossener Aufträge zählen nicht, angrenzende Zeiträume zusammengefasst, auf das Bild begrenzt), „Antrag <Zeitraum>“ je offenem Antrag, ohne Art.
+3. Balken einer Person: ein Einsatz einer anderen Kolonne trägt „· mit <Kolonne>“ (ohne das Wort „Kolonne“), eine Kranvermietung heißt nach dem Gerät mit
+   „· Vermietung“.
+4. Personen mit Konto (aktives Konto mit diesem Mitarbeiter) zeigen die Termine aus ihrem Kalender, auch Serienvorkommen, zweizeilig (Uhrzeit oder
+   „ganztägig“ über dem Titel); privat „Belegt“, außer für den Besitzer (wie im Kalender); ohne Modul „Kalender“ keine Termine.
+5. In „Personen“ trägt ein Balken nur die Warnungen und Hinweise, die diese Person betreffen (doppelt, abwesend, Antrag offen, Freistellung) -- wie in
+   der Zeichnung (Mia und Ole am Einsatz ohne Kais Warnung, Nele mit dem Punkt ihres Antrags); was den Einsatz oder ein Gerät betrifft (Feiertag,
+   Kapazität, Gerät doppelt, Prüffrist), steht in „Kolonnen“ und „Geräte“. Dafür nennen die Konflikte die Person (`employee_id`, an der Freistellung
+   `employee_ids`).
+
+#### Tests und Prüfung 1.9.250
+
+Neu: `tests/test_v650_plantafel_personen.py` (Konto und Termine samt Serie und ganztägig, privat nur für den Besitzer -- auch über die Schnittstelle --, ohne
+Modul „Kalender“; die Person an den Konflikten, auch an der Freistellung; Gruppen, „doppelt“, „Antrag“ und die Konflikte je Person in node) und `scripts/klicktest_plantafel_personen.py` (Testdaten der Tafel und eine Bauleiterin mit Konto
+und vier Terminen, einer privat: Gruppen, Unterzeilen, Balken je Person, zweizeilige Termine, 1440/1280 ohne Überdeckung und mit lesbarem Text, „Geräte“
+mit dem Termin des Krans, dunkel, als Büro – Auftrag ohne Art und mit dem eigenen privaten Termin). Gegenproben: Archiv `gegenproben-stufe6-r4.md`.
+
+Fund im ersten Lauf des Klicktests: Mia und Ole trugen am Wasserturm Kais Warnung (der Konflikt hing nur am Einsatz) -- die Zeichnung zeigt sie ohne, Nele
+mit dem Punkt ihres Antrags. Daraus Festlegung 5.
+
+Angepasste Erwartungen (Regel 28), beide nur Aufbau, gefunden im ersten Suitenlauf:
+- `test_v574` (Balken lesbar, acht Tests): alt je Funktion nur die erste Zeile (`balkenHtml()`, `einsatzBalken()` gehen seit 1.9.250 über mehrere Zeilen --
+  das Skript war unvollständig), neu die ganze Funktion über `js_funktion()`; erwartete Werte unverändert.
+- `test_v600::test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip`: alt die Regel `.slot-text{…}` irgendwo (jetzt auch `.slot.zwei .slot-text{…}`), neu
+  am Zeilenanfang; Erwartung unverändert.
