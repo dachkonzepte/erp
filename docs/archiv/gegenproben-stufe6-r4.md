@@ -199,3 +199,12 @@ Einsätze, Projekte und Termine davor und danach. Kein Marker unter `app/` nach 
 | Nr. 3 – nur wenn der Dialog aufging | auch ohne Dialog (`252_3b`) | 1 rot: v652::test_nur_wenn_der_dialog_aufging |
 
 Kein Marker unter `app/` nach den Läufen.
+
+## 1.9.252, Nachtrag: Dialoge im dunklen Modus, Knopfleiste
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. N1 – der Hintergrund dunkelt ab | wieder `--ds-stark` (`252_n1`, Klicktest Dialog) | zuerst GRÜN (Farbe aus color-mix falsch gelesen) -- Prüfung nachgezogen, dieselbe Gegenprobe: rot „dunkel: Dialog dunkel …“ |
+| Nr. N2 – die Knopfleiste bleibt im Bild | ohne `position: sticky` (`252_n2`, Klicktest Dialog) | zuerst GRÜN (Dialog schon gerollt) -- Prüfung nachgezogen, dieselbe Gegenprobe: rot „dunkel, 1440 × 1000: die Knopfleiste …“ |
+
+Kein Marker unter `app/` nach den Läufen.

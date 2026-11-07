@@ -9030,3 +9030,24 @@ Neu: `tests/test_v652_einsatz_aus_der_akte.py` (`startAusAdresse()`/`nachDemDial
 Hauptaktion -> Escape -> Akte; ohne Rücksprung bleibt die Tafel; `ALLEIN`, ein Fenster von 1 s ohne Navigation). Gegenproben: Archiv
 `gegenproben-stufe6-r4.md`. Angepasste Erwartungen (Regel 28): `test_v413::test_echte_reihenfolge_mit_vier_zugleich` -- alt sechs Klicktests mit `ALLEIN`,
 neu sieben (dazu `klicktest_plantafel_aus_der_akte`); gefunden im ersten Suitenlauf.
+
+### Nachtrag 1.9.252: Dialoge der Plantafel im dunklen Modus und die Knopfleiste
+
+Gefunden beim Ansehen der Bilder des Endlaufs (a325598): im dunklen Modus lag über der Seite hinter einem Dialog ein heller Schleier -- `.dialog-karte::backdrop`
+nahm `--ds-stark` (hell #2B3238, dunkel #D5DBDF). Jetzt fest `rgba(23,28,31,.45)` wie `akte.html` und `customer.html`. Dazu im selben Bild: mit vier Personen
+im Einsatz-Dialog lag die Knopfleiste bei 1440 × 1000 unter dem Rand; `.dialog-fuss` klebt jetzt unten (`position: sticky`, Fläche des Dialogs) -- wie die
+Dialoge der Monteurin seit 1.9.65.
+
+#### Festlegungen 1.9.252, Nachtrag (Bitte bestätigen)
+
+N1. Hinter den Dialogen der Plantafel dunkelt der Hintergrund die Seite in beiden Modi ab (fest, wie Akte und Kundenakte).
+N2. Die Knopfleiste der Dialoge der Plantafel bleibt unten im Bild, wenn der Dialog rollt.
+
+#### Tests und Prüfung, Nachtrag
+
+`scripts/klicktest_plantafel_dialog.py` misst im dunklen Modus die Helligkeit von Dialog und Hintergrund und bei 1440 × 1000, dass der Dialog rollt und der
+Knopf „Trotzdem planen“ ganz im Bild ist (27 statt 25 Prüfungen). Angepasste Erwartungen: keine.
+
+Fund bei den Gegenproben: beide blieben zuerst grün. Die Helligkeit las die Farbe aus `color-mix` falsch -- Chrome liefert sie als `color(srgb 0.84 0.86 0.88
+/ 0.45)`, Werte 0–1, gelesen als dunkel; und der Dialog war beim Messen schon bis unten gerollt, der Knopf lag auch ohne klebende Leiste im Bild. Jetzt
+liest die Prüfung beide Farbformate und rollt den Dialog vor der Messung an den Anfang; dieselben Gegenproben dann rot.

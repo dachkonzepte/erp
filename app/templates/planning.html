@@ -110,7 +110,7 @@
   .conflict-row{font-size:13px;padding:3px 0}
   /* Dialoge */
   .dialog-karte{border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:0;width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 32px);background:var(--ds-flaeche);color:var(--ds-text)}
-  .dialog-karte::backdrop{background:color-mix(in srgb,var(--ds-stark) 45%,transparent)}
+  .dialog-karte::backdrop{background:rgba(23,28,31,.45)}  /* fest dunkel wie Akte und Kunde -- --ds-stark ist im dunklen Modus hell */
   .dialog-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 20px 6px}
   .dialog-kopf h2{margin:0;font:600 20px var(--ds-schrift-titel)}
   .dialog-kopf .unter{font-size:13px;color:var(--ds-text-2)}
@@ -124,7 +124,7 @@
   .feld input[aria-invalid="true"]{border-color:var(--ds-fehler);outline:2px solid var(--ds-fehler)}
   .dialog-karte [hidden]{display:none}
   .feld .klein,.dialog-karte .klein{font-size:12.5px;font-weight:400;color:var(--ds-text-2)}
-  .dialog-fuss{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center;padding:12px 20px 18px;border-top:1px solid var(--ds-linie)}
+  .dialog-fuss{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center;padding:12px 20px 18px;border-top:1px solid var(--ds-linie);position:sticky;bottom:0;z-index:2;background:var(--ds-flaeche)}  /* die Knopfleiste bleibt im Bild, auch wenn der Dialog rollt */
   .dialog-fuss .links{margin-right:auto}
   .vorschlag-karte{border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche-2);padding:10px 12px;font-size:13px}
   .einsatz-dialog{width:min(720px,calc(100vw - 32px))}

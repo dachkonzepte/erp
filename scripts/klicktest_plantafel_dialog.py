@@ -13,7 +13,8 @@ Testdaten wie klicktest_plantafel_tafel (Zeichnung KW 45–46), dazu die Geräte
                  der Zeile des Krans
     Neu          „+ Einsatz“: „Einsatz planen“, Baustelle, ohne „Einsatz löschen“; Kolonne Süd schlägt Kai, Lia, Nele und ihre Geräte vor, dann Nord Tom, Mia, Ole
                  und die Pritsche 202; Tom von Hand abgewählt, dann Süd: Mia und Ole bleiben, die Geräte schlägt Süd vor
-    Maße         1440, 1280 und 412 px: kein Feld ragt aus dem Dialog; hell und dunkel als Bild
+    Maße         1440, 1280 und 412 px: kein Feld ragt aus dem Dialog; hell und dunkel als Bild; dunkel: Dialog dunkel, Hintergrund dahinter
+                 abgedunkelt; die Knopfleiste bleibt im Bild, wenn der Dialog rollt
     keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -195,6 +196,16 @@ async def pruefen(tab, seed, p):
     await tab.js("openEdit(board.slots.find(x=>x.project_name==='Garage Lindenweg 7').id)")
     await _bis_geprueft(tab)
     await tab.bild("dialog_bearbeiten_1440_dunkel")
+    p.pruefe("dunkel: Dialog dunkel, der Hintergrund dahinter abgedunkelt, nicht aufgehellt", await tab.js(
+        # Helligkeit 0–255 aus rgb()/rgba() oder color(srgb …) (so liefert Chrome eine mit color-mix gemischte Farbe, Werte 0–1)
+        "(()=>{const hell=c=>{const f=c.startsWith('color(')?255:1;const m=c.match(/\d+(\.\d+)?/g).map(Number);return (m[0]*299+m[1]*587+m[2]*114)/1000*f};const d=getComputedStyle(einsatzDialog);"
+        "const b=getComputedStyle(einsatzDialog,'::backdrop').backgroundColor;return [document.documentElement.dataset.theme,hell(d.backgroundColor)<80,hell(b)<80]})()"),
+        ["dark", True, True])
+    p.pruefe("dunkel, 1440 × 1000: die Knopfleiste ganz im Bild, ohne zu rollen", await tab.js(
+        # an den Anfang gerollt: ohne klebende Leiste läge der Knopf unter dem sichtbaren Teil des Dialogs
+        "(()=>{einsatzDialog.scrollTop=0;const r=document.getElementById('edSpeichern').getBoundingClientRect(),d=einsatzDialog.getBoundingClientRect();"
+        "return [einsatzDialog.scrollHeight>einsatzDialog.clientHeight,r.bottom<=d.bottom&&r.bottom<=innerHeight&&r.top>=d.top]})()"),
+        [True, True])  # der Dialog rollt (vier Personen), der Knopf bleibt sichtbar
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 
