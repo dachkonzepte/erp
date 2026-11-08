@@ -413,11 +413,14 @@ class BesetzungUngueltig(ValueError):
 
 def _kolonne_schlaegt_vor(db: Session, team_id: int) -> list[int]:
     """Die Personen, die eine Kolonne heute vorschlägt: ihre aktiven Mitglieder aus den Stammdaten, in ihrer Reihenfolge (seit 1.9.233; bis 1.9.232
-    der Schnappschuss beim ersten Zuweisen an der AV, für jeden späteren Einsatz derselbe)."""
+    der Schnappschuss beim ersten Zuweisen an der AV, für jeden späteren Einsatz derselbe). Seit 1.9.259 (Stufe 6, R5a, Punkt 0) ohne die mit dem Kennzeichen
+    „nicht zeigen“ (1.9.253–1.9.258 schlug sie auch diese vor); wer sie trotzdem im Einsatz will, wählt sie einzeln."""
     team = _load_team(db, team_id)
     if team is None or not team.active:
         raise ValueError("Kolonne / Team wurde nicht gefunden oder ist inaktiv.")
-    return [m.employee_id for m in team.employees if m.employee and m.employee.active]
+    mitglieder = [m.employee for m in team.employees if m.employee and m.employee.active]
+    kennzeichen = _plantafel_map(db, mitglieder)
+    return [e.id for e in mitglieder if kennzeichen[e.id] != "nicht_zeigen"]
 
 
 def _besetzung_pruefen(db: Session, employee_ids) -> list[int]:

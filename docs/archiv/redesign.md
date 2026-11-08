@@ -9085,7 +9085,7 @@ Migration `e3b7c51a9d26`: Spalte mit Vorgabe anlegen, Häkchen nicht gesetzt -> 
 zurück (nicht_zeigen -> nicht gesetzt, einplanbar und bauleitung -> gesetzt, ohne Vorgabe wie in der Baseline), dann die Spalte weg. Mitarbeiter ohne Zeile
 bleiben ohne -- für sie gilt weiter die Vorgabe aus Gruppe und Funktion.
 
-#### Festlegungen 1.9.253 (Bitte bestätigen)
+#### Festlegungen 1.9.253 (bestätigt am 08.11.2026, außer Nr. 6 zweiter Teil -- seit 1.9.259 schlägt die Kolonne „nicht zeigen“ nicht mehr vor)
 
 1. Das Kennzeichen „Plantafel“ am Mitarbeiter hat drei Werte: einplanbar (Vorgabe), Bauleitung, nicht zeigen; es ersetzt das Häkchen „In Plantafel
    anzeigen / Kapazität berücksichtigen“ (Auswahl mit Erklärung im Formular, „Plantafel“/„Bauleitung“/„—“ in der Liste, im Verlauf mit Namen).

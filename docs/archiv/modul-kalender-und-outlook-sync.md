@@ -1536,3 +1536,93 @@ doppelt“ -- der Test versucht es jetzt mit „trotzdem planen“ und prüft di
 Angepasster Aufbau (Regel 28): `tests/test_v373_zugehoerigkeit_struktur.py` -- neu eingeordnet `POST /api/planning/kran-termine/{event_id}/kranvermietung`
 mit `order_id` (FREI, `planning._create_slot`), `customer_id` (FREI, `zugehoerigkeit.require_customer`) und `property_id` (GEPRUEFT). Dazu im Änderungsprotokoll
 der Name der neuen Spalte („Einsatz der Plantafel“, `app/audit.py`). Erwartungen bleiben.
+
+## Stufe 6, R5: Plantafel nach Aufträgen -- Befund (08.11.2026, nur gelesen)
+
+Vorgabe Tobias (07.11.2026): `bildgrundlage/entwurf-stufe6/plantafel-auftraege.html` und `plantafel-auftraege-regeln.html` (freigegeben). Vorhaben: 1 Fundament
+„Besetzung je Tag“ wie die Tage der Geräte, bestehende Einsätze behalten die Besetzung an allen Tagen; 2 vierte Ansicht „Aufträge“ (Personen, Kolonnen, Geräte auf
+Auftrag und Tag ziehen, umsetzen, herausnehmen, verlängern); 3 Zeitraum „1 Woche“; 4 Kurzname am Gerät; 5 in „Personen“ verschiebt Ziehen nur die Person, in
+„Kolonnen“ weiter den ganzen Einsatz. Befund auf 961ed75, Bericht `bildgrundlage/befund_stufe6_r5_961ed75.txt`.
+
+### Befund
+
+**Speicherung bis 1.9.259.** `planning_slot_employees` (Einsatz, Person, UNIQUE, ON DELETE CASCADE) kennt keine Tage: eine Person gilt an jedem Tag des Einsatzes.
+`planning_slot_resources.tage` (TEXT, JSON-Liste ISO-Tage, NULL = alle Tage) trägt die Tage der Geräte (1.9.234): `_geraete_pruefen()`, `_tage_lesen()`/
+`_tage_schreiben()`, `_geraet_tage()`, `_tage_mitnehmen()`; „alle Tage gewählt“ speicherte nur die Oberfläche als NULL. Tage werden nur in Python ausgewertet.
+
+**Die Falle.** „Alle Tage“ heißt „alle Tage des Einsatzes“. Verlängert eine Tag-Aktion (Ziehen aus der Liste, ab R5b) einen Einsatz, stünde jeder mit „alle
+Tage“ auch am neuen Tag -- die ganze Kolonne statt der gezogenen Person. Eine Tag-Aktion schreibt die anderen deshalb vorher auf ihre bisherigen Tage fest;
+nur „Ende ändern“ im Dialog (und Ziehen des ganzen Einsatzes) nimmt „alle Tage“ mit, wie bei den Geräten (Festlegung 1.9.234 Nr. 4). Für den Bestand wird
+dabei kein Test rot -- die Falle braucht eigene Tests und Gegenproben.
+
+**Leser der Besetzung** (ändert sich je Tag): Konflikte (`_conflicts()`: „Person doppelt“ bis 1.9.260 bei überschneidendem Zeitraum, ohne Datum; abwesend,
+Freistellung, Antrag offen, Feiertag), Verteilung und Kapazität (`_besetzung()`, `_slot_distribution()`, `_day_capacity()`), Rechnung und Zustand im Dialog
+(`_kapazitaet_rechnung()`, `_personen_zustand()`), `slot_to_dict()`, „Heute“ (`app/heute.py::_slots()`, `einsaetze()` über
+`list_todays_assignments_for_employee()`, `einsatz_details()`, `naechste_tage()`, Vorwahl der Zeit in `arbeitszeit()`), `GET /api/field-view/upcoming`, der Text
+der Kran-Termine (`app/kran_kalender.py::_inhalt()`), das Änderungsprotokoll („Tage“). **Bleibt:** Zugriff der Monteurin (`app/orders.py::
+_assigned_order_id_queries()` -- ein Tag genügt), Auftragsliste der Zeiterfassung (Fenster ±14 Tage), Kolonne starten (Stammdaten), Einsatzbericht (liest die
+Plantafel nicht), Lohn (liest keine Einsätze), Akte (`einsaetze()`: Zahl der Personen; Phase über `start_date`), Zeitraum der AV (`einsatz_zeitraum()`),
+Kapazität je Kolonne (Stammdaten), Belegung der Geräte (schon je Tag). 63 Testdateien und 18 Klicktests legen Besetzung ohne Tage an -- mit Variante A bleibt das
+„alle Tage“.
+
+**Leerer Tag** (ohne Personen und Geräte): am Rand kürzt er den Einsatz, in der Mitte bleibt der Einsatz einer („niemand“ in „Aufträge“, Lücke in „Kolonnen“);
+er zählt nirgends, die Stunden bleiben am Einsatz, der Kran-Termin teilt sich. Er widerspricht „ohne Kolonne mindestens eine Person“ (1.9.233 Nr. 5) und
+„Kranvermietung braucht den Kran“.
+
+**Neuer Einsatz durch Ziehen** (ab R5b): `create_slot()` kann es (vorläufig, AV und Kolonnen-Zuweisung, Rest der Stunden, Rückfrage, Kran-Kalender); es fehlen
+Ziel (dazu / verlängern / neu), Verlängern ohne Mitnehmen, Sperren beider AVs in fester Reihenfolge beim Umsetzen, Prüfen ohne Schreiben, Zugehörigkeit (Regel 25).
+
+**Schnittstellen** vorhanden: `GET /api/planning` (bis 63 Tage, „1 Woche“ geht), `GET /api/planning/auftraege` (nur Nummer, Projekt, Kunde), Anlegen, Teil-Update,
+Löschen, Prüfen ohne Schreiben. Neu nötig (R5b/R5c): Auftragsliste der Woche (Soll, Rest, „nach Aufwand“, nächster Einsatz; feste Zahl Abfragen), Tag setzen,
+Umsetzen, Herausnehmen, Verlängern, Kurzname am Gerät (`PUT /api/resources` ist ein Altfall in `BEKANNT`, Regel 22).
+
+### Antworten von Tobias (08.11.2026)
+
+1. Variante A: Spalte `planning_slot_employees.tage` wie bei den Geräten. 2. `downgrade()` bricht ab, solange jemand an einzelnen Tagen steht.
+3. Wird der letzte Tag mit jemandem leer: Rückfrage „Der Einsatz hat dann niemanden mehr.“ Löschen | Behalten; Behalten = er bleibt mit dem zuletzt geleerten
+Tag („niemand“). 4. Ohne Kolonne beim Anlegen mindestens eine Person oder ein Gerät, danach darf er leer werden; die Kranvermietung braucht ihr Gerät nur beim
+Anlegen. 5. „Rückgängig“ nach einem eben angelegten Einsatz löscht ihn, solange er unverändert ist. 6. Zwei Einsätze am Tag: zwei Karten untereinander in der
+Zelle; Ziel ist die Karte, auf die gezogen wird; auf freie Fläche der Vorschlag (Kolonne in den Einsatz derselben Kolonne, sonst neu; Person oder Gerät in den
+ohne Kolonne, sonst in den frühesten). 7. „Direkt anschließend“ = nächster Arbeitstag (Fr -> Mo verlängert). 8. Kolonne auf den Einsatz einer anderen Kolonne:
+eigener Einsatz; Kolonne auf eine Kranvermietung: ablehnen („bitte einzelne Bediener ziehen“); Person allein auf einen Tag ohne Einsatz einer Kranvermietung:
+ablehnen („zuerst den Kran ziehen“). 9. Eine gezogene Kolonne bringt ihre Mitglieder ohne „nicht zeigen“. 10. Rest = Soll minus gebuchte Stunden, wie die Akte;
+ohne Soll „nach Aufwand“, Herkunft Wartungsvertrag „Wartungsvertrag“, Kranvermietung „Kran mit Bediener“ bzw. „Kran ohne Bediener“; Stunden eines durch Ziehen
+neuen Einsatzes wie heute (Rest). 11. „Heute“: von–bis = ihre Folge von Tagen um heute. 12. „Geräte“: Ziehen verschiebt nur das Gerät; in „Personen“ und
+„Geräte“ setzt Ziehen in eine andere Zeile auf diese Person bzw. dieses Gerät um (übernimmt die Tage), Rückfrage bei Warnung. 13. Wochenleiste: eigener
+Zustand „abwesend“ (schraffiert, ohne Art). 14. Hinweis „Feiertag“ nur an Tagen, an denen jemand steht. 15. Jede Ansicht merkt sich ihren Zeitraum („Aufträge“
+Start 1 Woche, sonst 2 Wochen); die gezeigte Woche bleibt beim Wechsel gleich.
+
+Runden: R5a Fundament (dieser Abschnitt), R5b Tag-Aktionen auf dem Server und Punkt 5, R5c Ansicht „Aufträge“ mit „1 Woche“ und Kurzname, R5d Nachrunde.
+
+## Stufe 6, R5a: Fundament -- Besetzung je Tag (ab 1.9.259)
+
+Auftrag vom 08.11.2026, Start 961ed75 (live, Datenbank `e3b7c51a9d26`, R4b eingespielt). Bestätigt: Festlegungen 1.9.253–1.9.258, N1 und W1 der Runde R4b,
+außer 1.9.253 Nr. 6 zweiter Teil („die Kolonne schlägt sie weiter vor“) -- dafür Punkt 0 (1.9.259). Frage 1 aus R4b („alle einplanbar“): so eingespielt,
+erledigt. Punkte: 0 die Kolonne schlägt „nicht zeigen“ nicht mehr vor; 1–5 nach Befund G (Spalte und Schreibweg, Leser je Tag, Monteurin, leerer Tag,
+Oberfläche) mit den Antworten 3, 4, 11 und 14. Je Punkt eine Version.
+
+### Umsetzung 1.9.259 (Punkt 0): die Kolonne schlägt „nicht zeigen“ nicht mehr vor
+
+- `app/planning.py::_kolonne_schlaegt_vor()`: die aktiven Mitglieder ohne Kennzeichen „nicht zeigen“ (`_plantafel_map()`: gespeichert, sonst die Vorgabe aus
+  Gruppe und Funktion). Wirkt überall, wo die Kolonne vorschlägt: Anlegen mit Kolonne, Wechsel der Kolonne (auch Ziehen in ihre Zeile), Prüfung des Dialogs
+  (`_personen_zustand()`, Spalte „vorschlag“). Einzeln gewählt (`employee_ids`) kommt eine Person „nicht zeigen“ weiter in den Einsatz; bestehende Einsätze
+  bleiben, wie sie sind. Die Kolonnen-Zuweisung an der AV (Schnappschuss, Zugriff der Monteurin) nimmt weiter alle aktiven Mitglieder.
+- Stammdaten -> Kolonnen: in der Liste `plantafelHinweis()` je Mitglied („Vera Test · nicht zeigen“, title mit dem Grund), im Formular der Kolonne „· nicht
+  zeigen“ hinter der Funktion.
+
+#### Festlegungen 1.9.259 (Bitte bestätigen)
+
+1. Die Kolonne schlägt nur Mitglieder ohne „nicht zeigen“ vor -- beim Anlegen, beim Wechsel der Kolonne (auch Ziehen in ihre Zeile) und in der Prüfung des
+   Dialogs; das Kennzeichen wie überall (gespeichert, sonst die Vorgabe aus Gruppe und Funktion). Ersetzt 1.9.253 Nr. 6 zweiter Teil.
+2. Einzeln gewählt kommt eine Person „nicht zeigen“ weiter in einen Einsatz; bestehende Einsätze und der Schnappschuss der Kolonne an der AV bleiben.
+3. Stammdaten -> Kolonnen: Liste und Formular nennen bei ihr „nicht zeigen“.
+
+#### Tests und Prüfung 1.9.259
+
+Neu: `tests/test_v659_kolonne_ohne_nicht_zeigen.py` (Anlegen, Wechsel, Vorgabe aus der Gruppe, einzeln gewählt, Prüfung des Dialogs, Liste in node, Formular).
+`scripts/klicktest_plantafel_besetzung.py`: Vera („nicht zeigen“) in Nord, der Dialog nennt nur Tom und Mia, Stammdaten-Liste und Formular nennen „nicht zeigen“
+(20 statt 17 Prüfungen); dafür bekamen die Mitarbeiter einen Stundenlohn (ohne ihn lehnt `GET /api/employees` einen gewerblichen Mitarbeiter in der
+Kalkulation ab, die Stammdaten luden nicht). Gegenproben: Archiv `gegenproben-stufe6-r5a.md`.
+
+Angepasste Erwartung (Regel 28): `tests/test_v653_plantafel_kennzeichen.py::test_nicht_zeigen_auch_nicht_im_einsatz_dialog` -- alt: mit Kolonne Nord schlägt die
+Prüfung „Tom, Bea, Vera“ vor; neu: „Tom, Bea“.

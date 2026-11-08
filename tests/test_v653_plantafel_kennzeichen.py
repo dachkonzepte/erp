@@ -106,7 +106,7 @@ def test_tafel_schickt_das_kennzeichen_und_laesst_nicht_zeigen_weg(welt):
 
 def test_nicht_zeigen_auch_nicht_im_einsatz_dialog(welt):
     """„+ Person“ bietet board.employees an; die Prüfung des Dialogs zeigt eine Person „nicht zeigen“ nur, wenn sie schon gewählt ist (wie bisher ohne
-    Häkchen -- auch, wenn ihre Kolonne sie vorschlägt: die Besetzung bleibt, wie sie ist)."""
+    Häkchen). Seit 1.9.259 schlägt ihre Kolonne sie nicht mehr vor (bis 1.9.258: „die Kolonne schlägt sie vor (wie bisher)“, Festlegung 1.9.253 Nr. 6)."""
     from tests.test_v090_planning_board import setup_order
     auftrag = setup_order(welt["db"], "653")
     body = {"order_id": auftrag.id, "team_id": None, "employee_ids": [welt["tom"].id], "start_date": "2026-11-03", "end_date": "2026-11-04",
@@ -115,7 +115,7 @@ def test_nicht_zeigen_auch_nicht_im_einsatz_dialog(welt):
     assert r.status_code == 200, r.text
     assert [p["name"] for p in r.json()["personen"]] == ["Tom Test", "Paul Test", "Bea Test"]  # Vera fehlt, Bauleitung bleibt einplanbar
     r = welt["client"].post("/api/planning/slots/pruefen", json={**body, "team_id": welt["nord"].id, "employee_ids": None, "weitere_personen": []})
-    assert [p["name"] for p in r.json()["personen"]] == ["Tom Test", "Bea Test", "Vera Test"]  # die Kolonne schlägt sie vor (wie bisher)
+    assert [p["name"] for p in r.json()["personen"]] == ["Tom Test", "Bea Test"]  # seit 1.9.259 schlägt die Kolonne Vera („nicht zeigen“) nicht vor
 
 
 def _gruppen(tafel):

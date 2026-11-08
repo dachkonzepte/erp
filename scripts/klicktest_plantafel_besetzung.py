@@ -1,6 +1,7 @@
 """Klicktest: die Plantafel auf dem neuen Modell bleibt bedienbar (1.9.237, Stufe 6, R3a, Punkt 6) -- Besetzung, Geräte, Status je Einsatz.
 
-Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonne Nord (Tom, Mia, Pritsche), Kolonne Süd (Kai, Kran 30 m mit UVV fällig am 20.10.2026), zwei Aufträge.
+Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonne Nord (Tom, Mia, Pritsche; seit 1.9.259 dazu Vera mit Kennzeichen „nicht zeigen“), Kolonne Süd (Kai,
+Kran 30 m mit UVV fällig am 20.10.2026), zwei Aufträge.
 
     Neu           „+ Einsatz planen“ mit Nord, 19.–21.10. -> gespeichert ohne Rückfrage; Balken in der Zeile Nord; „Mitarbeiter“: bei Tom und Mia,
                   nicht bei Kai; „Fahrzeuge / Maschinen“: bei der Pritsche
@@ -9,6 +10,8 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonne Nord (Tom, Mia, Pritsche), Kolo
     ohne Kolonne  „ohne Kolonne – die Personen bleiben“ -> Rückfrage (der Kran), „Trotzdem planen“ -> Zeile „Ohne Kolonne“ mit dem Balken, Kai bleibt
     Ziehen        aus „Ohne Kolonne“ in die Zeile Nord -> Tom, Mia und die Pritsche
     Status        „fest“ gespeichert
+    nicht zeigen  seit 1.9.259: Nord schlägt Vera nicht vor (Dialog nennt nur Tom und Mia); Stammdaten -> Kolonnen: „Vera Test · nicht zeigen“ in der Liste,
+                  im Formular der Kolonne „· nicht zeigen“ bei Vera
     keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -35,15 +38,16 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
-    from app.models import (AppUser, Customer, Employee, OperationalAsset, OperationalAssetInspection, OperationalResource, Project, Quote, QuoteItem, Team,
-                            TeamEmployee, TeamResource)
+    from app.models import (AppUser, Customer, Employee, EmployeePlanningSettings, OperationalAsset, OperationalAssetInspection, OperationalResource, Project,
+                            Quote, QuoteItem, Team, TeamEmployee, TeamResource)
     from app.orders import create_order_from_quote, load_order
     from app.project_pipeline_columns import default_pipeline_column_id
 
     anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Plan", last_name="Plan", street="Dachweg 1", postal_code="52531", city="Uebach")
-    leute = [Employee(employee_number=f"M-{i}", first_name=n, last_name="Test", employee_group="gewerblich", weekly_hours=Decimal("40"), active=True)
-             for i, n in enumerate(("Tom", "Mia", "Kai"), 1)]
+    # seit 1.9.259 mit Stundenlohn: die Stammdaten (GET /api/employees) verlangen ihn bei gewerblichen Mitarbeitern in der Kalkulation
+    leute = [Employee(employee_number=f"M-{i}", first_name=n, last_name="Test", employee_group="gewerblich", hourly_wage=Decimal("20"), weekly_hours=Decimal("40"),
+                      active=True) for i, n in enumerate(("Tom", "Mia", "Kai"), 1)]
     pritsche = OperationalResource(resource_number="F-1", resource_type="Fahrzeug", name="Pritsche", identifier="HS-DK 204", active=True)
     kran = OperationalResource(resource_number="K-1", resource_type="Maschine", name="Kran 30 m", identifier="K1", active=True)
     db.add_all([anna, kunde, *leute, pritsche, kran]); db.flush()
@@ -72,11 +76,16 @@ def befuellen(db, k):
                                         caseworker_employee_id=None, project_manager_employee_id=None, payment_terms=None, remarks=None)
         return load_order(db, order.id)
 
-    nord, sued = kolonne("Nord", leute[:2], pritsche), kolonne("Süd", leute[2:], kran)
+    # seit 1.9.259: Vera steht in Nord, hat aber „nicht zeigen“ -- die Kolonne schlägt sie nicht vor
+    vera = Employee(employee_number="M-4", first_name="Vera", last_name="Test", employee_group="gewerblich", hourly_wage=Decimal("20"), weekly_hours=Decimal("40"),
+                    active=True)
+    db.add(vera); db.flush()
+    db.add(EmployeePlanningSettings(employee_id=vera.id, plantafel="nicht_zeigen"))
+    nord, sued = kolonne("Nord", [*leute[:2], vera], pritsche), kolonne("Süd", leute[2:], kran)
     a = auftrag("A")
     db.commit()
     return {"a": a.id, "nord": nord.id, "sued": sued.id, "tom": leute[0].id, "mia": leute[1].id, "kai": leute[2].id, "pritsche": pritsche.id,
-            "kran": kran.id, "anna": k.cookies(anna)}
+            "kran": kran.id, "vera": vera.id, "anna": k.cookies(anna)}
 
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&typeof orders!=='undefined'"
@@ -180,6 +189,20 @@ async def pruefen(tab, seed, p):
     await tab.warten(BEREIT + f"&&{EINSATZ}.status==='fest'", 10)
     p.pruefe("Status fest gespeichert", await tab.js(f"[{EINSATZ}.status,{EINSATZ}.status_label]"), ["fest", "fest"])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
+
+    # --- seit 1.9.259: Kolonnen-Verwaltung nennt „nicht zeigen“ ---
+    await tab.oeffnen("/master-data#teams", "document.querySelector('#content table')&&location.hash==='#teams'&&document.body.textContent.includes('Nord')")
+    p.pruefe("Kolonnen: Liste nennt Vera „nicht zeigen“", await tab.js(
+        "[...document.querySelectorAll('#content tr')].find(z=>z.textContent.includes('Nord'))?.querySelectorAll('.pill')&&"
+        "[...[...document.querySelectorAll('#content tr')].find(z=>z.textContent.includes('Nord')).querySelectorAll('.pill')].map(x=>x.textContent)"
+        ".filter(t=>/Test/.test(t))"), ["Tom Test", "Mia Test", "Vera Test · nicht zeigen"])
+    await tab.bild("kolonnen_liste")
+    await tab.oeffnen(f"/master-data/teams/{seed['nord']}/edit", f"document.querySelector('.team-employee[value=\"{seed['vera']}\"]')")
+    await tab.bild("kolonnen_formular")
+    p.pruefe("Kolonnen: Formular nennt Vera „nicht zeigen“", await tab.js(
+        "[...document.querySelectorAll('.team-employee')].map(x=>x.closest('div').querySelector('span').textContent)"
+        ".filter(t=>/Vera|Tom/.test(t))"), ["Tom Test · Gewerblicher Mitarbeiter", "Vera Test · Gewerblicher Mitarbeiter · nicht zeigen"])
+    p.pruefe("keine JS-Fehler (Stammdaten)", tab.fehler, [])
 
 
 if __name__ == "__main__":
