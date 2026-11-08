@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.264 – Plantafel: die Besetzung je Tag auf der Tafel und im Dialog (Stufe 6, R5a, Punkt 5)
+
+Im Dialog „Einsatz bearbeiten“ hat jede gewählte Person jetzt ihre Tage wie ein Gerät: „alle Tage“ oder „nur …“, aufgeklappt Knöpfe je Tag. Ändert sich im Dialog der Zeitraum, behalten Personen und Geräte mit einzelnen Tagen nur die Tage darin. In „Kolonnen“ hat der Balken eines Einsatzes an einem leeren Tag eine Lücke, und jedes Stück nennt die Vornamen seiner Tage; ein ganz leerer Einsatz zeigt „niemand“. In „Personen“ steht eine Person nur an ihren Tagen. Eine Warnung sitzt am Stück, dessen Tage sie betrifft, die Warnzeile im Dialog nennt die Tage, und „doppelt …“ in der Zeile einer Person zählt je Tag -- wer am Mittwoch beim Ortgang und an den übrigen Tagen am Wasserturm steht, ist nicht mehr doppelt.
+
+Neu der Klicktest `klicktest_plantafel_tage.py` mit den Testdaten der Zeichnung und Bildern bei 1440 und 1280 px, hell und dunkel.
+
 ## 1.9.263 – Plantafel: der leere Tag (Stufe 6, R5a, Punkt 4)
 
 Steht an einem Tag eines Einsatzes niemand -- keine Person, kein Gerät --, ist er leer. Am Anfang oder Ende kürzt ein leerer Tag den Einsatz, nach jedem Anlegen und Ändern (auch ein Wochenende am Rand); die Stunden bleiben am Einsatz. In der Mitte bleibt der Einsatz einer: die Antwort nennt die leeren Arbeitstage und die Stücke des Balkens, ein leerer Tag zählt nirgends. Nähme eine Änderung dem Einsatz den letzten Tag mit jemandem, fragt die Plantafel „Der Einsatz hat dann niemanden mehr.“ -- Löschen oder Behalten; behalten bleibt er mit dem zuletzt geleerten Tag stehen. Die Rückfrage kommt im Dialog und beim Ziehen.

@@ -174,8 +174,10 @@ def test_zeilen_der_kolonnen():
                     "const geo={spalten:Array.from({length:14},(_,k)=>({d:new Date(Date.UTC(2026,10,2+k)).toISOString().slice(0,10)}))};"
                     "function fmt(s){const t=String(s).slice(0,10).split('-');return t[2]+'.'+t[1]+'.'}"
                     "function addDays(s,n){const d=new Date(s+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}")
-    aufrufe = im_browser("planning.html", ["fmtSpanne", "vornamen", "einsatzTitel", "slotHinweis", "einsatzBalken", "mitgliederText", "abwesendText",
-                                           "abwesenheitItems", "geraeteSortiert", "geraetUnter", "geraetFolgen", "geraetItems", "zeilen"],
+    # seit 1.9.264 dazu die Helfer der Tage je Person und der Stücke (einsatzTage, personTageIn, imStueck, stueckItems)
+    aufrufe = im_browser("planning.html", ["fmtSpanne", "einsatzTage", "personTageIn", "vornamen", "imStueck", "einsatzTitel", "slotHinweis", "einsatzBalken",
+                                           "mitgliederText", "abwesendText", "abwesenheitItems", "geraeteSortiert", "geraetUnter", "geraetFolgen", "geraetItems",
+                                           "stueckItems", "zeilen"],
                          vorbereitung + ";const KONFLIKT_ART={};",
                          "AUFRUFE.push({z:zeilen().map(z=>z.abschnitt?['['+z.abschnitt+']']:[z.name,z.unter,z.items.map(i=>i.b.text+(i.b.leise?' · '+i.b.leise:''))])});")
     [z] = aufrufe

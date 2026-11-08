@@ -101,7 +101,7 @@ def _balken(slot, zeile, person=None, geraet=None):
     vorbereitung = (f"var board = {{teams: []}}; var s = {json.dumps(slot)}; "
                     "function vornamen() { return ''; } function einsatzTitel() { return ''; }")
     ablauf = f"const b = einsatzBalken(s, {json.dumps(zeile)}, undefined, {json.dumps(person)}, {json.dumps(geraet)}); AUFRUFE.push([b.warn, b.hint]);"
-    [erg] = im_browser("planning.html", ["einsatzBalken"], vorbereitung, ablauf)
+    [erg] = im_browser("planning.html", ["imStueck", "einsatzBalken"], vorbereitung, ablauf)  # seit 1.9.264 mit imStueck
     return erg
 
 

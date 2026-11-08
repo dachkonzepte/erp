@@ -1260,7 +1260,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `klicktest_heute_tage.py`); seit 1.9.263 der leere Tag (keine Person, kein Gerät): am Rand kürzt er den Einsatz (`_raender_kuerzen()`, nach jedem
   Schreiben), in der Mitte bleibt der Einsatz einer (`leere_tage`, `abschnitte`, `niemand` in der Antwort); wird ein Einsatz ganz leer, 409 „Der Einsatz hat dann
   niemanden mehr.“ mit Löschen | Behalten (`wenn_leer`, `EinsatzWirdLeer`); ohne Kolonne beim Anlegen eine Person oder ein Gerät, eine Kranvermietung ihr Gerät
-  nur beim Anlegen (`tests/test_v663_leerer_tag.py`). Befund R5 und Herleitung:
+  nur beim Anlegen (`tests/test_v663_leerer_tag.py`); seit 1.9.264 zeigt die Tafel die Tage je Person: im Dialog „alle Tage“/„nur …“ mit Knöpfen je Tag
+  (`personTagUmschalten()`, `tageImZeitraum()`), in „Kolonnen“ je Stück ein Balken mit Lücke am leeren Tag (`stueckItems()`, Vornamen je Stück), in „Personen“ je
+  Folge ihrer Tage, Warnung am Stück ihrer Tage (`imStueck()`), „doppelt“ je Tag (`tests/test_v664_plantafel_tage.py`, Klicktest `klicktest_plantafel_tage.py`).
+  Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

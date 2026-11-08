@@ -116,3 +116,31 @@ Ohne eigene Gegenprobe: „die Stunden bleiben“ (Nr. 1) -- das Kürzen fasst `
 (Nr. 2) -- kein Weg meldet einen leeren Tag, `test_leerer_tag_zaehlt_nirgends` hält es fest; die Kapazität eines ganz leeren Einsatzes (Nr. 2) rechnet die
 Verteilung wie bisher (seit 1.9.261 je Tag), `test_ganz_leer_mit_stunden_meldet_die_kapazitaet` hält es fest; der Kran-Termin teilt sich (Folge der Tage, unverändert seit
 1.9.241). Die Klicktest-Gegenproben zur Rückfrage im Browser kommen mit 1.9.264 (`klicktest_plantafel_tage`).
+
+## 1.9.264 (Punkt 5): die Tafel zeigt die Besetzung je Tag
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Tage je Person im Dialog | ohne den Knopf (`264_1a`) | 1 rot: v664::test_dialog_zeile_mit_tagen |
+| Nr. 1 – Tage je Person im Dialog | ohne den Knopf (`264_1d`, Klicktest Tage) | rot: plantafel_tage (Dialog; Dialog) |
+| Nr. 1 – alle gewählt heißt „alle Tage“ | Liste bleibt (`264_1b`) | 1 rot: v664::test_dialog_tage_je_person_und_zeitraum |
+| Nr. 1 – ein umgeschalteter Tag geht mit | nicht als geändert vermerkt (`264_1e`, Klicktest Tage) | rot: plantafel_tage (Dialog; Kolonnen) |
+| Nr. 1 – Zeitraum: nur die Tage darin | ohne (`264_1c`) | 1 rot: v664::test_dialog_tage_je_person_und_zeitraum |
+| Nr. 2 – je Stück ein Balken | ein Balken über den Zeitraum (`264_2a`) | 1 rot: v664::test_kolonne_mit_luecke_und_namen_je_stueck |
+| Nr. 2 – je Stück ein Balken | ein Balken über den Zeitraum (`264_2d`, Klicktest Tage) | rot: plantafel_tage (Kolonnen; Kolonnen; 1280) |
+| Nr. 2 – Vornamen je Stück | alle Vornamen (`264_2b`) | 1 rot: v664::test_kolonne_mit_luecke_und_namen_je_stueck |
+| Nr. 2 – Vornamen je Stück | alle Vornamen (`264_2e`, Klicktest Tage) | rot: plantafel_tage (Kolonnen) |
+| Nr. 2 – ganz leer „niemand“ | ohne (`264_2c`) | 1 rot: v664::test_ohne_abschnitte_ein_balken_und_ganz_leer_niemand |
+| Nr. 2 – ganz leer „niemand“ | ohne (`264_2f`, Klicktest Tage) | rot: plantafel_tage (Leer) |
+| Nr. 3 – Personen je Folge | der ganze Einsatz (`264_3a`) | 1 rot: v664::test_person_je_folge_ihrer_tage |
+| Nr. 3 – Personen je Folge | der ganze Einsatz (`264_3b`, Klicktest Tage) | rot: plantafel_tage (Personen; Personen) |
+| Nr. 4 – Warnung am Stück | an jedem Stück (`264_4a`) | 1 rot: v664::test_warnung_am_stueck_ihrer_tage |
+| Nr. 4 – Warnung am Stück | an jedem Stück (`264_4c`, Klicktest Tage) | rot: plantafel_tage (Kolonnen) |
+| Nr. 4 – die Warnzeile nennt die Tage | ohne (`264_4b`) | 1 rot: v664::test_warnung_nennt_ihre_tage |
+| Nr. 5 – doppelt je Tag | alle Tage des Einsatzes (`264_5a`) | 1 rot: v664::test_doppelt_je_tag |
+| Nr. 5 – doppelt je Tag | alle Tage des Einsatzes (`264_5b`, Klicktest Tage) | rot: plantafel_tage (Personen) |
+| Nr. 6 – der Titel nennt die Tage | ohne (`264_6a`) | 1 rot: v664::test_titel_nennt_die_tage_je_person |
+| 1.9.263 Nr. 4 – die Seite fragt (im Browser) | leerFrage antwortet nie (`264_7a`, Klicktest Tage) | rot: plantafel_tage (Leer; nicht neu geladen (#planner), Anfragen {"gestartet"; Leer; nicht neu gelad) |
+
+Ohne eigene Gegenprobe: „Ziehen eines Stücks verschiebt den ganzen Einsatz“ (Nr. 2) -- `verschieben()` unverändert seit 1.9.249, der Versatz rechnet vom Beginn
+des Einsatzes.

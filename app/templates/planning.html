@@ -321,13 +321,21 @@ function lage(von,bis){const s=geo.spalten,erste=s[0].d,letzte=s[s.length-1].d;c
 function spurenVerteilen(items){const ende=[];for(const it of items.slice().sort((a,b)=>a.i-b.i||(b.j-b.i)-(a.j-a.i))){let n=ende.findIndex(e=>e<it.i);if(n<0){n=ende.length;ende.push(it.j)}else ende[n]=it.j;it.spur=n}return Math.max(1,ende.length)}
 
 /* --- Texte: was ein Balken sagt ----------------------------------------------------------------------------------------------------- */
-function vornamen(s){return s.employees.map(e=>e.vorname||e.name).join(', ')}
+/* seit 1.9.264 (Stufe 6, R5a, Punkt 5): die Tage einer Person am Einsatz (leer = alle Tage) -- für ihre Zeile, „doppelt“ und die Namen je Stück */
+function einsatzTage(s){const t=[];for(let d=s.start_date;d<=s.end_date;d=addDays(d,1))t.push(d);return t}
+function personTageIn(s,eid){const e=s.employees.find(x=>x.id===eid);return !e?[]:e.tage?e.tage.slice():einsatzTage(s)}
+// aufeinander folgende Tage als [erster, letzter]
+function folgen(tage){const out=[];for(const d of tage.slice().sort()){if(out.length&&addDays(out[out.length-1][1],1)===d)out[out.length-1][1]=d;else out.push([d,d])}return out}
+// die Vornamen am Einsatz -- seit 1.9.264 je Stück nur, wer an einem seiner Tage dabei ist
+function vornamen(s,stueck){return s.employees.filter(e=>!stueck||personTageIn(s,e.id).some(d=>d>=stueck[0]&&d<=stueck[1])).map(e=>e.vorname||e.name).join(', ')}
+// seit 1.9.264: gehört ein Konflikt zu einem Stück des Balkens (seine Tage oder sein Tag darin; ohne Tag zu jedem Stück)
+function imStueck(c,stueck){if(!stueck)return true;const t=c.tage||(c.date?[String(c.date).slice(0,10)]:null);return !t||t.some(d=>d>=stueck[0]&&d<=stueck[1])}
 /* seit 1.9.237 (Stufe 6, R3a, Punkt 6): wer und was an diesem Einsatz steht -- eine andere Kolonne setzt beim Speichern ihre Mitglieder und Geräte */
 function besetzungText(s){const g=s.resources.map(r=>r.name+(r.tage?' ('+r.tage.map(t=>fmt(t)).join(', ')+')':'')).join(', ');return 'Besetzung: '+(s.employees.map(e=>e.name).join(', ')||'niemand')+(g?' · Geräte: '+g:'')+'. Eine andere Kolonne setzt ihre Mitglieder und Geräte.'}
 // seit 1.9.156: Status des Auftrags und offene Anträge stehen beim Einsatz (seit 1.9.247 im title des Balkens)
 function slotHinweis(slot,antraege){const t=[];if(slot.order_status==='pausiert')t.push('Auftrag pausiert'+(slot.order_status_reason?' · '+slot.order_status_reason:''));if(slot.order_status==='storniert'||slot.order_status==='abgeschlossen')t.push('Auftrag '+slot.order_status_label);if(antraege.length)t.push('Antrag offen: '+antraege.map(c=>c.label).join(', '));return t.join(' · ')}
 const KONFLIKT_ART={employee:'Person doppelt: ',pruefung:'Prüffrist abgelaufen: ',resource:'Gerät doppelt: ',absence:'Abwesend: ',holiday:'Feiertag: ',antrag_offen:'Antrag offen: ',kalendertag:'Freistellung: ',capacity:''};
-function einsatzTitel(s){const antraege=(s.conflicts||[]).filter(c=>c.type==='antrag_offen');const k=(s.conflicts||[]).filter(c=>c.type!=='antrag_offen').map(c=>(c.stufe==='warnung'?'⚠ ':'· ')+(KONFLIKT_ART[c.type]||'')+c.label);const h=slotHinweis(s,antraege);return [`${s.project_number} · ${s.project_name} · ${s.customer_name||''}`,`${fmt(s.start_date)}–${fmt(s.end_date)} · ${s.art_label} · ${s.status_label}`,'Besetzung: '+(s.employees.map(e=>e.name).join(', ')||'niemand'),s.resources.length?'Geräte: '+s.resources.map(r=>r.name).join(', '):'',h,...k].filter(Boolean).join('\n')}
+function einsatzTitel(s){const antraege=(s.conflicts||[]).filter(c=>c.type==='antrag_offen');const k=(s.conflicts||[]).filter(c=>c.type!=='antrag_offen').map(c=>(c.stufe==='warnung'?'⚠ ':'· ')+(KONFLIKT_ART[c.type]||'')+c.label);const h=slotHinweis(s,antraege);return [`${s.project_number} · ${s.project_name} · ${s.customer_name||''}`,`${fmt(s.start_date)}–${fmt(s.end_date)} · ${s.art_label} · ${s.status_label}`,'Besetzung: '+(s.employees.map(e=>e.name+(e.tage?' (nur '+e.tage.map(t=>fmt(t)).join(', ')+')':'')).join(', ')||'niemand'),s.resources.length?'Geräte: '+s.resources.map(r=>r.name).join(', '):'',h,...k].filter(Boolean).join('\n')}
 const WARNZEICHEN='<svg class="warnzeichen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17H2.5L12 3z"/><path d="M12 10v4M12 17.5v.5"/></svg>';
 // Ein Balken: Klasse, Text (fett) und leiser Zusatz; der volle Text steht immer im title (was nicht passt: zwei Zeilen, ohne Zusatz, „…“ -- balkenEinpassen())
 function balkenHtml(b){const warn=b.warn?WARNZEICHEN:'',punkt=b.hint?'<span class="hinweis-punkt" aria-hidden="true"></span>':'';const leise=b.leise?`<span class="leise"> · ${esc(b.leise)}</span>`:'';
@@ -336,9 +344,9 @@ function balkenHtml(b){const warn=b.warn?WARNZEICHEN:'',punkt=b.hint?'<span clas
 // seit 1.9.250 in „Personen“: eine Kranvermietung heißt nach dem Gerät („Kran · Vermietung“), ein Einsatz einer anderen Kolonne „· mit <Kolonne>“ (gruppe = Kolonne der Zeile)
 // seit 1.9.250 in „Personen“ (person = ID der Zeile) nur die Warnungen und Hinweise dieser Person -- doppelt, abwesend, Antrag, Freistellung (Zeichnung)
 // seit 1.9.255 in der Zeile eines Geräts (geraet = ID, in „Kolonnen“ und „Geräte“) nur die zu diesem Gerät -- doppelt, Termin im Postfach, Prüffrist
-function einsatzBalken(s,zeile,gruppe,person,geraet){const k=(s.conflicts||[]).filter(c=>zeile==='geraet'?c.resource_id===geraet:(person==null||c.employee_id===person||(c.employee_ids||[]).includes(person)));
-  const warn=k.some(c=>c.stufe==='warnung'),hint=k.some(c=>c.stufe==='hinweis');const kran=s.art==='kranvermietung';let text=s.project_name,leise=vornamen(s);
-  if(kran&&zeile==='person'){text=s.resources.map(r=>r.name).join(', ')||'Kran';leise='Vermietung'}else if(kran){text='Vermietung';leise=vornamen(s)}
+function einsatzBalken(s,zeile,gruppe,person,geraet,stueck){const k=(s.conflicts||[]).filter(c=>(zeile==='geraet'?c.resource_id===geraet:(person==null||c.employee_id===person||(c.employee_ids||[]).includes(person)))&&imStueck(c,stueck));
+  const warn=k.some(c=>c.stufe==='warnung'),hint=k.some(c=>c.stufe==='hinweis');const kran=s.art==='kranvermietung';let text=s.project_name,leise=s.niemand?'niemand':vornamen(s,stueck);
+  if(kran&&zeile==='person'){text=s.resources.map(r=>r.name).join(', ')||'Kran';leise='Vermietung'}else if(kran){text='Vermietung';leise=s.niemand?'niemand':vornamen(s,stueck)}
   else if(zeile==='person'){const k=s.team_id!=null&&s.team_id!==gruppe?board.teams.find(t=>t.id===s.team_id):null;leise=k?'mit '+k.name.replace(/^Kolonne\s+/,''):''}else if(zeile==='geraet')leise='';const zu=s.order_status==='storniert'||s.order_status==='abgeschlossen';return {klasse:[kran?'kran':'',s.status==='vorlaeufig'?'vorlaeufig':'fest',zu?'zu':''].filter(Boolean).join(' '),text,leise,title:text+(leise?' · '+leise:'')+'\n'+einsatzTitel(s),warn,hint,klick:'einsatz',id:s.id}}
 
 /* --- Zeilen je Ansicht ------------------------------------------------------------------------------------------------------------ */
@@ -350,7 +358,7 @@ function abwesenheitItems(eid){return (board.abwesenheiten||[]).filter(a=>a.empl
 function geraeteSortiert(){return board.resources.slice().sort((a,b)=>a.name.localeCompare(b.name,'de'))}
 function geraetUnter(r){return [r.pruefung,r.kalender?'mit Outlook-Kalender':'',(!r.pruefung&&!r.kalender)?r.type:''].filter(Boolean)}
 function geraetFolgen(s,r){if(!r.tage)return [[s.start_date,s.end_date]];const t=r.tage.slice().sort(),out=[];for(const d of t){if(out.length&&addDays(out[out.length-1][1],1)===d)out[out.length-1][1]=d;else out.push([d,d])}return out}
-function geraetItems(rid){const items=[];for(const s of board.slots){const r=s.resources.find(x=>x.id===rid);if(!r)continue;for(const [von,bis] of geraetFolgen(s,r))items.push({von,bis,b:einsatzBalken(s,'geraet',undefined,undefined,rid)})}for(const t of (board.geraete_termine||[]).filter(t=>t.resource_id===rid)){const text=(t.zeit?t.zeit+' ':'')+t.titel;items.push({von:t.von,bis:t.bis,b:{klasse:'termin',text:'Outlook',leise:text,klick:'kranTermin',id:t.id,  // seit 1.9.251 ein Knopf (Zeichnung: title mit dem nächsten Schritt)
+function geraetItems(rid){const items=[];for(const s of board.slots){const r=s.resources.find(x=>x.id===rid);if(!r)continue;for(const [von,bis] of geraetFolgen(s,r))items.push({von,bis,b:einsatzBalken(s,'geraet',undefined,undefined,rid,[von,bis])})}for(const t of (board.geraete_termine||[]).filter(t=>t.resource_id===rid)){const text=(t.zeit?t.zeit+' ':'')+t.titel;items.push({von:t.von,bis:t.bis,b:{klasse:'termin',text:'Outlook',leise:text,klick:'kranTermin',id:t.id,  // seit 1.9.251 ein Knopf (Zeichnung: title mit dem nächsten Schritt)
     title:`Outlook · ${text}\nAus dem Kalender des Geräts · ${fmtSpanne(t.von,t.bis)} · belegt das Gerät${t.uebernehmbar?' · „Als Kranvermietung übernehmen …“':' · Termin einer Serie'}`,termin:true}})}return items}
 /* seit 1.9.250 (Stufe 6, R4, Punkt 3): „Personen“ nach Kolonnen gruppiert -- je Kolonne ihre Mitglieder (Kolonnenführer zuerst), dann „Ohne Kolonne“ und
    „Bauleitung · Termine aus dem Kalender“; jede Person einmal, in ihrer ersten Kolonne. Eine Zeile je Person: Einsätze, Abwesenheiten und bei Personen mit
@@ -363,10 +371,10 @@ function personenGruppen(){const sichtbar=new Map(board.employees.map(e=>[e.id,e
   const rest=board.employees.filter(e=>!gesehen.has(e.id));const ohne=rest.filter(e=>!bauleitung(e)),bau=rest.filter(bauleitung);
   if(ohne.length)out.push({titel:'Ohne Kolonne',team:null,personen:ohne});if(bau.length)out.push({titel:'Bauleitung · Termine aus dem Kalender',team:null,personen:bau});return out}
 // wo eine Person im Bild in zwei Einsätzen zugleich steht (Einsätze geschlossener Aufträge zählen nicht) -- „doppelt 03.–05.11.“
-function doppeltText(eid){const erste=geo.spalten[0].d,letzte=geo.spalten[geo.spalten.length-1].d;const s=board.slots.filter(x=>x.employees.some(e=>e.id===eid)&&x.order_status!=='storniert'&&x.order_status!=='abgeschlossen');const r=[];
-  for(let i=0;i<s.length;i++)for(let j=i+1;j<s.length;j++){const von=[s[i].start_date,s[j].start_date,erste].sort()[2],bis=[s[i].end_date,s[j].end_date,letzte].sort()[0];if(von<=bis)r.push([von,bis])}
-  r.sort((a,b)=>a[0]<b[0]?-1:1);const z=[];for(const x of r){if(z.length&&x[0]<=addDays(z[z.length-1][1],1)){if(x[1]>z[z.length-1][1])z[z.length-1][1]=x[1]}else z.push([...x])}
-  return z.length?'doppelt '+z.map(([a,b])=>fmtSpanne(a,b)).join(', '):''}
+// seit 1.9.264 je Tag: ein Tag, an dem sie in zwei Einsätzen steht (bis 1.9.263 die Überschneidung der Zeiträume)
+function doppeltText(eid){const erste=geo.spalten[0].d,letzte=geo.spalten[geo.spalten.length-1].d;const s=board.slots.filter(x=>x.employees.some(e=>e.id===eid)&&x.order_status!=='storniert'&&x.order_status!=='abgeschlossen');const n={};
+  for(const x of s)for(const d of personTageIn(x,eid))if(d>=erste&&d<=letzte)n[d]=(n[d]||0)+1;
+  const z=folgen(Object.keys(n).filter(d=>n[d]>1));return z.length?'doppelt '+z.map(([a,b])=>fmtSpanne(a,b)).join(', '):''}
 function antragText(eid){return (board.abwesenheiten||[]).filter(a=>a.employee_id===eid&&a.stand==='beantragt').map(a=>'Antrag '+fmtSpanne(a.von,a.bis)).join(' · ')}
 // Termine aus dem Kalender einer Person mit Konto: Uhrzeit (oder „ganztägig“) über dem Titel; privat „Belegt“ (Server)
 /* seit 1.9.254 (Stufe 6, R4b, Punkt 2) ein Knopf: öffnet den Kalender an seinem ersten Tag mit dem Termin (terminImKalender()); ein privater Termin
@@ -379,12 +387,15 @@ function terminImKalender(kennung){const t=(board.personen_termine||[]).find(x=>
   location.href='/kalender?tag='+encodeURIComponent(t.von)+'&'+(t.serie?'serie':'termin')+'='+encodeURIComponent(t.id)}
 function personZeilen(){const out=[];for(const g of personenGruppen()){out.push({abschnitt:g.titel});for(const p of g.personen)out.push({name:p.name,zeile:'person',id:p.id,
   unter:[p.kf?'Kolonnenführer':(p.function||''),{text:doppeltText(p.id),klasse:'warn'},antragText(p.id)].filter(u=>typeof u==='string'?u:u.text),
-  items:board.slots.filter(s=>s.employees.some(x=>x.id===p.id)).map(s=>({von:s.start_date,bis:s.end_date,b:einsatzBalken(s,'person',g.team,p.id)})).concat(abwesenheitItems(p.id),personTermine(p.id))})}return out}
+  // seit 1.9.264: je Folge ihrer Tage ein Balken (bis 1.9.263 der ganze Einsatz)
+  items:board.slots.filter(s=>s.employees.some(x=>x.id===p.id)).flatMap(s=>folgen(personTageIn(s,p.id)).map(([von,bis])=>({von,bis,b:einsatzBalken(s,'person',g.team,p.id,undefined,[von,bis])}))).concat(abwesenheitItems(p.id),personTermine(p.id))})}return out}
+// seit 1.9.264: die Stücke eines Einsatzes (ohne seine leeren Tage, vom Server; ganz leer ein Stück) -- je Stück ein Balken in „Kolonnen“
+function stueckItems(s,zeile){return (s.abschnitte||[[s.start_date,s.end_date]]).map(([von,bis])=>({von,bis,b:einsatzBalken(s,zeile,undefined,undefined,undefined,[von,bis])}))}
 function zeilen(){if(view==='employees')return personZeilen();
   if(view==='resources')return geraeteSortiert().map(r=>({name:r.name,zeile:'geraet',id:r.id,unter:geraetUnter(r),items:geraetItems(r.id)}));
-  const out=board.teams.map(t=>({name:t.name,team:t.id,zeile:'kolonne',id:t.id,unter:[mitgliederText(t),abwesendText(t.employees.map(e=>e.id))].filter(Boolean),items:board.slots.filter(s=>s.team_id===t.id).map(s=>({von:s.start_date,bis:s.end_date,b:einsatzBalken(s,'kolonne')}))}));
+  const out=board.teams.map(t=>({name:t.name,team:t.id,zeile:'kolonne',id:t.id,unter:[mitgliederText(t),abwesendText(t.employees.map(e=>e.id))].filter(Boolean),items:board.slots.filter(s=>s.team_id===t.id).flatMap(s=>stueckItems(s,'kolonne'))}));
   /* seit 1.9.233 die Zeile „Ohne Kolonne“, seit 1.9.247 immer (auch leer); eine Kranvermietung steht in der Zeile ihres Geräts (Zeichnung) */
-  out.push({name:'Ohne Kolonne',team:'null',zeile:'ohne',id:'',unter:['Personen einzeln gewählt'],items:board.slots.filter(s=>s.team_id==null&&s.art!=='kranvermietung').map(s=>({von:s.start_date,bis:s.end_date,b:einsatzBalken(s,'ohne')}))});
+  out.push({name:'Ohne Kolonne',team:'null',zeile:'ohne',id:'',unter:['Personen einzeln gewählt'],items:board.slots.filter(s=>s.team_id==null&&s.art!=='kranvermietung').flatMap(s=>stueckItems(s,'ohne'))});
   if(board.resources.length){out.push({abschnitt:'Geräte'});for(const r of geraeteSortiert())out.push({name:r.name,zeile:'geraet',id:r.id,unter:geraetUnter(r),items:geraetItems(r.id)})}
   return out}
 
@@ -466,7 +477,7 @@ function einsatzWerte(){const w={};const alle=einsatz.id==null;const neu=(k,v)=>
   neu('start_date',einsatz.start_date);neu('end_date',einsatz.end_date);neu('status',einsatz.status);neu('notes',einsatz.notes.trim()||null);if(einsatz.planned_hours!=null||alle)neu('planned_hours',einsatz.planned_hours);neu('travel_hours_per_employee_day',einsatz.travel??0);return w}
 // liest die Felder (auch wenn jemand einen Wert setzt, ohne ein Ereignis auszulösen) -- false, wenn eine Zahl nicht gelesen werden kann
 function felderLesen(){const k=document.getElementById('edKolonne').value,team=k===''?null:Number(k);if(einsatz.art!=='kranvermietung'&&team!==einsatz.team_id){einsatz.team_id=team;geaendert.add('team_id');if(team!=null){if(!geaendert.has('besetzung'))einsatz.besetzung=null;if(!geaendert.has('geraete'))einsatz.geraete=null}}
-  const feld=(id,key,wert)=>{if(wert!==einsatz[key]){einsatz[key]=wert;geaendert.add(key)}};feld('edVon','start_date',document.getElementById('edVon').value);feld('edBis','end_date',document.getElementById('edBis').value);
+  const feld=(id,key,wert)=>{if(wert!==einsatz[key]){einsatz[key]=wert;geaendert.add(key);if(key==='start_date'||key==='end_date')tageImZeitraum()}};feld('edVon','start_date',document.getElementById('edVon').value);feld('edBis','end_date',document.getElementById('edBis').value);
   feld('edNotiz','notes',document.getElementById('edNotiz').value);if(einsatz.id==null){const a=document.getElementById('edAuftrag').value;einsatz.order_id=a?Number(a):null;einsatz.bezug=document.getElementById('edBezug').value;const c=document.getElementById('edKunde').value;einsatz.customer_id=c?Number(c):null;einsatz.titel=document.getElementById('edTitel2').value}
   try{const st=zahlFeld('edStunden',{leer:null});if(String(st)!==String(einsatz.planned_hours)){einsatz.planned_hours=st;geaendert.add('planned_hours')}const an=zahlFeld('edAnfahrt',{leer:0});if(String(an)!==String(einsatz.travel)){einsatz.travel=an;geaendert.add('travel_hours_per_employee_day')}}catch(e){document.getElementById('edMeldung').textContent='Fehler: '+e.message;return false}return true}
 function pruefen(){clearTimeout(pruefenZeit);pruefenZeit=setTimeout(pruefenJetzt,200)}
@@ -482,7 +493,8 @@ function pruefStand(){return JSON.stringify({...terminWerte(einsatzWerte()),weit
 // seit 1.9.251: aus einem Termin am Gerät schickt der Dialog nur, was die Übernahme nimmt (Gerät und Zeitraum kommen vom Termin, Regel 22)
 function terminWerte(w){if(!einsatz.termin)return w;const {art,start_date,end_date,geraete,kran_termin_id,team_id,...rest}=w;return rest}
 const ZUSTAND_KLASSE={doppelt:'z-warn',abwesend:'z-warn',pruefung:'z-warn',antrag:'z-hinweis',belegt:'z-leise',frei:'z-leise'};
-function personZeile(p){return `<label class="wahl"><input type="checkbox" data-aenderung="personWahl" data-id="${p.id}" ${p.gewaehlt?'checked':''}><span class="wahl-name">${esc(p.name)}</span><span class="wahl-zustand ${ZUSTAND_KLASSE[p.zustand]||'z-leise'}">${p.zustand==='doppelt'||p.zustand==='abwesend'?WARNZEICHEN:''}${p.zustand==='antrag'?'<span class="hinweis-punkt" aria-hidden="true"></span>':''}${esc(p.text)}</span></label>`}
+// seit 1.9.264 (Stufe 6, R5a, Punkt 5): je gewählter Person ihre Tage wie bei den Geräten („alle Tage“ oder „nur …“, Knöpfe je Tag)
+function personZeile(p){return `<div class="wahl-gruppe"><label class="wahl"><input type="checkbox" data-aenderung="personWahl" data-id="${p.id}" ${p.gewaehlt?'checked':''}><span class="wahl-name">${esc(p.name)}</span><span class="wahl-zustand ${ZUSTAND_KLASSE[p.zustand]||'z-leise'}">${p.zustand==='doppelt'||p.zustand==='abwesend'?WARNZEICHEN:''}${p.zustand==='antrag'?'<span class="hinweis-punkt" aria-hidden="true"></span>':''}${esc(p.text)}</span>${p.gewaehlt?`<button type="button" class="link-knopf" data-klick="personTage" data-id="${p.id}" aria-expanded="false">${esc(p.tage_text||'alle Tage')}</button>`:''}</label><div class="tage-wahl" data-tage-person="${p.id}" hidden></div></div>`}
 function geraetZeile(g){return `<div class="wahl-gruppe"><label class="wahl"><input type="checkbox" data-aenderung="geraetWahl" data-id="${g.id}" ${g.gewaehlt?'checked':''}><span class="wahl-name">${esc(g.name)}</span><span class="wahl-zustand ${ZUSTAND_KLASSE[g.zustand]||'z-leise'}">${g.zustand==='doppelt'||g.zustand==='pruefung'?WARNZEICHEN:''}${esc([g.text,g.gewaehlt?'':''].filter(Boolean).join(' · '))}</span>${g.gewaehlt?`<button type="button" class="link-knopf" data-klick="geraetTage" data-id="${g.id}" aria-expanded="false">${esc(g.tage_text)}</button>`:''}</label><div class="tage-wahl" data-tage-von="${g.id}" hidden></div></div>`}
 function zustandZeichnen(){const p=pruefung;const personen=p?p.personen:(einsatz.besetzung||[]).map(b=>({id:b.employee_id,name:(board.employees.find(e=>e.id===b.employee_id)||{}).name||'#'+b.employee_id,gewaehlt:true,tage:b.tage,tage_text:b.tage?'einzelne Tage':'alle Tage',zustand:'frei',text:''}));
   document.getElementById('edPersonen').innerHTML=personen.map(personZeile).join('')||'<div class="klein">Noch niemand gewählt.</div>';
@@ -498,6 +510,12 @@ function zustandZeichnen(){const p=pruefung;const personen=p?p.personen:(einsatz
 // Tage eines Geräts wählen: alle oder einzelne (Knöpfe je Tag des Einsatzes)
 function tageZeigen(id){const box=document.querySelector(`[data-tage-von="${Number(id)}"]`),g=(einsatz.geraete||[]).find(x=>x.resource_id===Number(id));if(!box||!g)return;if(!box.hidden){box.hidden=true;return}
   const tage=[];for(let d=einsatz.start_date;d<=einsatz.end_date;d=addDays(d,1))tage.push(d);box.innerHTML=tage.map(d=>`<button type="button" class="tag-knopf" data-klick="geraetTag" data-id="${Number(id)}" data-tag="${esc(d)}" aria-pressed="${!g.tage||g.tage.includes(d)}">${esc(wochentag(d)+' '+fmt(d))}</button>`).join('');box.hidden=false}
+function personTageZeigen(id){const box=document.querySelector(`[data-tage-person="${Number(id)}"]`),b=(einsatz.besetzung||[]).find(x=>x.employee_id===Number(id));if(!box||!b)return;if(!box.hidden){box.hidden=true;return}
+  box.innerHTML=einsatzTage(einsatz).map(d=>`<button type="button" class="tag-knopf" data-klick="personTag" data-id="${Number(id)}" data-tag="${esc(d)}" aria-pressed="${!b.tage||b.tage.includes(d)}">${esc(wochentag(d)+' '+fmt(d))}</button>`).join('');box.hidden=false}
+function personTagUmschalten(id,tag){const b=(einsatz.besetzung||[]).find(x=>x.employee_id===id);if(!b)return;const alle=einsatzTage(einsatz);let t=b.tage?b.tage.slice():alle.slice();t=t.includes(tag)?t.filter(x=>x!==tag):t.concat([tag]).sort();if(!t.length)return;b.tage=t.length===alle.length?null:t;geaendert.add('besetzung');pruefenJetzt()}
+/* seit 1.9.264: ändert sich im Dialog der Zeitraum, behalten Personen und Geräte mit einzelnen Tagen nur die Tage darin (wie der Server beim Mitnehmen); wer keinen
+   mehr hat, fällt weg -- sonst schickte der Dialog Tage außerhalb des Einsatzes (422) */
+function tageImZeitraum(){const im=t=>t>=einsatz.start_date&&t<=einsatz.end_date;for(const k of ['besetzung','geraete']){if(!einsatz[k])continue;einsatz[k]=einsatz[k].map(x=>x.tage?{...x,tage:x.tage.filter(im)}:x).filter(x=>!x.tage||x.tage.length)}}
 function geraetTagUmschalten(id,tag){const g=(einsatz.geraete||[]).find(x=>x.resource_id===id);if(!g)return;const alle=[];for(let d=einsatz.start_date;d<=einsatz.end_date;d=addDays(d,1))alle.push(d);let t=g.tage?g.tage.slice():alle.slice();t=t.includes(tag)?t.filter(x=>x!==tag):t.concat([tag]).sort();if(!t.length)return;g.tage=t.length===alle.length?null:t;geaendert.add('geraete');pruefenJetzt()}
 async function einsatzSpeichern(){if(!einsatz||!felderLesen())return;clearTimeout(pruefenZeit);const fehlt=fehltBezug();if(fehlt){document.getElementById('edMeldung').textContent=fehlt;return}
   if(pruefStand()!==pruefungFuer){await pruefenJetzt();if(!pruefung)return;if(pruefung.warnungen.length&&einsatzFragt()){document.getElementById('edMeldung').textContent='Bitte die Warnungen prüfen – dann „Trotzdem planen“.';return}}
@@ -509,7 +527,7 @@ async function einsatzSpeichern(){if(!einsatz||!felderLesen())return;clearTimeou
 // bis 1.9.247 zwei Dialoge -- die Namen bleiben (Klicktests, Akte)
 function saveNew(){return einsatzSpeichern()}function saveEdit(){return einsatzSpeichern()}
 // Seit 1.9.143 (Stufe 6, R1, Punkt 1): der Server rechnet die Konflikte beim Speichern. Warnungen -> 409 mit Liste, nichts gespeichert (beim Ziehen: konfliktFrage()); Hinweise stehen in der Antwort (einsatzHinweise()).
-function konfliktZeile(c){return `<div class="conflict-row"><b>${esc((KONFLIKT_ART[c.type]||'')+c.label)}</b>${c.other_project?` · gleichzeitig in ${esc(c.other_project)} · ${esc(c.other_project_name)}`:''}${c.date?` · ${esc(fmt(c.date))}`:''}</div>`}
+function konfliktZeile(c){return `<div class="conflict-row"><b>${esc((KONFLIKT_ART[c.type]||'')+c.label)}</b>${c.other_project?` · gleichzeitig in ${esc(c.other_project)} · ${esc(c.other_project_name)}`:''}${c.date?` · ${esc(fmt(c.date))}`:''}${c.tage&&c.tage.length?` · ${esc(c.tage.map(fmt).join(', '))}`:''}</div>`}/* seit 1.9.264 die Tage von Person/Gerät doppelt */
 let konfliktWeiter=null,leerWeiter=null;
 /* seit 1.9.263 (Stufe 6, R5a, Punkt 4): 409 mit rueckfrage „einsatz_leer“ -- die Wahl (loeschen | behalten) geht mit wenn_leer noch einmal hinaus */
 function leerFrage(e,weiter){if(e.status!==409||!e.rueckfrage||e.rueckfrage.art!=='einsatz_leer')return false;leerWeiter=weiter;document.getElementById('ldTitel').textContent=e.rueckfrage.text||e.message;document.getElementById('leerFehler').textContent='';if(!leerDialog.open)leerDialog.showModal();return true}
@@ -614,6 +632,8 @@ aktion('personWahl',el=>{const id=Number(el.dataset.id);einsatz.besetzung=el.che
 aktion('geraetWahl',el=>{const id=Number(el.dataset.id);einsatz.geraete=el.checked?(einsatz.geraete||[]).concat([{resource_id:id,tage:null}]):(einsatz.geraete||[]).filter(x=>x.resource_id!==id);geaendert.add('geraete');if(!el.checked&&!weitereGeraete.includes(id))weitereGeraete.push(id);pruefenJetzt()},'change');
 aktion('geraetTage',el=>tageZeigen(el.dataset.id));
 aktion('geraetTag',el=>geraetTagUmschalten(Number(el.dataset.id),el.dataset.tag));
+aktion('personTage',el=>personTageZeigen(el.dataset.id));
+aktion('personTag',el=>personTagUmschalten(Number(el.dataset.id),el.dataset.tag));
 document.getElementById('absenceCategory').addEventListener('change',()=>artNachKategorie());
 let neuZeichnen=null;window.addEventListener('resize',()=>{cancelAnimationFrame(neuZeichnen);neuZeichnen=requestAnimationFrame(()=>renderBoard())});
 /* seit 1.9.258 (Nachtrag): neu zeichnen, sobald die Tafel eine andere Breite hat als beim Rechnen -- auch ohne resize des Fensters, etwa wenn die Seite

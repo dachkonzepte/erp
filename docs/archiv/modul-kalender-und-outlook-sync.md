@@ -1795,3 +1795,50 @@ Angepasste Erwartungen (Regel 28):
 - Eigene Tests dieser Runde, nur Aufbau: `test_v660::test_doppelt_genannt_zaehlt_die_erste` (dazu Tom an allen Tagen), `test_v661::test_person_doppelt_nur_an_
   gemeinsamen_tagen` und `::test_dialog_antrag_nur_an_ihren_tagen` (dazu eine Person an allen Tagen), `test_v662::test_mobil_einsaetze_heute_und_kommend` (dazu
   Kai an allen Tagen) -- sonst kürzte der Rand die Einsätze, und die Tests prüften nicht mehr, was sie sollen. Ihre Erwartungen bleiben.
+
+### Umsetzung 1.9.264 (Punkt 5): die Tafel zeigt die Besetzung je Tag
+
+- Dialog (`planning.html`): je gewählter Person neben dem Zustand ein Knopf mit ihren Tagen (`tage_text` vom Server: „alle Tage“ oder „nur …“), aufgeklappt
+  Knöpfe je Tag des Einsatzes (`personTageZeigen()`, `personTagUmschalten()` -- wie die Geräte seit 1.9.248: alle gewählt heißt „alle Tage“, der letzte Tag lässt
+  sich nicht abwählen, dafür das Häkchen). Ändert sich im Dialog Von oder Bis, behalten Personen und Geräte mit einzelnen Tagen nur die Tage im neuen Zeitraum, wer
+  keinen hat, fällt weg (`tageImZeitraum()`, wie das Mitnehmen des Servers) -- sonst schickte der Dialog Tage außerhalb des Einsatzes (422).
+- „Kolonnen“ und „Ohne Kolonne“: je Stück des Einsatzes ein Balken (`stueckItems()` aus `abschnitte` vom Server, 1.9.263) -- eine Lücke an jedem leeren Tag; die
+  Vornamen je Stück nur, wer an einem seiner Tage dabei ist (`vornamen(s, stueck)`); ein ganz leerer Einsatz zeigt „niemand“. Ziehen eines Stücks verschiebt weiter
+  den ganzen Einsatz (Festlegung 1.9.249 Nr. 3, Punkt 5 der Runde kommt mit R5b).
+- „Personen“: je Folge ihrer Tage ein Balken (`folgen(personTageIn())`, aufeinander folgende Kalendertage wie bei den Geräten). „Geräte“: je Folge wie bisher,
+  seit 1.9.264 mit dem Stück für die Warnungen.
+- Warnung und Hinweis am Stück, dessen Tage sie betreffen (`imStueck()`: die Tage von Person/Gerät doppelt, sonst der Tag; ohne Tag an jedem Stück); „Personen“
+  zeigt weiter nur die Konflikte der Person (1.9.250). Die Warnzeile (`konfliktZeile()`) nennt die Tage von Person/Gerät doppelt. „doppelt …“ in der Zeile einer
+  Person zählt je Tag (`doppeltText()`, bis 1.9.263 die Überschneidung der Zeiträume). Der Titel eines Balkens nennt je Person ihre Tage („Kai Kolb (nur 12.11.,
+  13.11.)“).
+
+#### Festlegungen 1.9.264 (Bitte bestätigen)
+
+1. Dialog: je gewählter Person ihre Tage wie bei den Geräten („alle Tage“ oder „nur …“, Knöpfe je Tag, der letzte Tag nicht abwählbar); ändert sich im Dialog der
+   Zeitraum, behalten Personen und Geräte mit einzelnen Tagen nur die Tage darin, wer keinen hat, fällt weg.
+2. „Kolonnen“ und „Ohne Kolonne“: je Stück ein Balken, eine Lücke an jedem leeren Tag; die Vornamen je Stück; ein ganz leerer Einsatz zeigt „niemand“. Ziehen eines
+   Stücks verschiebt den ganzen Einsatz.
+3. „Personen“: je Folge ihrer Tage ein Balken.
+4. Warnung und Hinweis am Stück ihrer Tage (ohne Tag an jedem Stück); die Warnzeile nennt die Tage.
+5. „doppelt …“ in der Zeile einer Person je Tag.
+6. Der Titel eines Balkens nennt je Person ihre Tage.
+
+#### Tests und Prüfung 1.9.264
+
+Neu: `tests/test_v664_plantafel_tage.py` (Kolonne mit Lücke und Namen je Stück, ganz leer „niemand“, Person je Folge, Warnung am Stück, doppelt je Tag, Dialog:
+Tage umschalten und Zeitraum, Zeile mit Tagen, Warnzeile mit Tagen, Titel). Neu: `scripts/klicktest_plantafel_tage.py` (18 Prüfungen: Kolonnen mit Lücke und
+Warnung am Stück, kein Tom doppelt, „Personen“ je Folge, Kai „doppelt 13.11.“, Dialog mit den Tagen je Person und Knöpfen, Kai am Mi dazu -> ein Balken; leer:
+Hinweis vorher, Rückfrage, Behalten -> „niemand“ mit dem Hinweis Kapazität, Löschen -> weg; Bilder Kolonnen, Personen, Dialog bei 1440 und 1280 px, hell und
+dunkel, dazu die Rückfrage). Gegenproben: Archiv `gegenproben-stufe6-r5a.md`.
+
+Angepasste Erwartungen (Regel 28), nur Aufbau -- die node-Tests holen die Funktionen der Seite einzeln, die neuen Helfer kamen in ihre Listen:
+`tests/test_v647_plantafel_tafel.py::test_zeilen_der_kolonnen` (`einsatzTage`, `personTageIn`, `imStueck`, `stueckItems`),
+`tests/test_v650_plantafel_personen.py::test_gruppen_doppelt_und_antrag` (`einsatzTage`, `personTageIn`, `folgen`) und `::test_balken_einer_person_nur_mit_ihren_
+konflikten` (`imStueck`), `tests/test_v655_geraetezeilen.py` (`imStueck`), `tests/test_v574_balken_lesbar.py` (`FUNKTIONEN` + `imStueck`; erst die volle
+Suite der Arbeitskopie fand ihn, vier Tests mit „imStueck is not defined“). Ihre Erwartungen bleiben.
+
+### Stand nach R5a (1.9.259–1.9.264)
+
+Die Besetzung gilt je Tag, gespeichert wie bei den Geräten; der Bestand steht an allen Tagen und sieht aus wie vorher. Konflikte, Kapazität, „Heute“, „Nächste
+Tage“, die Vorwahl der Zeit und die Kran-Termine rechnen je Tag; der leere Tag kürzt am Rand und lässt in der Mitte eine Lücke; die Tafel zeigt und ändert die Tage
+im Dialog. Die Falle (Verlängern ohne Mitnehmen) liegt als `update_slot(alle_tage_mitnehmen=False)` bereit -- die Tag-Aktionen nutzen sie mit R5b.

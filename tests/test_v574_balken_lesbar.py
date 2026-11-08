@@ -21,7 +21,7 @@ BASIS = {"id": 1, "order_number": "AU-1", "project_number": "P-1", "project_name
 ANTRAG = {"type": "antrag_offen", "label": "Sol Test · Krankheit", "stufe": "hinweis"}
 FEIERTAG = {"type": "holiday", "label": "Neujahr", "stufe": "hinweis"}
 DOPPELT = {"type": "employee", "label": "Tom Test", "stufe": "warnung"}
-FUNKTIONEN = ("fmt", "vornamen", "slotHinweis", "einsatzTitel", "balkenHtml", "einsatzBalken")
+FUNKTIONEN = ("fmt", "vornamen", "imStueck", "slotHinweis", "einsatzTitel", "balkenHtml", "einsatzBalken")  # seit 1.9.264 imStueck
 
 
 def _balken(**anders):

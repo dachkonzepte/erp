@@ -139,7 +139,8 @@ def test_gruppen_doppelt_und_antrag():
                     "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }")
     ablauf = ("AUFRUFE.push({gruppen: personenGruppen().map(g => [g.titel, g.team, g.personen.map(p => p.name)]), "
               "doppelt: [doppeltText(20), doppeltText(10), doppeltText(31)], antrag: antragText(31)});")
-    [erg] = im_browser("planning.html", ["personenGruppen", "doppeltText", "antragText", "fmtSpanne", "fmt", "addDays", "iso"], vorbereitung, ablauf)
+    [erg] = im_browser("planning.html", ["personenGruppen", "einsatzTage", "personTageIn", "folgen", "doppeltText", "antragText", "fmtSpanne", "fmt", "addDays",
+                                         "iso"], vorbereitung, ablauf)  # seit 1.9.264 mit den Helfern der Tage je Person
     assert erg["gruppen"] == [["Kolonne Nord", 1, ["Tom", "Ole"]],   # Kolonnenführer zuerst, Ole nur in seiner ersten Kolonne
                               ["Kolonne Süd", 2, ["Kai"]],          # wer nicht sichtbar ist, fehlt; eine leere Kolonne ohne Abschnitt
                               ["Ohne Kolonne", None, ["Ulf"]], ["Bauleitung · Termine aus dem Kalender", None, ["Bea"]]]
@@ -157,6 +158,6 @@ def test_balken_einer_person_nur_mit_ihren_konflikten():
                     "function vornamen() { return ''; } function einsatzTitel() { return ''; }")
     ablauf = ("AUFRUFE.push({p: [20, 21, 22, 23].map(p => { const b = einsatzBalken(s, 'person', 1, p); return [b.warn, b.hint]; }), "
               "k: (b => [b.warn, b.hint])(einsatzBalken(s, 'kolonne'))});")
-    [erg] = [x for x in im_browser("planning.html", ["einsatzBalken"], vorbereitung, ablauf) if "p" in x]
+    [erg] = [x for x in im_browser("planning.html", ["imStueck", "einsatzBalken"], vorbereitung, ablauf) if "p" in x]  # seit 1.9.264 mit imStueck
     assert erg["p"] == [[True, False], [False, True], [False, True], [False, False]]  # Kai, Nele, Freistellung, jemand ohne -- der Feiertag nicht
     assert erg["k"] == [True, True]  # in „Kolonnen“ alle
