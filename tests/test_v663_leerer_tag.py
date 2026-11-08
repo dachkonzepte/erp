@@ -214,11 +214,11 @@ def test_dialog_und_ziehen_nehmen_die_rueckfrage():
     assert "textContent=p.leer?'Der Einsatz hat dann niemanden mehr – beim Speichern: löschen oder behalten.':''" in seite  # der Dialog sagt es vorher
 
 
-def test_ganz_leer_mit_stunden_meldet_die_kapazitaet(welt):
-    """Der leere Tag selbst meldet nichts; fehlt dadurch Kapazität für die Stunden des Einsatzes, sagt das „Kapazität reicht nicht“ wie bisher -- auch an
-    einem behaltenen, ganz leeren Einsatz (seine Stunden bleiben)."""
+def test_ganz_leer_mit_stunden_meldet_keine_kapazitaet(welt):
+    """Der leere Tag selbst meldet nichts. Seit 1.9.266 (R5b, Punkt 0b, Frage 2) auch ein behaltener, ganz leerer Einsatz nicht -- bis 1.9.265 sagte er
+    „Kapazität reicht nicht“ für seine Stunden (Festlegung 1.9.263 Nr. 2; die Erwartung hier war [("capacity", "hinweis")]). Mehr in test_v666."""
     db = welt["db"]
     slot = _einsatz(welt, {"tom": None}, _tag(0), _tag(0))
     update_slot(db, slot.id, besetzung=[], wenn_leer="behalten")
     [s] = planning_board(db, MO, MO + timedelta(days=13))["slots"]
-    assert [(k["type"], k["stufe"]) for k in s["conflicts"]] == [("capacity", "hinweis")]
+    assert s["niemand"] and s["conflicts"] == []

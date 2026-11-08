@@ -1880,3 +1880,26 @@ ganze Liste auf 500. Büro – Auftrag (`EmployeeRosterOut`) und die Monteurin (
 Neu: `tests/test_v665_mitarbeiter_ohne_stundenlohn.py` (Liste und einzeln als Admin, Büro – Finanzen und Büro – Auftrag mit einem gewerblichen Mitarbeiter ohne
 Stundenlohn; Anlegen und Ändern ohne Stundenlohn 422, die Liste danach lesbar; die Antwort ohne Validatoren und Grenzen mit allen Feldern des Formulars).
 Gegenproben: Archiv `gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.266 (Punkt 0b): „niemand“ meldet keine Kapazität
+
+Frage 2 aus R5a: ein behaltener, ganz leerer Einsatz meldete für seine Stunden „Kapazität reicht nicht“ (Festlegung 1.9.263 Nr. 2, zweiter Teil). Antwort: ein
+Einsatz mit „niemand“ meldet keine Kapazität. `app/planning.py::_conflicts()` legt den Hinweis `capacity` nur noch an, wenn am Einsatz jemand steht
+(`_besetzte_tage()`, Person oder Gerät). Damit schweigen Tafel, Zähler („Hinweise“), die Antwort beim Speichern (`einsatz_konflikte()`) und die Prüfung des
+Dialogs -- alle rechnen über `_conflicts()`. Ein Einsatz mit nur einem Gerät (keine Person, also keine Kapazität) meldet weiter. Die Rechnung im Dialog
+(„niemand eingeplant = 0,00 h“) bleibt.
+
+#### Festlegungen 1.9.266 (Bitte bestätigen)
+
+1. Ein ganz leerer Einsatz („niemand“: keine Person, kein Gerät) meldet keine Kapazität -- auf der Tafel, im Zähler, beim Speichern und in der Prüfung des Dialogs.
+   Ersetzt 1.9.263 Nr. 2, zweiter Teil.
+2. Steht jemand am Einsatz, auch nur ein Gerät, meldet er „Kapazität reicht nicht“ wie bisher.
+
+#### Tests und Prüfung 1.9.266
+
+Neu: `tests/test_v666_niemand_ohne_kapazitaet.py` (Tafel und Zähler, Speichern und Prüfung, ein Einsatz mit nur einem Gerät meldet weiter). Gegenproben: Archiv
+`gegenproben-stufe6-r5b.md`.
+
+Angepasste Erwartungen (Regel 28): `tests/test_v663_leerer_tag.py::test_ganz_leer_mit_stunden_meldet_die_kapazitaet` heißt jetzt `…_meldet_keine_kapazitaet`
+-- alt: Konflikte `[("capacity", "hinweis")]`, neu: keine, „niemand“. `scripts/klicktest_plantafel_tage.py`, Prüfung „Leer: Behalten“ -- alt: Knopf „1 Hinweis“,
+Konflikte der Garage `["capacity"]`; neu: „Keine Warnungen“, keine.

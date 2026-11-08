@@ -1264,7 +1264,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`personTagUmschalten()`, `tageImZeitraum()`), in „Kolonnen“ je Stück ein Balken mit Lücke am leeren Tag (`stueckItems()`, Vornamen je Stück), in „Personen“ je
   Folge ihrer Tage, Warnung am Stück ihrer Tage (`imStueck()`), „doppelt“ je Tag (`tests/test_v664_plantafel_tage.py`, Klicktest `klicktest_plantafel_tage.py`).
   **Stufe 6, R5b (ab 1.9.265, Tag-Aktionen):** vorweg prüft die Antwort von `GET /api/employees` nicht mehr wie das Formular (`EmployeeOut` aus
-  `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`). Befund R5 und Herleitung:
+  `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`); ein ganz leerer Einsatz
+  („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

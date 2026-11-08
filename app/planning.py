@@ -1754,7 +1754,9 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     result[slot.id].append({"type":"pruefung", "label":f"{name} · {art} fällig am {faellig:%d.%m.%Y}", "date":spaeter[0],
                                             "resource_id":row.resource_id,  # seit 1.9.255
                                             "other_slot_id":None, "other_project":None, "other_project_name":None})
-        if shortfall > 0:
+        # seit 1.9.266 (Stufe 6, R5b, Punkt 0b, Frage 2 aus R5a): ein ganz leerer Einsatz („niemand“) meldet keine Kapazität -- bis 1.9.265 sagte er
+        # „Kapazität reicht nicht“ für seine Stunden (Festlegung 1.9.263 Nr. 2, zweiter Teil)
+        if shortfall > 0 and _besetzte_tage(slot):
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     for liste in result.values():
         for konflikt in liste:

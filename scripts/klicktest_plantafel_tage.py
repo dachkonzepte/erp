@@ -209,12 +209,12 @@ async def pruefen(tab, seed, p):
     await tab.bild("tage_leer_rueckfrage")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('leerBehalten').click()", "#planner")
     await tab.warten(bereit(4) + "&&!document.getElementById('leerDialog').open&&!document.getElementById('einsatzDialog').open", 15)
-    # keine Warnung mehr (Kai ist nicht mehr doppelt); der eine Hinweis: die Garage behält ihre 8 Stunden, ohne Kapazität (Festlegung 1.9.263 Nr. 2)
-    p.pruefe("Leer: Behalten -> „niemand“, keine Warnung mehr, Hinweis Kapazität", [await tab.js(BALKEN_JE_ZEILE + "('Ohne Kolonne')"),
+    # keine Warnung mehr (Kai ist nicht mehr doppelt); seit 1.9.266 auch kein Hinweis: „niemand“ meldet keine Kapazität (bis 1.9.265 „1 Hinweis“, capacity)
+    p.pruefe("Leer: Behalten -> „niemand“, keine Warnung, kein Hinweis", [await tab.js(BALKEN_JE_ZEILE + "('Ohne Kolonne')"),
              await tab.js("document.getElementById('filterText').textContent"),
              await tab.js("board.slots.find(s=>s.project_name==='Garage Lindenweg 7').conflicts.map(c=>c.type)")],
              [[["Sturmschaden Gartenstraße 2 · Lia, Ole", "fest"], ["Ortgang Lindenweg 9 · Tom, Mia", "fest"], ["Garage Lindenweg 7 · niemand", "vorlaeufig"]],
-              "1 Hinweis", ["capacity"]])
+              "Keine Warnungen", []])
     await tab.js(f"openEdit({seed['ortgang']})")
     await tab.warten("document.getElementById('einsatzDialog').open")
     await tab.warte_auf_ruhe()
