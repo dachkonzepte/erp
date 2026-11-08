@@ -140,7 +140,7 @@ Verteilung wie bisher (seit 1.9.261 je Tag), `test_ganz_leer_mit_stunden_meldet_
 | Nr. 5 – doppelt je Tag | alle Tage des Einsatzes (`264_5a`) | 1 rot: v664::test_doppelt_je_tag |
 | Nr. 5 – doppelt je Tag | alle Tage des Einsatzes (`264_5b`, Klicktest Tage) | rot: plantafel_tage (Personen) |
 | Nr. 6 – der Titel nennt die Tage | ohne (`264_6a`) | 1 rot: v664::test_titel_nennt_die_tage_je_person |
-| 1.9.263 Nr. 4 – die Seite fragt (im Browser) | leerFrage antwortet nie (`264_7a`, Klicktest Tage) | rot: plantafel_tage (Leer; nicht neu geladen (#planner), Anfragen {"gestartet"; Leer; nicht neu gelad) |
+| 1.9.263 Nr. 4 – die Seite fragt (im Browser) | leerFrage antwortet nie (`264_7a`, Klicktest Tage) | rot: plantafel_tage (Leer, dreimal; zweimal davon „nicht neu geladen (#planner)“ -- ohne Rückfrage kein Behalten und kein Löschen) |
 
 Ohne eigene Gegenprobe: „Ziehen eines Stücks verschiebt den ganzen Einsatz“ (Nr. 2) -- `verschieben()` unverändert seit 1.9.249, der Versatz rechnet vom Beginn
 des Einsatzes.
