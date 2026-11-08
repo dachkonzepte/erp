@@ -42,3 +42,24 @@ Ohne eigene Gegenprobe: „bestehende Einsätze und der Schnappschuss an der AV 
 | Nr. 8 – Prüfung nennt die Tage | ohne Tage (`260_8d`) | 1 rot: v660::test_pruefung_nennt_die_tage_je_person |
 
 Ohne Klicktest-Gegenprobe: Tage wählen lässt sich im Dialog erst ab 1.9.264 (dort `klicktest_plantafel_tage`).
+
+## 1.9.261 (Punkt 2): Konflikte, Kapazität und der Zustand im Dialog je Tag
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Person doppelt nur an gemeinsamen Tagen | Überschneidung der Zeiträume (`261_1a`) | 1 rot: v661::test_person_doppelt_nur_an_gemeinsamen_tagen |
+| Nr. 1 – Person doppelt nennt die Tage | ohne Tage (`261_1b`) | 2 rot: v661::test_bestand_meldet_dasselbe_mit_den_tagen, v661::test_person_doppelt_nur_an_gemeinsamen_tagen |
+| Nr. 1 – Gerät doppelt nennt die Tage | ohne Tage (`261_1c`) | 1 rot: v661::test_geraet_doppelt_nennt_die_tage |
+| Nr. 2 – abwesend nur an ihren Tagen | an allen Tagen (`261_2a`) | 1 rot: v661::test_abwesend_nur_an_ihren_tagen |
+| Nr. 2 – Antrag nur an ihren Tagen, erster Tag | an allen Tagen (`261_2b`) | 1 rot: v661::test_antrag_offen_nur_an_ihren_tagen_mit_dem_ersten |
+| Nr. 3 – Feiertag nur, wenn jemand steht | an jedem Arbeitstag (`261_3a`) | 1 rot: v661::test_feiertag_nur_wenn_jemand_steht |
+| Nr. 3 – ein Gerät ist auch jemand | nur Personen (`261_3b`) | 1 rot: v661::test_feiertag_nur_wenn_jemand_steht |
+| Nr. 4 – Kapazität je Tag | alle Personen an jedem Tag (`261_4a`) | 1 rot: v661::test_kapazitaet_je_tag |
+| Nr. 4 – Rechnung je Person | alle Arbeitstage (`261_4b`) | 1 rot: v661::test_rechnung_im_dialog_je_person |
+| Nr. 5 – gewählt an ihren Tagen | alle Tage des Einsatzes (`261_5a`) | 3 rot: v661::test_dialog_abwesend_nur_an_ihren_tagen, v661::test_dialog_antrag_nur_an_ihren_tagen, v661::test_dialog_auch_bei_nur_mit_den_gemeinsamen_tagen |
+| Nr. 5 – gemeinsame Tage mit dem anderen Einsatz | dessen ganzer Zeitraum (`261_5b`) | 1 rot: v661::test_dialog_auch_bei_nur_mit_den_gemeinsamen_tagen |
+| Nr. 5 – Antrag nur an ihren Tagen | jeder Antrag (`261_5c`) | 1 rot: v661::test_dialog_antrag_nur_an_ihren_tagen |
+| Nr. 5 – abwesend nur an ihren Tagen | ganzer Zeitraum (`261_5d`) | 1 rot: v661::test_dialog_abwesend_nur_an_ihren_tagen |
+
+Ohne eigene Gegenprobe: „der Zähler zählt ein Paar weiter einmal“ (Nr. 1) -- `tafel_zaehler()` unverändert seit 1.9.247, die Tage gehen nicht in seinen
+Schlüssel; der Test `test_tafel_zaehlt_ein_paar_einmal` hält es fest. Ohne Klicktest-Gegenprobe: die Oberfläche zeigt die Tage erst ab 1.9.264.

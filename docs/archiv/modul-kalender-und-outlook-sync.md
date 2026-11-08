@@ -1670,3 +1670,33 @@ Archiv `gegenproben-stufe6-r5a.md`.
 
 Angepasste Erwartung (Regel 28): `tests/test_v637_plantafel_bedienbar.py::test_dialog_fuellt_die_zeile_beim_oeffnen` -- alt: `openEdit()` füllt
 `employee_ids:s.employees.map(e=>e.id)`; neu: `besetzung:s.employees.map(e=>({employee_id:e.id,tage:e.tage??null}))`.
+
+### Umsetzung 1.9.261 (Punkt 2): Konflikte, Kapazität und der Zustand im Dialog je Tag
+
+- `app/planning.py::_conflicts()`: „Person doppelt“ nur, wenn sich die Tage der Person in beiden Einsätzen treffen (bis 1.9.260 genügte, dass sich die
+  Zeiträume überschneiden); „Person doppelt“ und „Gerät doppelt“ tragen die gemeinsamen Tage (`tage`, sortiert). `tafel_zaehler()` zählt ein Paar weiter
+  einmal (die Tage gehen nicht in `date`). Abwesend und Freistellung je Tag nur an den Tagen der Person (`_tage_je_person()`), ein offener Antrag nur, wenn er
+  ihre Tage berührt, mit dem ersten betroffenen Tag. Feiertag und betriebsfreier Tag nur an einem Tag, an dem jemand steht -- Person oder Gerät
+  (`_jemand_am()`, Antwort 14).
+- Kapazität: `_slot_distribution()` gibt `_day_capacity()` je Tag nur die Personen dieses Tages -- damit auch „Kapazität reicht nicht“, die Kapazität je Person
+  und je Kolonne der Tafel (aus der Verteilung). `_kapazitaet_rechnung()`: je Person ihre Arbeitstage am Einsatz; die Kurzform „n Personen × m Arbeitstage ×
+  h“ nur, wenn alle an allen Arbeitstagen gleich stehen, sonst je Person.
+- Dialog (`_personen_zustand()`): „auch bei …“ (gewählt) bzw. „bei …“ (Vorschlag, „+ Person“) mit den gemeinsamen Tagen als Folgen („02.–03.11., 05.11.“) --
+  eine gewählte Person an ihren Tagen, sonst gegen alle Tage des Einsatzes; abwesend nur an ihren Tagen; ein Antrag nur, wenn er ihre Tage berührt.
+- Der Bestand (alle an allen Tagen) meldet dieselben Konflikte wie bisher, nur mit den Tagen; die Tests bis 1.9.260 laufen ohne Änderung.
+
+#### Festlegungen 1.9.261 (Bitte bestätigen)
+
+1. „Person doppelt“ nur an gemeinsamen Tagen; Person und Gerät doppelt nennen ihre Tage; der Zähler zählt ein Paar weiter einmal.
+2. Abwesend, Freistellung des Arbeitszeitkalenders und Antrag offen nur an den Tagen der Person; der Antrag mit dem ersten betroffenen Tag.
+3. Feiertag und betriebsfreier Tag nur, wenn an dem Tag jemand steht -- eine Person oder ein Gerät (Antwort 14).
+4. Die Kapazität eines Tages kommt nur aus den Personen an diesem Tag (Verteilung, „Kapazität reicht nicht“, Kapazität der Tafel); die Rechnung im Dialog je
+   Person mit ihren Arbeitstagen.
+5. Dialog: „auch bei …“/„bei …“ mit den gemeinsamen Tagen (gewählt an ihren Tagen, sonst an allen Tagen des Einsatzes); abwesend nur an ihren Tagen; ein
+   Antrag nur, wenn er ihre Tage berührt.
+
+#### Tests und Prüfung 1.9.261
+
+Neu: `tests/test_v661_konflikte_je_tag.py` (doppelt nur an gemeinsamen Tagen, Bestand mit Tagen, Gerät mit Tagen, Zähler, abwesend, Antrag, Feiertag mit
+Person und mit Gerät, Verteilung je Tag, Rechnung je Person, Dialog „auch bei“, abwesend und Antrag im Dialog). Gegenproben: Archiv
+`gegenproben-stufe6-r5a.md`. Angepasste Erwartungen: keine.

@@ -1252,7 +1252,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `b6e4d2a9c731`, leer = alle Tage, der Bestand an allen Tagen): `besetzung` [{employee_id, tage}] neben `employee_ids` (= alle Tage), Normalform auf dem Server
   (auch Geräte), Tage wandern beim Verschieben mit (`_tage_mitnehmen()`), eine Funktion `_tage_der_zeile()` für Personen und Geräte. **Die Falle:** „alle Tage“
   heißt „alle Tage des Einsatzes“ -- eine Tag-Aktion, die den Zeitraum ändert, nimmt `update_slot(alle_tage_mitnehmen=False)` (schreibt die übrigen vorher
-  auf ihre Tage fest), sonst stünde die ganze Kolonne am neuen Tag (`tests/test_v660_besetzung_je_tag.py`). Befund R5 und Herleitung:
+  auf ihre Tage fest), sonst stünde die ganze Kolonne am neuen Tag (`tests/test_v660_besetzung_je_tag.py`); seit 1.9.261 rechnen Konflikte, Kapazität und der
+  Zustand im Dialog je Tag: Person/Gerät doppelt nur an gemeinsamen Tagen und mit ihren Tagen („tage“), abwesend, Freistellung und Antrag nur an den Tagen der
+  Person, Feiertag nur, wenn jemand steht (`_tage_je_person()`, `_jemand_am()`; `tests/test_v661_konflikte_je_tag.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.261 – Plantafel: Konflikte und Kapazität je Tag (Stufe 6, R5a, Punkt 2)
+
+Seit 1.9.260 kann eine Person an einzelnen Tagen eines Einsatzes stehen; jetzt rechnet die Plantafel auch so. „Person doppelt“ meldet eine Person nur noch an den Tagen, an denen sie in zwei Einsätzen zugleich steht -- bis 1.9.260 genügte es, dass sich die Zeiträume überschnitten. Person und Gerät doppelt nennen dazu ihre Tage. Abwesenheit, Freistellung und offener Antrag zählen nur an den Tagen der Person, ein Feiertag oder betriebsfreier Tag meldet sich nur, wenn an dem Tag jemand steht. Die Kapazität eines Tages kommt nur aus den Personen dieses Tages -- in der Verteilung, in „Kapazität reicht nicht“ und in der Rechnung des Dialogs („Tom 1 × 8,00 h + Mia 3 × 8,00 h“). Im Dialog nennt „auch bei …“ die gemeinsamen Tage.
+
+Für den Bestand ändert sich nichts: wer an allen Tagen steht, meldet dieselben Konflikte wie bisher, nur mit den Tagen.
+
 ## 1.9.260 – Plantafel: Besetzung je Tag -- Spalte und Schreibweg (Stufe 6, R5a, Punkt 1)
 
 Eine Person am Einsatz hat jetzt ihre Tage wie ein Gerät: `planning_slot_employees.tage` (Migration `b6e4d2a9c731`), leer heißt alle Tage. Jeder bestehende Einsatz behält seine Besetzung an allen Tagen -- die Migration schreibt nichts; zurück geht sie nur, solange niemand an einzelnen Tagen steht. Anlegen, Ändern, Prüfen und das Übernehmen eines Kran-Termins nehmen `besetzung` mit den Tagen je Person; `employee_ids` und der Vorschlag der Kolonne heißen weiter alle Tage. Der Server prüft die Tage wie bei den Geräten und speichert „an allen Tagen einzeln genannt“ als alle Tage (auch bei Geräten). Verschieben und ein anderer Zeitraum nehmen die Tage der Personen mit wie die der Geräte.

@@ -1001,7 +1001,9 @@ def _kapazitaet_rechnung(db: Session, slot: PlanningSlot) -> dict:
     abwesend = _abwesend_map(db, _absence_rows(db, slot.start_date, slot.end_date, ids), personen, slot.start_date, slot.end_date) if ids else {}
     soll = _soll_je_tag(db, personen, slot.start_date, slot.end_date) if ids else {}
     anfahrt = _slot_travel(slot, settings)
-    je_person = [(p, [n for t in tage if not abwesend.get((p.id, t)) and (n := _netto(soll.get((p.id, t), Decimal("0")), anfahrt)) > 0]) for p in personen]
+    tage_je = _tage_je_person(slot)  # seit 1.9.261: je Person ihre Arbeitstage am Einsatz
+    je_person = [(p, [n for t in tage if t in tage_je[p.id] and not abwesend.get((p.id, t)) and (n := _netto(soll.get((p.id, t), Decimal("0")), anfahrt)) > 0])
+                 for p in personen]
     summe = sum((sum(w, Decimal("0")) for _, w in je_person), Decimal("0"))
     alle = [w for _, ws in je_person for w in ws]
     if not je_person:
@@ -1038,23 +1040,30 @@ def _personen_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot
     abwesend = _abwesend_map(db, _absence_rows(db, von, bis, set(ids)), list(personen.values()), von, bis) if ids else {}
     antraege = _offene_antraege(db, von, bis, set(ids))
     out = []
+    alle_tage = set(_date_range(von, bis))
+    tage_je = _tage_je_person(slot)
     for i in ids:
         teile, stufe = [], "frei"
+        meine = tage_je.get(i, alle_tage)  # seit 1.9.261: eine gewählte Person an ihren Tagen, sonst an allen Tagen des Einsatzes
         for o in andere:
-            if any(x.employee_id == i for x in o.besetzung):
-                sp = _spanne(max(von, o.start_date), min(bis, o.end_date))
+            zeile = next((x for x in o.besetzung if x.employee_id == i), None)
+            gemeinsam = meine & _tage_der_zeile(o, zeile) if zeile is not None else set()
+            if gemeinsam:
+                sp = ", ".join(_spanne(a, b) for a, b in _folgen_der_tage(gemeinsam))  # seit 1.9.261 die gemeinsamen Tage (bis 1.9.260 die Überschneidung)
                 if i in gewaehlt:
                     teile.append(f"auch bei {o.preparation.order.project.project_number} · {sp}")
                     stufe = "doppelt"
                 else:
                     teile.append(f"Kranvermietung {sp}" if o.art == "kranvermietung" else f"bei {o.preparation.order.project.project_number} · {sp}")
                     stufe = stufe if stufe != "frei" else "belegt"
-        tage_weg = sorted(t for (eid, t) in abwesend if eid == i and von <= t <= bis)
+        tage_weg = sorted(t for (eid, t) in abwesend if eid == i and t in meine)
         for a, b in _folgen_der_tage(tage_weg):
             art = abwesend[(i, a)].kalendertag if isinstance(abwesend[(i, a)], Freistellung) else abwesend[(i, a)].absence_type
             teile.append(f"{art if mit_art and art else 'abwesend'} {_spanne(a, b)}")
             stufe = "abwesend" if stufe in ("frei", "belegt", "antrag") else stufe
         for a in antraege.get(i, []):
+            if not any(a.start_date <= t <= a.end_date for t in meine):  # seit 1.9.261: nur ein Antrag an ihren Tagen
+                continue
             teile.append(f"{a.absence_type + ' ' if mit_art and a.absence_type else ''}beantragt {_spanne(a.start_date, a.end_date)}")  # der ganze Antrag (Zeichnung)
             stufe = "antrag" if stufe in ("frei", "belegt") else stufe
         zeile = next((x for x in slot.besetzung if x.employee_id == i), None)
@@ -1130,6 +1139,16 @@ def delete_slot(db: Session, slot_id: int) -> int:
     return prep_id
 
 
+def _tage_je_person(slot: PlanningSlot) -> dict[int, set[date]]:
+    """Seit 1.9.261 (Stufe 6, R5a, Punkt 2): je Person der Besetzung ihre Tage am Einsatz."""
+    return {x.employee_id: _tage_der_zeile(slot, x) for x in slot.besetzung}
+
+
+def _jemand_am(slot: PlanningSlot, tag: date) -> bool:
+    """Seit 1.9.261: steht an dem Tag jemand am Einsatz -- eine Person oder ein Gerät?"""
+    return any(tag in _tage_der_zeile(slot, x) for x in (*slot.besetzung, *slot.geraete))
+
+
 def _slot_members(slot: PlanningSlot, visible_employee_ids: set[int] | None = None) -> tuple[set[int], set[int]]:
     """Seit 1.9.233 die Personen aus der Besetzung des Einsatzes (bis 1.9.232 aus dem Schnappschuss der Kolonne), seit 1.9.234 die Geräte aus den
     Geräten des Einsatzes (bis 1.9.233 aus der Kolonne; ob sie sich an einem Tag treffen, prüft _conflicts())."""
@@ -1153,9 +1172,10 @@ def _slot_distribution(
     employees = _besetzung(slot, visible_employee_ids)
     if soll is None:  # seit 1.9.211: ohne mitgegebene Sollzeit (einzelner Aufruf) für diesen Einsatz nachschlagen
         soll = _soll_je_tag(db, employees, slot.start_date, slot.end_date)
+    tage_je = _tage_je_person(slot)  # seit 1.9.261: je Tag nur, wer an dem Tag am Einsatz steht
     distribution = {}
     for day in _date_range(slot.start_date, slot.end_date):
-        capacity, available, absent = _day_capacity(employees, day, settings, travel, holiday_dates, absences, soll)
+        capacity, available, absent = _day_capacity([e for e in employees if day in tage_je[e.id]], day, settings, travel, holiday_dates, absences, soll)
         load = min(remaining, capacity)
         remaining -= load
         distribution[day] = {
@@ -1570,14 +1590,19 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             issues = []
             # seit 1.9.236 kein „Kolonne doppelt“ mehr: zwei Einsätze derselben Kolonne mit verschiedenen Personen sind kein Konflikt (Zeichnung)
             for eid in sorted(a_emps & b_emps):
-                name = next((_employee_name(x.employee) for x in a.besetzung if x.employee_id == eid), f"Mitarbeiter #{eid}")
-                issues.append(("employee", name, {"employee_id": eid}))  # seit 1.9.250: wen der Konflikt betrifft („Personen“ zeigt ihn nur bei ihr)
+                xa = next(x for x in a.besetzung if x.employee_id == eid)
+                xb = next(x for x in b.besetzung if x.employee_id == eid)
+                gemeinsam = _tage_der_zeile(a, xa) & _tage_der_zeile(b, xb)  # seit 1.9.261 nur an gemeinsamen Tagen (bis 1.9.260: Zeiträume überschneiden sich)
+                if gemeinsam:
+                    # seit 1.9.250: wen der Konflikt betrifft („Personen“ zeigt ihn nur bei ihr); seit 1.9.261 an welchen Tagen
+                    issues.append(("employee", _employee_name(xa.employee), {"employee_id": eid, "tage": sorted(gemeinsam)}))
             for rid in sorted(a_res & b_res):  # seit 1.9.234 nur, wenn sich die Tage des Geräts in beiden Einsätzen treffen
                 ra = next(x for x in a.geraete if x.resource_id == rid)
                 rb = next(x for x in b.geraete if x.resource_id == rid)
-                if _tage_der_zeile(a, ra) & _tage_der_zeile(b, rb):
-                    # seit 1.9.255: welches Gerät -- die Zeile eines Geräts zeigt nur seine Warnungen
-                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", {"resource_id": rid}))
+                gemeinsam = _tage_der_zeile(a, ra) & _tage_der_zeile(b, rb)
+                if gemeinsam:
+                    # seit 1.9.255: welches Gerät -- die Zeile eines Geräts zeigt nur seine Warnungen; seit 1.9.261 an welchen Tagen
+                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", {"resource_id": rid, "tage": sorted(gemeinsam)}))
             for kind, label, wen in issues:
                 result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name, **wen})
                 result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name, **wen})
@@ -1586,12 +1611,14 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         distribution, shortfall = _slot_distribution(db, slot, settings, holiday_dates, absences, visible_employee_ids, soll)
         distributions[slot.id] = distribution
         seen_absence = set()
+        tage_je = _tage_je_person(slot)  # seit 1.9.261: abwesend, Freistellung und Antrag nur an den Tagen der Person
         for day in _date_range(slot.start_date, slot.end_date):
-            if day in holiday_names and day.weekday() in arbeitstage:  # seit 1.9.150: ein Feiertag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts
+            # seit 1.9.150: ein Feiertag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts; seit 1.9.261 auch nicht, wenn an dem Tag niemand steht
+            if day in holiday_names and day.weekday() in arbeitstage and _jemand_am(slot, day):
                 result[slot.id].append({"type":"holiday", "label":holiday_names[day], "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
             frei = []  # seit 1.9.188: wer an dem Tag eine Freistellung des Arbeitszeitkalenders hat -- ein Hinweis je Tag, wie der betriebsfreie Tag
             for member in slot.besetzung:  # seit 1.9.233 die Besetzung des Einsatzes
-                if member.employee_id not in visible_employee_ids: continue
+                if member.employee_id not in visible_employee_ids or day not in tage_je[member.employee_id]: continue
                 name = _employee_name(member.employee)
                 absence = absences.get((member.employee_id, day))
                 if isinstance(absence, Freistellung):
@@ -1612,8 +1639,9 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             if member.employee_id not in visible_employee_ids: continue
             name = _employee_name(member.employee)
             for antrag in offene_antraege.get(member.employee_id, ()):
-                if _ranges_overlap(antrag.start_date, antrag.end_date, slot.start_date, slot.end_date):
-                    result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":max(antrag.start_date, slot.start_date), "employee_id":member.employee_id, "other_slot_id":None, "other_project":None, "other_project_name":None})
+                betroffen = sorted(t for t in tage_je[member.employee_id] if antrag.start_date <= t <= antrag.end_date)  # seit 1.9.261 an ihren Tagen
+                if betroffen:
+                    result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":betroffen[0], "employee_id":member.employee_id, "other_slot_id":None, "other_project":None, "other_project_name":None})
         # Seit 1.9.236 (Punkt 5): ein Gerät, dessen Prüfung an einem seiner Tage abgelaufen ist (fällig vor dem Tag) -- eine Warnung je Gerät und
         # Prüfung, mit dem ersten solchen Tag; gezählt werden die Arbeitstage des Geräts (hat es keinen, alle seine Tage), wie beim Kalender des Geräts.
         for row in slot.geraete:
