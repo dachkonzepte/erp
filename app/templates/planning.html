@@ -340,14 +340,15 @@ const WARNZEICHEN='<svg class="warnzeichen" width="12" height="12" viewBox="0 0 
 // Ein Balken: Klasse, Text (fett) und leiser Zusatz; der volle Text steht immer im title (was nicht passt: zwei Zeilen, ohne Zusatz, „…“ -- balkenEinpassen())
 function balkenHtml(b){const warn=b.warn?WARNZEICHEN:'',punkt=b.hint?'<span class="hinweis-punkt" aria-hidden="true"></span>':'';const leise=b.leise?`<span class="leise"> · ${esc(b.leise)}</span>`:'';
   // seit 1.9.250 zweizeilig (Termin einer Person: Uhrzeit über dem Titel, Zeichnung plantafel-personen.html)
-  const innen=b.zwei?`<span class="slot-text"><b>${esc(b.text)}</b><span class="leise"> ${esc(b.leise)}</span></span>`:`${warn}${punkt}<span class="slot-text">${esc(b.text)}${leise}</span>`;const lage=`left:${esc(b.left)}px;top:${esc(b.top)}px;width:${esc(b.width)}px`;if(!b.klick)return `<div class="slot ${esc(b.klasse)}" style="${lage}" title="${esc(b.title)}">${innen}</div>`;return `<button type="button" class="slot ${esc(b.klasse)}${b.warn?' conflict':''}" data-klick="${esc(b.klick)}" data-id="${esc(b.id)}" style="${lage}" title="${esc(b.title)}">${innen}</button>`}
+  const innen=b.zwei?`<span class="slot-text"><b>${esc(b.text)}</b><span class="leise"> ${esc(b.leise)}</span></span>`:`${warn}${punkt}<span class="slot-text">${esc(b.text)}${leise}</span>`;const lage=`left:${esc(b.left)}px;top:${esc(b.top)}px;width:${esc(b.width)}px`;if(!b.klick)return `<div class="slot ${esc(b.klasse)}" style="${lage}" title="${esc(b.title)}">${innen}</div>`;return `<button type="button" class="slot ${esc(b.klasse)}${b.warn?' conflict':''}" data-klick="${esc(b.klick)}" data-id="${esc(b.id)}"${b.von?` data-von="${esc(b.von)}" data-bis="${esc(b.bis)}"`:''} style="${lage}" title="${esc(b.title)}">${innen}</button>`}
 // seit 1.9.250 in „Personen“: eine Kranvermietung heißt nach dem Gerät („Kran · Vermietung“), ein Einsatz einer anderen Kolonne „· mit <Kolonne>“ (gruppe = Kolonne der Zeile)
 // seit 1.9.250 in „Personen“ (person = ID der Zeile) nur die Warnungen und Hinweise dieser Person -- doppelt, abwesend, Antrag, Freistellung (Zeichnung)
 // seit 1.9.255 in der Zeile eines Geräts (geraet = ID, in „Kolonnen“ und „Geräte“) nur die zu diesem Gerät -- doppelt, Termin im Postfach, Prüffrist
 function einsatzBalken(s,zeile,gruppe,person,geraet,stueck){const k=(s.conflicts||[]).filter(c=>(zeile==='geraet'?c.resource_id===geraet:(person==null||c.employee_id===person||(c.employee_ids||[]).includes(person)))&&imStueck(c,stueck));
   const warn=k.some(c=>c.stufe==='warnung'),hint=k.some(c=>c.stufe==='hinweis');const kran=s.art==='kranvermietung';let text=s.project_name,leise=s.niemand?'niemand':vornamen(s,stueck);
   if(kran&&zeile==='person'){text=s.resources.map(r=>r.name).join(', ')||'Kran';leise='Vermietung'}else if(kran){text='Vermietung';leise=s.niemand?'niemand':vornamen(s,stueck)}
-  else if(zeile==='person'){const k=s.team_id!=null&&s.team_id!==gruppe?board.teams.find(t=>t.id===s.team_id):null;leise=k?'mit '+k.name.replace(/^Kolonne\s+/,''):''}else if(zeile==='geraet')leise='';const zu=s.order_status==='storniert'||s.order_status==='abgeschlossen';return {klasse:[kran?'kran':'',s.status==='vorlaeufig'?'vorlaeufig':'fest',zu?'zu':''].filter(Boolean).join(' '),text,leise,title:text+(leise?' · '+leise:'')+'\n'+einsatzTitel(s),warn,hint,klick:'einsatz',id:s.id}}
+  else if(zeile==='person'){const k=s.team_id!=null&&s.team_id!==gruppe?board.teams.find(t=>t.id===s.team_id):null;leise=k?'mit '+k.name.replace(/^Kolonne\s+/,''):''}else if(zeile==='geraet')leise='';const zu=s.order_status==='storniert'||s.order_status==='abgeschlossen';return {klasse:[kran?'kran':'',s.status==='vorlaeufig'?'vorlaeufig':'fest',zu?'zu':''].filter(Boolean).join(' '),text,leise,title:text+(leise?' · '+leise:'')+'\n'+einsatzTitel(s),warn,hint,klick:'einsatz',id:s.id,
+    von:stueck?stueck[0]:s.start_date,bis:stueck?stueck[1]:s.end_date}}  // seit 1.9.270 das Stück des Balkens (data-von/-bis: Ziehen in „Personen“ und „Geräte“)
 
 /* --- Zeilen je Ansicht ------------------------------------------------------------------------------------------------------------ */
 function mitgliederText(team){return team.employees.map(e=>(e.vorname||e.name)+(e.kf?' (KF)':'')).join(', ')||'keine Mitglieder'}
@@ -551,7 +552,10 @@ function terminUebernehmen(){const t=terminOffen;if(!t||!t.uebernehmbar)return;t
 
 /* --- Bedienen (seit 1.9.249, Stufe 6, R4, Punkt 2): Klick öffnet, Ziehen verschiebt (Maus und Finger, Pointer Events), Klick in eine freie Zelle
    plant für diese Zeile und diesen Tag. Ziehen in eine Zeile der Kolonnen setzt die Kolonne (ihre Mitglieder und Geräte), in „Ohne Kolonne“ keine (die
-   Personen bleiben); in einer Zeile einer Person oder eines Geräts verschiebt es nur den Zeitraum. Warnungen fragen zurück (Rückfrage, „Trotzdem planen“). */
+   Personen bleiben); in einer Zeile einer Person oder eines Geräts verschiebt es nur den Zeitraum. Warnungen fragen zurück (Rückfrage, „Trotzdem planen“).
+   Seit 1.9.270 (Stufe 6, R5b, Punkt 4, Antwort 12): in den Ansichten „Personen“ und „Geräte“ verschiebt Ziehen nur diese Person bzw. dieses Gerät -- ihre Tage
+   dieses Balkens um gleich viele Tage, im selben Einsatz (umsetzenZiehen()); in eine andere Zeile gezogen übernimmt diese Person bzw. dieses Gerät die Tage.
+   In „Kolonnen“ (auch in ihren Gerätezeilen) weiter der ganze Einsatz (verschieben()). */
 let zug=null,nachZiehen=false;
 function tagAnX(x){const s=geo.spalten;for(let i=s.length-1;i>=0;i--)if(x>=s[i].x)return i;return 0}
 // verschiebt den Einsatz: Beginn = der Tag startIdx des Bilds (auch davor oder danach), Dauer bleibt; ziel = die Zeile (data-zeile, data-id) oder null
@@ -560,17 +564,32 @@ async function verschieben(id,ziel,startIdx){const s=findSlot(id);if(!s)return;c
   if('team_id' in body&&body.team_id===s.team_id)delete body.team_id;if(start===s.start_date&&!('team_id' in body))return;
   /* seit 1.8.96 nur Kolonne, Beginn und Ende (Regel 22) */const senden=async(trotzdem,wahl)=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{}),...(wahl?{wenn_leer:wahl}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a);await loadBoard()};
   try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück, seit 1.9.263 auch ein leerer Einsatz */if(!konfliktFrage(err,()=>senden(true))&&!leerFrage(err,wahl=>senden(false,wahl)))document.getElementById('status').textContent='Fehler: '+err.message}}
+// seit 1.9.270: zieht der Balken nur diese Person bzw. dieses Gerät? In „Personen“ und „Geräte“ ja, in „Kolonnen“ nie (auch nicht in den Gerätezeilen)
+function nurDieseZeile(spur){return (view==='employees'&&spur.dataset.zeile==='person')||(view==='resources'&&spur.dataset.zeile==='geraet')}
+function geraetTageIn(s,rid){const r=s.resources.find(x=>x.id===rid);return !r?[]:r.tage?r.tage.slice():einsatzTage(s)}
+/* seit 1.9.270 (Stufe 6, R5b, Punkt 4, Antwort 12): ihre Tage dieses Balkens (Stück von–bis) um gleich viele Tage, im selben Einsatz (genau); in eine andere
+   Zeile derselben Art übernimmt diese Person bzw. dieses Gerät die Tage (auf_…). Server: POST …/umsetzen; Warnungen fragen zurück, „niemand mehr“ auch. */
+async function umsetzenZiehen(war,ziel,startIdx){const s=findSlot(war.id);if(!s||!ziel||ziel.dataset.zeile!==war.zeile)return;
+  const feld=war.zeile==='person'?'employee_id':'resource_id',auf=Number(ziel.dataset.id);
+  const tage=(war.zeile==='person'?personTageIn(s,war.wer):geraetTageIn(s,war.wer)).filter(d=>d>=war.von&&d<=war.bis);if(!tage.length)return;
+  const zielTag=addDays(geo.spalten[0].d,startIdx);if(zielTag===tage[0]&&auf===war.wer)return;
+  const body={[feld]:war.wer,tage,ziel_tag:zielTag,ziel_slot_id:s.id,genau:true};if(auf!==war.wer)body['auf_'+feld]=auf;
+  const senden=async(trotzdem,wahl)=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{}),...(wahl?{wenn_leer:wahl}:{})});
+    const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}/umsetzen`,{method:'POST',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a.einsatz);await loadBoard()};
+  try{await senden(false)}catch(err){if(!konfliktFrage(err,()=>senden(true))&&!leerFrage(err,wahl=>senden(false,wahl)))document.getElementById('status').textContent='Fehler: '+err.message}}
 function zugEnde(){if(!zug)return;zug.b.classList.remove('zieht');zug.b.style.transform='';document.querySelectorAll('#planner .track.ziel').forEach(x=>x.classList.remove('ziel'));zug=null}
 // die Spur unter dem Punkt -- sie füllt ihre Zeile (min-height statt height: eine Zeile mit drei Textzeilen ist höher als ihre Balken)
 function spurAnPunkt(x,y){const el=document.elementFromPoint(x,y);return el?el.closest('#planner .track[data-zeile]'):null}
 function ziehenEinrichten(){const pl=document.getElementById('planner');if(pl.dataset.bedienen)return;pl.dataset.bedienen='1';
   // nach dem Ziehen (oder Abbruch) öffnet der Klick derselben Geste nicht -- die Sperre gilt bis zum nächsten Druck, ohne Timer
   pl.addEventListener('pointerdown',e=>{nachZiehen=false;const b=e.target.closest('.slot[data-klick="einsatz"]');if(!b||e.button>0)return;const s=findSlot(Number(b.dataset.id)),spur=b.closest('.track');if(!s||!spur)return;
-    const tag=tagAnX(e.clientX-spur.getBoundingClientRect().left);zug={id:s.id,b,x0:e.clientX,y0:e.clientY,versatz:tag-dateDiff(geo.spalten[0].d,s.start_date),aktiv:false};try{b.setPointerCapture(e.pointerId)}catch(x){}});
+    const einzeln=nurDieseZeile(spur);const tag=tagAnX(e.clientX-spur.getBoundingClientRect().left);
+    zug={id:s.id,b,x0:e.clientX,y0:e.clientY,versatz:tag-dateDiff(geo.spalten[0].d,einzeln?b.dataset.von:s.start_date),aktiv:false,
+         einzeln,zeile:spur.dataset.zeile,wer:Number(spur.dataset.id),von:b.dataset.von,bis:b.dataset.bis};try{b.setPointerCapture(e.pointerId)}catch(x){}});
   pl.addEventListener('pointermove',e=>{if(!zug)return;const dx=e.clientX-zug.x0,dy=e.clientY-zug.y0;if(!zug.aktiv){if(Math.hypot(dx,dy)<6)return;zug.aktiv=true;zug.b.classList.add('zieht')}
     zug.b.style.transform=`translate(${dx}px,${dy}px)`;const z=spurAnPunkt(e.clientX,e.clientY);document.querySelectorAll('#planner .track.ziel').forEach(x=>{if(x!==z)x.classList.remove('ziel')});if(z)z.classList.add('ziel')});
   pl.addEventListener('pointerup',e=>{if(!zug)return;const z=zug.aktiv?spurAnPunkt(e.clientX,e.clientY):null,war=zug;zugEnde();if(!war.aktiv)return;nachZiehen=true;if(!z)return;
-    const tag=tagAnX(e.clientX-z.getBoundingClientRect().left);verschieben(war.id,z,tag-war.versatz)});
+    const tag=tagAnX(e.clientX-z.getBoundingClientRect().left);if(war.einzeln)umsetzenZiehen(war,z,tag-war.versatz);else verschieben(war.id,z,tag-war.versatz)});
   pl.addEventListener('pointercancel',()=>zugEnde());
   // Escape bricht ab -- das Loslassen danach öffnet den Einsatz nicht
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&zug){if(zug.aktiv)nachZiehen=true;zugEnde()}});

@@ -111,14 +111,15 @@ def _auftrag(db: Session, order_id: int) -> Order:
     return order
 
 
-def _karte(db: Session, order: Order, slot_id: int | None, tage: list[date]) -> PlanningSlot | None:
-    """Antwort 6: die Karte, auf die gezogen wurde -- ein Einsatz dieses Auftrags (fremd wie unbekannt 404, Regel 25) an diesem Tag (sonst 422)."""
+def _karte(db: Session, order: Order, slot_id: int | None, tage: list[date], *, genau: bool = False) -> PlanningSlot | None:
+    """Antwort 6: die Karte, auf die gezogen wurde -- ein Einsatz dieses Auftrags (fremd wie unbekannt 404, Regel 25) an diesem Tag (sonst 422). Seit 1.9.270
+    genau: genau dieser Einsatz, auch an Tagen außerhalb (er wird verlängert) -- Ziehen in „Personen“ und „Geräte“ (Punkt 4)."""
     if slot_id is None:
         return None
     karte = db.get(PlanningSlot, slot_id)
     if karte is None or karte.preparation.order_id != order.id:
         raise IdNichtGefunden("Einsatz wurde nicht gefunden.")
-    if karte.start_date > max(tage) or karte.end_date < min(tage):
+    if not genau and (karte.start_date > max(tage) or karte.end_date < min(tage)):
         raise BesetzungUngueltig(NICHT_AM_TAG)
     return karte
 
@@ -128,9 +129,13 @@ def _art_des_auftrags(slots: list[PlanningSlot]) -> str:
     return max(slots, key=lambda s: (s.start_date, s.id)).art if slots else "baustelle"
 
 
-def ziel_finden(slots: list[PlanningSlot], wer: Wer, tage: list[date], arbeitstag, karte: PlanningSlot | None = None) -> tuple[PlanningSlot | None, str]:
-    """Wohin die Tage kommen -- (Einsatz, "dazu" | "verlaengert") oder (None, "neu"). Regeln im Kopf des Moduls; die Kran-Regeln prüft _kran_pruefen()."""
+def ziel_finden(slots: list[PlanningSlot], wer: Wer, tage: list[date], arbeitstag, karte: PlanningSlot | None = None,
+                fest: PlanningSlot | None = None) -> tuple[PlanningSlot | None, str]:
+    """Wohin die Tage kommen -- (Einsatz, "dazu" | "verlaengert") oder (None, "neu"). Regeln im Kopf des Moduls; die Kran-Regeln prüft _kran_pruefen().
+    fest (seit 1.9.270): genau dieser Einsatz -- dazu, wenn er alle Tage schon hat, sonst verlängert."""
     von, bis = min(tage), max(tage)
+    if fest is not None:
+        return fest, "dazu" if fest.start_date <= von and bis <= fest.end_date else "verlaengert"
     if karte is not None:
         if wer.art != "kolonne" or _team(karte) == wer.id:
             return karte, "dazu"
@@ -197,12 +202,15 @@ def _warnungen(db: Session, slots: list[PlanningSlot]) -> dict[tuple, set[str]]:
     return vorher
 
 
-def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte: PlanningSlot | None = None) -> tuple[PlanningSlot, str, dict]:
+def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte: PlanningSlot | None = None,
+                 fest: PlanningSlot | None = None) -> tuple[PlanningSlot, str, dict]:
     """Setzt wer an diese Tage dieses Auftrags (ohne Commit, ohne Warnungen; der Aufrufer hält die Sperre). Gibt Einsatz, Aktion und die Tage je Zeile am
     Ziel vorher zurück (seit 1.9.269, für die Umkehrung; leer bei „neu“)."""
     prep_id = _prep_id(db, order.id)
     slots = _einsaetze(db, prep_id)
-    ziel, aktion = ziel_finden(slots, wer, tage, _arbeitstag(db, min(tage), max(tage)), karte)
+    if fest is not None:
+        fest = next(s for s in slots if s.id == fest.id)
+    ziel, aktion = ziel_finden(slots, wer, tage, _arbeitstag(db, min(tage), max(tage)), karte, fest)
     art = _kran_pruefen(wer, ziel, aktion, karte, slots)
     eintraege = _eintraege(db, wer, tage)
     if ziel is None:  # neu: vorläufig, Stunden = Rest (wie das Anlegen), mit Kolonne nur, wenn eine Kolonne gezogen wurde
@@ -307,6 +315,16 @@ def _person_oder_geraet(employee_id: int | None, resource_id: int | None) -> Wer
     return wer_aus(employee_id, None, resource_id)
 
 
+def _auf(wer: Wer, auf_employee_id: int | None, auf_resource_id: int | None) -> Wer:
+    """Seit 1.9.270 (Antwort 12): wer die Tage übernimmt -- dieselbe Art (Person auf Person, Gerät auf Gerät), sonst 422; ohne Angabe wer selbst."""
+    if auf_employee_id is None and auf_resource_id is None:
+        return wer
+    auf = wer_aus(auf_employee_id, None, auf_resource_id)
+    if auf.art != wer.art:
+        raise BesetzungUngueltig("Eine Person geht nur auf eine Person, ein Gerät nur auf ein Gerät.")
+    return auf
+
+
 def _einsatz(db: Session, slot_id: int) -> PlanningSlot:
     slot = db.get(PlanningSlot, slot_id)
     if slot is None:
@@ -339,12 +357,17 @@ def _leer_frage(wenn_leer: str | None, pruefen: bool) -> str | None:
 
 def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, employee_id: int | None = None, resource_id: int | None = None,
              ziel_order_id: int | None = None, ziel_slot_id: int | None = None, trotzdem_planen: bool = False, wenn_leer: str | None = None,
-             pruefen: bool = False) -> dict:
+             pruefen: bool = False, genau: bool = False, auf_employee_id: int | None = None, auf_resource_id: int | None = None) -> dict:
     """Aus einer Zelle (Punkt 2): eine Person oder ein Gerät für diese Tage auf einen anderen Auftrag oder Tag -- setzen und herausnehmen in einer
     Transaktion. Die Tage wandern um gleich viele Kalendertage (der erste auf ziel_tag); das Ziel nach den Regeln von Tag setzen (Karte = ziel_slot_id,
-    Antwort 6). Beide Arbeitsvorbereitungen werden aufsteigend gesperrt. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage (Antwort 3), wenn_leer."""
+    Antwort 6). Beide Arbeitsvorbereitungen werden aufsteigend gesperrt. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage (Antwort 3), wenn_leer.
+    Seit 1.9.270 (Punkt 4, Antwort 12): genau -- genau der Einsatz ziel_slot_id, auch an Tagen außerhalb (verlängert); auf_employee_id/auf_resource_id --
+    eine andere Person bzw. ein anderes Gerät übernimmt die Tage (in „Personen“ bzw. „Geräte“ in eine andere Zeile gezogen)."""
     try:
         wer = _person_oder_geraet(employee_id, resource_id)
+        ziel_wer = _auf(wer, auf_employee_id, auf_resource_id)
+        if genau and ziel_slot_id is None:
+            raise BesetzungUngueltig("„genau“ braucht den Einsatz (ziel_slot_id).")
         quelle = _einsatz(db, slot_id)
         tage = sorted(set(tage))
         if not tage:
@@ -356,24 +379,25 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
         quelle = _load_slot(db, slot_id, frisch=True)
         _an_den_tagen(quelle, wer, tage)
         vorher = _warnungen(db, _einsaetze(db, q_prep) + ([] if z_prep in (None, q_prep) else _einsaetze(db, z_prep)))
-        karte = _karte(db, ziel_order, ziel_slot_id, ziel_tage)
+        karte = _karte(db, ziel_order, ziel_slot_id, ziel_tage, genau=genau)
         quelle_vorher = _zeilen_tage(quelle).get((_feld(wer), wer.id), set())
-        ziel, aktion, vorher_zeilen = setzen_offen(db, ziel_order, wer, ziel_tage, karte=karte)
+        ziel, aktion, vorher_zeilen = setzen_offen(db, ziel_order, ziel_wer, ziel_tage, karte=karte, fest=karte if genau else None)
         ziel_id, quelle_id = ziel.id, quelle.id
-        weg = [t for t in tage if t not in ziel_tage] if ziel_id == quelle_id else tage  # im selben Einsatz bleiben die Tage, die sie behält
+        # im selben Einsatz bleiben die Tage, die sie behält -- übernimmt eine andere Person bzw. ein anderes Gerät, gehen alle
+        weg = [t for t in tage if t not in ziel_tage] if ziel_id == quelle_id and ziel_wer == wer else tage
         danach = (_update_slot(db, quelle_id, weg=[{_feld(wer): wer.id, "tage": weg}], wenn_leer=_leer_frage(wenn_leer, pruefen), trotzdem_planen=True,
                                _offen=True) if weg else _load_slot(db, quelle_id, frisch=True))
         ziel = _load_slot(db, ziel_id, frisch=True)
         leer = ziel_id != quelle_id and (danach is None or not _besetzte_tage(danach))
         beruehrt = [ziel] + ([danach] if danach is not None and danach.id != ziel_id else [])
         ergebnis = {"aktion": "umgesetzt", "ziel_aktion": aktion, "slot_id": ziel_id if aktion != "neu" or not pruefen else None, "quelle_id": quelle_id,
-                    "quelle_geloescht": danach is None, "tage": tage_von(ziel, wer), "bis": ziel.end_date.isoformat()}
+                    "quelle_geloescht": danach is None, "tage": tage_von(ziel, ziel_wer), "bis": ziel.end_date.isoformat()}
         if pruefen:
             ergebnis.update(pruefung(db, beruehrt, vorher), leer=leer)
             db.rollback()
             return ergebnis
         zurueck = [] if danach is None else [_schritt_dazu(quelle_id, _feld(wer), wer.id, quelle_vorher - _zeilen_tage(danach).get((_feld(wer), wer.id), set()))]
-        hin = [] if aktion == "neu" else _schritte_weg(ziel, vorher_zeilen, nur=(_feld(wer), wer.id))
+        hin = [] if aktion == "neu" else _schritte_weg(ziel, vorher_zeilen, nur=(_feld(ziel_wer), ziel_wer.id))
         abschliessen(db, beruehrt, vorher, trotzdem_planen=trotzdem_planen)
         if danach is not None:  # seit 1.9.269: erst zurück an den alten Platz, dann am Ziel heraus (ein eben angelegtes Ziel gelöscht, Antwort 5)
             hin = [{"art": "loeschen", "slot_id": ziel_id, "stand": einsatz_stand(_load_slot(db, ziel_id))}] if aktion == "neu" else hin

@@ -2056,3 +2056,46 @@ unverändert; Umsetzen in einen bestehenden, im selben Einsatz und in einen neue
 Quelle; eine Transaktion und fragt nie; Schritte prüfen; Rolle; Event-Loop; Teil-Update; Sperren aufsteigend unter SQLite; über Kreuz unter PostgreSQL).
 `tests/test_v373_zugehoerigkeit_struktur.py`: `schritte.slot_id` (FREI, `tag_aktionen._einsatz`) eingetragen. Gegenproben: Archiv `gegenproben-stufe6-r5b.md`.
 Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.270 (Punkt 4): Ziehen in „Personen“ und „Geräte“
+
+- **Seite** (`planning.html`): ein Balken trägt sein Stück (`einsatzBalken()` -> `von`/`bis`, `balkenHtml()` -> `data-von`/`data-bis`). Beim Fassen merkt sich der
+  Zug, ob er nur diese Zeile betrifft (`nurDieseZeile()`: Ansicht „Personen“ und Zeile einer Person oder Ansicht „Geräte“ und Zeile eines Geräts -- nie in
+  „Kolonnen“, auch nicht in deren Gerätezeilen), die Person bzw. das Gerät der Zeile und das Stück; der Versatz zählt dann vom ersten Tag des Stücks. Beim
+  Loslassen `umsetzenZiehen()` statt `verschieben()`: die Tage der Person bzw. des Geräts im Stück (`personTageIn()`/`geraetTageIn()`), der Tag unter dem Anfang
+  -> `POST /api/planning/slots/{id}/umsetzen` mit `genau` und `ziel_slot_id` = derselbe Einsatz; in eine andere Zeile derselben Art dazu `auf_employee_id` bzw.
+  `auf_resource_id`; eine Zeile anderer Art oder kein Unterschied -> keine Anfrage. Warnungen fragen zurück (`konfliktFrage()`, „Trotzdem planen“), „niemand mehr“
+  ebenso (`leerFrage()`). `verschieben()` (Kolonnen) bleibt unverändert.
+- **Server** (`app/tag_aktionen.py`): Umsetzen mit `genau` -- genau der Einsatz `ziel_slot_id` (`_karte(…, genau=True)` prüft nur die Zugehörigkeit, nicht den Tag;
+  `ziel_finden(…, fest=…)`: dazu, wenn er alle Tage hat, sonst verlängert mit der Falle); danach kürzt der Rand: steht sie allein, wandert der Einsatz mit (gleiche
+  ID, Notiz, Status, Stunden). `auf_employee_id`/`auf_resource_id` (`_auf()`): diese Person bzw. dieses Gerät übernimmt die Tage, dieselbe Art (sonst 422); die
+  gezogene verliert alle diese Tage. Rückgängig wie bei jedem Umsetzen.
+- Ersetzt für „Personen“ und „Geräte“ die Festlegung 1.9.249 Nr. 3 („in der Zeile einer Person oder eines Geräts nur der Zeitraum“) -- dort verschob das Ziehen
+  bis 1.9.269 den ganzen Einsatz. In „Kolonnen“ gilt sie weiter. Kein Test und kein Klicktest zog bisher in diesen Ansichten (`test_v649` prüft `verschieben()`
+  und bleibt).
+
+#### Festlegungen 1.9.270 (Bitte bestätigen)
+
+1. In „Personen“ und „Geräte“ verschiebt Ziehen nur diese Person bzw. dieses Gerät: ihre Tage dieses Balkens um gleich viele Tage, im selben Einsatz (verlängert mit
+   der Falle, am Rand gekürzt -- auch weit weg, dann mit Lücke); steht sie allein, wandert der Einsatz mit.
+2. In eine andere Zeile derselben Ansicht gezogen übernimmt diese Person bzw. dieses Gerät die Tage (schräg gezogen auch um die Tage versetzt); die gezogene verliert
+   sie; Person nur auf Person, Gerät nur auf Gerät.
+3. Bringt das eine neue Warnung, fragt die Tafel zurück („Trotzdem planen“); „niemand mehr“ wie bisher.
+4. In „Kolonnen“ weiter der ganze Einsatz, auch in ihren Gerätezeilen.
+5. Server: Umsetzen mit `genau` (genau dieser Einsatz, Tage außerhalb verlängern ihn) und `auf_employee_id`/`auf_resource_id`.
+6. Ein Balken trägt sein Stück; gezogen wird das Stück, auf dem gefasst wurde.
+
+#### Tests und Prüfung 1.9.270
+
+Neu: `tests/test_v670_ziehen_einzeln.py` (eigene Zeile mit der Falle und der Lücke, allein wandert der Einsatz, andere Zeile auch schräg, Gerät auf Gerät, Regeln,
+Rückfrage und Rückgängig, API; die Seite schickt Umsetzen -- eigene Zeile, andere Zeile, nichts, andere Art, alle Tage, Gerät --, welche Ansicht einzeln zieht,
+Balken mit Stück). Neu: `scripts/klicktest_plantafel_ziehen.py` (37 Prüfungen mit echten Mauseingaben, je 1440 und 1280 px, hell und dunkel: Personen eigene
+Zeile, andere Zeile, Rückfrage und „Trotzdem planen“; Geräte eigene Zeile, andere Zeile mit Rückfrage; danach jeder Zug über Rückgängig zurück). In
+`tests/test_v373_zugehoerigkeit_struktur.py` `auf_employee_id`/`auf_resource_id` unter `STAMMDATEN`. Gegenproben: Archiv `gegenproben-stufe6-r5b.md`.
+Angepasste Erwartungen: keine.
+
+### Stand nach R5b (1.9.265–1.9.270)
+
+Vorweg: die Mitarbeiterliste prüft nicht mehr wie das Formular; „niemand“ meldet keine Kapazität. Die Tag-Aktionen stehen auf dem Server -- Tag setzen (dazu,
+verlängert, neu), Umsetzen, Herausnehmen, Verlängern, je mit Prüfen ohne Schreiben und Rückgängig, unter Sperren in fester Reihenfolge. Die Tafel nutzt davon bisher
+das Umsetzen beim Ziehen in „Personen“ und „Geräte“. Die Ansicht „Aufträge“ mit Liste, Chips, „nur <Tag>“, „bis … verlängern“ und „Rückgängig“ kommt mit R5c.

@@ -55,6 +55,7 @@ _KEINE_ID = "kein Datensatz: Text (USt-IdNr., Microsoft-365-Mandant/-Anwendung)"
 
 STAMMDATEN = {
     "employee_id": _PERSON, "employee_ids": _PERSON, "created_by_employee_id": _PERSON, "assigned_employee_id": _PERSON,
+    "auf_employee_id": _PERSON + " (seit 1.9.270: übernimmt beim Umsetzen die Tage)", "auf_resource_id": _STAMM + " (seit 1.9.270: übernimmt beim Umsetzen die Tage)",
     "responsible_employee_id": _PERSON, "caseworker_employee_id": _PERSON, "project_manager_employee_id": _PERSON,
     "contact_person_employee_id": _PERSON, "default_responsible_employee_id": _PERSON, "owner_user_id": _PERSON,
     "team_id": "Kolonne -- Stammsatz der Personalplanung",

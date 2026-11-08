@@ -1273,7 +1273,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   „niemand mehr“ über `wenn_leer`; eine Warnung mit weniger Tagen ist nicht neu; `tests/test_v668_umsetzen_herausnehmen.py`); seit 1.9.269 Rückgängig
   (`umkehrung` in jeder Antwort, `POST /api/planning/rueckgaengig` mit Schritten weg | dazu | loeschen, eine Transaktion; ein eben angelegter Einsatz nur mit
   seinem Stand, `einsatz_stand()`, Antwort 5) und die Sperren aufsteigend über `_sperren()` -- jede neue Tag-Aktion sperrt nur darüber
-  (`tests/test_v669_sperren_und_rueckgaengig.py`, mit PostgreSQL über Kreuz). Befund R5 und Herleitung:
+  (`tests/test_v669_sperren_und_rueckgaengig.py`, mit PostgreSQL über Kreuz); seit 1.9.270 in „Personen“ und „Geräte“ Ziehen nur dieser Person bzw. dieses
+  Geräts (`umsetzenZiehen()` -> Umsetzen mit `genau` im selben Einsatz, in eine andere Zeile mit `auf_employee_id`/`auf_resource_id`; `nurDieseZeile()`; Balken mit
+  `data-von`/`data-bis`), in „Kolonnen“ weiter der ganze Einsatz (`tests/test_v670_ziehen_einzeln.py`, Klicktest `klicktest_plantafel_ziehen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

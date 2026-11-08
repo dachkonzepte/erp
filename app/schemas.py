@@ -3317,6 +3317,10 @@ class TagUmsetzen(BaseModel):
     trotzdem_planen: bool = False
     wenn_leer: Literal["loeschen", "behalten"] | None = None
     pruefen: bool = False
+    # seit 1.9.270 (Punkt 4, Antwort 12): genau der Einsatz ziel_slot_id (auch an Tagen außerhalb); eine andere Person bzw. ein anderes Gerät übernimmt die Tage
+    genau: bool = False
+    auf_employee_id: int | None = None
+    auf_resource_id: int | None = None
 
 
 class TagHerausnehmen(BaseModel):

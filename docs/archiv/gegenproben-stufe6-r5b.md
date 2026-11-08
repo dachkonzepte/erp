@@ -114,3 +114,24 @@ Gerät 422 (`test_api`); Nr. 9 mit Punkt 3.
 
 Ohne eigene Gegenprobe: Nr. 9 (beschreibt, was bleibt; nichts daran geändert). „Erst zurück, dann am Ziel heraus“ (Umsetzung) ist keine Festlegung -- das Ergebnis
 ist in beiden Reihenfolgen dasselbe, nur ohne leeren Zwischenstand.
+
+## 1.9.270 (Punkt 4): Ziehen in „Personen“ und „Geräte“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1, 5 – genau: im selben Einsatz, auch an Tagen außerhalb | Karte mit Prüfung des Tags (`270_1a`) | 2 rot: v670::test_allein_wandert_der_einsatz, v670::test_eigene_zeile_nur_diese_person |
+| Nr. 1, 5 – genau dieser Einsatz | nach den Regeln von Tag setzen (`270_1b`) | 1 rot: v670::test_eigene_zeile_nur_diese_person |
+| Nr. 1, 4 – nur in „Personen“ und „Geräte“ einzeln | nie einzeln (`270_1c`) | 1 rot: v670::test_welche_ansicht_zieht_einzeln |
+| Nr. 1 – im Browser | nie einzeln (`270_1e`, Klicktest Ziehen) | rot: plantafel_ziehen -- 19 Prüfungen in „Personen“ und „Geräte“ (die Durchgänge 1440 hell und dunkel ganz, 1280 dunkel die erste), dann das Zeitlimit der Gegenprobe (2 min, Regel 24) |
+| Nr. 6 – gezogen wird das Stück | Versatz vom Beginn des Einsatzes (`270_1d`, Klicktest Ziehen) | rot: plantafel_ziehen -- in „Geräte“ je Durchgang 2 Prüfungen (8) -- der Versatz zählt dann vom Beginn des Einsatzes, nicht vom gefassten Stück (Di) |
+| Nr. 2 – eine andere übernimmt die Tage | immer dieselbe (`270_2a`) | 5 rot: v670::test_andere_zeile_uebernimmt_die_tage, v670::test_api, v670::test_geraet_auf_geraet, v670::test_regeln, v670::test_rueckfrage_bei_warnung_und_rueckgaengig |
+| Nr. 2 – die gezogene verliert sie | nur die Tage außerhalb (`270_2b`) | 3 rot: v670::test_andere_zeile_uebernimmt_die_tage, v670::test_api, v670::test_geraet_auf_geraet |
+| Nr. 2 – nur dieselbe Art | auch Person auf Gerät (`270_2c`) | 1 rot: v670::test_regeln |
+| Nr. 2 – die Seite schickt die andere | ohne `auf_…` (`270_2d`) | 1 rot: v670::test_seite_schickt_umsetzen |
+| Nr. 2 – im Browser | ohne `auf_…` (`270_2e`, Klicktest Ziehen) | rot: plantafel_ziehen -- 15 Prüfungen in „Personen“ und „Geräte“, dann das Zeitlimit der Gegenprobe (Regel 24) |
+| Nr. 3 – Rückfrage im Browser | ohne Rückfrage (`270_3a`, Klicktest Ziehen) | rot: plantafel_ziehen -- 16 Prüfungen (keine Rückfrage in „Personen“ und „Geräte“), dann das Zeitlimit der Gegenprobe (Regel 24) |
+| Nr. 3 – der Server fragt | nie (`270_3b`) | 1 rot: v670::test_rueckfrage_bei_warnung_und_rueckgaengig |
+| Nr. 4 – in „Kolonnen“ der ganze Einsatz | immer einzeln (`270_4a`) | 1 rot: v670::test_balken_traegt_sein_stueck_und_pointerup_waehlt |
+| Nr. 4 – im Browser | immer einzeln (`270_4b`, Klicktest Bedienen) | rot: plantafel_bedienen -- „Maus“, „Escape“, „Finger“, „Rückfrage beim Ziehen in die Zeile Nord“ |
+| Nr. 6 – ein Balken trägt sein Stück | ohne `data-von`/`data-bis` (`270_6a`) | 1 rot: v670::test_balken_traegt_sein_stueck_und_pointerup_waehlt |
+| Nr. 6 – im Browser | ohne (`270_6b`, Klicktest Ziehen) | rot: plantafel_ziehen -- 14 Prüfungen in „Personen“ und „Geräte“ (ohne Stück kein Ziehen einer einzelnen Person), dann das Zeitlimit der Gegenprobe (Regel 24) |
