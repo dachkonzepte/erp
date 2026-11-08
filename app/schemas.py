@@ -3329,6 +3329,22 @@ class TagHerausnehmen(BaseModel):
     pruefen: bool = False
 
 
+class RueckgaengigSchritt(BaseModel):
+    """Seit 1.9.269 (Stufe 6, R5b, Punkt 3): ein Schritt der Umkehrung, wie ihn eine Tag-Aktion in „umkehrung“ zurückgibt -- „weg“ und „dazu“ mit
+    einer Person oder einem Gerät und Tagen, „loeschen“ mit dem Stand des eben angelegten Einsatzes."""
+    art: Literal["weg", "dazu", "loeschen"]
+    slot_id: int
+    employee_id: int | None = None
+    resource_id: int | None = None
+    tage: list[date] | None = None
+    stand: str | None = Field(default=None, max_length=64)
+
+
+class Rueckgaengig(BaseModel):
+    """Seit 1.9.269: POST /api/planning/rueckgaengig -- die Schritte in einer Transaktion."""
+    schritte: list[RueckgaengigSchritt] = Field(min_length=1)
+
+
 class TagVerlaengern(BaseModel):
     """Seit 1.9.268: POST /api/planning/slots/{id}/verlaengern -- eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes."""
     employee_id: int | None = None

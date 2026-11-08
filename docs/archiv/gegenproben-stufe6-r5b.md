@@ -91,3 +91,26 @@ denselben Einsatz, an dem Kai schon doppelt war. Danach alle 30 Gegenproben und 
 
 Ohne eigene Gegenprobe: „keine Kolonne“ (Nr. 1) -- die Schemas kennen kein `team_id`, ein mitgeschicktes Feld fällt weg und die Anfrage ist ohne Person und
 Gerät 422 (`test_api`); Nr. 9 mit Punkt 3.
+
+## 1.9.269 (Punkt 3): Sperren, Zugehörigkeit, Rolle, Teil-Update, Event-Loop, Rückgängig
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – aufsteigend gesperrt | in der Reihenfolge der Anfrage (`269_1a`) | 2 rot: v669::test_postgresql_umsetzen_ueber_kreuz_ohne_deadlock, v669::test_sperren_aufsteigend |
+| Nr. 2 – ab Büro – Auftrag | Umsetzen auch für die Monteurin (`269_2a`) | 1 rot: v669::test_rolle_ab_buero_auftrag |
+| Nr. 3 – Einsatz unbekannt 404 | ohne Prüfung (`269_3a`) | 2 rot: v668::test_api, v669::test_rueckgaengig_schritte_pruefen |
+| Nr. 3 – nur an ihren Tagen | eine fremde Zeile übergangen (`269_3b`) | 2 rot: v669::test_rueckgaengig_in_einer_transaktion_und_fragt_nie, v669::test_rueckgaengig_schritte_pruefen |
+| Nr. 4 – def | Rückgängig async (`269_4a`) | 1 rot: v669::test_endpunkte_ohne_event_loop |
+| Nr. 4 – scope="function" | Verlängern ohne (`269_4b`) | 1 rot: v669::test_endpunkte_ohne_event_loop |
+| Nr. 5 – nur die Zeilen der Genannten | Tag setzen leert die Notiz (`269_5a`) | 1 rot: v669::test_teil_update_nur_die_genannten |
+| Nr. 5 – PUT kennt dazu/weg nicht | im Schema (`269_5c`) | 1 rot: v669::test_teil_update_nur_die_genannten |
+| Nr. 6 – eine Transaktion | Commit nach jedem Schritt (`269_6a`) | 1 rot: v669::test_rueckgaengig_in_einer_transaktion_und_fragt_nie |
+| Nr. 6 – fragt nie | fragt bei Warnungen (`269_6b`) | 1 rot: v669::test_rueckgaengig_in_einer_transaktion_und_fragt_nie |
+| Nr. 7 – nur unverändert | ohne Vergleich (`269_7a`) | 1 rot: v669::test_rueckgaengig_neu_nur_unveraendert |
+| Nr. 7 – der Stand mit der Notiz | Notiz nicht im Stand (`269_7b`) | 1 rot: v669::test_rueckgaengig_neu_nur_unveraendert |
+| Nr. 8 – gelöscht: kein Rückgängig (Herausnehmen) | trotzdem (`269_8a`) | 1 rot: v669::test_rueckgaengig_herausnehmen_und_verlaengern |
+| Nr. 8 – gelöscht: kein Rückgängig (Umsetzen) | trotzdem (`269_8b`) | 1 rot: v669::test_rueckgaengig_nach_umsetzen_mit_geloeschter_quelle |
+| Nr. 8 – nichts geändert: kein Rückgängig | eine leere Umkehrung (`269_8c`) | 1 rot: v669::test_rueckgaengig_dazu_und_verlaengert |
+
+Ohne eigene Gegenprobe: Nr. 9 (beschreibt, was bleibt; nichts daran geändert). „Erst zurück, dann am Ziel heraus“ (Umsetzung) ist keine Festlegung -- das Ergebnis
+ist in beiden Reihenfolgen dasselbe, nur ohne leeren Zwischenstand.

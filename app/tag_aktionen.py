@@ -27,6 +27,8 @@ Umsetzen, Herausnehmen, Verlängern (Punkt 2, seit 1.9.268) -- für eine Person 
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -195,8 +197,9 @@ def _warnungen(db: Session, slots: list[PlanningSlot]) -> dict[tuple, set[str]]:
     return vorher
 
 
-def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte: PlanningSlot | None = None) -> tuple[PlanningSlot, str]:
-    """Setzt wer an diese Tage dieses Auftrags (ohne Commit, ohne Warnungen; der Aufrufer hält die Sperre). Gibt Einsatz und Aktion zurück."""
+def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte: PlanningSlot | None = None) -> tuple[PlanningSlot, str, dict]:
+    """Setzt wer an diese Tage dieses Auftrags (ohne Commit, ohne Warnungen; der Aufrufer hält die Sperre). Gibt Einsatz, Aktion und die Tage je Zeile am
+    Ziel vorher zurück (seit 1.9.269, für die Umkehrung; leer bei „neu“)."""
     prep_id = _prep_id(db, order.id)
     slots = _einsaetze(db, prep_id)
     ziel, aktion = ziel_finden(slots, wer, tage, _arbeitstag(db, min(tage), max(tage)), karte)
@@ -207,10 +210,11 @@ def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte
         slot = _create_slot(db, order_id=order.id, team_id=wer.id if wer.art == "kolonne" else None, start_date=min(tage), end_date=max(tage), art=art,
                             besetzung=[{"employee_id": wer.id, "tage": einzeln}] if wer.art == "person" else None,
                             geraete=[{"resource_id": wer.id, "tage": einzeln}] if wer.art == "geraet" else None, trotzdem_planen=True, _offen=True)
-        return slot, "neu"
+        return slot, "neu", {}
+    vorher_zeilen = _zeilen_tage(ziel)
     slot = _update_slot(db, ziel.id, start_date=min(ziel.start_date, min(tage)), end_date=max(ziel.end_date, max(tage)), alle_tage_mitnehmen=False,
                         dazu=eintraege, trotzdem_planen=True, _offen=True)
-    return slot, aktion
+    return slot, aktion, vorher_zeilen
 
 
 def tage_von(slot: PlanningSlot, wer: Wer) -> list[str]:
@@ -273,14 +277,19 @@ def tag_setzen(db: Session, *, order_id: int, tag: date, employee_id: int | None
         _sperren(db, [prep_id])
         vorher = _warnungen(db, _einsaetze(db, prep_id))
         karte = _karte(db, order, slot_id, [tag])
-        slot, aktion = setzen_offen(db, order, wer, [tag], karte=karte)
+        slot, aktion, vorher_zeilen = setzen_offen(db, order, wer, [tag], karte=karte)
         ergebnis = {"aktion": aktion, "slot_id": slot.id if aktion != "neu" or not pruefen else None, "tage": tage_von(slot, wer),
                     "bis": slot.end_date.isoformat()}
         if pruefen:
             ergebnis.update(pruefung(db, [slot], vorher))
             db.rollback()
             return ergebnis
+        weg = _schritte_weg(slot, vorher_zeilen) if aktion != "neu" else []
+        slot_id = slot.id
         abschliessen(db, [slot], vorher, trotzdem_planen=trotzdem_planen)
+        # seit 1.9.269 (Punkt 3): Rückgängig -- ein eben angelegter Einsatz wird gelöscht, solange er unverändert ist (Antwort 5); sonst die Tage heraus
+        ergebnis["umkehrung"] = umkehrung([{"art": "loeschen", "slot_id": slot_id, "stand": einsatz_stand(_load_slot(db, slot_id))}]
+                                          if aktion == "neu" else weg)
         return ergebnis
     except Exception:
         db.rollback()
@@ -348,7 +357,8 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
         _an_den_tagen(quelle, wer, tage)
         vorher = _warnungen(db, _einsaetze(db, q_prep) + ([] if z_prep in (None, q_prep) else _einsaetze(db, z_prep)))
         karte = _karte(db, ziel_order, ziel_slot_id, ziel_tage)
-        ziel, aktion = setzen_offen(db, ziel_order, wer, ziel_tage, karte=karte)
+        quelle_vorher = _zeilen_tage(quelle).get((_feld(wer), wer.id), set())
+        ziel, aktion, vorher_zeilen = setzen_offen(db, ziel_order, wer, ziel_tage, karte=karte)
         ziel_id, quelle_id = ziel.id, quelle.id
         weg = [t for t in tage if t not in ziel_tage] if ziel_id == quelle_id else tage  # im selben Einsatz bleiben die Tage, die sie behält
         danach = (_update_slot(db, quelle_id, weg=[{_feld(wer): wer.id, "tage": weg}], wenn_leer=_leer_frage(wenn_leer, pruefen), trotzdem_planen=True,
@@ -362,7 +372,12 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
             ergebnis.update(pruefung(db, beruehrt, vorher), leer=leer)
             db.rollback()
             return ergebnis
+        zurueck = [] if danach is None else [_schritt_dazu(quelle_id, _feld(wer), wer.id, quelle_vorher - _zeilen_tage(danach).get((_feld(wer), wer.id), set()))]
+        hin = [] if aktion == "neu" else _schritte_weg(ziel, vorher_zeilen, nur=(_feld(wer), wer.id))
         abschliessen(db, beruehrt, vorher, trotzdem_planen=trotzdem_planen)
+        if danach is not None:  # seit 1.9.269: erst zurück an den alten Platz, dann am Ziel heraus (ein eben angelegtes Ziel gelöscht, Antwort 5)
+            hin = [{"art": "loeschen", "slot_id": ziel_id, "stand": einsatz_stand(_load_slot(db, ziel_id))}] if aktion == "neu" else hin
+        ergebnis["umkehrung"] = umkehrung([s for s in zurueck if s["tage"]] + hin) if danach is not None else None
         return ergebnis
     except Exception:
         db.rollback()
@@ -381,6 +396,7 @@ def herausnehmen(db: Session, *, slot_id: int, employee_id: int | None = None, r
         _sperren(db, [slot.preparation_id])
         slot = _load_slot(db, slot_id, frisch=True)
         _an_den_tagen(slot, wer, [] if alle else tage)
+        seine_vorher = _zeilen_tage(slot).get((_feld(wer), wer.id), set())
         vorher = _warnungen(db, _einsaetze(db, slot.preparation_id))
         danach = _update_slot(db, slot.id, weg=[{_feld(wer): wer.id, "tage": None if alle else tage}], wenn_leer=_leer_frage(wenn_leer, pruefen),
                               trotzdem_planen=True, _offen=True)
@@ -391,7 +407,10 @@ def herausnehmen(db: Session, *, slot_id: int, employee_id: int | None = None, r
             ergebnis.update(pruefung(db, [danach] if danach is not None else [], vorher), leer=leer)
             db.rollback()
             return ergebnis
+        heraus = seine_vorher - (_zeilen_tage(danach).get((_feld(wer), wer.id), set()) if danach is not None else set())
         abschliessen(db, [danach] if danach is not None else [], vorher, trotzdem_planen=True)
+        # seit 1.9.269: Rückgängig setzt die Tage zurück -- war der Einsatz danach gelöscht (Löschen in der Rückfrage), gibt es keins
+        ergebnis["umkehrung"] = umkehrung([_schritt_dazu(slot_id, _feld(wer), wer.id, heraus)]) if danach is not None and heraus else None
         return ergebnis
     except Exception:
         db.rollback()
@@ -412,14 +431,105 @@ def verlaengern(db: Session, *, slot_id: int, ab_tag: date, employee_id: int | N
         if not neue_tage:
             raise BesetzungUngueltig(NICHTS_ZU_VERLAENGERN)
         vorher = _warnungen(db, _einsaetze(db, slot.preparation_id))
+        vorher_zeilen = _zeilen_tage(slot)
         danach = _update_slot(db, slot.id, dazu=[{_feld(wer): wer.id, "tage": neue_tage}], trotzdem_planen=True, _offen=True)
         ergebnis = {"aktion": "verlaengert", "slot_id": danach.id, "tage": tage_von(danach, wer), "bis": danach.end_date.isoformat()}
         if pruefen:
             ergebnis.update(pruefung(db, [danach], vorher))
             db.rollback()
             return ergebnis
+        weg = _schritte_weg(danach, vorher_zeilen, nur=(_feld(wer), wer.id))
         abschliessen(db, [danach], vorher, trotzdem_planen=trotzdem_planen)
+        ergebnis["umkehrung"] = umkehrung(weg)  # seit 1.9.269: die hinzugekommenen Tage wieder heraus
         return ergebnis
+    except Exception:
+        db.rollback()
+        raise
+
+
+# --- seit 1.9.269 (Punkt 3): Rückgängig ----------------------------------------------------------------------------------------------------------
+
+RUECKGAENGIG_GEAENDERT = "Der Einsatz wurde seitdem geändert – Rückgängig geht nicht mehr, bitte im Dialog löschen."
+RUECKGAENGIG_PFAD = "/api/planning/rueckgaengig"
+
+
+class RueckgaengigNichtMoeglich(Exception):
+    """409: der eben angelegte Einsatz wurde seitdem geändert (Antwort 5) -- nichts geändert."""
+
+
+def _zeilen_tage(slot: PlanningSlot) -> dict[tuple[str, int], set[date]]:
+    """Je Person und Gerät des Einsatzes ihre Tage (Schlüssel: Feld und ID)."""
+    tage = {("employee_id", x.employee_id): _tage_der_zeile(slot, x) for x in slot.besetzung}
+    tage.update({("resource_id", x.resource_id): _tage_der_zeile(slot, x) for x in slot.geraete})
+    return tage
+
+
+def einsatz_stand(slot: PlanningSlot) -> str:
+    """Der Stand eines Einsatzes als kurze Prüfsumme: Zeitraum, Status, Notiz, Art, Kolonne, Personen und Geräte mit ihren Tagen, Stunden und Anfahrt.
+    Rückgängig nach „neu“ löscht nur, solange er gleich ist (Antwort 5)."""
+    kap = slot.capacity
+    teile = [slot.start_date, slot.end_date, slot.status, slot.notes, slot.art, slot.team_assignment_id,
+             sorted((x.employee_id, x.tage or "") for x in slot.besetzung), sorted((x.resource_id, x.tage or "") for x in slot.geraete),
+             str(kap.planned_hours) if kap is not None else None, str(kap.travel_hours_per_employee_day) if kap is not None else None]
+    return hashlib.sha256(json.dumps(teile, default=str).encode("utf-8")).hexdigest()[:16]
+
+
+def _schritte_weg(slot: PlanningSlot, vorher: dict[tuple[str, int], set[date]], nur: tuple[str, int] | None = None) -> list[dict]:
+    """Die Umkehrung von „dazu“: je Person bzw. Gerät die Tage, die die Aktion hinzugefügt hat, wieder heraus (nur: nur diese Zeile)."""
+    schritte = []
+    for (feld, wid), tage in _zeilen_tage(slot).items():
+        if nur is not None and (feld, wid) != nur:
+            continue
+        neu = tage - vorher.get((feld, wid), set())
+        if neu:
+            schritte.append({"art": "weg", "slot_id": slot.id, feld: wid, "tage": [t.isoformat() for t in sorted(neu)]})
+    return schritte
+
+
+def _schritt_dazu(slot_id: int, feld: str, wid: int, tage) -> dict:
+    return {"art": "dazu", "slot_id": slot_id, feld: wid, "tage": [t.isoformat() for t in sorted(tage)]}
+
+
+def umkehrung(schritte: list[dict]) -> dict | None:
+    """Was die Seite für „Rückgängig“ schickt: POST /api/planning/rueckgaengig mit diesen Schritten -- kein Speicher auf dem Server (Befund E)."""
+    return {"pfad": RUECKGAENGIG_PFAD, "body": {"schritte": schritte}} if schritte else None
+
+
+def rueckgaengig(db: Session, *, schritte: list[dict]) -> dict:
+    """Die Umkehrung einer Tag-Aktion, in einer Transaktion unter den Sperren aller berührten Arbeitsvorbereitungen (aufsteigend). Schritte: „weg“ (Tage
+    einer Person bzw. eines Geräts heraus, ein dabei leerer Einsatz bleibt „niemand“), „dazu“ (Tage zurück, genau dieser Einsatz, verlängert mit der
+    Falle), „loeschen“ (ein eben angelegter Einsatz -- nur mit dem Stand von damals, sonst 409, Antwort 5). Fragt nie (es stellt einen früheren Stand her)."""
+    try:
+        if not schritte:
+            raise BesetzungUngueltig("Nichts rückgängig zu machen.")
+        ids = list(dict.fromkeys(int(s["slot_id"]) for s in schritte))
+        _sperren(db, [_einsatz(db, sid).preparation_id for sid in ids])
+        geloescht: set[int] = set()
+        for s in schritte:
+            sid = int(s["slot_id"])
+            slot = _load_slot(db, sid, frisch=True)
+            if slot is None:
+                raise IdNichtGefunden("Einsatz wurde nicht gefunden.")
+            if s["art"] == "loeschen":
+                if einsatz_stand(slot) != s.get("stand"):
+                    raise RueckgaengigNichtMoeglich(RUECKGAENGIG_GEAENDERT)
+                kran_kalender.entfernen(db, sid)
+                db.delete(slot)
+                db.flush()
+                geloescht.add(sid)
+                continue
+            wer = _person_oder_geraet(s.get("employee_id"), s.get("resource_id"))
+            tage = sorted({t if isinstance(t, date) else date.fromisoformat(str(t)) for t in s.get("tage") or []})
+            if not tage:
+                raise BesetzungUngueltig("Bitte mindestens einen Tag nennen.")
+            if s["art"] == "weg":
+                _update_slot(db, sid, weg=[{_feld(wer): wer.id, "tage": tage}], wenn_leer="behalten", trotzdem_planen=True, _offen=True)
+            else:
+                _update_slot(db, sid, start_date=min(slot.start_date, tage[0]), end_date=max(slot.end_date, tage[-1]), alle_tage_mitnehmen=False,
+                             dazu=[{_feld(wer): wer.id, "tage": tage}], trotzdem_planen=True, _offen=True)
+        beruehrt = [_load_slot(db, sid, frisch=True) for sid in ids if sid not in geloescht]
+        abschliessen(db, beruehrt, {}, trotzdem_planen=True)
+        return {"aktion": "rueckgaengig", "slot_ids": [s.id for s in beruehrt], "geloescht": sorted(geloescht)}
     except Exception:
         db.rollback()
         raise

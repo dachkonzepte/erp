@@ -2010,3 +2010,49 @@ Neu: `tests/test_v668_umsetzen_herausnehmen.py` (auf einen anderen Auftrag ohne 
 fragt, weniger Tage sind nicht neu, Gerät; Herausnehmen Lücke und Rand, alle und leer, fragt nie, Gerät und Fehler; Verlängern bis zum letzten Tag, prüft wie
 Planen; API; Prüfen schreibt nichts). `tests/test_v373_zugehoerigkeit_struktur.py`: `ziel_order_id` (FREI, `tag_aktionen._auftrag`) und `ziel_slot_id`
 (GEPRUEFT, `tag_aktionen._karte`) eingetragen. Gegenproben: Archiv `gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.269 (Punkt 3): Sperren, Zugehörigkeit, Rolle, Teil-Update, Event-Loop, Rückgängig
+
+- **Sperren** (`app/tag_aktionen.py::_sperren()`): jede Tag-Aktion sperrt die Arbeitsvorbereitungen, die sie berührt, aufsteigend nach ID (Umsetzen: die
+  des alten und die des neuen Auftrags; Rückgängig: die aller Schritte); `_update_slot()` sperrt danach dieselbe Zeile noch einmal (in derselben Transaktion
+  ohne Wirkung). Belegt unter PostgreSQL: zwei Umsetzen über Kreuz (Tom von Auftrag 1 nach 2, Kai von 2 nach 1), die erste hält nach ihrer ersten Sperre an,
+  die zweite startet, länger als `deadlock_timeout` gewartet -- beide gelingen nacheinander; in der Reihenfolge der Anfrage bräche PostgreSQL eine mit einem
+  Deadlock ab (Gegenprobe).
+- **Zugehörigkeit** (Regel 25, `tests/test_v373_zugehoerigkeit_struktur.py`): Auftrag (`_auftrag()`, FREI) und Karte (`_karte()`, GEPRUEFT: ein Einsatz dieses
+  Auftrags) bei Tag setzen und Umsetzen; der Einsatz im Pfad und in jedem Schritt von Rückgängig (`_einsatz()`, unbekannt 404); Person bzw. Gerät muss an
+  den genannten Tagen am Einsatz stehen (`_an_den_tagen()`, `_tage_aendern()`: 422). Person, Kolonne und Gerät sind Stammdaten (`STAMMDATEN`).
+- **Rolle**: alle fünf Endpunkte ab Büro – Auftrag wie die Tafel (`_role_dep`), die Monteurin 403.
+- **Event-Loop** (Regel 35): jeder Endpunkt `def`, Sitzung mit `scope="function"`; die Aktion läuft im Threadpool.
+- **Teil-Update**: eine Tag-Aktion schreibt nur die Zeilen der Genannten (`_tage_aendern()`); der Zeitraum ändert sich nur, wo sie ihn braucht (verlängert mit der
+  Falle, gekürzt am Rand); Notiz, Status, Stunden, Kolonne und jede andere Zeile bleiben. `dazu`/`weg` gibt es nur intern -- `PUT /api/planning/slots/{id}`
+  kennt sie nicht (Schema).
+- **Rückgängig** (Befund E: kein Speicher auf dem Server): jede Aktion gibt `umkehrung` zurück -- `{pfad: "/api/planning/rueckgaengig", body: {schritte}}` oder
+  leer. Schritte: `weg` (Tage einer Person bzw. eines Geräts heraus; ein dabei leerer Einsatz bleibt „niemand“), `dazu` (Tage zurück in genau diesen Einsatz,
+  verlängert mit der Falle), `loeschen` (ein eben angelegter Einsatz mit seinem Stand). Tag setzen: neu -> `loeschen`, sonst je Zeile `weg` der hinzugekommenen
+  Tage (eine Kolonne: je Mitglied und Gerät); Umsetzen: erst `dazu` am alten Platz, dann am Ziel `weg` bzw. `loeschen` (neu) -- im selben Einsatz ohne leeren
+  Zwischenstand; Herausnehmen: `dazu` der herausgenommenen Tage; Verlängern: `weg` der hinzugekommenen. `rueckgaengig()` führt alle Schritte in einer Transaktion
+  aus (geht einer nicht, bleibt keiner) und fragt nie.
+- **Antwort 5** (`einsatz_stand()`): eine kurze Prüfsumme aus Zeitraum, Status, Notiz, Art, Kolonne, Personen und Geräten mit Tagen, Stunden und Anfahrt;
+  `loeschen` nur bei gleichem Stand, sonst 409 „Der Einsatz wurde seitdem geändert – Rückgängig geht nicht mehr, bitte im Dialog löschen.“ (nichts geändert).
+- Kein Rückgängig, wenn die Aktion einen Einsatz gelöscht hat (Löschen in der Rückfrage) oder nichts geändert hat. Eine Arbeitsvorbereitung, die beim Anlegen
+  entstand, bleibt nach Rückgängig stehen -- wie nach dem Löschen eines Einsatzes im Dialog.
+
+#### Festlegungen 1.9.269 (Bitte bestätigen)
+
+1. Jede Tag-Aktion sperrt die Arbeitsvorbereitungen, die sie berührt, aufsteigend nach ID -- zwei Aktionen über Kreuz warten aufeinander (unter PostgreSQL belegt).
+2. Rolle: ab Büro – Auftrag wie die Tafel; die Monteurin 403.
+3. Zugehörigkeit: Auftrag und Karte wie bei Tag setzen; der Einsatz im Pfad und in den Schritten unbekannt 404; Person bzw. Gerät nur an ihren Tagen (422).
+4. Event-Loop: jeder Endpunkt `def`, Sitzung mit `scope="function"`.
+5. Teil-Update: eine Tag-Aktion ändert nur die Zeilen der Genannten; Notiz, Status, Stunden, Kolonne und jede andere Zeile bleiben; PUT kennt `dazu`/`weg` nicht.
+6. Rückgängig: jede Aktion gibt ihre Umkehrung zurück (Schritte weg | dazu | loeschen), kein Speicher auf dem Server; in einer Transaktion, fragt nie.
+7. Ein eben angelegter Einsatz wird beim Rückgängig gelöscht, nur solange er unverändert ist (Stand); sonst 409, nichts geändert (Antwort 5).
+8. Kein Rückgängig, wenn die Aktion einen Einsatz gelöscht oder nichts geändert hat.
+9. Eine beim Anlegen entstandene Arbeitsvorbereitung bleibt nach Rückgängig.
+
+#### Tests und Prüfung 1.9.269
+
+Neu: `tests/test_v669_sperren_und_rueckgaengig.py` (Rückgängig nach dazu, verlängert -- die Falle wieder „alle Tage“ --, Kolonne, nichts geändert; neu nur
+unverändert; Umsetzen in einen bestehenden, im selben Einsatz und in einen neuen; Herausnehmen Mitte, Rand, beides, „niemand“, gelöscht; Verlängern; gelöschte
+Quelle; eine Transaktion und fragt nie; Schritte prüfen; Rolle; Event-Loop; Teil-Update; Sperren aufsteigend unter SQLite; über Kreuz unter PostgreSQL).
+`tests/test_v373_zugehoerigkeit_struktur.py`: `schritte.slot_id` (FREI, `tag_aktionen._einsatz`) eingetragen. Gegenproben: Archiv `gegenproben-stufe6-r5b.md`.
+Angepasste Erwartungen: keine.

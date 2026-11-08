@@ -25,8 +25,8 @@ from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, _load_slot, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern
-from ..tag_aktionen import herausnehmen, tag_setzen, umsetzen, verlaengern
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, Rueckgaengig, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern
+from ..tag_aktionen import RueckgaengigNichtMoeglich, herausnehmen, rueckgaengig, tag_setzen, umsetzen, verlaengern
 
 router = APIRouter()
 
@@ -384,7 +384,7 @@ def _tag_aktion(db: Session, role: AppUser, aufruf) -> dict | JSONResponse:
         return _warnung_antwort(exc, role)
     except EinsatzWirdLeer as exc:
         return _leer_antwort(exc)
-    except AuftragGeschlossen as exc:
+    except (AuftragGeschlossen, RueckgaengigNichtMoeglich) as exc:  # seit 1.9.269 auch: der eben angelegte Einsatz wurde seitdem geändert
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except IdNichtGefunden as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -416,3 +416,10 @@ def post_herausnehmen(slot_id: int, payload: TagHerausnehmen, db: Session = Depe
 def post_verlaengern(slot_id: int, payload: TagVerlaengern, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes -- prüft wie Planen."""
     return _tag_aktion(db, _role, lambda: verlaengern(db, slot_id=slot_id, **payload.model_dump()))
+
+
+@router.post("/api/planning/rueckgaengig")
+def post_rueckgaengig(payload: Rueckgaengig, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.269 (Stufe 6, R5b, Punkt 3): „Rückgängig“ nach einer Tag-Aktion -- die Seite schickt die Umkehrung, die die Aktion zurückgab (kein Speicher
+    auf dem Server); ein eben angelegter Einsatz wird nur gelöscht, solange er unverändert ist (409 sonst, Antwort 5)."""
+    return _tag_aktion(db, _role, lambda: rueckgaengig(db, schritte=[s.model_dump() for s in payload.schritte]))

@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.269 – Plantafel: Rückgängig und abgesicherte Tag-Aktionen (Stufe 6, R5b, Punkt 3)
+
+Jede Tag-Aktion gibt jetzt mit, wie sie sich rückgängig machen lässt; die Seite schickt das zurück, und der Stand davor ist wieder da -- in einem Schritt. Ein eben angelegter Einsatz wird dabei gelöscht, aber nur, solange niemand ihn seitdem geändert hat; sonst bleibt er, und Rückgängig sagt warum. Hat eine Aktion einen Einsatz gelöscht oder nichts geändert, gibt es kein Rückgängig.
+
+Dazu abgesichert und mit eigenen Tests belegt: zwei gleichzeitige Umsetzen zwischen zwei Aufträgen über Kreuz warten aufeinander, statt sich gegenseitig zu blockieren (die Sperren gehen immer in derselben Reihenfolge, gegen PostgreSQL geprüft); nur das Büro darf die Tag-Aktionen; eine Aktion ändert nur die Genannten -- Notiz, Status, Stunden und alle anderen bleiben.
+
 ## 1.9.268 – Plantafel: Umsetzen, Herausnehmen, Verlängern (Stufe 6, R5b, Punkt 2)
 
 Drei weitere Tag-Aktionen auf dem Server, für eine Person oder ein Gerät. Umsetzen bringt sie für einzelne Tage auf einen anderen Auftrag oder einen anderen Tag -- erst am Ziel gesetzt wie beim Ziehen aus der Liste, dann am alten Platz herausgenommen, beides in einem Schritt; nach dem alten Platz wird nicht gefragt, nach einer neuen Warnung am Ziel schon. Geht jemand, der allein an einem Einsatz steht, einen Tag weiter, wandert der Einsatz mit. Herausnehmen nimmt sie für einen Tag oder alle Tage heraus: am Rand wird der Einsatz kürzer, in der Mitte bleibt eine Lücke, und wird er ganz leer, kommt die Rückfrage „Der Einsatz hat dann niemanden mehr.“. Verlängern setzt sie ab einem ihrer Tage bis zum letzten Tag des Einsatzes und prüft wie Planen.

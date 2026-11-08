@@ -330,6 +330,9 @@ FREI = {
                                               "order = db.get(Order, order_id) if order is None"),
     "POST /api/planning/slots/{slot_id}/umsetzen ziel_order_id": ("setzt auf genau diesen Auftrag um (Büro), seit 1.9.268", "tag_aktionen._auftrag",
                                                                   "order = db.get(Order, order_id) if order is None"),
+    "POST /api/planning/rueckgaengig schritte.slot_id": ("macht eine Tag-Aktion an genau diesem Einsatz rückgängig (Büro), seit 1.9.269 -- der Schritt "
+                                                        "stammt aus der Antwort der Aktion", "tag_aktionen._einsatz",
+                                                        "slot = db.get(PlanningSlot, slot_id) if slot is None"),
     "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
                                                "order = load_order(db, order_id) if order is None"),
     "POST /api/time-entries order_id": (_KONTEXT, "time_tracking.create_manual_entry", _AUFTRAG_FEHLT),
