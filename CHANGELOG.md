@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.268 – Plantafel: Umsetzen, Herausnehmen, Verlängern (Stufe 6, R5b, Punkt 2)
+
+Drei weitere Tag-Aktionen auf dem Server, für eine Person oder ein Gerät. Umsetzen bringt sie für einzelne Tage auf einen anderen Auftrag oder einen anderen Tag -- erst am Ziel gesetzt wie beim Ziehen aus der Liste, dann am alten Platz herausgenommen, beides in einem Schritt; nach dem alten Platz wird nicht gefragt, nach einer neuen Warnung am Ziel schon. Geht jemand, der allein an einem Einsatz steht, einen Tag weiter, wandert der Einsatz mit. Herausnehmen nimmt sie für einen Tag oder alle Tage heraus: am Rand wird der Einsatz kürzer, in der Mitte bleibt eine Lücke, und wird er ganz leer, kommt die Rückfrage „Der Einsatz hat dann niemanden mehr.“. Verlängern setzt sie ab einem ihrer Tage bis zum letzten Tag des Einsatzes und prüft wie Planen.
+
+Dabei verbessert: eine Warnung, die durch eine Aktion nur weniger Tage hat, gilt nicht mehr als neu und fragt nicht (bis 1.9.267 hätte das Herausnehmen eines Tags aus „doppelt Mo–Mi“ eine neue Warnung „doppelt Di–Mi“ gesehen).
+
 ## 1.9.267 – Plantafel: Tag setzen (Stufe 6, R5b, Punkt 1)
 
 Der Server kann jetzt eine Person, eine Kolonne oder ein Gerät für einen einzelnen Tag an einen Auftrag setzen -- der Weg, den die Ansicht „Aufträge“ (R5c) beim Ziehen aus der Liste nimmt. Hat der Auftrag an dem Tag einen Einsatz, kommt sie dazu; schließt der Tag direkt an einen Einsatz an (auch Freitag -> Montag), wird er verlängert; sonst entsteht ein neuer, vorläufiger Einsatz. Beim Verlängern stehen alle anderen weiter nur an ihren bisherigen Tagen -- die Kolonne kommt nicht von selbst mit an den neuen Tag. Eine Kolonne kommt nie in eine Kranvermietung, eine Person allein nur an einen Tag, an dem der Kran schon steht. Gefragt wird nur, wenn die Aktion eine neue Warnung bringt; was vorher schon da war, fragt nicht. Prüfen geht auf demselben Weg, ohne etwas zu speichern.

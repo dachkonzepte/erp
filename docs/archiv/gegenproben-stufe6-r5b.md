@@ -65,3 +65,29 @@ hinteren fest; Nr. 12 (Sperren, Rolle, Zugehörigkeit, Event-Loop) mit Punkt 3.
 Erst im zweiten Anlauf rot: `267_8a` blieb grün -- der Test legte die Kolonne nur neu an, dort schlägt `_create_slot()` selbst vor, `_eintraege()` lief nicht; der
 Test verlängert jetzt zusätzlich. `267_9b` blieb grün -- der neue Tag kam an einem anderen Einsatz dazu, die Warnung war schon dadurch neu; der Test nimmt jetzt
 denselben Einsatz, an dem Kai schon doppelt war. Danach alle 30 Gegenproben und die Suite neu, alle rot bzw. grün.
+
+## 1.9.268 (Punkt 2): Umsetzen, Herausnehmen, Verlängern
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1, 6 – nur ihre Tage | nur „steht am Einsatz“ (`268_1b`) | 1 rot: v668::test_herausnehmen_geraet_und_fehler |
+| Nr. 1 – eine Transaktion | Commit nach dem Setzen (`268_1c`) | 3 rot: v668::test_neue_warnung_am_ziel_fragt, v668::test_pruefen_schreibt_nichts, v668::test_quelle_wird_leer_fragt |
+| Nr. 2 – gleich viele Kalendertage | nur der erste Tag (`268_2a`) | 1 rot: v668::test_umsetzen_mehrerer_tage_ueberlappend_mit_der_falle |
+| Nr. 2 – im selben Einsatz bleiben ihre Tage | alle alten Tage heraus (`268_2b`) | 1 rot: v668::test_umsetzen_mehrerer_tage_ueberlappend_mit_der_falle |
+| Nr. 3 – der alte Platz fragt nicht | geprüft vor dem Herausnehmen (`268_3a`) | 5 rot: v668::test_api, v668::test_geraet_umsetzen, v668::test_quelle_wird_leer_fragt, v668::test_umsetzen_auf_eine_karte, v668::test_umsetzen_auf_einen_anderen_auftrag_fragt_nicht_nach_dem_alten_platz |
+| Nr. 3 – neue Warnung am Ziel fragt | fragt nie (`268_3b`) | 1 rot: v668::test_neue_warnung_am_ziel_fragt |
+| Nr. 4 – weniger Tage sind nicht neu | andere Tage gelten als neu (`268_3c`) | 1 rot: v668::test_weniger_tage_einer_warnung_sind_nicht_neu |
+| Nr. 5 – Rückfrage „niemand mehr“ | immer behalten (`268_4a`) | 3 rot: v668::test_api, v668::test_herausnehmen_alle_und_leer, v668::test_quelle_wird_leer_fragt |
+| Nr. 5 – im selben Einsatz nie | erst herausnehmen, dann setzen (`268_4b`) | 5 rot: v668::test_allein_im_einsatz_wandert_der_einsatz, v668::test_neue_warnung_am_ziel_fragt, v668::test_pruefen_schreibt_nichts, v668::test_quelle_wird_leer_fragt, v668::test_umsetzen_auf_eine_karte |
+| Nr. 6 – Tage oder alle | ohne die Prüfung (`268_5a`) | 1 rot: v668::test_herausnehmen_geraet_und_fehler |
+| Nr. 6 – am Rand kürzt der Einsatz | ohne Kürzen (`268_5b`) | 2 rot: v668::test_allein_im_einsatz_wandert_der_einsatz, v668::test_herausnehmen_in_der_mitte_luecke_am_rand_kuerzen |
+| Nr. 6 – fragt nie | fragt bei neuen Warnungen (`268_5c`) | 1 rot: v668::test_herausnehmen_fragt_nie |
+| Nr. 7 – bis zum letzten Tag | nur ein Tag (`268_6a`) | 3 rot: v668::test_api, v668::test_verlaengern_bis_zum_letzten_tag, v668::test_verlaengern_prueft_wie_planen |
+| Nr. 7 – ab dem letzten Tag 422 | ohne (`268_6b`) | 1 rot: v668::test_verlaengern_bis_zum_letzten_tag |
+| Nr. 7 – prüft wie Planen | fragt nie (`268_6c`) | 2 rot: v668::test_api, v668::test_verlaengern_prueft_wie_planen |
+| Nr. 8 – der Einsatz, aus dem sie kam | ohne (`268_7a`) | 1 rot: v668::test_api |
+| Nr. 8 – geprüft „leer“ | nie leer (`268_7b`) | 1 rot: v668::test_quelle_wird_leer_fragt |
+| Nr. 8 – Prüfen schreibt nichts | Commit statt rollback (`268_7c`) | 3 rot: v668::test_pruefen_schreibt_nichts, v668::test_quelle_wird_leer_fragt, v668::test_umsetzen_auf_eine_karte |
+
+Ohne eigene Gegenprobe: „keine Kolonne“ (Nr. 1) -- die Schemas kennen kein `team_id`, ein mitgeschicktes Feld fällt weg und die Anfrage ist ohne Person und
+Gerät 422 (`test_api`); Nr. 9 mit Punkt 3.

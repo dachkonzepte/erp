@@ -1964,3 +1964,49 @@ zeigen“, Kolonne ohne Vorschlag; neue Warnung fragt und nichts bleibt, Bestehe
 die Kolonne; Prüfen schreibt nichts; API mit 200, 409, 404, 422; geschlossener Auftrag). `tests/test_v373_zugehoerigkeit_struktur.py`: `order_id` (FREI,
 `tag_aktionen._auftrag`) und `slot_id` (GEPRUEFT, `tag_aktionen._karte`) eingetragen -- neue Einträge, keine geänderte Erwartung. Gegenproben: Archiv
 `gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.268 (Punkt 2): Umsetzen, Herausnehmen, Verlängern
+
+Drei Endpunkte in `app/routers/planning.py`, je `POST /api/planning/slots/{slot_id}/…`, ab Büro – Auftrag, `def`; gemeinsam über `_tag_aktion()` (409 Warnung,
+409 Rückfrage „niemand mehr“ über `_leer_antwort()` -- auch PUT nutzt sie jetzt --, 409 geschlossen, 404, 422) und `_tag_antwort()` (der Einsatz wie beim
+Speichern, beim Umsetzen dazu `quelle`). In `app/tag_aktionen.py`:
+
+- **Umsetzen** (`umsetzen()`; Body: `employee_id` | `resource_id`, `tage`, `ziel_tag`, `ziel_order_id`?, `ziel_slot_id`?, `trotzdem_planen`, `wenn_leer`,
+  `pruefen`): die Person bzw. das Gerät steht an allen genannten Tagen am Einsatz (`_an_den_tagen()`, sonst 422); die Tage wandern um gleich viele
+  Kalendertage, der erste auf `ziel_tag`. Erst setzen am Ziel (`setzen_offen()`, Regeln von Tag setzen, Karte `ziel_slot_id` nach Antwort 6), dann am alten
+  Platz herausnehmen (`_update_slot(…, weg=…)`) -- im selben Einsatz nur die Tage, die sie nicht behält (Do–Fr um einen Tag weiter: Fr–Sa, der Freitag
+  bleibt). In einer Transaktion; beide Arbeitsvorbereitungen aufsteigend gesperrt (`_sperren()`). Gefragt wird erst danach -- der alte Platz fragt nicht
+  (Zeichnung: „aus seiner Zelle … ohne Rückfrage“), eine neue Warnung am Ziel schon. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage (Antwort 3); im
+  selben Einsatz nie -- wer allein steht und einen Tag weiter geht, schließt an (verlängert), danach kürzt der Rand: der Einsatz wandert mit.
+- **Herausnehmen** (`herausnehmen()`; `tage` oder `alle`, genau eins): am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; ganz leer: Rückfrage,
+  `wenn_leer`. Fragt sonst nie (eine Warnung kann nur kürzer werden oder einen anderen ersten Tag nennen).
+- **Verlängern** (`verlaengern()`; `ab_tag`): jeder Kalendertag nach `ab_tag` bis zum Ende des Einsatzes kommt zu ihren Tagen (danach in der Normalform);
+  ab dem letzten Tag 422; prüft wie Planen.
+- **Weniger Tage sind nicht neu** (`neue_warnungen()`): die Warnungen vorher je Schlüssel (Art, Text, wen, anderer Einsatz) mit ihren Tagen; neu ist eine
+  Warnung ohne Schlüssel vorher oder mit einem Tag, den sie vorher nicht hatte. Bis 1.9.267 gehörten die Tage zum Schlüssel -- beim Hinzufügen gleichwertig,
+  beim Herausnehmen und Umsetzen hätte eine kürzere Warnung als neu gefragt (Fund beim Schreiben der Gegenproben dieser Version).
+- Prüfen (`pruefen`) wie bei Tag setzen, dazu `leer` (Umsetzen: der Einsatz, aus dem sie kommt; Herausnehmen: dieser).
+
+#### Festlegungen 1.9.268 (Bitte bestätigen)
+
+1. Umsetzen: eine Person oder ein Gerät (keine Kolonne) für Tage, an denen sie am Einsatz steht (sonst 422), auf einen Tag an einem Auftrag (leer = derselbe)
+   oder eine Karte; erst setzen nach den Regeln von Tag setzen, dann herausnehmen, in einer Transaktion.
+2. Die Tage wandern um gleich viele Kalendertage; im selben Einsatz bleiben die Tage, die sie behält.
+3. Der alte Platz fragt nicht (geprüft wird nach dem Herausnehmen); eine neue Warnung am Ziel fragt.
+4. Weniger Tage machen eine Warnung nicht neu -- für alle Tag-Aktionen (statt der Tage im Schlüssel, 1.9.267 Nr. 10).
+5. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage „niemand mehr“ (`wenn_leer`); im selben Einsatz nie -- wer allein einen Tag weiter geht, nimmt den Einsatz
+   mit.
+6. Herausnehmen: Tage oder alle (genau eins, sonst 422), nur ihre Tage; am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; ganz leer: Rückfrage; fragt
+   sonst nie.
+7. Verlängern: ab einem ihrer Tage jeder Kalendertag bis zum Ende des Einsatzes; ab dem letzten Tag 422; prüft wie Planen.
+8. Antworten: der Einsatz am Ziel, beim Umsetzen auch der, aus dem sie kam (wenn es ihn noch gibt); ihre Tage und der letzte Tag; geprüft dazu „leer“; Prüfen
+   schreibt nichts.
+9. Beide Arbeitsvorbereitungen aufsteigend gesperrt -- der Beweis unter PostgreSQL mit Punkt 3 (1.9.269).
+
+#### Tests und Prüfung 1.9.268
+
+Neu: `tests/test_v668_umsetzen_herausnehmen.py` (auf einen anderen Auftrag ohne Rückfrage nach dem alten Platz, auf einen anderen Tag im Einsatz, mehrere Tage
+überlappend mit der Falle, allein wandert der Einsatz, die Quelle wird leer -- Rückfrage, Prüfen, Behalten, Löschen --, auf eine Karte, neue Warnung am Ziel
+fragt, weniger Tage sind nicht neu, Gerät; Herausnehmen Lücke und Rand, alle und leer, fragt nie, Gerät und Fehler; Verlängern bis zum letzten Tag, prüft wie
+Planen; API; Prüfen schreibt nichts). `tests/test_v373_zugehoerigkeit_struktur.py`: `ziel_order_id` (FREI, `tag_aktionen._auftrag`) und `ziel_slot_id`
+(GEPRUEFT, `tag_aktionen._karte`) eingetragen. Gegenproben: Archiv `gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.

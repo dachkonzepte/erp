@@ -118,6 +118,9 @@ GEPRUEFT = {
     # seit 1.9.267 (Stufe 6, R5b, Punkt 1): die Karte, auf die gezogen wurde, ist ein Einsatz dieses Auftrags (fremd wie unbekannt 404)
     "POST /api/planning/tag-setzen slot_id":
         ("tag_aktionen._karte", "karte is None or karte.preparation.order_id != order.id"),
+    # seit 1.9.268 (Punkt 2): Umsetzen -- die Karte am Ziel ebenso
+    "POST /api/planning/slots/{slot_id}/umsetzen ziel_slot_id":
+        ("tag_aktionen._karte", "karte is None or karte.preparation.order_id != order.id"),
     "POST /api/maintenance-contracts property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "PUT /api/maintenance-contracts/{contract_id} property_id":
@@ -325,6 +328,8 @@ FREI = {
         "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
     "POST /api/planning/tag-setzen order_id": ("setzt an genau diesen Auftrag (Büro), seit 1.9.267", "tag_aktionen._auftrag",
                                               "order = db.get(Order, order_id) if order is None"),
+    "POST /api/planning/slots/{slot_id}/umsetzen ziel_order_id": ("setzt auf genau diesen Auftrag um (Büro), seit 1.9.268", "tag_aktionen._auftrag",
+                                                                  "order = db.get(Order, order_id) if order is None"),
     "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
                                                "order = load_order(db, order_id) if order is None"),
     "POST /api/time-entries order_id": (_KONTEXT, "time_tracking.create_manual_entry", _AUFTRAG_FEHLT),

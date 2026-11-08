@@ -3305,6 +3305,39 @@ class TagSetzen(BaseModel):
     pruefen: bool = False
 
 
+class TagUmsetzen(BaseModel):
+    """Seit 1.9.268 (Stufe 6, R5b, Punkt 2): POST /api/planning/slots/{id}/umsetzen -- eine Person oder ein Gerät (genau eins) für diese Tage auf einen
+    anderen Auftrag (ziel_order_id, leer = derselbe) oder Tag (ziel_tag = neuer erster Tag); ziel_slot_id = die Karte am Ziel (Antwort 6)."""
+    employee_id: int | None = None
+    resource_id: int | None = None
+    tage: list[date] = Field(min_length=1)
+    ziel_tag: date
+    ziel_order_id: int | None = None
+    ziel_slot_id: int | None = None
+    trotzdem_planen: bool = False
+    wenn_leer: Literal["loeschen", "behalten"] | None = None
+    pruefen: bool = False
+
+
+class TagHerausnehmen(BaseModel):
+    """Seit 1.9.268: POST /api/planning/slots/{id}/herausnehmen -- eine Person oder ein Gerät für diese Tage oder alle (genau eins von beiden)."""
+    employee_id: int | None = None
+    resource_id: int | None = None
+    tage: list[date] | None = None
+    alle: bool = False
+    wenn_leer: Literal["loeschen", "behalten"] | None = None
+    pruefen: bool = False
+
+
+class TagVerlaengern(BaseModel):
+    """Seit 1.9.268: POST /api/planning/slots/{id}/verlaengern -- eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes."""
+    employee_id: int | None = None
+    resource_id: int | None = None
+    ab_tag: date
+    trotzdem_planen: bool = False
+    pruefen: bool = False
+
+
 class PlanningSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int = 1

@@ -1268,7 +1268,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Tag-Aktionen in `app/tag_aktionen.py`: seit 1.9.267 Tag setzen
   (`tag_setzen()`, `POST /api/planning/tag-setzen`: dazu, verlängert -- auch Fr -> Mo, `anschliessend()` -- oder neu; Ziel nach Antwort 6/8 in `ziel_finden()`;
   die Falle über `_update_slot(alle_tage_mitnehmen=False, dazu=…)`; gefragt nur bei neuen Warnungen, `neue_warnungen()`; `pruefen` schreibt nichts;
-  `tests/test_v667_tag_setzen.py`). Befund R5 und Herleitung:
+  `tests/test_v667_tag_setzen.py`); seit 1.9.268 Umsetzen, Herausnehmen, Verlängern (`umsetzen()`, `herausnehmen()`, `verlaengern()`,
+  `POST /api/planning/slots/{id}/umsetzen | herausnehmen | verlaengern`, Person oder Gerät: erst setzen, dann herausnehmen, eine Transaktion; Rückfrage
+  „niemand mehr“ über `wenn_leer`; eine Warnung mit weniger Tagen ist nicht neu; `tests/test_v668_umsetzen_herausnehmen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

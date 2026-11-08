@@ -25,8 +25,8 @@ from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, _load_slot, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, TagSetzen
-from ..tag_aktionen import tag_setzen
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern
+from ..tag_aktionen import herausnehmen, tag_setzen, umsetzen, verlaengern
 
 router = APIRouter()
 
@@ -337,7 +337,7 @@ def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = D
     except PlanungsWarnung as exc:  # seit 1.9.143, wie beim Anlegen
         return _warnung_antwort(exc, _role)
     except EinsatzWirdLeer as exc:  # seit 1.9.263 (Antwort 3): nichts gespeichert -- „Löschen | Behalten“, dann mit wenn_leer noch einmal
-        return JSONResponse(status_code=409, content={"detail": str(exc), "rueckfrage": {"art": "einsatz_leer", "text": str(exc), "optionen": list(WENN_LEER)}})
+        return _leer_antwort(exc)
     except BesetzungUngueltig as exc:  # seit 1.9.233: die Besetzung geht nicht (auch eine unbekannte Person) -- 422, nicht 404 wie ein fehlender Einsatz
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
@@ -357,27 +357,62 @@ def remove_planning_slot(slot_id: int, db: Session = Depends(get_db, scope="func
     return {"deleted": True, "preparation_id": prep_id}
 
 
+def _leer_antwort(exc: EinsatzWirdLeer) -> JSONResponse:
+    """Seit 1.9.263: 409 mit der Rückfrage „Der Einsatz hat dann niemanden mehr.“ Löschen | Behalten -- nichts gespeichert (seit 1.9.268 eine Stelle für
+    PUT und die Tag-Aktionen)."""
+    return JSONResponse(status_code=409, content={"detail": str(exc), "rueckfrage": {"art": "einsatz_leer", "text": str(exc), "optionen": list(WENN_LEER)}})
+
+
 def _tag_antwort(db: Session, ergebnis: dict, role: AppUser) -> dict:
-    """Seit 1.9.267: das Ergebnis einer Tag-Aktion -- geprüft: Warnungen und Hinweise in der Fassung je Rolle; gespeichert: dazu der Einsatz wie beim Speichern."""
+    """Seit 1.9.267: das Ergebnis einer Tag-Aktion -- geprüft: Warnungen und Hinweise in der Fassung je Rolle; gespeichert: dazu der Einsatz wie beim
+    Speichern (seit 1.9.268 beim Umsetzen auch der, aus dem sie kam, wenn es ihn noch gibt)."""
     if "warnungen" in ergebnis:
         return {**ergebnis, "warnungen": _konflikte_fuer_rolle(ergebnis["warnungen"], role), "hinweise": _konflikte_fuer_rolle(ergebnis["hinweise"], role)}
     slot = _load_slot(db, ergebnis["slot_id"]) if ergebnis.get("slot_id") else None
-    return {**ergebnis, "einsatz": _einsatz_antwort(db, slot, role) if slot is not None else None}
+    antwort = {**ergebnis, "einsatz": _einsatz_antwort(db, slot, role) if slot is not None else None}
+    if ergebnis.get("quelle_id") and ergebnis["quelle_id"] != ergebnis.get("slot_id") and not ergebnis.get("quelle_geloescht"):
+        antwort["quelle"] = _einsatz_antwort(db, _load_slot(db, ergebnis["quelle_id"]), role)
+    return antwort
 
 
-@router.post("/api/planning/tag-setzen")
-def post_tag_setzen(payload: TagSetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    """Seit 1.9.267 (Stufe 6, R5b, Punkt 1): eine Person, eine Kolonne oder ein Gerät für einen Tag an einen Auftrag -- dazu, verlängert oder neu
-    (app/tag_aktionen.py). Antworten wie beim Anlegen: 409 mit warnungen/hinweise (nur neue Warnungen fragen), 409 geschlossen, 404 Auftrag oder Karte
-    unbekannt bzw. fremd, 422 (keine oder mehrere von Person/Kolonne/Gerät, inaktiv, Kranvermietung, Tag nicht am Einsatz). pruefen: schreibt nichts."""
+def _tag_aktion(db: Session, role: AppUser, aufruf) -> dict | JSONResponse:
+    """Seit 1.9.268: eine Tag-Aktion mit den Antworten wie beim Anlegen -- 409 mit warnungen/hinweise (nur neue Warnungen fragen), 409 mit der Rückfrage
+    „niemand mehr“, 409 geschlossen, 404 (Auftrag, Einsatz oder Karte unbekannt bzw. fremd), 422; sonst das Ergebnis mit dem Einsatz."""
     try:
-        ergebnis = tag_setzen(db, **payload.model_dump())
+        ergebnis = aufruf()
     except PlanungsWarnung as exc:
-        return _warnung_antwort(exc, _role)
+        return _warnung_antwort(exc, role)
+    except EinsatzWirdLeer as exc:
+        return _leer_antwort(exc)
     except AuftragGeschlossen as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except IdNichtGefunden as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _tag_antwort(db, ergebnis, _role)
+    return _tag_antwort(db, ergebnis, role)
+
+
+@router.post("/api/planning/tag-setzen")
+def post_tag_setzen(payload: TagSetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.267 (Stufe 6, R5b, Punkt 1): eine Person, eine Kolonne oder ein Gerät für einen Tag an einen Auftrag -- dazu, verlängert oder neu
+    (app/tag_aktionen.py). pruefen: schreibt nichts."""
+    return _tag_aktion(db, _role, lambda: tag_setzen(db, **payload.model_dump()))
+
+
+@router.post("/api/planning/slots/{slot_id}/umsetzen")
+def post_umsetzen(slot_id: int, payload: TagUmsetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät für diese Tage auf einen anderen Auftrag oder Tag -- in einer Transaktion."""
+    return _tag_aktion(db, _role, lambda: umsetzen(db, slot_id=slot_id, **payload.model_dump()))
+
+
+@router.post("/api/planning/slots/{slot_id}/herausnehmen")
+def post_herausnehmen(slot_id: int, payload: TagHerausnehmen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät für diese Tage oder alle aus dem Einsatz -- Kürzen am Rand, Rückfrage „niemand mehr“."""
+    return _tag_aktion(db, _role, lambda: herausnehmen(db, slot_id=slot_id, **payload.model_dump()))
+
+
+@router.post("/api/planning/slots/{slot_id}/verlaengern")
+def post_verlaengern(slot_id: int, payload: TagVerlaengern, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes -- prüft wie Planen."""
+    return _tag_aktion(db, _role, lambda: verlaengern(db, slot_id=slot_id, **payload.model_dump()))

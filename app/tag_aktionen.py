@@ -15,7 +15,15 @@ Tag setzen (Punkt 1)
     Fragen   nur bei einer Warnung, die die Aktion neu bringt (eine neue Warnung oder ein neuer Tag einer bestehenden); was vorher schon da war, fragt
              nicht. Ganze Kolonne: eine Rückfrage für alle. Hinweise fragen nie.
     Prüfen   derselbe Weg ohne Schreiben (rollback): was geschähe (dazu, verlängert, neu), die Warnungen, die fragen würden, die Hinweise.
-Alles in einer Transaktion unter der Sperre der Arbeitsvorbereitung des Auftrags."""
+Alles in einer Transaktion unter der Sperre der Arbeitsvorbereitung des Auftrags.
+
+Umsetzen, Herausnehmen, Verlängern (Punkt 2, seit 1.9.268) -- für eine Person oder ein Gerät, keine Kolonne
+    Umsetzen       aus einer Zelle auf einen anderen Auftrag oder Tag: erst setzen (Regeln wie oben, die Tage um gleich viele Kalendertage), dann am alten Platz
+                   herausnehmen -- im selben Einsatz nur die Tage, die sie nicht behält; beide Arbeitsvorbereitungen aufsteigend gesperrt; der alte Platz fragt
+                   nicht (er ist danach frei), eine neue Warnung am Ziel schon
+    Herausnehmen   für Tage oder alle; am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; wird er ganz leer, die Rückfrage „Der Einsatz hat dann niemanden
+                   mehr.“ (Antwort 3, wenn_leer); fragt sonst nie
+    Verlängern     ab einem ihrer Tage bis zum letzten Tag des Einsatzes; prüft wie Planen"""
 
 from __future__ import annotations
 
@@ -28,7 +36,7 @@ from sqlalchemy.orm import Session
 from . import kran_kalender
 from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt
 from .models import Order, PlanningSlot, WorkPreparation
-from .planning import (BesetzungUngueltig, PlanungsWarnung, _combined_holiday_map, _create_slot, _einsatz_abfrage, _is_workday,
+from .planning import (BesetzungUngueltig, PlanungsWarnung, _besetzte_tage, _combined_holiday_map, _create_slot, _einsatz_abfrage, _is_workday,
                        _kolonne_schlaegt_geraete_vor, _kolonne_schlaegt_vor, _load_slot, _load_team, _tage_der_zeile, _update_slot, einsatz_konflikte,
                        load_planning_settings)
 from .zugehoerigkeit import IdNichtGefunden
@@ -168,13 +176,23 @@ def _eintraege(db: Session, wer: Wer, tage: list[date]) -> list[dict]:
 
 
 def _schluessel(w: dict) -> tuple:
-    """Eine Warnung, unabhängig davon, an welchem der beiden Einsätze sie steht -- mit ihren Tagen: ein neuer Tag ist eine neue Warnung."""
-    return (w["type"], w.get("label"), w.get("employee_id"), w.get("resource_id"), w.get("other_slot_id"), str(w.get("date")),
-            tuple(str(t) for t in w.get("tage") or ()))
+    """Eine Warnung, unabhängig davon, an welchem der beiden Einsätze sie steht: Art, Text, wen sie betrifft, der andere Einsatz. Ihre Tage zählen
+    getrennt (_tage_der_warnung()) -- seit 1.9.268: weniger Tage machen eine Warnung nicht neu (bis 1.9.267 waren die Tage Teil des Schlüssels)."""
+    return (w["type"], w.get("label"), w.get("employee_id"), w.get("resource_id"), w.get("other_slot_id"))
 
 
-def _warnungen(db: Session, slots: list[PlanningSlot]) -> set[tuple]:
-    return {_schluessel(w) for s in slots for w in einsatz_konflikte(db, s)["warnungen"]}
+def _tage_der_warnung(w: dict) -> set[str]:
+    """Die Tage einer Warnung: ihre Tage (Person, Gerät doppelt) oder ihr Tag."""
+    return {str(t) for t in w.get("tage") or ()} or {str(w.get("date"))}
+
+
+def _warnungen(db: Session, slots: list[PlanningSlot]) -> dict[tuple, set[str]]:
+    """Die Warnungen dieser Einsätze vor der Aktion -- je Warnung ihre Tage."""
+    vorher: dict[tuple, set[str]] = {}
+    for s in slots:
+        for w in einsatz_konflikte(db, s)["warnungen"]:
+            vorher.setdefault(_schluessel(w), set()).update(_tage_der_warnung(w))
+    return vorher
 
 
 def setzen_offen(db: Session, order: Order, wer: Wer, tage: list[date], *, karte: PlanningSlot | None = None) -> tuple[PlanningSlot, str]:
@@ -206,20 +224,21 @@ def tage_von(slot: PlanningSlot, wer: Wer) -> list[str]:
     return [t.isoformat() for t in sorted(tage)]
 
 
-def neue_warnungen(db: Session, beruehrt: list[PlanningSlot], vorher: set[tuple]) -> list[dict]:
-    """Die Warnungen, die die Aktion neu bringt -- eine neue Warnung oder ein neuer Tag einer bestehenden (vorher: _warnungen() vor der Aktion); jede
-    einmal, auch wenn sie an zwei berührten Einsätzen steht. Hinweise fragen nie."""
+def neue_warnungen(db: Session, beruehrt: list[PlanningSlot], vorher: dict[tuple, set[str]]) -> list[dict]:
+    """Die Warnungen, die die Aktion neu bringt -- eine Warnung, die es vorher nicht gab, oder ein Tag, den sie vorher nicht hatte (vorher: _warnungen() vor
+    der Aktion). Hat eine Warnung danach nur weniger Tage (Herausnehmen, Umsetzen), ist sie nicht neu. Jede einmal, auch wenn sie an zwei berührten
+    Einsätzen steht. Hinweise fragen nie."""
     neue, gesehen = [], set()
     for s in beruehrt:
         for w in einsatz_konflikte(db, s)["warnungen"]:
-            k = _schluessel(w)
-            if k not in vorher and k not in gesehen:
-                gesehen.add(k)
+            k, tage = _schluessel(w), _tage_der_warnung(w)
+            if (k not in vorher or not tage <= vorher[k]) and (k, frozenset(tage)) not in gesehen:
+                gesehen.add((k, frozenset(tage)))
                 neue.append(w)
     return neue
 
 
-def abschliessen(db: Session, beruehrt: list[PlanningSlot], vorher: set[tuple], *, trotzdem_planen: bool) -> list[int]:
+def abschliessen(db: Session, beruehrt: list[PlanningSlot], vorher: dict[tuple, set[str]], *, trotzdem_planen: bool) -> list[int]:
     """Nach dem Flush: fragt bei neuen Warnungen (PlanungsWarnung, alles zurück -- eine Rückfrage für alle), sonst Kran-Kalender abgleichen, Commit,
     Termine senden. beruehrt: die Einsätze, die es nach der Aktion noch gibt (das Ziel zuerst)."""
     if not trotzdem_planen:
@@ -236,7 +255,7 @@ def abschliessen(db: Session, beruehrt: list[PlanningSlot], vorher: set[tuple], 
     return [s.id for s in beruehrt]
 
 
-def pruefung(db: Session, beruehrt: list[PlanningSlot], vorher: set[tuple]) -> dict:
+def pruefung(db: Session, beruehrt: list[PlanningSlot], vorher: dict[tuple, set[str]]) -> dict:
     """Prüfen ohne Schreiben: die Warnungen, die fragen würden, und die Hinweise am Ziel (der Aufrufer nimmt danach alles zurück)."""
     neue = neue_warnungen(db, beruehrt, vorher)
     hinweise = einsatz_konflikte(db, beruehrt[0])["hinweise"] if beruehrt else []
@@ -262,6 +281,144 @@ def tag_setzen(db: Session, *, order_id: int, tag: date, employee_id: int | None
             db.rollback()
             return ergebnis
         abschliessen(db, [slot], vorher, trotzdem_planen=trotzdem_planen)
+        return ergebnis
+    except Exception:
+        db.rollback()
+        raise
+
+
+# --- seit 1.9.268 (Punkt 2): Umsetzen, Herausnehmen, Verlängern -------------------------------------------------------------------------------
+
+TAGE_ODER_ALLE = "Bitte die Tage nennen oder „alle“, nicht beides."
+NICHTS_ZU_VERLAENGERN = "Der Tag ist schon der letzte Tag des Einsatzes."
+
+
+def _person_oder_geraet(employee_id: int | None, resource_id: int | None) -> Wer:
+    """Umsetzen, Herausnehmen und Verlängern nehmen eine Person oder ein Gerät -- keine Kolonne (ihre Mitglieder haben je ihre Tage)."""
+    return wer_aus(employee_id, None, resource_id)
+
+
+def _einsatz(db: Session, slot_id: int) -> PlanningSlot:
+    slot = db.get(PlanningSlot, slot_id)
+    if slot is None:
+        raise IdNichtGefunden("Einsatz wurde nicht gefunden.")
+    return slot
+
+
+def _feld(wer: Wer) -> str:
+    return "employee_id" if wer.art == "person" else "resource_id"
+
+
+def _seine_tage(slot: PlanningSlot, wer: Wer) -> set[date] | None:
+    """Die Tage der Person bzw. des Geräts an diesem Einsatz; None, wenn sie gar nicht daran steht."""
+    zeilen = slot.besetzung if wer.art == "person" else slot.geraete
+    zeile = next((x for x in zeilen if getattr(x, _feld(wer)) == wer.id), None)
+    return _tage_der_zeile(slot, zeile) if zeile is not None else None
+
+
+def _an_den_tagen(slot: PlanningSlot, wer: Wer, tage: list[date]) -> None:
+    """Die Person bzw. das Gerät steht am Einsatz -- an allen genannten Tagen (sonst 422)."""
+    seine = _seine_tage(slot, wer)
+    if seine is None or not set(tage) <= seine:
+        raise BesetzungUngueltig(("Die Person" if wer.art == "person" else "Das Gerät") + " steht an diesen Tagen nicht am Einsatz.")
+
+
+def _leer_frage(wenn_leer: str | None, pruefen: bool) -> str | None:
+    """Prüfen fragt nicht nach „niemand mehr“, es sagt es (leer); beim Speichern fragt _update_slot() ohne wenn_leer zurück (EinsatzWirdLeer)."""
+    return wenn_leer if wenn_leer is not None or not pruefen else "behalten"
+
+
+def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, employee_id: int | None = None, resource_id: int | None = None,
+             ziel_order_id: int | None = None, ziel_slot_id: int | None = None, trotzdem_planen: bool = False, wenn_leer: str | None = None,
+             pruefen: bool = False) -> dict:
+    """Aus einer Zelle (Punkt 2): eine Person oder ein Gerät für diese Tage auf einen anderen Auftrag oder Tag -- setzen und herausnehmen in einer
+    Transaktion. Die Tage wandern um gleich viele Kalendertage (der erste auf ziel_tag); das Ziel nach den Regeln von Tag setzen (Karte = ziel_slot_id,
+    Antwort 6). Beide Arbeitsvorbereitungen werden aufsteigend gesperrt. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage (Antwort 3), wenn_leer."""
+    try:
+        wer = _person_oder_geraet(employee_id, resource_id)
+        quelle = _einsatz(db, slot_id)
+        tage = sorted(set(tage))
+        if not tage:
+            raise BesetzungUngueltig("Bitte mindestens einen Tag nennen.")
+        ziel_tage = [t + (ziel_tag - tage[0]) for t in tage]
+        ziel_order = _auftrag(db, ziel_order_id if ziel_order_id is not None else quelle.preparation.order_id)
+        q_prep, z_prep = quelle.preparation_id, _prep_id(db, ziel_order.id)
+        _sperren(db, [q_prep, z_prep])
+        quelle = _load_slot(db, slot_id, frisch=True)
+        _an_den_tagen(quelle, wer, tage)
+        vorher = _warnungen(db, _einsaetze(db, q_prep) + ([] if z_prep in (None, q_prep) else _einsaetze(db, z_prep)))
+        karte = _karte(db, ziel_order, ziel_slot_id, ziel_tage)
+        ziel, aktion = setzen_offen(db, ziel_order, wer, ziel_tage, karte=karte)
+        ziel_id, quelle_id = ziel.id, quelle.id
+        weg = [t for t in tage if t not in ziel_tage] if ziel_id == quelle_id else tage  # im selben Einsatz bleiben die Tage, die sie behält
+        danach = (_update_slot(db, quelle_id, weg=[{_feld(wer): wer.id, "tage": weg}], wenn_leer=_leer_frage(wenn_leer, pruefen), trotzdem_planen=True,
+                               _offen=True) if weg else _load_slot(db, quelle_id, frisch=True))
+        ziel = _load_slot(db, ziel_id, frisch=True)
+        leer = ziel_id != quelle_id and (danach is None or not _besetzte_tage(danach))
+        beruehrt = [ziel] + ([danach] if danach is not None and danach.id != ziel_id else [])
+        ergebnis = {"aktion": "umgesetzt", "ziel_aktion": aktion, "slot_id": ziel_id if aktion != "neu" or not pruefen else None, "quelle_id": quelle_id,
+                    "quelle_geloescht": danach is None, "tage": tage_von(ziel, wer), "bis": ziel.end_date.isoformat()}
+        if pruefen:
+            ergebnis.update(pruefung(db, beruehrt, vorher), leer=leer)
+            db.rollback()
+            return ergebnis
+        abschliessen(db, beruehrt, vorher, trotzdem_planen=trotzdem_planen)
+        return ergebnis
+    except Exception:
+        db.rollback()
+        raise
+
+
+def herausnehmen(db: Session, *, slot_id: int, employee_id: int | None = None, resource_id: int | None = None, tage: list[date] | None = None,
+                 alle: bool = False, wenn_leer: str | None = None, pruefen: bool = False) -> dict:
+    """Eine Person oder ein Gerät für diese Tage (oder alle) aus dem Einsatz nehmen (Punkt 2). Am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke;
+    wird er ganz leer: Rückfrage „Der Einsatz hat dann niemanden mehr.“ (Antwort 3), wenn_leer. Herausnehmen bringt keine neue Warnung und fragt nicht."""
+    try:
+        wer = _person_oder_geraet(employee_id, resource_id)
+        if (tage is None) == (not alle):
+            raise BesetzungUngueltig(TAGE_ODER_ALLE)
+        slot = _einsatz(db, slot_id)
+        _sperren(db, [slot.preparation_id])
+        slot = _load_slot(db, slot_id, frisch=True)
+        _an_den_tagen(slot, wer, [] if alle else tage)
+        vorher = _warnungen(db, _einsaetze(db, slot.preparation_id))
+        danach = _update_slot(db, slot.id, weg=[{_feld(wer): wer.id, "tage": None if alle else tage}], wenn_leer=_leer_frage(wenn_leer, pruefen),
+                              trotzdem_planen=True, _offen=True)
+        leer = danach is None or not _besetzte_tage(danach)
+        ergebnis = {"aktion": "herausgenommen", "slot_id": danach.id if danach is not None else None, "geloescht": danach is None,
+                    "tage": tage_von(danach, wer) if danach is not None else [], "bis": danach.end_date.isoformat() if danach is not None else None}
+        if pruefen:
+            ergebnis.update(pruefung(db, [danach] if danach is not None else [], vorher), leer=leer)
+            db.rollback()
+            return ergebnis
+        abschliessen(db, [danach] if danach is not None else [], vorher, trotzdem_planen=True)
+        return ergebnis
+    except Exception:
+        db.rollback()
+        raise
+
+
+def verlaengern(db: Session, *, slot_id: int, ab_tag: date, employee_id: int | None = None, resource_id: int | None = None,
+                trotzdem_planen: bool = False, pruefen: bool = False) -> dict:
+    """„bis <letzter Tag des Einsatzes> verlängern“ (Punkt 2): die Person bzw. das Gerät steht an ab_tag und danach an jedem Tag bis zum Ende des Einsatzes.
+    Prüft wie Planen (Rückfrage bei neuen Warnungen)."""
+    try:
+        wer = _person_oder_geraet(employee_id, resource_id)
+        slot = _einsatz(db, slot_id)
+        _sperren(db, [slot.preparation_id])
+        slot = _load_slot(db, slot_id, frisch=True)
+        _an_den_tagen(slot, wer, [ab_tag])
+        neue_tage = [ab_tag + timedelta(days=n) for n in range(1, (slot.end_date - ab_tag).days + 1)]
+        if not neue_tage:
+            raise BesetzungUngueltig(NICHTS_ZU_VERLAENGERN)
+        vorher = _warnungen(db, _einsaetze(db, slot.preparation_id))
+        danach = _update_slot(db, slot.id, dazu=[{_feld(wer): wer.id, "tage": neue_tage}], trotzdem_planen=True, _offen=True)
+        ergebnis = {"aktion": "verlaengert", "slot_id": danach.id, "tage": tage_von(danach, wer), "bis": danach.end_date.isoformat()}
+        if pruefen:
+            ergebnis.update(pruefung(db, [danach], vorher))
+            db.rollback()
+            return ergebnis
+        abschliessen(db, [danach], vorher, trotzdem_planen=trotzdem_planen)
         return ergebnis
     except Exception:
         db.rollback()
