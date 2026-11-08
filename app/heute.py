@@ -102,7 +102,7 @@ def _name(e: Employee | None) -> str:
 def einsatz_details(db: Session, employee_id: int, slots: list[PlanningSlot], heute: date) -> dict:
     """Seit 1.9.242: was die Karte des heutigen Einsatzes zu den Einsätzen eines Auftrags zeigt -- Status (vorläufig, wenn einer davon vorläufig ist),
     „Mit dir“, wer nicht da ist (nur der Name), Geräte an ihren Tagen (mit Zusatz bei einzelnen Tagen), Notiz, Baustellenhinweise."""
-    from .planning import EINSATZ_STATUS, _abwesend_map, _absence_rows, _geraet_tage
+    from .planning import EINSATZ_STATUS, _abwesend_map, _absence_rows, _tage_der_zeile
     andere = []
     for s in slots:
         for x in s.besetzung:
@@ -112,7 +112,7 @@ def einsatz_details(db: Session, employee_id: int, slots: list[PlanningSlot], he
     geraete, gesehen = [], set()
     for s in slots:
         for row in s.geraete:
-            tage = sorted(_geraet_tage(s, row))
+            tage = sorted(_tage_der_zeile(s, row))
             if heute not in tage or row.resource_id in gesehen:
                 continue
             gesehen.add(row.resource_id)

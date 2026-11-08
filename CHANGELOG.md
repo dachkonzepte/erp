@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.260 – Plantafel: Besetzung je Tag -- Spalte und Schreibweg (Stufe 6, R5a, Punkt 1)
+
+Eine Person am Einsatz hat jetzt ihre Tage wie ein Gerät: `planning_slot_employees.tage` (Migration `b6e4d2a9c731`), leer heißt alle Tage. Jeder bestehende Einsatz behält seine Besetzung an allen Tagen -- die Migration schreibt nichts; zurück geht sie nur, solange niemand an einzelnen Tagen steht. Anlegen, Ändern, Prüfen und das Übernehmen eines Kran-Termins nehmen `besetzung` mit den Tagen je Person; `employee_ids` und der Vorschlag der Kolonne heißen weiter alle Tage. Der Server prüft die Tage wie bei den Geräten und speichert „an allen Tagen einzeln genannt“ als alle Tage (auch bei Geräten). Verschieben und ein anderer Zeitraum nehmen die Tage der Personen mit wie die der Geräte.
+
+Die Falle aus dem Befund: „alle Tage“ heißt „alle Tage des Einsatzes“ -- verlängert eine Tag-Aktion einen Einsatz, stünde sonst die ganze Kolonne auch am neuen Tag. `update_slot(alle_tage_mitnehmen=False)` schreibt vorher jeden, den die Änderung nicht setzt, auf seine bisherigen Tage fest; der Dialog nimmt weiter alle mit. Der Dialog hält die Besetzung jetzt mit den Tagen und schickt sie so -- eine Änderung an den Personen verliert keine Tage. Wählen lassen sich die Tage im Dialog ab 1.9.264.
+
 ## 1.9.259 – Plantafel: die Kolonne schlägt „nicht zeigen“ nicht mehr vor (Stufe 6, R5a, Punkt 0)
 
 Wer das Kennzeichen „Plantafel: nicht zeigen“ hat, kam bis 1.9.258 trotzdem in jeden neuen Einsatz seiner Kolonne -- er stand dann in der Besetzung, ohne auf der Tafel zu erscheinen und ohne in der Kapazität zu zählen. Jetzt schlägt die Kolonne nur noch ihre übrigen aktiven Mitglieder vor: beim Anlegen, beim Wechsel der Kolonne (auch beim Ziehen in ihre Zeile) und in der Prüfung des Dialogs. Einzeln gewählt kommt so jemand weiter in einen Einsatz. In den Stammdaten steht in Liste und Formular der Kolonne bei ihm „nicht zeigen“.

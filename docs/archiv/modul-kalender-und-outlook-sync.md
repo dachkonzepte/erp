@@ -1626,3 +1626,47 @@ Kalkulation ab, die Stammdaten luden nicht). Gegenproben: Archiv `gegenproben-st
 
 Angepasste Erwartung (Regel 28): `tests/test_v653_plantafel_kennzeichen.py::test_nicht_zeigen_auch_nicht_im_einsatz_dialog` -- alt: mit Kolonne Nord schlägt die
 Prüfung „Tom, Bea, Vera“ vor; neu: „Tom, Bea“.
+
+### Umsetzung 1.9.260 (Punkt 1): Besetzung je Tag -- Spalte und Schreibweg
+
+- Modell: `PlanningSlotEmployee.tage` (TEXT, leer = alle Tage), Migration `b6e4d2a9c731` (hängt an `e3b7c51a9d26`): Spalte dazu, nichts geschrieben;
+  `downgrade()` bricht ab, solange eine Zeile Tage trägt („Downgrade abgebrochen, nichts geändert: n Person(en) stehen an einzelnen Tagen …“), sonst fällt die
+  Spalte weg. Geprobt auf einem Bestand unter SQLite und PostgreSQL (Wegwerf-Schema): hin, Abbruch mit Tagen, zurück ohne, wieder hin.
+- `app/planning.py`: eine Funktion für die Tage einer Zeile, Person oder Gerät (`_tage_lesen()`, `_tage_schreiben()`, `_tage_der_zeile()` -- bis 1.9.259
+  `_geraet_tage()`, auch in `app/heute.py` und `app/kran_kalender.py`), eine Prüfung (`_tage_pruefen()`: im Einsatz, keine leere Liste, Normalform).
+  `create_slot(besetzung=…)` und `update_slot(besetzung=…)`: [{employee_id, tage}] über `_personen_pruefen()` (bekannt, aktiv, die erste zählt);
+  `employee_ids` und der Vorschlag der Kolonne über `_alle_tage()`; beides zugleich `BesetzungUngueltig` (422). `_besetzung_setzen()` setzt mit Tagen, wer
+  bleibt, behält seine Zeile; die Rückfrage vergleicht Personen samt Tagen (`_besetzung_stand()`). Ein neuer Zeitraum nimmt die Tage der Personen mit, wenn die
+  Besetzung nicht neu gesetzt wird (`_tage_mitnehmen(…, "besetzung")`); die Prüfung „ohne Kolonne mindestens eine Person“ steht danach.
+- **Die Falle** (`_alle_tage_festschreiben()`): `update_slot(alle_tage_mitnehmen=False)` schreibt vor einer Änderung des Zeitraums jede Person und jedes Gerät,
+  das die Änderung nicht setzt und an allen Tagen stand, auf genau die bisherigen Tage fest. Was die Änderung setzt, gilt so (auch „alle Tage“ = die des neuen
+  Zeitraums). Die Schnittstelle (`PUT`) kennt den Schalter nicht -- er ist für die Tag-Aktionen ab R5b; Dialog und Ziehen des ganzen Einsatzes nehmen alle mit.
+- Antworten: `slot_to_dict()` nennt je Person `tage`, die Prüfung des Dialogs (`_personen_zustand()`) `tage` und `tage_text` wie bei den Geräten
+  (`_tage_text()`, eine Schreibweise für beide). Schemas: `PlanningSlotPerson`, `besetzung` an Anlegen, Ändern (Teil-Update, null 422), Prüfen und der
+  Übernahme eines Kran-Termins.
+- Dialog (`planning.html`): der Zustand heißt `einsatz.besetzung` [{employee_id, tage}] (bis 1.9.259 `employee_ids`); Öffnen, Prüfung, Häkchen, „+ Person“,
+  Wechsel der Art und der Kolonne halten die Tage, gesendet wird `besetzung`. Tage wählen lassen sich ab 1.9.264.
+
+#### Festlegungen 1.9.260 (Bitte bestätigen)
+
+1. Eine Person am Einsatz hat ihre Tage wie ein Gerät (leer = alle Tage); der Bestand steht an allen Tagen, die Migration schreibt nichts.
+2. `downgrade()` bricht ab, solange jemand an einzelnen Tagen steht.
+3. `besetzung` [{employee_id, tage}] beim Anlegen, Ändern, Prüfen und Übernehmen eines Kran-Termins; `employee_ids` und der Vorschlag der Kolonne heißen alle
+   Tage; beides zugleich 422; Tage nur im Einsatz, keine leere Liste (422); unbekannt oder inaktiv 422; doppelt genannt zählt die erste.
+4. Normalform auf dem Server, für Personen und Geräte: alle Tage des Einsatzes einzeln genannt heißt „alle Tage“.
+5. Geänderte Tage einer Person fragen beim Speichern zurück wie eine geänderte Besetzung.
+6. Ein neuer Zeitraum nimmt die Tage der Personen mit wie die der Geräte (gleiche Dauer verschoben, sonst nur die Tage im neuen Zeitraum, ohne Tag fällt die
+   Person weg); wer an allen Tagen steht, steht danach an allen Tagen des neuen Zeitraums (Dialog, Ziehen des ganzen Einsatzes).
+7. Die Falle: `update_slot(alle_tage_mitnehmen=False)` schreibt jeden, den die Änderung nicht setzt und der an allen Tagen stand, vorher auf seine bisherigen
+   Tage fest (Personen und Geräte); was sie setzt, gilt so. Für die Tag-Aktionen ab R5b, nicht an der Schnittstelle.
+8. Der Dialog hält die Besetzung mit den Tagen (aus der Prüfung) und schickt `besetzung`; Antwort und Prüfung nennen die Tage je Person.
+
+#### Tests und Prüfung 1.9.260
+
+Neu: `tests/test_v660_besetzung_je_tag.py` (Bestand und Kolonne alle Tage, Anlegen mit Tagen, Tage außerhalb und leer, unbekannt, inaktiv, beides zugleich,
+null, doppelt, Normalform auch bei Geräten, Teil-Update lässt die Tage, Rückfrage bei geänderten Tagen, Prüfung mit Tagen, Mitnehmen beim Verschieben und bei
+anderem Zeitraum, die Falle in vier Fällen, Änderungsprotokoll „Tage“, Dialog in node, Migration auf einem Bestand unter SQLite und PostgreSQL). Gegenproben:
+Archiv `gegenproben-stufe6-r5a.md`.
+
+Angepasste Erwartung (Regel 28): `tests/test_v637_plantafel_bedienbar.py::test_dialog_fuellt_die_zeile_beim_oeffnen` -- alt: `openEdit()` füllt
+`employee_ids:s.employees.map(e=>e.id)`; neu: `besetzung:s.employees.map(e=>({employee_id:e.id,tage:e.tage??null}))`.

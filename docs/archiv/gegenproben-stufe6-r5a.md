@@ -18,3 +18,27 @@ genannten Tests laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot
 | Nr. 3 – Formular nennt „nicht zeigen“ | ohne den Zusatz (`259_3d`, Klicktest Besetzung) | rot: plantafel_besetzung (Kolonnen) |
 
 Ohne eigene Gegenprobe: „bestehende Einsätze und der Schnappschuss an der AV bleiben“ (Nr. 2) -- nichts daran geändert, keine Migration.
+
+## 1.9.260 (Punkt 1): Besetzung je Tag -- Spalte und Schreibweg
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Bestand steht an allen Tagen | Migration mit Vorgabe „[]“ (`260_1a`) | 2 rot: v660::test_migration_auf_einem_bestand_postgresql, v660::test_migration_auf_einem_bestand_sqlite |
+| Nr. 2 – downgrade bricht ab | ohne Abbruch (`260_2a`) | 2 rot: v660::test_migration_auf_einem_bestand_postgresql, v660::test_migration_auf_einem_bestand_sqlite |
+| Nr. 3 – besetzung mit Tagen | Tage verworfen (`260_3a`) | 11 rot: v660::test_aendern_setzt_genau_und_ein_teil_update_laesst_die_tage, v660::test_aenderungsprotokoll_nennt_die_tage, v660::test_anderer_zeitraum_laesst_die_tage_darin_und_wer_keinen_hat_faellt_weg, v660::test_besetzung_mit_tagen_anlegen, v660::test_doppelt_genannt_zaehlt_die_erste, v660::test_falle_tag_aktion_schreibt_auch_ungenannte_geraete_fest, v660::test_geaenderte_tage_fragen_zurueck_wie_die_besetzung, v660::test_pruefung_nennt_die_tage_je_person, v660::test_tage_einer_person_nur_im_einsatz[person0-liegt, v660::test_tage_einer_person_nur_im_einsatz[person1-mindestens, v660::test_verschieben_nimmt_die_tage_mit |
+| Nr. 3 – employee_ids heißt alle Tage | leere Liste statt alle Tage (`260_3b`) | 4 rot: v660::test_aenderungsprotokoll_nennt_die_tage, v660::test_employee_ids_und_kolonne_heissen_alle_tage, v660::test_falle_tag_aktion_schreibt_die_anderen_fest, v660::test_geaenderte_tage_fragen_zurueck_wie_die_besetzung |
+| Nr. 3 – beides zugleich 422 | ohne die Prüfung im Ändern (`260_3c`) | 1 rot: v660::test_unbekannt_inaktiv_und_beides_zugleich |
+| Nr. 3 – Tage nur im Einsatz | ohne die Prüfung (`260_3d`) | 3 rot: v634::test_tage_wandern_mit_und_fallen_weg, v634::test_ungueltige_geraete_422[ausserhalb-liegt, v660::test_tage_einer_person_nur_im_einsatz[person0-liegt |
+| Nr. 3 – doppelt genannt die erste | doppelt übernommen (`260_3e`) | 1 rot: v660::test_doppelt_genannt_zaehlt_die_erste |
+| Nr. 4 – Normalform | Liste bleibt (`260_4a`) | 1 rot: v660::test_normalform_alle_tage_heisst_null_auch_bei_geraeten |
+| Nr. 5 – geänderte Tage fragen zurück | nur die Personen verglichen (`260_5a`) | 1 rot: v660::test_geaenderte_tage_fragen_zurueck_wie_die_besetzung |
+| Nr. 6 – Tage wandern mit | ohne Mitnehmen der Personen (`260_6a`) | 2 rot: v660::test_anderer_zeitraum_laesst_die_tage_darin_und_wer_keinen_hat_faellt_weg, v660::test_verschieben_nimmt_die_tage_mit |
+| Nr. 6 – danach in der Normalform | Liste bleibt (`260_6b`) | 1 rot: v660::test_anderer_zeitraum_laesst_die_tage_darin_und_wer_keinen_hat_faellt_weg |
+| Nr. 7 – die Falle: festschreiben | ohne Festschreiben (`260_7a`) | 2 rot: v660::test_falle_tag_aktion_schreibt_auch_ungenannte_geraete_fest, v660::test_falle_tag_aktion_schreibt_die_anderen_fest |
+| Nr. 7 – der Dialog nimmt alle mit | Vorgabe „nicht mitnehmen“ (`260_7b`) | 1 rot: v660::test_falle_ende_aendern_nimmt_alle_tage_mit |
+| Nr. 8 – der Dialog schickt besetzung | schickt employee_ids (`260_8a`) | 2 rot: v660::test_dialog_haelt_die_tage_aus_der_pruefung, v660::test_dialog_schickt_die_besetzung_mit_den_tagen |
+| Nr. 8 – der Dialog hält die Tage aus der Prüfung | Tage verworfen (`260_8b`) | 1 rot: v660::test_dialog_haelt_die_tage_aus_der_pruefung |
+| Nr. 8 – Antwort nennt die Tage | ohne Tage (`260_8c`) | 1 rot: v660::test_besetzung_mit_tagen_anlegen |
+| Nr. 8 – Prüfung nennt die Tage | ohne Tage (`260_8d`) | 1 rot: v660::test_pruefung_nennt_die_tage_je_person |
+
+Ohne Klicktest-Gegenprobe: Tage wählen lässt sich im Dialog erst ab 1.9.264 (dort `klicktest_plantafel_tage`).

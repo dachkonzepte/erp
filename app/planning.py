@@ -440,24 +440,52 @@ def _besetzung_pruefen(db: Session, employee_ids) -> list[int]:
     return ids
 
 
-def _besetzung_setzen(db: Session, slot: PlanningSlot, employee_ids: list[int]) -> bool:
-    """Die Besetzung genau auf diese Personen setzen (Reihenfolge wie gegeben); True, wenn sich etwas geändert hat. Wer bleibt, behält seine Zeile."""
-    vorher = [x.employee_id for x in slot.besetzung]
-    if vorher == employee_ids:
+def _personen_pruefen(db: Session, besetzung, start: date, ende: date) -> list[dict]:
+    """Seit 1.9.260 (Stufe 6, R5a, Punkt 1): gewählte Personen mit ihren Tagen ([{employee_id, tage}], tage leer = alle Tage) -- jede bekannt und aktiv,
+    jede einmal (die erste zählt), Tage wie bei den Geräten (_tage_pruefen()). employee_ids heißt dasselbe mit „alle Tage“ (_alle_tage())."""
+    ergebnis: list[dict] = []
+    for p in besetzung:
+        eid = int(p["employee_id"])
+        if any(x["employee_id"] == eid for x in ergebnis):
+            continue
+        ergebnis.append({"employee_id": eid, "tage": _tage_pruefen(p.get("tage"), start, ende, BesetzungUngueltig, "eine Person")})
+    _besetzung_pruefen(db, [x["employee_id"] for x in ergebnis])
+    return ergebnis
+
+
+def _alle_tage(employee_ids) -> list[dict]:
+    """Personen an allen Tagen des Einsatzes (employee_ids, Vorschlag der Kolonne)."""
+    return [{"employee_id": eid, "tage": None} for eid in employee_ids]
+
+
+def _besetzung_stand(slot: PlanningSlot) -> tuple:
+    return tuple((x.employee_id, x.tage) for x in slot.besetzung)
+
+
+def _besetzung_setzen(db: Session, slot: PlanningSlot, personen: list[dict]) -> bool:
+    """Die Besetzung genau auf diese Personen setzen (Reihenfolge wie gegeben), seit 1.9.260 mit ihren Tagen ([{employee_id, tage}]); True, wenn sich
+    etwas geändert hat. Wer bleibt, behält seine Zeile."""
+    neu = tuple((p["employee_id"], _tage_schreiben(p["tage"])) for p in personen)
+    if _besetzung_stand(slot) == neu:
         return False
     bleiben = {x.employee_id: x for x in slot.besetzung}
-    slot.besetzung = [bleiben.get(eid) or PlanningSlotEmployee(employee_id=eid) for eid in employee_ids]
+    zeilen = []
+    for eid, tage in neu:
+        row = bleiben.get(eid) or PlanningSlotEmployee(employee_id=eid)
+        row.tage = tage
+        zeilen.append(row)
+    slot.besetzung = zeilen
     return True
 
 
-# --- Geräte je Einsatz (seit 1.9.234, Stufe 6, R3a, Punkt 3) -----------------------------------------------------------------------------
+# --- Tage je Zeile: Geräte seit 1.9.234 (Stufe 6, R3a, Punkt 3), Personen seit 1.9.260 (R5a, Punkt 1) ------------------------------------------
 
 class GeraeteUngueltig(BesetzungUngueltig):
     """Seit 1.9.234: Geräte, die nicht gehen (unbekannt, inaktiv, Tag außerhalb des Einsatzes, leere Tagesliste) -- 422 wie die Besetzung."""
 
 
-def _tage_lesen(row: PlanningSlotResource) -> list[date] | None:
-    """Die einzelnen Tage eines Geräts am Einsatz, None = alle Tage."""
+def _tage_lesen(row: PlanningSlotResource | PlanningSlotEmployee) -> list[date] | None:
+    """Die einzelnen Tage eines Geräts bzw. (seit 1.9.260) einer Person am Einsatz, None = alle Tage."""
     return [date.fromisoformat(x) for x in json.loads(row.tage)] if row.tage else None
 
 
@@ -465,10 +493,35 @@ def _tage_schreiben(tage: list[date] | None) -> str | None:
     return json.dumps(sorted({t.isoformat() for t in tage})) if tage is not None else None
 
 
-def _geraet_tage(slot: PlanningSlot, row: PlanningSlotResource) -> set[date]:
-    """An welchen Tagen das Gerät am Einsatz ist: die einzelnen Tage oder alle Tage des Einsatzes."""
+def _tage_der_zeile(slot: PlanningSlot, row: PlanningSlotResource | PlanningSlotEmployee) -> set[date]:
+    """An welchen Tagen das Gerät bzw. die Person am Einsatz ist: die einzelnen Tage oder alle Tage des Einsatzes. Seit 1.9.260 eine Funktion für beide
+    (bis 1.9.259 _geraet_tage(), nur Geräte -- eine Person stand immer an allen Tagen)."""
     tage = _tage_lesen(row)
     return set(tage) if tage is not None else set(_date_range(slot.start_date, slot.end_date))
+
+
+def _tage_pruefen(tage, start: date, ende: date, fehler, wer: str) -> list[date] | None:
+    """Einzelne Tage einer Person oder eines Geräts: nur innerhalb des Einsatzes, eine leere Liste geht nicht (fehler, 422). Seit 1.9.260 die Normalform auf
+    dem Server: stehen sie an allen Tagen des Einsatzes, heißt das „alle Tage“ (None) -- bis 1.9.259 speicherte das nur die Oberfläche so."""
+    if tage is None:
+        return None
+    tage = sorted({t if isinstance(t, date) else date.fromisoformat(str(t)) for t in tage})
+    if not tage:
+        raise fehler(f"Für {wer} an einzelnen Tagen bitte mindestens einen Tag wählen.")
+    draussen = [t for t in tage if t < start or t > ende]
+    if draussen:
+        raise fehler(f"Der Tag {draussen[0]:%d.%m.%Y} liegt außerhalb des Einsatzes.")
+    return None if len(tage) == (ende - start).days + 1 else tage
+
+
+def _alle_tage_festschreiben(slot: PlanningSlot, zeilen: list) -> None:
+    """Seit 1.9.260 (Stufe 6, R5a, Punkt 1, „die Falle“): wer an allen Tagen steht, steht danach an genau den Tagen, die der Einsatz jetzt hat. Vor einer
+    Änderung des Zeitraums, die niemanden mitnehmen soll (update_slot(alle_tage_mitnehmen=False), für die Tag-Aktionen ab R5b) -- „alle Tage“ heißt „alle
+    Tage des Einsatzes“, ohne das stünde bei jeder Verlängerung die ganze Kolonne auch am neuen Tag."""
+    tage = list(_date_range(slot.start_date, slot.end_date))
+    for row in zeilen:
+        if row.tage is None:
+            row.tage = _tage_schreiben(tage)
 
 
 def _kolonne_schlaegt_geraete_vor(db: Session, team_id: int) -> list[dict]:
@@ -486,15 +539,7 @@ def _geraete_pruefen(db: Session, geraete, start: date, ende: date) -> list[dict
         rid = int(g["resource_id"])
         if any(x["resource_id"] == rid for x in ergebnis):
             continue
-        tage = g.get("tage")
-        if tage is not None:
-            tage = sorted({t if isinstance(t, date) else date.fromisoformat(str(t)) for t in tage})
-            if not tage:
-                raise GeraeteUngueltig("Für ein Gerät an einzelnen Tagen bitte mindestens einen Tag wählen.")
-            draussen = [t for t in tage if t < start or t > ende]
-            if draussen:
-                raise GeraeteUngueltig(f"Der Tag {draussen[0]:%d.%m.%Y} liegt außerhalb des Einsatzes.")
-        ergebnis.append({"resource_id": rid, "tage": tage})
+        ergebnis.append({"resource_id": rid, "tage": _tage_pruefen(g.get("tage"), start, ende, GeraeteUngueltig, "ein Gerät")})
     if ergebnis:
         geraete_db = {r.id: r for r in db.scalars(select(OperationalResource).where(OperationalResource.id.in_([x["resource_id"] for x in ergebnis])))}
         for x in ergebnis:
@@ -517,22 +562,25 @@ def _geraete_setzen(slot: PlanningSlot, geraete: list[dict]) -> None:
     slot.geraete = neu
 
 
-def _tage_mitnehmen(slot: PlanningSlot, alt_start: date, alt_ende: date) -> None:
+def _tage_mitnehmen(slot: PlanningSlot, alt_start: date, alt_ende: date, attr: str = "geraete") -> None:
     """Der Einsatz hat einen neuen Zeitraum: um gleich viele Tage verschoben (gleiche Dauer) -> einzelne Tage wandern mit; sonst bleiben nur die Tage
-    im neuen Zeitraum, ein Gerät ohne verbleibenden Tag fällt weg."""
+    im neuen Zeitraum, ein Gerät ohne verbleibenden Tag fällt weg. Seit 1.9.260 ebenso die Personen (attr „besetzung“), und in der Normalform: stehen die
+    Tage danach an allen Tagen des Einsatzes, heißt das „alle Tage“. Wer an allen Tagen steht, kommt mit (die Falle: _alle_tage_festschreiben())."""
     versatz = slot.start_date - alt_start
     gleich = (slot.end_date - slot.start_date) == (alt_ende - alt_start)
+    alle = (slot.end_date - slot.start_date).days + 1
+    zeilen = getattr(slot, attr)
     bleiben = []
-    for row in slot.geraete:
+    for row in zeilen:
         tage = _tage_lesen(row)
         if tage is not None:
             tage = [t + versatz for t in tage] if gleich else [t for t in tage if slot.start_date <= t <= slot.end_date]
             if not tage:
                 continue
-            row.tage = _tage_schreiben(tage)
+            row.tage = None if len(set(tage)) == alle else _tage_schreiben(tage)
         bleiben.append(row)
-    if len(bleiben) != len(slot.geraete):
-        slot.geraete = bleiben
+    if len(bleiben) != len(zeilen):
+        setattr(slot, attr, bleiben)
 
 
 def _geraete_stand(slot: PlanningSlot) -> tuple:
@@ -691,6 +739,7 @@ def _create_slot(
     travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
     geraete: list[dict] | None = None, art: str = "baustelle", customer_id: int | None = None, property_id: int | None = None,
     confirm_property_customer: bool = False, titel: str | None = None, kran_termin_id: int | None = None, _pruefen: dict | None = None,
+    besetzung: list[dict] | None = None,
 ) -> PlanningSlot:
     """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
     angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung.
@@ -715,7 +764,9 @@ def _create_slot(
     if (order_id is None) == (customer_id is None) if kran else (order_id is None or customer_id is not None):
         raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides." if kran
                          else "Ein Einsatz auf der Baustelle braucht einen Auftrag.")
-    if team_id is None and not employee_ids and not kran:
+    if employee_ids is not None and besetzung is not None:  # seit 1.9.260
+        raise BesetzungUngueltig("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
+    if team_id is None and not employee_ids and not besetzung and not kran:
         raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     if status not in EINSATZ_STATUS:  # seit 1.9.235
         raise ValueError(EINSATZ_STATUS_FALSCH)
@@ -723,6 +774,7 @@ def _create_slot(
         # wie der Schnellauftrag, ohne Commit: Personen und Geräte prüft _besetzung_pruefen()/_geraete_pruefen() unten, eine Warnung nimmt alles zurück
         from .quick_service_orders import auftrag_nach_aufwand
         _besetzung_pruefen(db, employee_ids or [])
+        _personen_pruefen(db, besetzung or [], start_date, end_date)
         _geraete_pruefen(db, geraete, start_date, end_date)
         _, neu = auftrag_nach_aufwand(db, customer_id=customer_id, property_id=property_id, title=(titel or "").strip() or "Kranvermietung",
                                       position=KRANVERMIETUNG_POSITION, execution_start=start_date,
@@ -736,7 +788,10 @@ def _create_slot(
     gesperrt = einsatz_gesperrt(order)
     if gesperrt:
         raise AuftragGeschlossen(gesperrt)
-    personen = _besetzung_pruefen(db, employee_ids) if employee_ids is not None else _kolonne_schlaegt_vor(db, team_id) if team_id is not None else []
+    # seit 1.9.260 mit den Tagen je Person: employee_ids und der Vorschlag der Kolonne heißen alle Tage, besetzung nennt sie einzeln
+    personen = (_alle_tage(_besetzung_pruefen(db, employee_ids)) if employee_ids is not None
+                else _personen_pruefen(db, besetzung, start_date, end_date) if besetzung is not None
+                else _alle_tage(_kolonne_schlaegt_vor(db, team_id)) if team_id is not None else [])
     prep = ensure_preparation(db, order_id, festschreiben=False)
     assignment = ensure_team_assignment(db, prep, team_id) if team_id is not None else None
     settings = load_planning_settings(db)
@@ -747,7 +802,7 @@ def _create_slot(
         preparation_id=prep.id, team_assignment_id=assignment.id if assignment is not None else None, start_date=start_date,
         end_date=end_date, status=status, notes=notes, art=art,
     )
-    slot.besetzung = [PlanningSlotEmployee(employee_id=eid) for eid in personen]
+    slot.besetzung = [PlanningSlotEmployee(employee_id=p["employee_id"], tage=_tage_schreiben(p["tage"])) for p in personen]
     _geraete_setzen(slot, _geraete_pruefen(db, geraete, start_date, end_date) if geraete is not None
                     else _kolonne_schlaegt_geraete_vor(db, team_id) if team_id is not None else [])
     db.add(slot)
@@ -770,20 +825,21 @@ def _create_slot(
 
 
 _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes", "planned_hours",
-                          "travel_hours_per_employee_day", "employee_ids", "geraete"})
+                          "travel_hours_per_employee_day", "employee_ids", "geraete", "besetzung"})
 
 
-def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
+def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, **changes) -> PlanningSlot:
     """Seit 1.9.240: wird die Änderung abgelehnt (ValueError, auch nach einem Teil der Änderung am Objekt), nimmt die Sitzung alles zurück --
     rollback (gibt auch die Sperre frei), dann der Fehler. Die Regeln stehen in _update_slot()."""
     try:
-        return _update_slot(db, slot_id, trotzdem_planen=trotzdem_planen, **changes)
+        return _update_slot(db, slot_id, trotzdem_planen=trotzdem_planen, alle_tage_mitnehmen=alle_tage_mitnehmen, **changes)
     except ValueError:
         db.rollback()
         raise
 
 
-def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _pruefen: dict | None = None, **changes) -> PlanningSlot:
+def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, _pruefen: dict | None = None,
+                 **changes) -> PlanningSlot:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
@@ -796,7 +852,11 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _p
     und Zeitraum zurück. Ohne Kolonne bleibt mindestens eine Person.
     Seit 1.9.234 (Punkt 3): geraete setzt die Geräte genau so; eine andere Kolonne ohne geraete setzt ihre Geräte, „ohne Kolonne“ lässt sie. Ein neuer
     Zeitraum nimmt einzelne Tage mit (gleiche Dauer: verschoben, sonst nur die Tage im neuen Zeitraum; ein Gerät ohne Tag fällt weg). Geänderte Geräte
-    fragen zurück wie Besetzung, Kolonne und Zeitraum."""
+    fragen zurück wie Besetzung, Kolonne und Zeitraum.
+    Seit 1.9.260 (Stufe 6, R5a, Punkt 1): besetzung ([{employee_id, tage}]) setzt die Besetzung mit den Tagen je Person, employee_ids heißt alle Tage (beides
+    zugleich 422). Ein neuer Zeitraum nimmt auch die einzelnen Tage der Personen mit wie die der Geräte; wer an allen Tagen steht, steht danach an allen Tagen des
+    neuen Zeitraums (Dialog, Ziehen des ganzen Einsatzes). alle_tage_mitnehmen=False (die Falle, für die Tag-Aktionen ab R5b): wer in dieser Änderung nicht
+    gesetzt wird und an allen Tagen stand, steht danach an genau den bisherigen Tagen (_alle_tage_festschreiben())."""
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
@@ -810,7 +870,7 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _p
     if slot is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
     vorher_team = slot.team_assignment.team_id if slot.team_assignment is not None else None
-    vorher = (vorher_team, slot.start_date, slot.end_date, tuple(x.employee_id for x in slot.besetzung), _geraete_stand(slot))
+    vorher = (vorher_team, slot.start_date, slot.end_date, _besetzung_stand(slot), _geraete_stand(slot))
     alt_start, alt_ende = slot.start_date, slot.end_date
     start_date = changes.get("start_date", slot.start_date)
     end_date = changes.get("end_date", slot.end_date)
@@ -824,7 +884,15 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _p
     kran = slot.art == "kranvermietung"  # seit 1.9.240: keine Kolonne, mindestens ein Gerät, Bediener auch keine
     if kran and neues_team is not None:
         raise BesetzungUngueltig(KRAN_OHNE_KOLONNE)
-    personen = _besetzung_pruefen(db, changes["employee_ids"]) if changes.get("employee_ids") is not None else None
+    if changes.get("employee_ids") is not None and changes.get("besetzung") is not None:  # seit 1.9.260
+        raise BesetzungUngueltig("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
+    personen = (_alle_tage(_besetzung_pruefen(db, changes["employee_ids"])) if changes.get("employee_ids") is not None
+                else _personen_pruefen(db, changes["besetzung"], start_date, end_date) if changes.get("besetzung") is not None else None)
+    if not alle_tage_mitnehmen and (start_date, end_date) != (alt_start, alt_ende):  # seit 1.9.260: die Falle
+        if personen is None:
+            _alle_tage_festschreiben(slot, slot.besetzung)
+        if changes.get("geraete") is None:
+            _alle_tage_festschreiben(slot, slot.geraete)
     if neues_team != vorher_team:
         if neues_team is None:
             slot.team_assignment_id, slot.team_assignment = None, None
@@ -832,13 +900,15 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _p
             assignment = ensure_team_assignment(db, slot.preparation, neues_team)
             slot.team_assignment_id, slot.team_assignment = assignment.id, assignment
             if personen is None:
-                personen = _kolonne_schlaegt_vor(db, neues_team)
+                personen = _alle_tage(_kolonne_schlaegt_vor(db, neues_team))
     if personen is not None:
         _besetzung_setzen(db, slot, personen)
-    if neues_team is None and not slot.besetzung and not kran:
-        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     slot.start_date = start_date
     slot.end_date = end_date
+    if personen is None and (start_date, end_date) != (alt_start, alt_ende):  # seit 1.9.260 auch die Tage der Personen
+        _tage_mitnehmen(slot, alt_start, alt_ende, "besetzung")
+    if neues_team is None and not slot.besetzung and not kran:
+        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     if changes.get("geraete") is not None:
         _geraete_setzen(slot, _geraete_pruefen(db, changes["geraete"], start_date, end_date))
     elif neues_team != vorher_team and neues_team is not None:
@@ -864,7 +934,7 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, _p
     db.flush()
     if _pruefen is not None:  # seit 1.9.248: nur prüfen (einsatz_pruefen()) -- alle Warnungen, auch ohne Änderung; nichts bleibt
         return _nur_pruefen(db, slot.id, **_pruefen)
-    if not trotzdem_planen and (neues_team, start_date, end_date, tuple(x.employee_id for x in slot.besetzung), _geraete_stand(slot)) != vorher:
+    if not trotzdem_planen and (neues_team, start_date, end_date, _besetzung_stand(slot), _geraete_stand(slot)) != vorher:
         _warnungen_pruefen(db, slot.id)
     zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241
     db.commit()
@@ -987,9 +1057,20 @@ def _personen_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot
         for a in antraege.get(i, []):
             teile.append(f"{a.absence_type + ' ' if mit_art and a.absence_type else ''}beantragt {_spanne(a.start_date, a.end_date)}")  # der ganze Antrag (Zeichnung)
             stufe = "antrag" if stufe in ("frei", "belegt") else stufe
+        zeile = next((x for x in slot.besetzung if x.employee_id == i), None)
+        tage = sorted(_tage_lesen(zeile)) if zeile is not None and zeile.tage else None
         out.append({"id": i, "name": _employee_name(personen[i]), "gewaehlt": i in gewaehlt, "vorschlag": i in vorschlag, "zustand": stufe,
-                    "text": " · ".join(teile) or "frei"})
+                    "text": " · ".join(teile) or "frei",
+                    # seit 1.9.260 die Tage je gewählter Person wie bei den Geräten
+                    "tage": [t.isoformat() for t in tage] if tage else None, "tage_text": _tage_text(tage) if zeile is not None else ""})
     return out
+
+
+def _tage_text(tage: list[date] | None) -> str:
+    """„alle Tage“ oder „nur 03., 05.11.“ -- für Personen (seit 1.9.260) und Geräte (seit 1.9.248) dieselbe Schreibweise im Dialog."""
+    if not tage:
+        return "alle Tage"
+    return "nur " + ", ".join(f"{t:%d.}" for t in tage[:-1]) + (", " if len(tage) > 1 else "") + f"{tage[-1]:%d.%m.}"
 
 
 def _geraete_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot], weitere: list[int]) -> list[dict]:
@@ -1009,13 +1090,13 @@ def _geraete_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot]
     out = []
     for i in ids:
         row = zeilen.get(i)
-        meine = _geraet_tage(slot, row) if row is not None else alle_tage
+        meine = _tage_der_zeile(slot, row) if row is not None else alle_tage
         teile, stufe = [], "frei"
         for o in andere:
             for x in o.geraete:
                 if x.resource_id != i:
                     continue
-                for a, b in _folgen_der_tage(meine & _geraet_tage(o, x)):
+                for a, b in _folgen_der_tage(meine & _tage_der_zeile(o, x)):
                     teile.append(("vermietet " if o.art == "kranvermietung" else f"bei {o.preparation.order.project.project_number} · ") + _spanne(a, b))
                     stufe = "doppelt" if row is not None else "belegt"
         for t in termine.get(i, []):
@@ -1029,8 +1110,7 @@ def _geraete_zustand(db: Session, slot: PlanningSlot, andere: list[PlanningSlot]
         tage = sorted(_tage_lesen(row)) if row is not None and row.tage else None
         out.append({"id": i, "name": geraete[i].name, "gewaehlt": row is not None, "vorschlag": i in vorschlag,
                     "tage": [t.isoformat() for t in tage] if tage else None,
-                    "tage_text": ("alle Tage" if not tage else "nur " + ", ".join(f"{t:%d.}" for t in tage[:-1]) + (", " if len(tage) > 1 else "") + f"{tage[-1]:%d.%m.}")
-                    if row is not None else "", "zustand": stufe, "text": " · ".join(teile)})
+                    "tage_text": _tage_text(tage) if row is not None else "", "zustand": stufe, "text": " · ".join(teile)})
     return out
 
 
@@ -1124,7 +1204,9 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         "travel_hours_per_employee_day": travel,
         # seit 1.9.233 die Besetzung des Einsatzes (Name live, Rolle aus der Kolonne, wenn die Person dort steht); bis 1.9.232 der Schnappschuss der Kolonne
         "employees": [{"id": x.employee_id, "name": _employee_name(x.employee), "vorname": ((x.employee.first_name if x.employee else "") or _employee_name(x.employee)).strip(),
-                       "role": _rolle_in_kolonne(slot, x.employee_id)} for x in slot.besetzung if visible_ids is None or x.employee_id in visible_ids],  # seit 1.9.247 mit Vorname (Balken)
+                       "role": _rolle_in_kolonne(slot, x.employee_id),
+                       "tage": [t.isoformat() for t in _tage_lesen(x)] if x.tage else None}  # seit 1.9.260 die Tage je Person (leer = alle Tage)
+                      for x in slot.besetzung if visible_ids is None or x.employee_id in visible_ids],  # seit 1.9.247 mit Vorname (Balken)
         # seit 1.9.234 die Geräte des Einsatzes (Name live, Rolle aus der Kolonne, wenn das Gerät dort steht; tage leer = alle Tage)
         "resources": [{"id": x.resource_id, "name": x.resource.name if x.resource else f"Gerät #{x.resource_id}",
                        "type": x.resource.resource_type if x.resource else None, "role": _rolle_des_geraets(slot, x.resource_id),
@@ -1493,7 +1575,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             for rid in sorted(a_res & b_res):  # seit 1.9.234 nur, wenn sich die Tage des Geräts in beiden Einsätzen treffen
                 ra = next(x for x in a.geraete if x.resource_id == rid)
                 rb = next(x for x in b.geraete if x.resource_id == rid)
-                if _geraet_tage(a, ra) & _geraet_tage(b, rb):
+                if _tage_der_zeile(a, ra) & _tage_der_zeile(b, rb):
                     # seit 1.9.255: welches Gerät -- die Zeile eines Geräts zeigt nur seine Warnungen
                     issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", {"resource_id": rid}))
             for kind, label, wen in issues:
@@ -1535,7 +1617,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         # Seit 1.9.236 (Punkt 5): ein Gerät, dessen Prüfung an einem seiner Tage abgelaufen ist (fällig vor dem Tag) -- eine Warnung je Gerät und
         # Prüfung, mit dem ersten solchen Tag; gezählt werden die Arbeitstage des Geräts (hat es keinen, alle seine Tage), wie beim Kalender des Geräts.
         for row in slot.geraete:
-            tage = sorted(_geraet_tage(slot, row))
+            tage = sorted(_tage_der_zeile(slot, row))
             tage = [t for t in tage if _is_workday(t, settings, holiday_dates)] or tage
             for art, faellig in pruefungen.get(row.resource_id, ()):
                 spaeter = [t for t in tage if t > faellig]
@@ -1580,7 +1662,7 @@ def _termine_am_einsatz(slot: PlanningSlot, settings: PlanningSettings, feiertag
     geraete = {x.resource_id: x.resource.name if x.resource else f"Gerät #{x.resource_id}" for x in slot.geraete}
     alle_tage = list(_date_range(slot.start_date, slot.end_date))
     arbeitstage = [t for t in alle_tage if _is_workday(t, settings, feiertage)] or alle_tage
-    tage_je = {x.resource_id: [t for t in arbeitstage if t in _geraet_tage(slot, x)] or sorted(_geraet_tage(slot, x)) for x in slot.geraete}
+    tage_je = {x.resource_id: [t for t in arbeitstage if t in _tage_der_zeile(slot, x)] or sorted(_tage_der_zeile(slot, x)) for x in slot.geraete}
     out = []
     for zeile in zeilen:
         if zeile.resource_id not in tage_je:
@@ -1980,7 +2062,7 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
     zaehlend=[slot for slot in visible if not geschlossen(slot.preparation.order)]  # seit 1.9.143 (P8), seit 1.9.151 auch abgeschlossene
     for res in resources:
         # seit 1.9.234 aus den Geräten des Einsatzes, an ihren Tagen
-        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id and day in _geraet_tage(slot,x) for x in slot.geraete)) for day in dates}
+        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id and day in _tage_der_zeile(slot,x) for x in slot.geraete)) for day in dates}
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
     slot_dicts=[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible]
     pruefungen=_pruefungen(db,{x.id for x in resources})

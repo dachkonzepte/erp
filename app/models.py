@@ -2506,13 +2506,15 @@ class PlanningSlot(Base):
 class PlanningSlotEmployee(Base):
     """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): eine Person der Besetzung eines Einsatzes. Die Kolonne schlägt ihre aktiven Mitglieder vor (beim
     Anlegen und beim Wechsel der Kolonne), „ohne Kolonne“ wählt Personen einzeln; eine spätere Änderung der Kolonne ändert keinen bestehenden
-    Einsatz. Der Name kommt live aus dem Mitarbeiter (kein Schnappschuss)."""
+    Einsatz. Der Name kommt live aus dem Mitarbeiter (kein Schnappschuss). Seit 1.9.260 (Stufe 6, R5a, Punkt 1) mit ihren Tagen wie ein Gerät
+    (PlanningSlotResource.tage): JSON-Liste von Tagen innerhalb des Einsatzes, leer (NULL) = alle Tage -- der Bestand steht an allen Tagen."""
     __tablename__ = "planning_slot_employees"
     __table_args__ = (UniqueConstraint("slot_id", "employee_id", name="uq_planning_slot_employee"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slot_id: Mapped[int] = mapped_column(ForeignKey("planning_slots.id", ondelete="CASCADE"), index=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    tage: Mapped[str | None] = mapped_column(Text, nullable=True)  # seit 1.9.260
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     employee: Mapped["Employee"] = relationship()

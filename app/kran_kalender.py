@@ -74,7 +74,7 @@ def _inhalt(slot: PlanningSlot) -> dict:
 
 def soll(slot: PlanningSlot) -> dict[tuple[int, date, date], dict]:
     """Je (Gerät, erster Tag, letzter Tag) der Inhalt -- was im Kalender der Geräte stehen soll."""
-    from .planning import _geraet_tage
+    from .planning import _tage_der_zeile
     if geschlossen(slot.preparation.order):
         return {}
     inhalt = None
@@ -83,7 +83,7 @@ def soll(slot: PlanningSlot) -> dict[tuple[int, date, date], dict]:
         if _postfach(row.resource) is None:
             continue
         inhalt = inhalt or _inhalt(slot)
-        for von, bis in _laeufe(list(_geraet_tage(slot, row))):
+        for von, bis in _laeufe(list(_tage_der_zeile(slot, row))):
             out[(row.resource_id, von, bis)] = inhalt
     return out
 

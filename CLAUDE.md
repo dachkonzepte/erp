@@ -1248,7 +1248,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (Silbentrennung), ohne Platz fallen die Vornamen ganz weg, erst dann „…“ (`balkenEinpassen()`, Breite über einen Range; `tests/test_v658_kurze_balken.py`;
   Klicktests mit `klicktest_main(silbentrennung=True)`: Trenndaten des installierten Chrome im Profil, sonst trennt headless Chrome nicht).
   **Stufe 6, R5a (ab 1.9.259, Fundament „Besetzung je Tag“):** die Kolonne schlägt niemanden mit „nicht zeigen“ vor, Liste und Formular der Kolonne nennen es
-  (`tests/test_v659_kolonne_ohne_nicht_zeigen.py`). Befund R5 und Herleitung: `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
+  (`tests/test_v659_kolonne_ohne_nicht_zeigen.py`); seit 1.9.260 hat eine Person am Einsatz ihre Tage wie ein Gerät (`PlanningSlotEmployee.tage`, Migration
+  `b6e4d2a9c731`, leer = alle Tage, der Bestand an allen Tagen): `besetzung` [{employee_id, tage}] neben `employee_ids` (= alle Tage), Normalform auf dem Server
+  (auch Geräte), Tage wandern beim Verschieben mit (`_tage_mitnehmen()`), eine Funktion `_tage_der_zeile()` für Personen und Geräte. **Die Falle:** „alle Tage“
+  heißt „alle Tage des Einsatzes“ -- eine Tag-Aktion, die den Zeitraum ändert, nimmt `update_slot(alle_tage_mitnehmen=False)` (schreibt die übrigen vorher
+  auf ihre Tage fest), sonst stünde die ganze Kolonne am neuen Tag (`tests/test_v660_besetzung_je_tag.py`). Befund R5 und Herleitung:
+  `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
   `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)`, in der Transaktion des Einsatzes), ohne Kolonne, mit mindestens einem Gerät, Bediener

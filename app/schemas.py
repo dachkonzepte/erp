@@ -3157,6 +3157,13 @@ class PlanningSlotGeraet(BaseModel):
     tage: list[date] | None = None
 
 
+class PlanningSlotPerson(BaseModel):
+    """Seit 1.9.260 (Stufe 6, R5a, Punkt 1): eine Person am Einsatz -- tage leer (null) = alle Tage, sonst einzelne Tage innerhalb des Einsatzes (wie
+    PlanningSlotGeraet)."""
+    employee_id: int
+    tage: list[date] | None = None
+
+
 class EinsatzPruefungWeitere(BaseModel):
     """Seit 1.9.248: wofür der Dialog dazu den Zustand braucht (seine Auswahl „+ Person“ / „+ Gerät“, noch nicht im Einsatz)."""
     weitere_personen: list[int] = Field(default_factory=list, max_length=200)
@@ -3176,6 +3183,7 @@ class PlanningSlotCreate(BaseModel):
     # employee_ids schlägt die Kolonne ihre aktiven Mitglieder vor
     team_id: int | None = None
     employee_ids: list[int] | None = None
+    besetzung: list[PlanningSlotPerson] | None = None  # seit 1.9.260: die Personen mit ihren Tagen (employee_ids = alle Tage; beides zugleich 422)
     geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: ohne Angabe schlägt die Kolonne ihre Geräte vor
     start_date: date
     end_date: date
@@ -3189,6 +3197,8 @@ class PlanningSlotCreate(BaseModel):
     def validate_dates(self):
         if self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+        if self.employee_ids is not None and self.besetzung is not None:  # seit 1.9.260
+            raise ValueError("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
         if self.art == "kranvermietung":
             if (self.order_id is None) == (self.customer_id is None):
                 raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides.")
@@ -3199,7 +3209,7 @@ class PlanningSlotCreate(BaseModel):
             return self
         if self.order_id is None or self.customer_id is not None or self.property_id is not None or self.titel is not None:
             raise ValueError("Ein Einsatz auf der Baustelle braucht einen Auftrag.")
-        if self.team_id is None and not self.employee_ids:
+        if self.team_id is None and not self.employee_ids and not self.besetzung:
             raise ValueError("Ohne Kolonne bitte mindestens eine Person wählen.")
         return self
 
@@ -3213,6 +3223,7 @@ class KranTerminUebernahme(BaseModel):
     confirm_property_customer: bool = False
     titel: str | None = Field(default=None, max_length=255)
     employee_ids: list[int] | None = None
+    besetzung: list[PlanningSlotPerson] | None = None  # seit 1.9.260 (der Dialog schickt die Bediener mit ihren Tagen)
     status: Literal["vorlaeufig", "fest"] = "vorlaeufig"
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
@@ -3223,6 +3234,8 @@ class KranTerminUebernahme(BaseModel):
     def validate_auftrag_oder_kunde(self):
         if (self.order_id is None) == (self.customer_id is None):
             raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides.")
+        if self.employee_ids is not None and self.besetzung is not None:  # seit 1.9.260
+            raise ValueError("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
         return self
 
 
@@ -3233,9 +3246,10 @@ class PlanningSlotUpdate(PartialUpdate):
     Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert). Seit 1.9.233: team_id null heißt „ohne Kolonne“ (die
     Personen bleiben), employee_ids setzt die Besetzung (null 422, weglassen = unverändert, eine andere Kolonne schlägt ihre Mitglieder vor)."""
     NOT_NULL = frozenset({"start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen", "employee_ids",
-                          "geraete"})
+                          "geraete", "besetzung"})
     team_id: int | None = None
     employee_ids: list[int] | None = None
+    besetzung: list[PlanningSlotPerson] | None = None  # seit 1.9.260: setzt die Besetzung mit den Tagen je Person (weglassen = unverändert, null 422)
     geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: setzt die Geräte genau so (weglassen = unverändert, null 422)
     start_date: date | None = None
     end_date: date | None = None
@@ -3249,6 +3263,8 @@ class PlanningSlotUpdate(PartialUpdate):
     def validate_dates(self):
         if self.start_date is not None and self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+        if self.employee_ids is not None and self.besetzung is not None:  # seit 1.9.260
+            raise ValueError("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
         return self
 
 
