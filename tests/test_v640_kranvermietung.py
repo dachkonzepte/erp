@@ -196,26 +196,33 @@ def test_aendern_einer_kranvermietung(welt):
     # Gegenprobe 240_5b (erst grün): mit dem Kran in derselben Anfrage fällt kein Gerät weg -- abgelehnt wird allein wegen der Kolonne
     r = client.put(url, json={"team_id": welt["nord"].id, "geraete": [{"resource_id": welt["kran"]}]})
     assert r.status_code == 422 and "keine Kolonne" in r.json()["detail"], r.text
-    assert client.put(url, json={"geraete": []}).status_code == 422  # der Kran bleibt
+    # seit 1.9.263 (Antwort 4): die Kranvermietung braucht ihr Gerät nur beim Anlegen -- mit Bediener darf der Kran weg (bis 1.9.262: 422 „der Kran bleibt“)
+    assert client.put(url, json={"geraete": []}).status_code == 200
+    assert client.put(url, json={"geraete": [{"resource_id": welt["kran"]}]}).status_code == 200
     r = client.put(url, json={"employee_ids": []})  # ohne Bediener geht
     assert r.status_code == 200 and r.json()["employees"] == [], r.text
     r = client.put(url, json={"start_date": (MONTAG + timedelta(days=7)).isoformat(), "end_date": (MONTAG + timedelta(days=8)).isoformat()})
     assert r.status_code == 200 and r.json()["art"] == "kranvermietung", r.text
     assert _geraete(db, e["id"]) == [(welt["kran"], None)]
-    # ein Gerät nur an einem Tag, der beim Kürzen wegfällt: ohne Kran 422, nichts geändert
+    # ein Gerät nur an einem Tag: seit 1.9.263 kürzt der leere erste Tag den Einsatz (bis 1.9.262: der Zeitraum blieb, ein Kürzen auf den anderen Tag
+    # war 422 „der Kran fällt weg“); nimmt man ihm danach den Kran, fragt er zurück (leer), nichts geändert
     tag2 = (MONTAG + timedelta(days=8)).isoformat()
     assert client.put(url, json={"geraete": [{"resource_id": welt["kran"], "tage": [tag2]}]}).status_code == 200
-    assert client.put(url, json={"end_date": (MONTAG + timedelta(days=7)).isoformat()}).status_code == 422
     db.expire_all()
-    assert db.get(PlanningSlot, e["id"]).end_date == MONTAG + timedelta(days=8)
+    assert (db.get(PlanningSlot, e["id"]).start_date, db.get(PlanningSlot, e["id"]).end_date) == (MONTAG + timedelta(days=8), MONTAG + timedelta(days=8))
+    r = client.put(url, json={"geraete": []})
+    assert r.status_code == 409 and r.json()["rueckfrage"]["art"] == "einsatz_leer", r.text
+    assert _geraete(db, e["id"]) == [(welt["kran"], None)]
 
 
 def test_baustelle_ohne_kolonne_braucht_weiter_eine_person(welt):
+    """Beim Anlegen weiter eine Person oder ein Gerät; danach fragt das Leeren zurück (seit 1.9.263, bis dahin 422 bzw. BesetzungUngueltig)."""
+    from app.planning import EinsatzWirdLeer
     client = welt["client"]
     e = client.post("/api/planning/slots", json={"order_id": welt["a"].id, "employee_ids": [welt["tom"].id], "start_date": MONTAG.isoformat(),
                                                  "end_date": MONTAG.isoformat()}).json()
-    assert client.put(f"/api/planning/slots/{e['id']}", json={"employee_ids": []}).status_code == 422
-    with pytest.raises(BesetzungUngueltig):
+    assert client.put(f"/api/planning/slots/{e['id']}", json={"employee_ids": []}).status_code == 409
+    with pytest.raises(EinsatzWirdLeer):
         update_slot(welt["db"], e["id"], employee_ids=[])
 
 

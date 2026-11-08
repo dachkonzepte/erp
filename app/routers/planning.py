@@ -23,7 +23,7 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, BesetzungUngueltig, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung
 
@@ -335,11 +335,15 @@ def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = D
         slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
     except PlanungsWarnung as exc:  # seit 1.9.143, wie beim Anlegen
         return _warnung_antwort(exc, _role)
+    except EinsatzWirdLeer as exc:  # seit 1.9.263 (Antwort 3): nichts gespeichert -- „Löschen | Behalten“, dann mit wenn_leer noch einmal
+        return JSONResponse(status_code=409, content={"detail": str(exc), "rueckfrage": {"art": "einsatz_leer", "text": str(exc), "optionen": list(WENN_LEER)}})
     except BesetzungUngueltig as exc:  # seit 1.9.233: die Besetzung geht nicht (auch eine unbekannte Person) -- 422, nicht 404 wie ein fehlender Einsatz
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         code = 404 if "nicht gefunden" in str(exc) else 422
         raise HTTPException(status_code=code, detail=str(exc)) from exc
+    if slot is None:  # seit 1.9.263: mit wenn_leer="loeschen" gelöscht
+        return {"deleted": True, "id": slot_id}
     return _einsatz_antwort(db, slot, _role)
 
 

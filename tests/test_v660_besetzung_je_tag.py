@@ -135,8 +135,9 @@ def test_unbekannt_inaktiv_und_beides_zugleich(welt):
 def test_doppelt_genannt_zaehlt_die_erste(welt):
     db = welt["db"]
     slot = create_slot(db, order_id=welt["b"].id, team_id=None, start_date=_tag(0), end_date=_tag(2), planned_hours=D1,
-                       besetzung=[{"employee_id": welt["kai"], "tage": [_tag(0)]}, {"employee_id": welt["kai"], "tage": None}])
-    assert _personen(db, slot.id) == [(welt["kai"], [_iso(0)])]
+                       besetzung=[{"employee_id": welt["kai"], "tage": [_tag(0)]}, {"employee_id": welt["kai"], "tage": None},
+                                  {"employee_id": welt["tom"], "tage": None}])
+    assert _personen(db, slot.id) == [(welt["kai"], [_iso(0)]), (welt["tom"], None)]
 
 
 def test_normalform_alle_tage_heisst_null_auch_bei_geraeten(welt):

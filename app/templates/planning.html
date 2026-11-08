@@ -264,6 +264,12 @@
   <div class="dialog-inhalt"><div class="td-titel" id="tdText"></div><div id="tdZeit"></div><div class="klein" id="tdHinweis"></div></div>
   <div class="dialog-fuss"><button type="button" class="ds-knopf" data-klick="schliessen" data-dialog="terminDialog">Schließen</button><button type="button" class="ds-knopf ds-knopf-aktion" id="tdUebernehmen" data-klick="terminUebernehmen">Als Kranvermietung übernehmen …</button></div>
 </dialog>
+<!-- seit 1.9.263 (Stufe 6, R5a, Punkt 4, Antwort 3): nähme eine Änderung dem Einsatz den letzten Tag mit jemandem, fragt der Server zurück -->
+<dialog id="leerDialog" class="dialog-karte" aria-labelledby="ldTitel">
+  <div class="dialog-kopf"><h2 id="ldTitel">Der Einsatz hat dann niemanden mehr.</h2><button type="button" class="ds-knopf ds-knopf-symbol" data-klick="schliessen" data-dialog="leerDialog" aria-label="Schließen">×</button></div>
+  <div class="dialog-inhalt"><div class="klein">Nichts ist gespeichert. „Löschen“ nimmt den Einsatz aus der Plantafel, „Behalten“ lässt ihn mit dem zuletzt geleerten Tag stehen („niemand“).</div><div id="leerFehler" class="klein"></div></div>
+  <div class="dialog-fuss"><button type="button" class="ds-knopf" data-klick="schliessen" data-dialog="leerDialog">Abbrechen</button><button type="button" class="ds-knopf" id="leerLoeschen" data-klick="leerWahl" data-wahl="loeschen">Löschen</button><button type="button" class="ds-knopf ds-knopf-aktion" id="leerBehalten" data-klick="leerWahl" data-wahl="behalten">Behalten</button></div>
+</dialog>
 <dialog id="konfliktDialog" class="dialog-karte" aria-labelledby="kdTitel">
   <div class="dialog-kopf"><h2 id="kdTitel">Einsatz überschneidet sich</h2><button type="button" class="ds-knopf ds-knopf-symbol" data-klick="schliessen" data-dialog="konfliktDialog" aria-label="Schließen">×</button></div>
   <div class="dialog-inhalt"><div class="klein">Nichts ist gespeichert. Du kannst den Einsatz ändern oder trotzdem planen.</div><div id="konfliktWarnungen"></div><div id="konfliktHinweise"></div><div id="konfliktFehler" class="klein"></div></div>
@@ -468,7 +474,7 @@ function pruefen(){clearTimeout(pruefenZeit);pruefenZeit=setTimeout(pruefenJetzt
 function fehltBezug(){if(einsatz.id!=null)return '';if(einsatz.art==='kranvermietung'&&einsatz.bezug==='kunde')return einsatz.customer_id?'':'Bitte einen Kunden wählen.';if(einsatz.order_id)return '';return orders.length?'Bitte einen Auftrag wählen.':'Es gibt keinen offenen Auftrag.'}
 async function pruefenJetzt(){if(!einsatz||!felderLesen())return;einsatzKopf();const fehlt=fehltBezug();if(fehlt){pruefung=null;pruefungFuer=null;zustandZeichnen();document.getElementById('edMeldung').textContent=fehlt;return}
   const url=einsatz.id==null?(einsatz.termin?`/api/planning/kran-termine/${einsatz.kran_termin_id}/pruefen`:'/api/planning/slots/pruefen'):`/api/planning/slots/${einsatz.id}/pruefen`,body=pruefStand();
-  try{await speichern('pruefen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{anwenden:p=>{pruefung=p;einsatz.besetzung=p.personen.filter(x=>x.gewaehlt).map(x=>({employee_id:x.id,tage:x.tage??null}));einsatz.geraete=p.geraete.filter(x=>x.gewaehlt).map(x=>({resource_id:x.id,tage:x.tage}));pruefungFuer=pruefStand();document.getElementById('edMeldung').textContent='';zustandZeichnen()}})}
+  try{await speichern('pruefen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{anwenden:p=>{pruefung=p;einsatz.besetzung=p.personen.filter(x=>x.gewaehlt).map(x=>({employee_id:x.id,tage:x.tage??null}));einsatz.geraete=p.geraete.filter(x=>x.gewaehlt).map(x=>({resource_id:x.id,tage:x.tage}));pruefungFuer=pruefStand();document.getElementById('edMeldung').textContent=p.leer?'Der Einsatz hat dann niemanden mehr – beim Speichern: löschen oder behalten.':'';zustandZeichnen()}})}
   catch(e){pruefung=null;pruefungFuer=null;zustandZeichnen();document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
 // wie der Server (1.9.143): Warnungen fragen beim Anlegen und wenn sich Kolonne, Zeitraum, Besetzung oder Geräte ändern -- nur die Notiz oder der Status nicht
 function einsatzFragt(){return einsatz.id==null||['team_id','start_date','end_date','besetzung','geraete'].some(k=>geaendert.has(k))}
@@ -498,12 +504,16 @@ async function einsatzSpeichern(){if(!einsatz||!felderLesen())return;clearTimeou
   const trotzdem=!!(pruefung&&pruefung.warnungen.length);const w={...terminWerte(einsatzWerte()),trotzdem_planen:trotzdem};
   const url=einsatz.id==null?(einsatz.kran_termin_id?`/api/planning/kran-termine/${einsatz.kran_termin_id}/kranvermietung`:'/api/planning/slots'):`/api/planning/slots/${einsatz.id}`,methode=einsatz.id==null?'POST':'PUT';
   try{const a=await speichern('tafel',()=>api(url,{method:methode,headers:{'Content-Type':'application/json'},body:JSON.stringify(w)}));einsatzDialog.close();einsatzHinweise(a);await loadBoard()}
-  catch(e){if(e.status===409&&e.warnungen){/* seit 1.9.143: neue Warnungen seit der Prüfung -- jetzt im Dialog, „Trotzdem planen“ */pruefung={...(pruefung||{personen:[],geraete:[],kapazitaet:null}),warnungen:e.warnungen,hinweise:e.hinweise||[]};zustandZeichnen();document.getElementById('edMeldung').textContent='Nichts gespeichert – bitte prüfen oder trotzdem planen.'}else document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
+  catch(e){if(leerFrage(e,async wahl=>{const a=await speichern('tafel',()=>api(url,{method:methode,headers:{'Content-Type':'application/json'},body:JSON.stringify({...w,wenn_leer:wahl})}));einsatzDialog.close();einsatzHinweise(a);await loadBoard()}))return;
+    if(e.status===409&&e.warnungen){/* seit 1.9.143: neue Warnungen seit der Prüfung -- jetzt im Dialog, „Trotzdem planen“ */pruefung={...(pruefung||{personen:[],geraete:[],kapazitaet:null}),warnungen:e.warnungen,hinweise:e.hinweise||[]};zustandZeichnen();document.getElementById('edMeldung').textContent='Nichts gespeichert – bitte prüfen oder trotzdem planen.'}else document.getElementById('edMeldung').textContent='Fehler: '+e.message}}
 // bis 1.9.247 zwei Dialoge -- die Namen bleiben (Klicktests, Akte)
 function saveNew(){return einsatzSpeichern()}function saveEdit(){return einsatzSpeichern()}
 // Seit 1.9.143 (Stufe 6, R1, Punkt 1): der Server rechnet die Konflikte beim Speichern. Warnungen -> 409 mit Liste, nichts gespeichert (beim Ziehen: konfliktFrage()); Hinweise stehen in der Antwort (einsatzHinweise()).
 function konfliktZeile(c){return `<div class="conflict-row"><b>${esc((KONFLIKT_ART[c.type]||'')+c.label)}</b>${c.other_project?` · gleichzeitig in ${esc(c.other_project)} · ${esc(c.other_project_name)}`:''}${c.date?` · ${esc(fmt(c.date))}`:''}</div>`}
-let konfliktWeiter=null;
+let konfliktWeiter=null,leerWeiter=null;
+/* seit 1.9.263 (Stufe 6, R5a, Punkt 4): 409 mit rueckfrage „einsatz_leer“ -- die Wahl (loeschen | behalten) geht mit wenn_leer noch einmal hinaus */
+function leerFrage(e,weiter){if(e.status!==409||!e.rueckfrage||e.rueckfrage.art!=='einsatz_leer')return false;leerWeiter=weiter;document.getElementById('ldTitel').textContent=e.rueckfrage.text||e.message;document.getElementById('leerFehler').textContent='';if(!leerDialog.open)leerDialog.showModal();return true}
+async function leerEntscheiden(wahl){const weiter=leerWeiter;if(!weiter||!['loeschen','behalten'].includes(wahl))return;try{await weiter(wahl);leerWeiter=null;leerDialog.close()}catch(e){document.getElementById('leerFehler').textContent='Fehler: '+e.message}}
 function konfliktFrage(e,weiter){if(e.status!==409||!e.warnungen)return false;konfliktWeiter=weiter;document.getElementById('konfliktWarnungen').innerHTML=e.warnungen.map(konfliktZeile).join('');document.getElementById('konfliktHinweise').innerHTML=(e.hinweise||[]).length?'<div class="klein">Dazu als Hinweis:</div>'+e.hinweise.map(konfliktZeile).join(''):'';document.getElementById('konfliktFehler').textContent='';if(!konfliktDialog.open)konfliktDialog.showModal();return true}
 async function trotzdemPlanen(){const weiter=konfliktWeiter;if(!weiter)return;try{await weiter();konfliktWeiter=null;konfliktDialog.close()}catch(e){document.getElementById('konfliktFehler').textContent='Fehler: '+e.message}}
 function einsatzHinweise(a){const h=(a&&a.hinweise)||[];document.getElementById('einsatzHinweis').innerHTML=h.length?`<b>Einsatz gespeichert – zur Kenntnis:</b>${h.map(konfliktZeile).join('')}`:''}
@@ -530,8 +540,8 @@ function tagAnX(x){const s=geo.spalten;for(let i=s.length-1;i>=0;i--)if(x>=s[i].
 async function verschieben(id,ziel,startIdx){const s=findSlot(id);if(!s)return;const start=addDays(geo.spalten[0].d,startIdx),end=addDays(start,s.duration_days-1);
   const body={start_date:start,end_date:end};if(ziel&&s.art!=='kranvermietung'){if(ziel.dataset.zeile==='kolonne')body.team_id=Number(ziel.dataset.id);else if(ziel.dataset.zeile==='ohne')body.team_id=null}
   if('team_id' in body&&body.team_id===s.team_id)delete body.team_id;if(start===s.start_date&&!('team_id' in body))return;
-  /* seit 1.8.96 nur Kolonne, Beginn und Ende (Regel 22) */const senden=async trotzdem=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a);await loadBoard()};
-  try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück */if(!konfliktFrage(err,()=>senden(true)))document.getElementById('status').textContent='Fehler: '+err.message}}
+  /* seit 1.8.96 nur Kolonne, Beginn und Ende (Regel 22) */const senden=async(trotzdem,wahl)=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{}),...(wahl?{wenn_leer:wahl}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a);await loadBoard()};
+  try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück, seit 1.9.263 auch ein leerer Einsatz */if(!konfliktFrage(err,()=>senden(true))&&!leerFrage(err,wahl=>senden(false,wahl)))document.getElementById('status').textContent='Fehler: '+err.message}}
 function zugEnde(){if(!zug)return;zug.b.classList.remove('zieht');zug.b.style.transform='';document.querySelectorAll('#planner .track.ziel').forEach(x=>x.classList.remove('ziel'));zug=null}
 // die Spur unter dem Punkt -- sie füllt ihre Zeile (min-height statt height: eine Zeile mit drei Textzeilen ist höher als ihre Balken)
 function spurAnPunkt(x,y){const el=document.elementFromPoint(x,y);return el?el.closest('#planner .track[data-zeile]'):null}
@@ -578,6 +588,7 @@ aktion('schliessen',el=>document.getElementById(el.dataset.dialog).close());
 aktion('einsatzSpeichern',()=>einsatzSpeichern());
 aktion('loeschen',()=>deleteCurrent());
 aktion('trotzdem',()=>trotzdemPlanen());
+aktion('leerWahl',el=>leerEntscheiden(el.dataset.wahl));
 aktion('abwesenheitSpeichern',()=>saveAbsence());
 aktion('abwesenheitLoeschen',el=>deleteAbsence(Number(el.dataset.id)));
 document.getElementById('zurueck').addEventListener('click',()=>movePeriod(-7));

@@ -142,7 +142,9 @@ def test_ohne_kolonne_behaelt_die_personen(welt):
     assert r.status_code == 200 and r.json()["team_id"] is None, r.text
     assert _besetzung(db, sid) == [welt["tom"].id, welt["mia"].id]
     r = client.put(f"/api/planning/slots/{sid}", json={"employee_ids": []})
-    assert r.status_code == 422 and "mindestens eine Person" in r.json()["detail"], r.text
+    # seit 1.9.263 (Stufe 6, R5a, Punkt 4): ohne Kolonne darf ein Einsatz leer werden -- erst nach der Rückfrage „Löschen | Behalten“ (bis 1.9.262: 422
+    # „mindestens eine Person“)
+    assert r.status_code == 409 and r.json()["rueckfrage"]["art"] == "einsatz_leer", r.text
     assert _besetzung(db, sid) == [welt["tom"].id, welt["mia"].id]
     assert client.put(f"/api/planning/slots/{sid}", json={"employee_ids": None}).status_code == 422  # null heißt nicht „unverändert“
 
@@ -233,10 +235,14 @@ def test_akte_nennt_kolonne_und_personen(welt):
 
 
 def test_update_slot_direkt_ohne_kolonne_ohne_personen(welt):
+    """Seit 1.9.263 die Rückfrage, nicht mehr 422 (bis 1.9.262: BesetzungUngueltig); behalten heißt: ohne Kolonne und ohne jemanden."""
+    from app.planning import EinsatzWirdLeer
     db = welt["db"]
     slot = create_slot(db, order_id=welt["a"].id, team_id=welt["nord"].id, start_date=MONTAG, end_date=MONTAG, planned_hours=Decimal("1"))
-    with pytest.raises(BesetzungUngueltig):
+    with pytest.raises(EinsatzWirdLeer):
         update_slot(db, slot.id, team_id=None, employee_ids=[])
+    update_slot(db, slot.id, team_id=None, employee_ids=[], wenn_leer="behalten")
+    assert _besetzung(db, slot.id) == []
 
 
 # --- Migration e4b1c9d27a35 ---------------------------------------------------------------------------------------------------------------

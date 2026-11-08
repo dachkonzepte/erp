@@ -1257,7 +1257,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Person, Feiertag nur, wenn jemand steht (`_tage_je_person()`, `_jemand_am()`; `tests/test_v661_konflikte_je_tag.py`); seit 1.9.262 sieht die Monteurin
   einen Einsatz nur an ihren Tagen: „Heute“ (Karte, „von–bis“ = ihre Folge um heute über `app/heute.py::folge_um()`, „Mit dir“), „Nächste Tage“, Vorwahl der Zeit,
   `/api/field-view/today` und `/upcoming`; der Kran-Termin nennt je Folge nur, wer an ihren Tagen dabei ist (`tests/test_v662_monteurin_je_tag.py`, Klicktest
-  `klicktest_heute_tage.py`). Befund R5 und Herleitung:
+  `klicktest_heute_tage.py`); seit 1.9.263 der leere Tag (keine Person, kein Gerät): am Rand kürzt er den Einsatz (`_raender_kuerzen()`, nach jedem
+  Schreiben), in der Mitte bleibt der Einsatz einer (`leere_tage`, `abschnitte`, `niemand` in der Antwort); wird ein Einsatz ganz leer, 409 „Der Einsatz hat dann
+  niemanden mehr.“ mit Löschen | Behalten (`wenn_leer`, `EinsatzWirdLeer`); ohne Kolonne beim Anlegen eine Person oder ein Gerät, eine Kranvermietung ihr Gerät
+  nur beim Anlegen (`tests/test_v663_leerer_tag.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

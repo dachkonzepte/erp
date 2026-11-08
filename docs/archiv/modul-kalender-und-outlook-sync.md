@@ -1737,3 +1737,61 @@ und dunkel; Mia mit der Karte Ortgang und „Mit dir“ Tom; Ole mit der Karte S
 `262_3d` und `262_3e` blieben im Klicktest zuerst grün (Kais künftige Tage waren genau die restlichen Tage des Einsatzes, und an ihnen standen alle anderen
 ohnehin dabei); der Klicktest bekam den Einsatz „Dachfenster Krüger“ (Lia an allen Tagen, Kai nur am Di) und die Sicht von Lia („mit Kai“ nur am Di), dieselben
 Gegenproben danach. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.263 (Punkt 4): der leere Tag
+
+- Ein Tag ist leer, wenn an ihm keine Person und kein Gerät am Einsatz steht (`_besetzte_tage()`). **Am Rand:** `_raender_kuerzen()` setzt Beginn und Ende auf
+  den ersten und letzten Tag mit jemandem -- auch über ein Wochenende --, nach jedem Anlegen (`_create_slot()`) und Ändern (`_update_slot()`); einzelne Tage
+  bleiben, in der Normalform (wer danach an allen Tagen steht, heißt „alle Tage“). Die Stunden (`PlanningSlotCapacity`) bleiben. Ein Einsatz, an dem gar niemand
+  steht, behält seinen Zeitraum. Wer an allen Tagen steht (NULL), belegt jeden Tag -- der Bestand wird nie gekürzt.
+- **In der Mitte:** der Einsatz bleibt einer. `leere_tage()` nennt die Arbeitstage ohne jemanden (ein Tag ohne Arbeit ist nie leer), `abschnitte()` die Stücke des
+  Balkens ohne die leeren Tage -- ein Tag ohne Arbeit an einer Lücke gehört nicht dazu, ein Stück nur aus solchen Tagen fällt weg; ein ganz leerer Einsatz ist ein
+  Stück (er bleibt sichtbar). `slot_to_dict()` trägt `niemand`, `leere_tage`, `abschnitte`; die Arbeitstage nach den Einstellungen der Planung und den
+  Feiertagen (für die Tafel eine Abfrage für alle Einsätze im Bild, `tafel["feiertage"]`). Kein Hinweis, kein Zähler; der Termin im Kalender des Krans teilt sich
+  an einem leeren Tag von selbst (Folge der Tage des Geräts).
+- **Ganz leer:** nähme eine Änderung dem Einsatz den letzten Tag mit jemandem (vorher jemand, danach niemand), wirft `_update_slot()` `EinsatzWirdLeer`
+  (nichts gespeichert); `PUT` antwortet 409 mit `rueckfrage` {art „einsatz_leer“, text „Der Einsatz hat dann niemanden mehr.“, optionen [loeschen, behalten]}.
+  Mit `wenn_leer` (Teil-Update, sonst 422): „loeschen“ löscht den Einsatz samt seinen Kran-Terminen (Antwort `{"deleted": true, "id": …}`), „behalten“ lässt ihn
+  mit dem zuletzt geleerten Tag stehen -- werden mehrere Tage zugleich leer (Dialog), mit dem ersten davon. Ein schon leerer Einsatz fragt nicht. Die Prüfung des
+  Dialogs (`einsatz_pruefen()`) fragt nicht, sie trägt `leer`.
+- **Regeln (Antwort 4):** ohne Kolonne beim Anlegen eine Person oder ein Gerät (Schema und `create_slot()`, „Ohne Kolonne bitte mindestens eine Person oder ein
+  Gerät wählen.“); beim Ändern keine Mindestbesetzung mehr (bis 1.9.262: ohne Kolonne immer eine Person). Eine Kranvermietung braucht ihr Gerät nur beim Anlegen
+  (bis 1.9.262 auch beim Ändern, 422).
+- Seite (`planning.html`): Dialog „Der Einsatz hat dann niemanden mehr.“ mit Abbrechen, Löschen, Behalten (`leerFrage()`, `leerEntscheiden()`); die Wahl geht mit
+  `wenn_leer` noch einmal hinaus -- beim Speichern im Dialog und beim Ziehen (z. B. in die Zeile einer leeren Kolonne). Der Einsatz-Dialog nennt es schon vorher
+  („… beim Speichern: löschen oder behalten“). Die Lücke im Balken kommt mit 1.9.264.
+
+#### Festlegungen 1.9.263 (Bitte bestätigen)
+
+1. Am Rand fällt jeder Tag ohne Person und Gerät weg (auch ein Wochenende), nach jedem Anlegen und Ändern; einzelne Tage bleiben in der Normalform; die Stunden
+   bleiben. Ein Einsatz ohne jemanden behält seinen Zeitraum.
+2. In der Mitte bleibt der Einsatz einer; leer ist nur ein Arbeitstag ohne jemanden; die Stücke des Balkens ohne die leeren Tage und ohne die Tage ohne Arbeit an
+   einer Lücke; ein ganz leerer Einsatz ist ein Stück. Der leere Tag selbst meldet nichts und zählt nicht; fehlt dadurch Kapazität für die Stunden des Einsatzes,
+   sagt das „Kapazität reicht nicht“ wie bisher -- auch an einem behaltenen, ganz leeren Einsatz.
+3. Wird ein Einsatz ganz leer: 409 „Der Einsatz hat dann niemanden mehr.“ mit Löschen | Behalten, nichts gespeichert; behalten = mit dem zuletzt geleerten Tag,
+   bei mehreren zugleich mit dem ersten; ein schon leerer Einsatz fragt nicht.
+4. Die Prüfung des Dialogs fragt nicht, sie sagt „leer“; der Dialog nennt es vorher, die Rückfrage kommt beim Speichern und beim Ziehen.
+5. Ohne Kolonne beim Anlegen eine Person oder ein Gerät, danach darf der Einsatz leer werden; eine Kranvermietung braucht ihr Gerät nur beim Anlegen.
+
+#### Tests und Prüfung 1.9.263
+
+Neu: `tests/test_v663_leerer_tag.py` (Rand beim Anlegen samt Stunden, Wochenende am Rand, Rand beim Ändern, Mitte mit Lücke, Lücke am Wochenende, Wochenende in
+der Mitte, leerer Tag zählt nirgends, Kran-Termin teilt sich, Rückfrage samt Antwort, behalten mit dem zuletzt geleerten bzw. ersten Tag, löschen, schon leer,
+Prüfung des Dialogs, ohne Kolonne nur ein Gerät, Seite in node und im Text, ganz leer mit Stunden meldet die Kapazität). Gegenproben: Archiv `gegenproben-stufe6-r5a.md`.
+
+Angepasste Erwartungen (Regel 28):
+- `tests/test_v633_besetzung_je_einsatz.py::test_ohne_kolonne_behaelt_die_personen` -- alt: `employee_ids: []` ohne Kolonne 422 „mindestens eine Person“; neu: 409
+  mit der Rückfrage „einsatz_leer“, Besetzung unverändert.
+- `tests/test_v633_besetzung_je_einsatz.py::test_update_slot_direkt_ohne_kolonne_ohne_personen` -- alt: `BesetzungUngueltig`; neu: `EinsatzWirdLeer`, mit
+  `wenn_leer="behalten"` leer gespeichert.
+- `tests/test_v640_kranvermietung.py::test_aendern_einer_kranvermietung` -- alt: `geraete: []` 422 („der Kran bleibt“), ein Kürzen, bei dem der Kran wegfiele, 422;
+  neu: mit Bediener darf der Kran weg (200); der Kran nur am zweiten Tag kürzt den Einsatz auf diesen Tag, ihm danach den Kran zu nehmen fragt zurück (409).
+- `tests/test_v640_kranvermietung.py::test_baustelle_ohne_kolonne_braucht_weiter_eine_person` -- alt: 422 bzw. `BesetzungUngueltig`; neu: 409 bzw.
+  `EinsatzWirdLeer` (beim Anlegen weiter eine Person oder ein Gerät).
+- `tests/test_v399_teil_updates_rest.py::test_plantafel_null_in_pflichtfeldern_ist_422` -- alt: auch `team_id: null` 422; neu: ohne `team_id` in der Liste (null
+  heißt „ohne Kolonne“, und der leere Einsatz der Attrappe darf seit 1.9.263 ohne Kolonne sein -- die 422 kam bis dahin aus der Mindestbesetzung).
+- `tests/test_v648_einsatz_pruefen.py::test_schnittstelle_mit_rolle_und_fehlern` -- alt: ohne Kolonne und ohne Person 422 (mit der Pritsche); neu: mit der Pritsche
+  200, ohne Person und Gerät 422 „mindestens eine Person oder ein Gerät“.
+- Eigene Tests dieser Runde, nur Aufbau: `test_v660::test_doppelt_genannt_zaehlt_die_erste` (dazu Tom an allen Tagen), `test_v661::test_person_doppelt_nur_an_
+  gemeinsamen_tagen` und `::test_dialog_antrag_nur_an_ihren_tagen` (dazu eine Person an allen Tagen), `test_v662::test_mobil_einsaetze_heute_und_kommend` (dazu
+  Kai an allen Tagen) -- sonst kürzte der Rand die Einsätze, und die Tests prüften nicht mehr, was sie sollen. Ihre Erwartungen bleiben.

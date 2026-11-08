@@ -197,7 +197,9 @@ def test_plantafel_pruefungen_auf_dem_zusammengefuehrten_stand(tafel):
 def test_plantafel_null_in_pflichtfeldern_ist_422(tafel):
     db, client, url = tafel["db"], tafel["client"], tafel["url"]
     vorher = _einsatz_stand(db, tafel["id"])
-    for feld in ("team_id", "start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day"):
+    # seit 1.9.263 ohne team_id: null heißt dort „ohne Kolonne“ (seit 1.9.233), und ein leerer Einsatz darf ohne Kolonne sein -- bis 1.9.262 war es am leeren
+    # Einsatz dieser Attrappe 422 („ohne Kolonne mindestens eine Person“), nicht weil null verboten wäre
+    for feld in ("start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day"):
         assert client.put(url, json={feld: None, "notes": "x"}).status_code == 422, feld
     assert _einsatz_stand(db, tafel["id"]) == vorher
 

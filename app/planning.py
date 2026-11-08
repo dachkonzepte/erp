@@ -54,6 +54,15 @@ KRAN_OHNE_GERAET = "Eine Kranvermietung braucht den Kran: bitte mindestens ein G
 KRAN_OHNE_KOLONNE = "Eine Kranvermietung hat keine Kolonne; Bediener bitte einzeln wählen."
 
 
+EINSATZ_LEER = "Der Einsatz hat dann niemanden mehr."  # seit 1.9.263 (Stufe 6, R5a, Punkt 4, Antwort 3)
+WENN_LEER = ("loeschen", "behalten")
+
+
+class EinsatzWirdLeer(Exception):
+    """Seit 1.9.263: eine Änderung nähme dem Einsatz den letzten Tag mit jemandem (keine Person, kein Gerät mehr) -- nichts gespeichert, 409 mit der
+    Rückfrage „Löschen | Behalten“; gefragt wird erneut mit wenn_leer."""
+
+
 class PlanungsWarnung(Exception):
     """Der Einsatz hat Warnungen und „trotzdem planen“ fehlt -- nichts gespeichert (409). Die Listen sind reine Daten, kein ORM-Objekt."""
 
@@ -766,8 +775,8 @@ def _create_slot(
                          else "Ein Einsatz auf der Baustelle braucht einen Auftrag.")
     if employee_ids is not None and besetzung is not None:  # seit 1.9.260
         raise BesetzungUngueltig("Die Besetzung bitte als employee_ids oder als besetzung schicken, nicht beides.")
-    if team_id is None and not employee_ids and not besetzung and not kran:
-        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
+    if team_id is None and not employee_ids and not besetzung and not geraete and not kran:  # seit 1.9.263 (Antwort 4) auch nur ein Gerät
+        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person oder ein Gerät wählen.")
     if status not in EINSATZ_STATUS:  # seit 1.9.235
         raise ValueError(EINSATZ_STATUS_FALSCH)
     if customer_id is not None:
@@ -805,6 +814,7 @@ def _create_slot(
     slot.besetzung = [PlanningSlotEmployee(employee_id=p["employee_id"], tage=_tage_schreiben(p["tage"])) for p in personen]
     _geraete_setzen(slot, _geraete_pruefen(db, geraete, start_date, end_date) if geraete is not None
                     else _kolonne_schlaegt_geraete_vor(db, team_id) if team_id is not None else [])
+    _raender_kuerzen(slot)  # seit 1.9.263: am Rand kein Tag ohne jemanden
     db.add(slot)
     db.flush()
     hours = _remaining_order_hours(db, prep) if planned_hours is None else _d(planned_hours)
@@ -828,18 +838,20 @@ _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes"
                           "travel_hours_per_employee_day", "employee_ids", "geraete", "besetzung"})
 
 
-def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, **changes) -> PlanningSlot:
+def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, wenn_leer: str | None = None,
+                **changes) -> PlanningSlot | None:
     """Seit 1.9.240: wird die Änderung abgelehnt (ValueError, auch nach einem Teil der Änderung am Objekt), nimmt die Sitzung alles zurück --
-    rollback (gibt auch die Sperre frei), dann der Fehler. Die Regeln stehen in _update_slot()."""
+    rollback (gibt auch die Sperre frei), dann der Fehler. Die Regeln stehen in _update_slot(). Seit 1.9.263 None, wenn der Einsatz mit
+    wenn_leer="loeschen" gelöscht wurde; EinsatzWirdLeer nimmt ebenso alles zurück."""
     try:
-        return _update_slot(db, slot_id, trotzdem_planen=trotzdem_planen, alle_tage_mitnehmen=alle_tage_mitnehmen, **changes)
-    except ValueError:
+        return _update_slot(db, slot_id, trotzdem_planen=trotzdem_planen, alle_tage_mitnehmen=alle_tage_mitnehmen, wenn_leer=wenn_leer, **changes)
+    except (ValueError, EinsatzWirdLeer):
         db.rollback()
         raise
 
 
-def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, _pruefen: dict | None = None,
-                 **changes) -> PlanningSlot:
+def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, wenn_leer: str | None = None,
+                 _pruefen: dict | None = None, **changes) -> PlanningSlot | dict | None:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
@@ -856,12 +868,18 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
     Seit 1.9.260 (Stufe 6, R5a, Punkt 1): besetzung ([{employee_id, tage}]) setzt die Besetzung mit den Tagen je Person, employee_ids heißt alle Tage (beides
     zugleich 422). Ein neuer Zeitraum nimmt auch die einzelnen Tage der Personen mit wie die der Geräte; wer an allen Tagen steht, steht danach an allen Tagen des
     neuen Zeitraums (Dialog, Ziehen des ganzen Einsatzes). alle_tage_mitnehmen=False (die Falle, für die Tag-Aktionen ab R5b): wer in dieser Änderung nicht
-    gesetzt wird und an allen Tagen stand, steht danach an genau den bisherigen Tagen (_alle_tage_festschreiben())."""
+    gesetzt wird und an allen Tagen stand, steht danach an genau den bisherigen Tagen (_alle_tage_festschreiben()).
+    Seit 1.9.263 (Punkt 4, der leere Tag): am Rand fällt jeder Tag ohne Person und Gerät weg (_raender_kuerzen()); in der Mitte bleibt der Einsatz einer.
+    Nähme die Änderung dem Einsatz den letzten Tag mit jemandem, fragt sie zurück (EinsatzWirdLeer, nichts gespeichert): wenn_leer="loeschen" löscht ihn
+    (Rückgabe None), "behalten" lässt ihn mit dem zuletzt geleerten Tag stehen („niemand“) -- werden mehrere Tage zugleich leer (Dialog), mit dem ersten. Ohne Kolonne darf er danach leer sein; eine Kranvermietung
+    braucht ihr Gerät nur beim Anlegen (bis 1.9.262: ohne Kolonne immer eine Person, eine Kranvermietung immer ein Gerät -- je 422)."""
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
     if "status" in changes and changes["status"] not in EINSATZ_STATUS:  # seit 1.9.235
         raise ValueError(EINSATZ_STATUS_FALSCH)
+    if wenn_leer is not None and wenn_leer not in WENN_LEER:  # seit 1.9.263
+        raise ValueError("Ein leerer Einsatz wird gelöscht oder behalten.")
     prep_id = db.scalar(select(PlanningSlot.preparation_id).where(PlanningSlot.id == slot_id))
     if prep_id is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
@@ -872,6 +890,7 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
     vorher_team = slot.team_assignment.team_id if slot.team_assignment is not None else None
     vorher = (vorher_team, slot.start_date, slot.end_date, _besetzung_stand(slot), _geraete_stand(slot))
     alt_start, alt_ende = slot.start_date, slot.end_date
+    besetzt_vorher = _besetzte_tage(slot)  # seit 1.9.263: wer stand vorher an welchem Tag (leer werden, zuerst geleerter Tag)
     start_date = changes.get("start_date", slot.start_date)
     end_date = changes.get("end_date", slot.end_date)
     if end_date < start_date:
@@ -907,16 +926,31 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
     slot.end_date = end_date
     if personen is None and (start_date, end_date) != (alt_start, alt_ende):  # seit 1.9.260 auch die Tage der Personen
         _tage_mitnehmen(slot, alt_start, alt_ende, "besetzung")
-    if neues_team is None and not slot.besetzung and not kran:
-        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     if changes.get("geraete") is not None:
         _geraete_setzen(slot, _geraete_pruefen(db, changes["geraete"], start_date, end_date))
     elif neues_team != vorher_team and neues_team is not None:
         _geraete_setzen(slot, _kolonne_schlaegt_geraete_vor(db, neues_team))
     elif (start_date, end_date) != (alt_start, alt_ende):
         _tage_mitnehmen(slot, alt_start, alt_ende)
-    if kran and not slot.geraete:
-        raise GeraeteUngueltig(KRAN_OHNE_GERAET)
+    # seit 1.9.263 (Punkt 4): am Rand kein Tag ohne jemanden; wird der Einsatz leer, die Rückfrage (Antwort 3)
+    leer = bool(besetzt_vorher) and not _besetzte_tage(slot)
+    if leer:
+        if _pruefen is None and wenn_leer is None:
+            raise EinsatzWirdLeer(EINSATZ_LEER)
+        if _pruefen is None and wenn_leer == "loeschen":
+            kran_kalender.entfernen(db, slot.id)
+            db.delete(slot)
+            db.commit()
+            kran_kalender.senden(db, [])
+            return None
+        tag = min([t for t in besetzt_vorher if slot.start_date <= t <= slot.end_date] or [slot.start_date])
+        alt_s, alt_e = slot.start_date, slot.end_date
+        slot.start_date = slot.end_date = tag
+        _tage_mitnehmen(slot, alt_s, alt_e, "besetzung")
+        _tage_mitnehmen(slot, alt_s, alt_e)
+    else:
+        _raender_kuerzen(slot)
+    start_date, end_date = slot.start_date, slot.end_date
     for key in ("status", "notes"):
         if key in changes:
             setattr(slot, key, changes[key])
@@ -933,7 +967,7 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
     if _pruefen is not None:  # seit 1.9.248: nur prüfen (einsatz_pruefen()) -- alle Warnungen, auch ohne Änderung; nichts bleibt
-        return _nur_pruefen(db, slot.id, **_pruefen)
+        return {**_nur_pruefen(db, slot.id, **_pruefen), "leer": leer}  # seit 1.9.263: würde der Einsatz leer (Rückfrage beim Speichern)
     if not trotzdem_planen and (neues_team, start_date, end_date, _besetzung_stand(slot), _geraete_stand(slot)) != vorher:
         _warnungen_pruefen(db, slot.id)
     zu_senden = kran_kalender.abgleichen(db, _load_slot(db, slot.id, frisch=True))  # seit 1.9.241
@@ -1144,6 +1178,60 @@ def _tage_je_person(slot: PlanningSlot) -> dict[int, set[date]]:
     return {x.employee_id: _tage_der_zeile(slot, x) for x in slot.besetzung}
 
 
+def _besetzte_tage(slot: PlanningSlot) -> set[date]:
+    """Seit 1.9.263 (Stufe 6, R5a, Punkt 4): die Tage, an denen jemand am Einsatz steht -- eine Person oder ein Gerät (Kalendertage)."""
+    tage: set[date] = set()
+    for x in (*slot.besetzung, *slot.geraete):
+        tage |= _tage_der_zeile(slot, x)
+    return tage
+
+
+def _raender_kuerzen(slot: PlanningSlot) -> None:
+    """Seit 1.9.263 (Antwort 3, der leere Tag): am Rand fällt jeder Tag weg, an dem niemand steht -- auch ein Wochenende; einzelne Tage bleiben, wer danach
+    an allen Tagen steht, heißt „alle Tage“. Steht gar niemand am Einsatz, bleibt der Zeitraum (ein ganz leerer Einsatz zeigt „niemand“)."""
+    tage = _besetzte_tage(slot)
+    if not tage or (min(tage), max(tage)) == (slot.start_date, slot.end_date):
+        return
+    alt_start, alt_ende = slot.start_date, slot.end_date
+    slot.start_date, slot.end_date = min(tage), max(tage)
+    _tage_mitnehmen(slot, alt_start, alt_ende, "besetzung")
+    _tage_mitnehmen(slot, alt_start, alt_ende)
+
+
+def leere_tage(slot: PlanningSlot, arbeitstag) -> list[date]:
+    """Seit 1.9.263: die Arbeitstage des Einsatzes, an denen niemand steht (in der Mitte: „niemand“). Ein Tag, der kein Arbeitstag ist, ist nie leer."""
+    return [t for t in _date_range(slot.start_date, slot.end_date) if arbeitstag(t) and not _jemand_am(slot, t)]
+
+
+def abschnitte(slot: PlanningSlot, arbeitstag) -> list[tuple[date, date]]:
+    """Seit 1.9.263: die Stücke des Balkens -- der Einsatz ohne seine leeren Tage; ein Tag ohne Arbeit an einer Lücke gehört nicht dazu, ein Stück nur aus
+    solchen Tagen fällt weg. Ein ganz leerer Einsatz ist ein Stück (er bleibt sichtbar, „niemand“)."""
+    leer = set(leere_tage(slot, arbeitstag))
+    if not _besetzte_tage(slot) or not leer:
+        return [(slot.start_date, slot.end_date)]
+    stuecke, lauf = [], []
+    for t in _date_range(slot.start_date, slot.end_date):
+        if t in leer:
+            if lauf:
+                stuecke.append(lauf)
+            lauf = []
+        else:
+            lauf.append(t)
+    if lauf:
+        stuecke.append(lauf)
+    out = []
+    for s in stuecke:
+        if s[0] - timedelta(days=1) in leer:
+            while s and not arbeitstag(s[0]):
+                s = s[1:]
+        if s and s[-1] + timedelta(days=1) in leer:
+            while s and not arbeitstag(s[-1]):
+                s = s[:-1]
+        if s:
+            out.append((s[0], s[-1]))
+    return out
+
+
 def _jemand_am(slot: PlanningSlot, tag: date) -> bool:
     """Seit 1.9.261: steht an dem Tag jemand am Einsatz -- eine Person oder ein Gerät?"""
     return any(tag in _tage_der_zeile(slot, x) for x in (*slot.besetzung, *slot.geraete))
@@ -1204,6 +1292,12 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         pause = pause_begruendung(db, order) if db is not None else None
     travel = _slot_travel(slot, settings) if settings is not None else (_d(slot.capacity.travel_hours_per_employee_day) if slot.capacity else Decimal("0"))
     hours = _infer_slot_hours(db, slot) if db is not None else (_stored_slot_hours(slot) or Decimal("0"))
+    # seit 1.9.263 (Stufe 6, R5a, Punkt 4): die leeren Tage („niemand“) und die Stücke des Balkens (Lücke in „Kolonnen“) -- nach den Arbeitstagen der Planung
+    if tafel is not None and "feiertage" in tafel:
+        feiertage = tafel["feiertage"]
+    else:
+        feiertage = set(_combined_holiday_map(db, slot.start_date, slot.end_date)[0]) if db is not None else set()
+    arbeitstag = (lambda t: _is_workday(t, settings, feiertage)) if settings is not None else (lambda t: t.weekday() < 5)
     return {
         "id": slot.id, "preparation_id": slot.preparation_id, "order_id": order.id,
         "order_number": order.order_number, "project_id": project.id,
@@ -1232,6 +1326,9 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
                        "type": x.resource.resource_type if x.resource else None, "role": _rolle_des_geraets(slot, x.resource_id),
                        "tage": [t.isoformat() for t in _tage_lesen(x)] if x.tage else None} for x in slot.geraete],
         "conflicts": conflicts or [],
+        "niemand": not _besetzte_tage(slot),  # seit 1.9.263: ganz leer
+        "leere_tage": [t.isoformat() for t in leere_tage(slot, arbeitstag)],
+        "abschnitte": [[a.isoformat(), b.isoformat()] for a, b in abschnitte(slot, arbeitstag)],
     }
 
 
@@ -2094,7 +2191,8 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
     for res in resources:
         # seit 1.9.234 aus den Geräten des Einsatzes, an ihren Tagen
         resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id and day in _tage_der_zeile(slot,x) for x in slot.geraete)) for day in dates}
-    tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
+    tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible]),
+           "feiertage":set(_combined_holiday_map(db,soll_von,soll_bis)[0])}  # seit 1.9.263: für die leeren Tage aller Einsätze im Bild, eine Abfrage
     slot_dicts=[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible]
     pruefungen=_pruefungen(db,{x.id for x in resources})
     _mit_konto,termine_der_personen=personen_termine(db,{x.id for x in employees},start_date,end_date,betrachter_user_id)  # seit 1.9.250

@@ -84,3 +84,35 @@ Schlüssel; der Test `test_tafel_zaehlt_ein_paar_einmal` hält es fest. Ohne Kli
 | Nr. 6 – Kran-Termin je Tag | die ganze Besetzung (`262_6a`) | 1 rot: v662::test_kran_termin_nennt_wer_an_seinen_tagen_dran_ist |
 
 Ohne eigene Gegenprobe: Nr. 7 (unverändert, nichts daran geändert).
+
+## 1.9.263 (Punkt 4): der leere Tag
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – am Rand kürzen | nie kürzen (`263_1a`) | 4 rot: v663::test_behalten_mit_dem_zuletzt_geleerten_tag, v663::test_rand_kuerzt_auch_ein_wochenende, v663::test_rand_kuerzt_beim_aendern, v663::test_rand_kuerzt_beim_anlegen_und_die_stunden_bleiben |
+| Nr. 1 – auch nach dem Ändern | nur beim Anlegen (`263_1b`) | 2 rot: v663::test_behalten_mit_dem_zuletzt_geleerten_tag, v663::test_rand_kuerzt_beim_aendern |
+| Nr. 1 – danach in der Normalform | ohne Mitnehmen der Tage (`263_1c`) | 1 rot: v663::test_rand_kuerzt_beim_anlegen_und_die_stunden_bleiben |
+| Nr. 1 – auch ein Wochenende | Wochenende am Rand bleibt (`263_1d`) | 1 rot: v663::test_rand_kuerzt_auch_ein_wochenende |
+| Nr. 2 – leer nur an Arbeitstagen | jeder Tag (`263_2a`) | 2 rot: v663::test_lucke_am_wochenende_ohne_die_tage_ohne_arbeit, v663::test_wochenende_in_der_mitte_ist_nie_leer |
+| Nr. 2 – Tag ohne Arbeit an der Lücke gehört nicht dazu | bleibt (`263_2b`) | 1 rot: v663::test_lucke_am_wochenende_ohne_die_tage_ohne_arbeit |
+| Nr. 2 – ganz leer ist ein Stück | kein Stück (`263_2c`) | 1 rot: v663::test_behalten_mit_dem_zuletzt_geleerten_tag |
+| Nr. 3 – Rückfrage | ohne (`263_3a`) | 5 rot: v633::test_ohne_kolonne_behaelt_die_personen, v633::test_update_slot_direkt_ohne_kolonne_ohne_personen, v640::test_aendern_einer_kranvermietung, v640::test_baustelle_ohne_kolonne_braucht_weiter_eine_person, v663::test_leer_werden_fragt_zurueck_und_aendert_nichts |
+| Nr. 3 – Löschen löscht | löscht nicht (`263_3b`) | 1 rot: v663::test_loeschen |
+| Nr. 3 – mehrere zugleich: der erste | der letzte (`263_3c`) | 1 rot: v663::test_behalten_mehrere_zugleich_der_erste |
+| Nr. 3 – schon leer fragt nicht | fragt immer (`263_3d`) | 1 rot: v663::test_schon_leer_fragt_nicht |
+| Nr. 3 – die Antwort nennt die Rückfrage | andere Art (`263_3e`) | 1 rot: v663::test_leer_werden_fragt_zurueck_und_aendert_nichts |
+| Nr. 4 – die Prüfung fragt nicht | fragt (`263_4a`) | 1 rot: v663::test_pruefung_des_dialogs_sagt_leer_und_fragt_nicht |
+| Nr. 4 – der Dialog nennt es vorher | ohne Hinweis (`263_4b`) | 1 rot: v663::test_dialog_und_ziehen_nehmen_die_rueckfrage |
+| Nr. 4 – die Seite fragt | leerFrage antwortet nie (`263_4c`) | 1 rot: v663::test_seite_fragt_und_schickt_die_wahl |
+| Nr. 4 – auch beim Ziehen | ohne (`263_4d`) | 1 rot: v663::test_dialog_und_ziehen_nehmen_die_rueckfrage |
+| Nr. 5 – ohne Kolonne genügt ein Gerät | nur Personen (`263_5a`) | 1 rot: v663::test_ohne_kolonne_genuegt_beim_anlegen_ein_geraet |
+| Nr. 5 – danach darf er leer werden | Mindestbesetzung wie bis 1.9.262 (`263_5b`) | 9 rot: v633::test_ohne_kolonne_behaelt_die_personen, v633::test_update_slot_direkt_ohne_kolonne_ohne_personen, v663::test_behalten_mehrere_zugleich_der_erste, v663::test_behalten_mit_dem_zuletzt_geleerten_tag, v663::test_ganz_leer_mit_stunden_meldet_die_kapazitaet, v663::test_leer_werden_fragt_zurueck_und_aendert_nichts, v663::test_loeschen, v663::test_pruefung_des_dialogs_sagt_leer_und_fragt_nicht, v663::test_schon_leer_fragt_nicht |
+| Nr. 5 – Kran nur beim Anlegen | Kran immer (`263_5c`) | 1 rot: v640::test_aendern_einer_kranvermietung |
+
+`263_3e` lief zuerst aus dem falschen Grund rot: die Ersetzung selbst war ein Syntaxfehler im Router (Sammelfehler statt FAILED). Neu ändert sie
+nur die Art der Rückfrage und ist rot aus dem richtigen Grund (`test_leer_werden_fragt_zurueck_und_aendert_nichts`).
+
+Ohne eigene Gegenprobe: „die Stunden bleiben“ (Nr. 1) -- das Kürzen fasst `PlanningSlotCapacity` nicht an, der Test hält es fest; „kein Hinweis, kein Zähler“
+(Nr. 2) -- kein Weg meldet einen leeren Tag, `test_leerer_tag_zaehlt_nirgends` hält es fest; die Kapazität eines ganz leeren Einsatzes (Nr. 2) rechnet die
+Verteilung wie bisher (seit 1.9.261 je Tag), `test_ganz_leer_mit_stunden_meldet_die_kapazitaet` hält es fest; der Kran-Termin teilt sich (Folge der Tage, unverändert seit
+1.9.241). Die Klicktest-Gegenproben zur Rückfrage im Browser kommen mit 1.9.264 (`klicktest_plantafel_tage`).

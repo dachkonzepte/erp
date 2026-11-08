@@ -101,7 +101,7 @@ def test_vorwahl_der_zeit_nur_an_ihren_tagen(welt):
 def test_mobil_einsaetze_heute_und_kommend(welt):
     db = welt["db"]
     _einsatz(welt, {"tom": None, "mia": [FR]}, MO, FR)
-    _einsatz(welt, {"mia": [MO + timedelta(days=50)]}, MO, MO + timedelta(days=50), auftrag="b")
+    _einsatz(welt, {"mia": [MO + timedelta(days=50)], "kai": None}, MO, MO + timedelta(days=50), auftrag="b")  # Kai an allen Tagen: B berührt das Fenster
     assert [a["order_id"] for a in list_todays_assignments_for_employee(db, welt["mia"], DI)] == []
     assert [a["order_id"] for a in list_todays_assignments_for_employee(db, welt["mia"], FR)] == [welt["a"].id]
     assert [a["order_id"] for a in list_upcoming_assignments_for_employee(db, welt["mia"], today=DI)] == [welt["a"].id]  # B erst in 49 Tagen

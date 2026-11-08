@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.263 – Plantafel: der leere Tag (Stufe 6, R5a, Punkt 4)
+
+Steht an einem Tag eines Einsatzes niemand -- keine Person, kein Gerät --, ist er leer. Am Anfang oder Ende kürzt ein leerer Tag den Einsatz, nach jedem Anlegen und Ändern (auch ein Wochenende am Rand); die Stunden bleiben am Einsatz. In der Mitte bleibt der Einsatz einer: die Antwort nennt die leeren Arbeitstage und die Stücke des Balkens, ein leerer Tag zählt nirgends. Nähme eine Änderung dem Einsatz den letzten Tag mit jemandem, fragt die Plantafel „Der Einsatz hat dann niemanden mehr.“ -- Löschen oder Behalten; behalten bleibt er mit dem zuletzt geleerten Tag stehen. Die Rückfrage kommt im Dialog und beim Ziehen.
+
+Dafür fallen zwei Regeln von früher: ohne Kolonne genügt beim Anlegen eine Person oder ein Gerät, danach darf der Einsatz leer werden; eine Kranvermietung braucht ihr Gerät nur beim Anlegen.
+
 ## 1.9.262 – „Heute“ und Kran-Termine je Tag (Stufe 6, R5a, Punkt 3)
 
 Steht eine Monteurin nur an einzelnen Tagen eines Einsatzes, sieht sie ihn jetzt auch nur an diesen Tagen: „Heute“ zeigt die Karte nur, wenn sie heute dort steht, „Heutiger Einsatz · von–bis“ nennt ihre Folge von Tagen um heute (ein Wochenende oder Feiertag unterbricht sie nicht, ein Arbeitstag ohne sie schon), „Mit dir“ nur, wer heute dabei ist. „Nächste Tage“ nennt nur ihre Tage, „mit …“ je Tag die, die an dem Tag dabei sind, „weiter“ nur, wenn sie heute dort steht. Die Zeiterfassung wählt den Auftrag nur noch an ihren Tagen vor. Im Kalender des Krans nennt jeder Termin als Besetzung nur, wer an seinen Tagen am Einsatz steht.

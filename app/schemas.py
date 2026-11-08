@@ -3209,8 +3209,8 @@ class PlanningSlotCreate(BaseModel):
             return self
         if self.order_id is None or self.customer_id is not None or self.property_id is not None or self.titel is not None:
             raise ValueError("Ein Einsatz auf der Baustelle braucht einen Auftrag.")
-        if self.team_id is None and not self.employee_ids and not self.besetzung:
-            raise ValueError("Ohne Kolonne bitte mindestens eine Person wählen.")
+        if self.team_id is None and not self.employee_ids and not self.besetzung and not self.geraete:  # seit 1.9.263 auch nur ein Gerät
+            raise ValueError("Ohne Kolonne bitte mindestens eine Person oder ein Gerät wählen.")
         return self
 
 
@@ -3258,6 +3258,8 @@ class PlanningSlotUpdate(PartialUpdate):
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
     trotzdem_planen: bool | None = None  # seit 1.9.143, wie PlanningSlotCreate
+    # seit 1.9.263 (Stufe 6, R5a, Punkt 4): nähme die Änderung dem Einsatz den letzten Tag mit jemandem -- löschen oder behalten (ohne Angabe 409 mit Rückfrage)
+    wenn_leer: Literal["loeschen", "behalten"] | None = None
 
     @model_validator(mode="after")
     def validate_dates(self):

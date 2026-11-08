@@ -141,8 +141,11 @@ def test_schnittstelle_mit_rolle_und_fehlern(welt):
         assert r.status_code == 200, r.text
         assert {p["name"]: p["text"] for p in r.json()["personen"]}["Nele Test"] == text
         assert ("Krankheit" in r.text) is (rolle == "buero_finanzen")
+    # seit 1.9.263 (Antwort 4): ohne Kolonne genügt ein Gerät (bis 1.9.262: 422 „mindestens eine Person“, auch mit der Pritsche)
     r = welt["client"]().post("/api/planning/slots/pruefen", json={**body, "team_id": None, "employee_ids": []})
-    assert (r.status_code, "mindestens eine Person" in r.text) == (422, True)
+    assert r.status_code == 200, r.text
+    r = welt["client"]().post("/api/planning/slots/pruefen", json={**body, "team_id": None, "employee_ids": [], "geraete": []})
+    assert (r.status_code, "mindestens eine Person oder ein Gerät" in r.text) == (422, True)
     r = welt["client"]().post("/api/planning/slots/99999/pruefen", json={"notes": "x"})
     assert r.status_code == 404
     assert _zaehlen(db)[0] == 0

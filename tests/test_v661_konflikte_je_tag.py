@@ -35,12 +35,13 @@ def _konflikte(w, slot):
 
 
 def test_person_doppelt_nur_an_gemeinsamen_tagen(welt):
-    a = _einsatz(welt, "a", {"tom": [0]})
-    b = _einsatz(welt, "b", {"tom": [1]})
+    a = _einsatz(welt, "a", {"tom": [0], "mia": None})
+    b = _einsatz(welt, "b", {"tom": [1], "kai": None})  # Mia und Kai an allen Tagen -- der Rand kürzt nicht (seit 1.9.263)
     assert [k for k in _konflikte(welt, a) if k["type"] == "employee"] == []
     welt["db"].rollback()
     from app.planning import update_slot
-    update_slot(welt["db"], b.id, besetzung=[{"employee_id": welt["tom"], "tage": [_tag(0), _tag(1)]}], trotzdem_planen=True)
+    update_slot(welt["db"], b.id, besetzung=[{"employee_id": welt["tom"], "tage": [_tag(0), _tag(1)]}, {"employee_id": welt["kai"], "tage": None}],
+                trotzdem_planen=True)
     doppelt = [k for k in _konflikte(welt, a) if k["type"] == "employee"]
     assert [(k["employee_id"], k["tage"], k["other_slot_id"]) for k in doppelt] == [(welt["tom"], [_tag(0)], b.id)]
 
@@ -146,8 +147,9 @@ def test_dialog_antrag_nur_an_ihren_tagen(welt):
     db.add(EmployeeAbsenceRequest(employee_id=welt["tom"], absence_type="Urlaub", absence_category="urlaub", start_date=_tag(2), end_date=_tag(2),
                                   status="pending"))
     db.commit()
-    a = _einsatz(welt, "a", {"tom": [0]})
+    a = _einsatz(welt, "a", {"tom": [0], "mia": None})  # Mia an allen Tagen -- der Rand kürzt nicht (seit 1.9.263)
     r = client.post(f"/api/planning/slots/{a.id}/pruefen", json={})
-    assert [(p["zustand"], p["text"]) for p in r.json()["personen"]] == [("frei", "frei")]
-    r = client.post(f"/api/planning/slots/{a.id}/pruefen", json={"besetzung": [{"employee_id": welt["tom"], "tage": [_tag(0).isoformat(), _tag(2).isoformat()]}]})
-    assert [p["zustand"] for p in r.json()["personen"]] == ["antrag"]
+    assert [(p["zustand"], p["text"]) for p in r.json()["personen"]] == [("frei", "frei"), ("frei", "frei")]
+    r = client.post(f"/api/planning/slots/{a.id}/pruefen", json={"besetzung": [{"employee_id": welt["tom"], "tage": [_tag(0).isoformat(), _tag(2).isoformat()]},
+                                                                             {"employee_id": welt["mia"]}]})
+    assert [p["zustand"] for p in r.json()["personen"]] == ["antrag", "frei"]
