@@ -115,6 +115,9 @@ GEPRUEFT = {
     # seit 1.9.251 (Stufe 6, R4, Punkt 5): der Dialog prüft die Übernahme eines Termins am Kran -- derselbe Weg, nichts bleibt
     "POST /api/planning/kran-termine/{event_id}/pruefen property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
+    # seit 1.9.267 (Stufe 6, R5b, Punkt 1): die Karte, auf die gezogen wurde, ist ein Einsatz dieses Auftrags (fremd wie unbekannt 404)
+    "POST /api/planning/tag-setzen slot_id":
+        ("tag_aktionen._karte", "karte is None or karte.preparation.order_id != order.id"),
     "POST /api/maintenance-contracts property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "PUT /api/maintenance-contracts/{contract_id} property_id":
@@ -320,6 +323,8 @@ FREI = {
     "POST /api/planning/kran-termine/{event_id}/kranvermietung customer_id": (  # seit 1.9.241
         _BESITZER + " (Kranvermietung: Projekt und Auftrag für diesen Kunden; Objekt dazu: property_id, mit Bestätigung)",
         "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/planning/tag-setzen order_id": ("setzt an genau diesen Auftrag (Büro), seit 1.9.267", "tag_aktionen._auftrag",
+                                              "order = db.get(Order, order_id) if order is None"),
     "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
                                                "order = load_order(db, order_id) if order is None"),
     "POST /api/time-entries order_id": (_KONTEXT, "time_tracking.create_manual_entry", _AUFTRAG_FEHLT),

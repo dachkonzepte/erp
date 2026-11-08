@@ -1265,7 +1265,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Folge ihrer Tage, Warnung am Stück ihrer Tage (`imStueck()`), „doppelt“ je Tag (`tests/test_v664_plantafel_tage.py`, Klicktest `klicktest_plantafel_tage.py`).
   **Stufe 6, R5b (ab 1.9.265, Tag-Aktionen):** vorweg prüft die Antwort von `GET /api/employees` nicht mehr wie das Formular (`EmployeeOut` aus
   `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`); ein ganz leerer Einsatz
-  („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Befund R5 und Herleitung:
+  („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Tag-Aktionen in `app/tag_aktionen.py`: seit 1.9.267 Tag setzen
+  (`tag_setzen()`, `POST /api/planning/tag-setzen`: dazu, verlängert -- auch Fr -> Mo, `anschliessend()` -- oder neu; Ziel nach Antwort 6/8 in `ziel_finden()`;
+  die Falle über `_update_slot(alle_tage_mitnehmen=False, dazu=…)`; gefragt nur bei neuen Warnungen, `neue_warnungen()`; `pruefen` schreibt nichts;
+  `tests/test_v667_tag_setzen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

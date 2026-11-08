@@ -3292,6 +3292,19 @@ class KranTerminPruefung(KranTerminUebernahme, EinsatzPruefungWeitere):
     """Seit 1.9.251: POST /api/planning/kran-termine/{id}/pruefen -- dieselben Felder wie die Übernahme, dazu „+ Person“/„+ Gerät“."""
 
 
+class TagSetzen(BaseModel):
+    """Seit 1.9.267 (Stufe 6, R5b, Punkt 1): POST /api/planning/tag-setzen -- genau eine Person, Kolonne oder ein Gerät (app/tag_aktionen.py prüft:
+    sonst 422) für diesen Tag an diesen Auftrag; slot_id = die Karte, auf die gezogen wurde (Antwort 6). pruefen: nur prüfen, nichts bleibt."""
+    order_id: int
+    tag: date
+    employee_id: int | None = None
+    team_id: int | None = None
+    resource_id: int | None = None
+    slot_id: int | None = None
+    trotzdem_planen: bool = False
+    pruefen: bool = False
+
+
 class PlanningSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int = 1

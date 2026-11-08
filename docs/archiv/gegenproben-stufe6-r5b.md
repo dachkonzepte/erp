@@ -23,3 +23,45 @@ jetzt beide Stellen ab (das Werkzeug kann seit dieser Runde mehrere Stellen in e
 | Nr. 1 – „niemand“ meldet keine Kapazität | wie bis 1.9.265 (`266_1a`) | 3 rot: v663::test_ganz_leer_mit_stunden_meldet_keine_kapazitaet, v666::test_niemand_auf_der_tafel_und_im_zaehler, v666::test_niemand_beim_speichern_und_in_der_pruefung |
 | Nr. 1 – auf der Tafel | wie bis 1.9.265 (`266_1b`, Klicktest Tage) | rot: plantafel_tage (Leer) |
 | Nr. 2 – mit jemandem, auch nur einem Gerät, wie bisher | nur mit Personen (`266_2a`) | 1 rot: v666::test_mit_jemandem_meldet_es_weiter |
+
+## 1.9.267 (Punkt 1): Tag setzen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – genau eine | eine oder mehrere (`267_1a`) | 1 rot: v667::test_api |
+| Nr. 1 – prüfen schreibt nichts | commit statt rollback (`267_1b`) | 3 rot: v667::test_api, v667::test_pruefen_schreibt_nichts, v667::test_zwei_einsaetze_am_tag_karte_und_vorschlag |
+| Nr. 2 – dazu, wenn der Auftrag an dem Tag einen Einsatz hat | nie dazu (`267_2a`) | 7 rot: v667::test_abwesend_fragt_antrag_nicht, v667::test_api, v667::test_dazu_nur_an_diesem_tag, v667::test_geraet_setzen, v667::test_kranvermietung_antwort_8, v667::test_was_vorher_schon_da_war_fragt_nicht, v667::test_zwei_einsaetze_am_tag_karte_und_vorschlag |
+| Nr. 2 – Person oder Gerät: der ohne Kolonne zuerst | nur der früheste (`267_2b`) | 1 rot: v667::test_zwei_einsaetze_am_tag_karte_und_vorschlag |
+| Nr. 3 – verlängert Fr -> Mo | nur der nächste Kalendertag (`267_2c`) | 1 rot: v667::test_verlaengert_ueber_das_wochenende_mit_der_falle |
+| Nr. 3 – der vordere zuerst | der hintere zuerst (`267_2d`) | 1 rot: v667::test_verlaengert_nach_vorn_und_der_vordere_zuerst |
+| Nr. 4 – auf der Karte dieser Einsatz | Karte übergangen (`267_3a`) | 1 rot: v667::test_zwei_einsaetze_am_tag_karte_und_vorschlag |
+| Nr. 4 – Karte eines anderen Auftrags 404 | nur unbekannt (`267_3b`) | 1 rot: v667::test_api |
+| Nr. 4 – Karte an dem Tag, sonst 422 | ohne Prüfung (`267_3c`) | 1 rot: v667::test_api |
+| Nr. 4 – Kolonne auf anderer Kolonne: ein eigener | in die Karte (`267_3d`) | 1 rot: v667::test_zwei_einsaetze_am_tag_karte_und_vorschlag |
+| Nr. 5 – neu vorläufig | fest (`267_4a`) | 1 rot: v667::test_neu_ohne_anschluss |
+| Nr. 5 – Art des letzten Einsatzes | immer Baustelle (`267_4b`) | 1 rot: v667::test_kranvermietung_antwort_8 |
+| Nr. 5 – mit Kolonne nur, wenn eine gezogen wurde | Kolonne des letzten Einsatzes (`267_4c`) | 1 rot: v667::test_neu_ohne_anschluss |
+| Nr. 5 – Stunden = Rest | 0 Stunden (`267_4d`) | 1 rot: v667::test_neu_ohne_anschluss |
+| Nr. 6 – Kolonne nie auf eine Kran-Karte | ohne die Prüfung der Karte (`267_5a`) | 1 rot: v667::test_kranvermietung_antwort_8 |
+| Nr. 6 – Kolonne nie an einen Kran-Auftrag | ohne (`267_5b`) | 1 rot: v667::test_kranvermietung_antwort_8 |
+| Nr. 6 – Person nur dazu | auch verlängern und neu (`267_5c`) | 1 rot: v667::test_kranvermietung_antwort_8 |
+| Nr. 6 – ein Gerät darf | auch das Gerät nur dazu (`267_5d`) | 1 rot: v667::test_kranvermietung_antwort_8 |
+| Nr. 7 – die Falle | alle_tage_mitnehmen=True (`267_6a`) | 2 rot: v667::test_verlaengert_nach_vorn_und_der_vordere_zuerst, v667::test_verlaengert_ueber_das_wochenende_mit_der_falle |
+| Nr. 7 – auch Geräte | Geräte nicht festgeschrieben (`267_6b`) | 1 rot: v667::test_verlaengert_ueber_das_wochenende_mit_der_falle |
+| Nr. 8 – nur der Tag der Genannten | alle Tage (`267_7a`) | 5 rot: v667::test_api, v667::test_dazu_nur_an_diesem_tag, v667::test_geraet_setzen, v667::test_verlaengert_nach_vorn_und_der_vordere_zuerst, v667::test_verlaengert_ueber_das_wochenende_mit_der_falle |
+| Nr. 8 – Normalform | ohne (`267_7b`) | 2 rot: v667::test_dazu_nur_an_diesem_tag, v667::test_kolonne_ohne_nicht_zeigen |
+| Nr. 9 – ohne „nicht zeigen“ | alle Mitglieder (`267_8a`) | 1 rot: v667::test_kolonne_ohne_nicht_zeigen |
+| Nr. 9 – ohne Vorschlag 422 | ein leerer Einsatz (`267_8b`) | 1 rot: v667::test_kolonne_ohne_vorschlag |
+| Nr. 10 – nur neue Warnungen | jede Warnung (`267_9a`) | 1 rot: v667::test_was_vorher_schon_da_war_fragt_nicht |
+| Nr. 10 – ein neuer Tag fragt | Tage nicht verglichen (`267_9b`) | 1 rot: v667::test_was_vorher_schon_da_war_fragt_nicht |
+| Nr. 10 – neue Warnung fragt | fragt nie (`267_9c`) | 5 rot: v667::test_abwesend_fragt_antrag_nicht, v667::test_api, v667::test_ganze_kolonne_eine_rueckfrage, v667::test_neue_warnung_fragt_nichts_gespeichert, v667::test_was_vorher_schon_da_war_fragt_nicht |
+| Nr. 10 – Hinweise nie | auch Hinweise (`267_9d`) | 2 rot: v667::test_abwesend_fragt_antrag_nicht, v667::test_kranvermietung_antwort_8 |
+| Nr. 10 – eine Rückfrage für alle | nur die erste Warnung (`267_9e`) | 1 rot: v667::test_ganze_kolonne_eine_rueckfrage |
+| Nr. 11 – geschlossen 409, auch dazu | ohne (`267_10a`) | 1 rot: v667::test_geschlossener_auftrag |
+
+Ohne eigene Gegenprobe: „nie zusammengelegt“ (Nr. 3) -- kein Weg legt zusammen, `test_verlaengert_nach_vorn_und_der_vordere_zuerst` hält den Zeitraum des
+hinteren fest; Nr. 12 (Sperren, Rolle, Zugehörigkeit, Event-Loop) mit Punkt 3.
+
+Erst im zweiten Anlauf rot: `267_8a` blieb grün -- der Test legte die Kolonne nur neu an, dort schlägt `_create_slot()` selbst vor, `_eintraege()` lief nicht; der
+Test verlängert jetzt zusätzlich. `267_9b` blieb grün -- der neue Tag kam an einem anderen Einsatz dazu, die Warnung war schon dadurch neu; der Test nimmt jetzt
+denselben Einsatz, an dem Kai schon doppelt war. Danach alle 30 Gegenproben und die Suite neu, alle rot bzw. grün.

@@ -23,9 +23,10 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, _load_slot, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, TagSetzen
+from ..tag_aktionen import tag_setzen
 
 router = APIRouter()
 
@@ -354,3 +355,29 @@ def remove_planning_slot(slot_id: int, db: Session = Depends(get_db, scope="func
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"deleted": True, "preparation_id": prep_id}
+
+
+def _tag_antwort(db: Session, ergebnis: dict, role: AppUser) -> dict:
+    """Seit 1.9.267: das Ergebnis einer Tag-Aktion -- geprüft: Warnungen und Hinweise in der Fassung je Rolle; gespeichert: dazu der Einsatz wie beim Speichern."""
+    if "warnungen" in ergebnis:
+        return {**ergebnis, "warnungen": _konflikte_fuer_rolle(ergebnis["warnungen"], role), "hinweise": _konflikte_fuer_rolle(ergebnis["hinweise"], role)}
+    slot = _load_slot(db, ergebnis["slot_id"]) if ergebnis.get("slot_id") else None
+    return {**ergebnis, "einsatz": _einsatz_antwort(db, slot, role) if slot is not None else None}
+
+
+@router.post("/api/planning/tag-setzen")
+def post_tag_setzen(payload: TagSetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.267 (Stufe 6, R5b, Punkt 1): eine Person, eine Kolonne oder ein Gerät für einen Tag an einen Auftrag -- dazu, verlängert oder neu
+    (app/tag_aktionen.py). Antworten wie beim Anlegen: 409 mit warnungen/hinweise (nur neue Warnungen fragen), 409 geschlossen, 404 Auftrag oder Karte
+    unbekannt bzw. fremd, 422 (keine oder mehrere von Person/Kolonne/Gerät, inaktiv, Kranvermietung, Tag nicht am Einsatz). pruefen: schreibt nichts."""
+    try:
+        ergebnis = tag_setzen(db, **payload.model_dump())
+    except PlanungsWarnung as exc:
+        return _warnung_antwort(exc, _role)
+    except AuftragGeschlossen as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _tag_antwort(db, ergebnis, _role)

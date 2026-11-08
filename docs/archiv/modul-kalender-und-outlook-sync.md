@@ -1903,3 +1903,64 @@ Neu: `tests/test_v666_niemand_ohne_kapazitaet.py` (Tafel und Zähler, Speichern 
 Angepasste Erwartungen (Regel 28): `tests/test_v663_leerer_tag.py::test_ganz_leer_mit_stunden_meldet_die_kapazitaet` heißt jetzt `…_meldet_keine_kapazitaet`
 -- alt: Konflikte `[("capacity", "hinweis")]`, neu: keine, „niemand“. `scripts/klicktest_plantafel_tage.py`, Prüfung „Leer: Behalten“ -- alt: Knopf „1 Hinweis“,
 Konflikte der Garage `["capacity"]`; neu: „Keine Warnungen“, keine.
+
+### Umsetzung 1.9.267 (Punkt 1): Tag setzen
+
+Neues Modul `app/tag_aktionen.py` (Regeln im Kopf), Endpunkt `POST /api/planning/tag-setzen` {order_id, tag, employee_id | team_id | resource_id, slot_id?,
+trotzdem_planen, pruefen} -- ab Büro – Auftrag wie die Tafel, `def`, Sitzung mit `scope="function"`.
+
+- **Ziel** (`ziel_finden()`): auf einer Karte (slot_id, Antwort 6) dieser Einsatz -- er muss zum Auftrag gehören (`_karte()`: fremd wie unbekannt 404, Regel 25)
+  und an dem Tag liegen (422); eine Kolonne nur in den Einsatz derselben Kolonne, sonst ein eigener (Antwort 8, auch auf der Karte eines Einsatzes ohne Kolonne).
+  Auf freier Fläche: ein Einsatz des Auftrags an dem Tag -> dazu (Person oder Gerät: der ohne Kolonne, sonst der früheste; Kolonne: der derselben Kolonne);
+  sonst einer, an den der Tag direkt anschließt (`anschliessend()`: kein Arbeitstag dazwischen, Antwort 7) -> verlängert, der vordere zuerst, nie
+  zusammengelegt; sonst neu.
+- **Neu** über `_create_slot(…, _offen=True)` (Anlegen ohne Abschluss): vorläufig, die Art des letzten Einsatzes des Auftrags (sonst Baustelle,
+  `_art_des_auftrags()`), Stunden = Rest, mit Kolonne nur, wenn eine Kolonne gezogen wurde.
+- **Dazu und verlängert** über `_update_slot(…, alle_tage_mitnehmen=False, dazu=[…], _offen=True)` -- die Falle: wer „alle Tage“ hatte, steht danach an genau den
+  bisherigen Tagen (`_alle_tage_festschreiben()`, Personen und Geräte); neu in `_update_slot()` die internen Änderungen `dazu`/`weg`
+  (`app/planning.py::_tage_aendern()`: einer Person oder einem Gerät Tage geben oder nehmen, die übrigen Zeilen unberührt, Normalform danach) und `_offen`
+  (ohne Warnungen, Kran-Kalender und Commit -- die Tag-Aktion schließt selbst ab). `PUT /api/planning/slots/{id}` kennt `dazu`/`weg` nicht (Schema).
+- **Kran** (`_kran_pruefen()`, Antwort 8): eine Kolonne nie in eine Kranvermietung -- weder auf ihrer Karte noch an einem Auftrag, dessen letzter Einsatz eine
+  ist (422 „bitte einzelne Bediener ziehen“); eine Person nur dazu an einen Tag mit Einsatz, nicht verlängern oder neu (422 „zuerst den Kran ziehen“); ein Gerät
+  darf verlängern und neu anlegen.
+- **Kolonne** (`_eintraege()`): ihre Mitglieder ohne „nicht zeigen“ (`_kolonne_schlaegt_vor()`, Antwort 9) und ihre aktiven Geräte; schlägt sie niemanden vor,
+  422.
+- **Fragen** (`neue_warnungen()`, `abschliessen()`): nur bei Warnungen, die die Aktion neu bringt -- verglichen mit den Warnungen aller Einsätze des Auftrags
+  vorher, je Warnung mit Art, Wem, anderem Einsatz und ihren Tagen (`_schluessel()`): eine neue Warnung oder ein neuer Tag einer bestehenden fragt, was vorher
+  schon da war nicht; eine Rückfrage für alle (ganze Kolonne); Hinweise nie. 409 wie beim Anlegen (`warnungen`, `hinweise`), nichts gespeichert, auch keine neue
+  Arbeitsvorbereitung.
+- **Prüfen** (`pruefen: true`): derselbe Weg bis zum Flush, dann `pruefung()` (`aktion`, `slot_id` -- leer bei „neu“ --, `warnungen`, `hinweise`, `fragt`) und
+  rollback.
+- Antwort: `aktion` (dazu | verlaengert | neu), `slot_id`, `tage` (der Person bzw. des Geräts am Einsatz, alle einzeln), `bis` (letzter Tag des Einsatzes, für „bis …
+  verlängern“) und `einsatz` wie beim Speichern. Ein geschlossener Auftrag bekommt keinen Tag, auch nicht dazu (409).
+- Nebenbei: hält ein Test die Ausnahme einer abgelehnten Aktion fest (`pytest.raises`), hält ihr Traceback die verworfenen Objekte -- SQLAlchemy warnte beim
+  nächsten Flush („Identity map already had an identity …“). Im Server verwirft der Router die Ausnahme; der Test gibt sie frei (`del fehler`).
+
+#### Festlegungen 1.9.267 (Bitte bestätigen)
+
+1. `POST /api/planning/tag-setzen`: genau eine Person, Kolonne oder ein Gerät, ein Tag, ein Auftrag (sonst 422); `pruefen` schreibt nichts.
+2. Frei: hat der Auftrag an dem Tag einen Einsatz, kommt sie dazu -- Person oder Gerät in den ohne Kolonne, sonst den frühesten; eine Kolonne nur in den derselben
+   Kolonne.
+3. Schließt der Tag an einen Einsatz an (kein Arbeitstag dazwischen, Fr -> Mo), wird er verlängert -- der vordere zuerst, nie zusammengelegt; sonst neu.
+4. Auf einer Karte: dieser Einsatz (des Auftrags, sonst 404; an dem Tag, sonst 422); eine Kolonne auf der Karte einer anderen Kolonne oder eines Einsatzes ohne
+   Kolonne bekommt einen eigenen.
+5. Neu: vorläufig, die Art des letzten Einsatzes des Auftrags (sonst Baustelle), Stunden = Rest, mit Kolonne nur, wenn eine Kolonne gezogen wurde.
+6. Kranvermietung: eine Kolonne nie (Karte oder Art des Auftrags), 422; eine Person nur dazu an einen Tag mit Einsatz, sonst 422; ein Gerät verlängert oder legt
+   neu an.
+7. Die Falle: verlängert wird über `update_slot(alle_tage_mitnehmen=False)` -- Personen und Geräte stehen danach an genau ihren bisherigen Tagen.
+8. Gesetzt wird nur der Tag der Genannten; ihre übrigen Tage und jede andere Zeile bleiben; wer danach an allen Tagen steht, heißt „alle Tage“.
+9. Eine Kolonne bringt ihre Mitglieder ohne „nicht zeigen“ und ihre aktiven Geräte; schlägt sie niemanden vor, 422.
+10. Gefragt wird nur bei Warnungen, die die Aktion neu bringt (eine neue oder ein neuer Tag einer bestehenden); was vorher schon da war, fragt nicht; eine
+    Rückfrage für alle; Hinweise nie.
+11. Ein geschlossener Auftrag bekommt keinen Tag, auch nicht dazu (409).
+12. Unter der Sperre der Arbeitsvorbereitung des Auftrags; Sperren, Rolle, Zugehörigkeit und Event-Loop bekommen mit Punkt 3 (1.9.269) eigene Tests und
+    Gegenproben.
+
+#### Tests und Prüfung 1.9.267
+
+Neu: `tests/test_v667_tag_setzen.py` (dazu, Normalform, verlängert über das Wochenende mit der Falle, nach vorn, der vordere zuerst, neu ohne Anschluss, Kolonne
+neu mit Mitgliedern und Geräten, Gerät setzen; Antwort 6 mit Karte und Vorschlag, Antwort 8 mit Kran -- auch ein gemischter Auftrag --, Kolonne ohne „nicht
+zeigen“, Kolonne ohne Vorschlag; neue Warnung fragt und nichts bleibt, Bestehendes fragt nicht, neuer Tag fragt, abwesend fragt und Antrag nicht, eine Rückfrage für
+die Kolonne; Prüfen schreibt nichts; API mit 200, 409, 404, 422; geschlossener Auftrag). `tests/test_v373_zugehoerigkeit_struktur.py`: `order_id` (FREI,
+`tag_aktionen._auftrag`) und `slot_id` (GEPRUEFT, `tag_aktionen._karte`) eingetragen -- neue Einträge, keine geänderte Erwartung. Gegenproben: Archiv
+`gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.
