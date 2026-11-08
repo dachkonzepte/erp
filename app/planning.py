@@ -1289,11 +1289,12 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
     Zuordnungswege (siehe _employee_assignment_slot_condition())."""
     day = day or berlin_today()
     query = (
-        _slot_query_with_order_options()
+        _slot_query_with_order_options().options(selectinload(PlanningSlot.besetzung))
         .where(PlanningSlot.start_date <= day, PlanningSlot.end_date >= day, _employee_assignment_slot_condition(employee_id))
         .order_by(PlanningSlot.start_date)
     )
-    slots = db.scalars(query).all()
+    # seit 1.9.262 (Stufe 6, R5a, Punkt 3): nur Einsätze, an denen sie an diesem Tag steht (ihre Tage am Einsatz)
+    slots = [s for s in db.scalars(query).all() if any(x.employee_id == employee_id and day in _tage_der_zeile(s, x) for x in s.besetzung)]
 
     result = []
     seen_slot_ids: set[int] = set()
@@ -1320,14 +1321,16 @@ def list_upcoming_assignments_for_employee(db: Session, employee_id: int, *, tod
     today = today or berlin_today()
     window_end = today + timedelta(days=days_ahead)
     query = (
-        _slot_query_with_order_options()
+        _slot_query_with_order_options().options(selectinload(PlanningSlot.besetzung))
         .where(
             PlanningSlot.end_date >= today, PlanningSlot.start_date <= window_end,
             _employee_assignment_slot_condition(employee_id),
         )
         .order_by(PlanningSlot.start_date)
     )
-    slots = db.scalars(query).all()
+    # seit 1.9.262: nur Einsätze, an denen sie im Fenster an einem Tag steht
+    slots = [s for s in db.scalars(query).all()
+             if any(x.employee_id == employee_id and any(today <= t <= window_end for t in _tage_der_zeile(s, x)) for x in s.besetzung)]
 
     result = []
     seen_slot_ids: set[int] = set()

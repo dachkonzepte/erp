@@ -63,3 +63,24 @@ Ohne Klicktest-Gegenprobe: Tage wählen lässt sich im Dialog erst ab 1.9.264 (d
 
 Ohne eigene Gegenprobe: „der Zähler zählt ein Paar weiter einmal“ (Nr. 1) -- `tafel_zaehler()` unverändert seit 1.9.247, die Tage gehen nicht in seinen
 Schlüssel; der Test `test_tafel_zaehlt_ein_paar_einmal` hält es fest. Ohne Klicktest-Gegenprobe: die Oberfläche zeigt die Tage erst ab 1.9.264.
+
+## 1.9.262 (Punkt 3): was die Monteurin merkt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Karte nur an ihren Tagen | jeder Einsatz im Zeitraum (`262_1b`) | 3 rot: v662::test_karte_nur_an_ihren_tagen, v662::test_mobil_einsaetze_heute_und_kommend, v662::test_vorwahl_der_zeit_nur_an_ihren_tagen |
+| Nr. 1 – Karte nur an ihren Tagen | jeder Einsatz im Zeitraum (`262_1e`, Klicktest Heute je Tag) | rot: heute_tage (Kai; Kai; Mia; Ole) |
+| Nr. 1 – von–bis = ihre Folge | der Zeitraum der Einsätze (`262_1d`) | 2 rot: v662::test_von_bis_ist_ihre_folge_um_heute, v662::test_zwei_einsaetze_desselben_auftrags_nur_der_ihrer_tage |
+| Nr. 1 – ein Tag ohne Arbeit unterbricht nicht | jeder Tag ohne sie unterbricht (`262_1c`) | 1 rot: v662::test_folge_ueber_das_wochenende |
+| Nr. 2 – „Mit dir“ nur heute | die ganze Besetzung (`262_2a`) | 1 rot: v662::test_mit_dir_nur_wer_heute_dran_ist |
+| Nr. 2 – ein zweiter Einsatz zählt nicht | alle Einsätze des Auftrags im Zeitraum (`262_1a`) | 1 rot: v662::test_zwei_einsaetze_desselben_auftrags_nur_der_ihrer_tage |
+| Nr. 3 – Nächste Tage nur ihre Tage | alle Tage des Einsatzes (`262_3a`) | 2 rot: v662::test_naechste_tage_nur_ihre_tage_und_mit_je_tag, v662::test_weiter_nur_wenn_sie_heute_dran_ist |
+| Nr. 3 – Nächste Tage nur ihre Tage | alle Tage des Einsatzes (`262_3d`, Klicktest Heute je Tag) | rot: heute_tage (Kai) |
+| Nr. 3 – „mit …“ je Tag | die ganze Besetzung (`262_3b`) | 1 rot: v662::test_naechste_tage_nur_ihre_tage_und_mit_je_tag |
+| Nr. 3 – „mit …“ je Tag | die ganze Besetzung (`262_3e`, Klicktest Heute je Tag) | rot: heute_tage (Lia) |
+| Nr. 3 – „weiter“ nur, wenn sie heute dort steht | der Einsatz läuft heute (`262_3c`) | 1 rot: v662::test_weiter_nur_wenn_sie_heute_dran_ist |
+| Nr. 4 – Vorwahl nur an ihren Tagen | jeder Einsatz im Zeitraum (`262_4a`) | 1 rot: v662::test_vorwahl_der_zeit_nur_an_ihren_tagen |
+| Nr. 5 – /upcoming nur mit ihren Tagen | jeder Einsatz im Fenster (`262_5a`) | 1 rot: v662::test_mobil_einsaetze_heute_und_kommend |
+| Nr. 6 – Kran-Termin je Tag | die ganze Besetzung (`262_6a`) | 1 rot: v662::test_kran_termin_nennt_wer_an_seinen_tagen_dran_ist |
+
+Ohne eigene Gegenprobe: Nr. 7 (unverändert, nichts daran geändert).

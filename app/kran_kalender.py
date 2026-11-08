@@ -57,14 +57,16 @@ def _adresse(order) -> str:
     return (order.property_address or "").replace("\n", ", ")
 
 
-def _inhalt(slot: PlanningSlot) -> dict:
-    from .planning import EINSATZ_STATUS, _employee_name
+def _inhalt(slot: PlanningSlot, von: date, bis: date) -> dict:
+    """Seit 1.9.262 (Stufe 6, R5a, Punkt 3) je Termin (von..bis, eine Folge von Tagen des Geräts): Besetzung bzw. Bediener nur, wer an einem dieser Tage am
+    Einsatz steht -- bis 1.9.261 die ganze Besetzung in jedem Termin."""
+    from .planning import EINSATZ_STATUS, _employee_name, _tage_der_zeile
     order = slot.preparation.order
     kran = slot.art == "kranvermietung"
     titel = f"Kranvermietung · {order.customer_name}" if kran else f"{order.order_number} · {order.project.name}"
     if slot.status == "vorlaeufig":
         titel = f"{EINSATZ_STATUS['vorlaeufig']}: {titel}"
-    namen = ", ".join(_employee_name(x.employee) for x in slot.besetzung)
+    namen = ", ".join(_employee_name(x.employee) for x in slot.besetzung if any(von <= t <= bis for t in _tage_der_zeile(slot, x)))
     zeilen = [f"{HINWEIS} Auftrag {order.order_number}."]
     zeilen.append(("Bediener: " + namen if namen else "Ohne Bediener.") if kran else ("Besetzung: " + namen if namen else "Besetzung: niemand."))
     if slot.notes:
@@ -77,14 +79,12 @@ def soll(slot: PlanningSlot) -> dict[tuple[int, date, date], dict]:
     from .planning import _tage_der_zeile
     if geschlossen(slot.preparation.order):
         return {}
-    inhalt = None
     out = {}
     for row in slot.geraete:
         if _postfach(row.resource) is None:
             continue
-        inhalt = inhalt or _inhalt(slot)
         for von, bis in _laeufe(list(_tage_der_zeile(slot, row))):
-            out[(row.resource_id, von, bis)] = inhalt
+            out[(row.resource_id, von, bis)] = _inhalt(slot, von, bis)
     return out
 
 

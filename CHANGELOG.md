@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.262 – „Heute“ und Kran-Termine je Tag (Stufe 6, R5a, Punkt 3)
+
+Steht eine Monteurin nur an einzelnen Tagen eines Einsatzes, sieht sie ihn jetzt auch nur an diesen Tagen: „Heute“ zeigt die Karte nur, wenn sie heute dort steht, „Heutiger Einsatz · von–bis“ nennt ihre Folge von Tagen um heute (ein Wochenende oder Feiertag unterbricht sie nicht, ein Arbeitstag ohne sie schon), „Mit dir“ nur, wer heute dabei ist. „Nächste Tage“ nennt nur ihre Tage, „mit …“ je Tag die, die an dem Tag dabei sind, „weiter“ nur, wenn sie heute dort steht. Die Zeiterfassung wählt den Auftrag nur noch an ihren Tagen vor. Im Kalender des Krans nennt jeder Termin als Besetzung nur, wer an seinen Tagen am Einsatz steht.
+
+Für den Bestand ändert sich nichts. Zugriff auf den Auftrag, die Auftragsliste der Zeiterfassung, Einsatzbericht und Lohn bleiben: ein Tag am Einsatz genügt für den Zugriff.
+
 ## 1.9.261 – Plantafel: Konflikte und Kapazität je Tag (Stufe 6, R5a, Punkt 2)
 
 Seit 1.9.260 kann eine Person an einzelnen Tagen eines Einsatzes stehen; jetzt rechnet die Plantafel auch so. „Person doppelt“ meldet eine Person nur noch an den Tagen, an denen sie in zwei Einsätzen zugleich steht -- bis 1.9.260 genügte es, dass sich die Zeiträume überschnitten. Person und Gerät doppelt nennen dazu ihre Tage. Abwesenheit, Freistellung und offener Antrag zählen nur an den Tagen der Person, ein Feiertag oder betriebsfreier Tag meldet sich nur, wenn an dem Tag jemand steht. Die Kapazität eines Tages kommt nur aus den Personen dieses Tages -- in der Verteilung, in „Kapazität reicht nicht“ und in der Rechnung des Dialogs („Tom 1 × 8,00 h + Mia 3 × 8,00 h“). Im Dialog nennt „auch bei …“ die gemeinsamen Tage.

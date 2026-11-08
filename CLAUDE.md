@@ -1254,7 +1254,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   heißt „alle Tage des Einsatzes“ -- eine Tag-Aktion, die den Zeitraum ändert, nimmt `update_slot(alle_tage_mitnehmen=False)` (schreibt die übrigen vorher
   auf ihre Tage fest), sonst stünde die ganze Kolonne am neuen Tag (`tests/test_v660_besetzung_je_tag.py`); seit 1.9.261 rechnen Konflikte, Kapazität und der
   Zustand im Dialog je Tag: Person/Gerät doppelt nur an gemeinsamen Tagen und mit ihren Tagen („tage“), abwesend, Freistellung und Antrag nur an den Tagen der
-  Person, Feiertag nur, wenn jemand steht (`_tage_je_person()`, `_jemand_am()`; `tests/test_v661_konflikte_je_tag.py`). Befund R5 und Herleitung:
+  Person, Feiertag nur, wenn jemand steht (`_tage_je_person()`, `_jemand_am()`; `tests/test_v661_konflikte_je_tag.py`); seit 1.9.262 sieht die Monteurin
+  einen Einsatz nur an ihren Tagen: „Heute“ (Karte, „von–bis“ = ihre Folge um heute über `app/heute.py::folge_um()`, „Mit dir“), „Nächste Tage“, Vorwahl der Zeit,
+  `/api/field-view/today` und `/upcoming`; der Kran-Termin nennt je Folge nur, wer an ihren Tagen dabei ist (`tests/test_v662_monteurin_je_tag.py`, Klicktest
+  `klicktest_heute_tage.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

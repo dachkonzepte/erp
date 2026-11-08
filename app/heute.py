@@ -85,14 +85,38 @@ def _tag_kurz(tag: date) -> str:
 
 
 def _slots(db: Session, employee_id: int, von: date, bis: date) -> list[PlanningSlot]:
-    """Die Einsätze, in deren Besetzung sie steht und die von..bis berühren -- mit Besetzung, Geräten, Arbeitsvorbereitung, Auftrag und Objekt."""
+    """Die Einsätze, in deren Besetzung sie steht und die von..bis berühren -- mit Besetzung, Geräten, Arbeitsvorbereitung, Auftrag und Objekt. Seit 1.9.262
+    (Stufe 6, R5a, Punkt 3) nur die, an denen sie in von..bis an einem Tag steht (ihre Tage am Einsatz, ihre_tage())."""
     from .planning import _employee_assignment_slot_condition
-    return db.scalars(select(PlanningSlot).options(
+    slots = db.scalars(select(PlanningSlot).options(
         selectinload(PlanningSlot.besetzung).selectinload(PlanningSlotEmployee.employee),
         selectinload(PlanningSlot.geraete).selectinload(PlanningSlotResource.resource),
         selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project).selectinload(Project.property),
     ).where(PlanningSlot.start_date <= bis, PlanningSlot.end_date >= von, _employee_assignment_slot_condition(employee_id))
         .order_by(PlanningSlot.start_date, PlanningSlot.id)).all()
+    return [s for s in slots if any(von <= t <= bis for t in ihre_tage(s, employee_id))]
+
+
+def ihre_tage(slot: PlanningSlot, employee_id: int) -> set[date]:
+    """Seit 1.9.262: die Tage einer Person an einem Einsatz -- ihre einzelnen Tage oder alle Tage des Einsatzes; steht sie nicht darin, keine."""
+    from .planning import _tage_der_zeile
+    zeile = next((x for x in slot.besetzung if x.employee_id == employee_id), None)
+    return _tage_der_zeile(slot, zeile) if zeile is not None else set()
+
+
+def folge_um(tage: set[date], tag: date, arbeitstag) -> tuple[date, date]:
+    """Seit 1.9.262 (Stufe 6, R5a, Antwort 11): ihre Folge von Tagen um tag -- aufeinanderfolgende Tage der Person; ein Tag, der kein Arbeitstag ist
+    (Wochenende, Feiertag, betriebsfreier Tag), unterbricht die Folge nicht, ein Arbeitstag ohne sie schon."""
+    def rand(schritt: timedelta) -> date:
+        ende, t = tag, tag + schritt
+        while min(tage) <= t <= max(tage):
+            if t in tage:
+                ende = t
+            elif arbeitstag(t):
+                break
+            t += schritt
+        return ende
+    return rand(timedelta(days=-1)), rand(timedelta(days=1))
 
 
 def _name(e: Employee | None) -> str:
@@ -105,8 +129,8 @@ def einsatz_details(db: Session, employee_id: int, slots: list[PlanningSlot], he
     from .planning import EINSATZ_STATUS, _abwesend_map, _absence_rows, _tage_der_zeile
     andere = []
     for s in slots:
-        for x in s.besetzung:
-            if x.employee_id != employee_id and x.employee_id not in [a.id for a in andere]:
+        for x in s.besetzung:  # seit 1.9.262 nur, wer heute am Einsatz steht
+            if x.employee_id != employee_id and x.employee_id not in [a.id for a in andere] and heute in _tage_der_zeile(s, x):
                 andere.append(x.employee)
     weg = {eid for (eid, _tag) in _abwesend_map(db, _absence_rows(db, heute, heute, {a.id for a in andere}), andere, heute, heute)} if andere else set()
     geraete, gesehen = [], set()
@@ -127,6 +151,14 @@ def einsatz_details(db: Session, employee_id: int, slots: list[PlanningSlot], he
     return {"status": status, "status_label": EINSATZ_STATUS.get(status, status),
             "mit_dir": [_name(a) for a in andere if a.id not in weg], "nicht_da": [_name(a) for a in andere if a.id in weg],
             "geraete": geraete, "notiz": "\n".join(dict.fromkeys(notizen)) or None, "baustelle": baustelle}
+
+
+def _arbeitstag(db: Session, von: date, bis: date):
+    """Ob ein Tag in von..bis ein Arbeitstag ist (Arbeitstage der Planung, Feiertage und betriebsfreie Tage) -- wie Tage, für die Folge um heute."""
+    from .planning import _combined_holiday_map, _is_workday, load_planning_settings
+    einstellungen = load_planning_settings(db)
+    feiertage = set(_combined_holiday_map(db, von, bis)[0])
+    return lambda t: _is_workday(t, einstellungen, feiertage)
 
 
 def heute_frei(tage: Tage, heute: date) -> str | None:
@@ -294,6 +326,11 @@ def einsaetze(db: Session, employee_id: int, *, heute: date, tage: Tage | None =
     je_auftrag: dict[int, list[PlanningSlot]] = {}
     for s in _slots(db, employee_id, heute, heute):
         je_auftrag.setdefault(s.preparation.order_id, []).append(s)
+    # seit 1.9.262 (Antwort 11): „Heutiger Einsatz · von–bis“ = ihre Folge von Tagen um heute (bis 1.9.261 der Zeitraum der Einsätze)
+    for oid, slots in je_auftrag.items():
+        if oid in karten:
+            meine = set().union(*(ihre_tage(s, employee_id) for s in slots))
+            karten[oid]["von"], karten[oid]["bis"] = folge_um(meine, heute, _arbeitstag(db, min(meine), max(meine)))
     return [{**k, "title": auftraege.get(k["order_id"], (None, None))[1], "berichte": berichte.get(k["order_id"], []),
              "checklisten": checklisten.get(k["order_id"], []), "open_concerns": bedenken.get(k["order_id"], []),
              "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"])),
@@ -323,7 +360,7 @@ def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool
     gilt je Tag, die Zeile teilt sich, wo er sich ändert. Dazu jede eigene genehmigte Abwesenheit („<Art> · genehmigt“) und jeder offene Antrag
     („<Art> · beantragt“) als eigene Zeile, von ihrem ersten bis letzten Arbeitstag im Fenster. Bis 1.9.241: je Auftrag alle Kalendertage in einer
     Zeile, Zusatz „Fortsetzung“ oder der Titel."""
-    from .planning import _absence_rows, _abwesend_map
+    from .planning import _absence_rows, _abwesend_map, _tage_der_zeile
     beginn, ende = (heute if mit_heute else heute + timedelta(days=1)), heute + timedelta(days=NAECHSTE_TAGE)
     tage = tage or Tage(db, employee_id, heute, ende)
     tage_je: dict[tuple, set[date]] = {}  # (Auftrag, Zusatz) -> Tage: zwei Einsätze desselben Auftrags mit demselben Zusatz in einer Zeile
@@ -336,14 +373,16 @@ def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool
         order = s.preparation.order
         prop = order.project.property if order.project else None
         info[order.id] = {"order_number": order.order_number, "objekt": (prop.name if prop else order.property_name) or order.customer_name}
-        andere = [(x.employee_id, (x.employee.first_name or _name(x.employee)).strip()) for x in s.besetzung if x.employee_id != employee_id]
+        # seit 1.9.262 (Stufe 6, R5a, Punkt 3): ihre Tage am Einsatz, „mit …“ je Tag nur, wer an dem Tag dran ist, „weiter“ nur, wenn sie heute dran ist
+        andere = [(x.employee_id, (x.employee.first_name or _name(x.employee)).strip(), _tage_der_zeile(s, x)) for x in s.besetzung if x.employee_id != employee_id]
+        meine = ihre_tage(s, employee_id)
         tag = max(s.start_date, beginn)
         while tag <= min(s.end_date, ende):
-            if tage.arbeitet(tag):
-                da = [n for eid, n in andere if (eid, tag) not in weg]
+            if tag in meine and tage.arbeitet(tag):
+                da = [n for eid, n, ihre in andere if tag in ihre and (eid, tag) not in weg]
                 teile = (["mit " + ", ".join(da)] if da else []) + (["vorläufig"] if s.status == "vorlaeufig" else [])
                 sonst = " · ".join(teile) or order.title or order.order_number
-                neben = "weiter" if s.start_date <= heute <= s.end_date and tag > heute else sonst  # mit_heute: heute eigene Zeile vorn
+                neben = "weiter" if heute in meine and tag > heute else sonst  # mit_heute: heute eigene Zeile vorn
                 tage_je.setdefault((order.id, neben), set()).add(tag)
             tag += timedelta(days=1)
     zeilen = [{"art": "einsatz", "von": von, "bis": bis, "order_id": oid, "order_number": info[oid]["order_number"], "objekt": info[oid]["objekt"],

@@ -1700,3 +1700,40 @@ Angepasste Erwartung (Regel 28): `tests/test_v637_plantafel_bedienbar.py::test_d
 Neu: `tests/test_v661_konflikte_je_tag.py` (doppelt nur an gemeinsamen Tagen, Bestand mit Tagen, Gerät mit Tagen, Zähler, abwesend, Antrag, Feiertag mit
 Person und mit Gerät, Verteilung je Tag, Rechnung je Person, Dialog „auch bei“, abwesend und Antrag im Dialog). Gegenproben: Archiv
 `gegenproben-stufe6-r5a.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.262 (Punkt 3): was die Monteurin merkt
+
+- `app/planning.py::list_todays_assignments_for_employee()`: nur Einsätze, an denen sie an dem Tag steht (ihre Tage, `_tage_der_zeile()`; die Besetzung
+  wird mitgeladen); `list_upcoming_assignments_for_employee()`: nur Einsätze, an denen sie im Fenster einen Tag hat. Der Zeitraum in diesen Antworten bleibt
+  der des Einsatzes (keine Seite zeigt ihn mehr; `assignments` liest nur noch der Test).
+- `app/heute.py`: `_slots()` nur Einsätze mit einem ihrer Tage im Zeitraum (`ihre_tage()`); `einsaetze()`: „Heutiger Einsatz · von–bis“ = ihre Folge von Tagen
+  um heute aus den Einsätzen des Auftrags, an denen sie heute steht (`folge_um()`, Antwort 11: ein Tag, der kein Arbeitstag ist -- Wochenende, Feiertag,
+  betriebsfreier Tag --, unterbricht nicht, ein Arbeitstag ohne sie schon; Arbeitstage wie `Tage` über `_arbeitstag()`); `einsatz_details()`: „Mit dir“ und
+  „ist nicht da“ nur, wer heute am Einsatz steht; `naechste_tage()`: nur ihre Tage, „mit …“ je Tag nur, wer an dem Tag dabei ist, „weiter“ nur, wenn sie heute
+  dort steht (bis 1.9.261: der Einsatz läuft heute). Die Vorwahl der Zeiterfassung (`arbeitszeit()`) folgt den Karten.
+- `app/kran_kalender.py::_inhalt(slot, von, bis)`: je Termin (Folge von Tagen des Geräts) „Besetzung:“/„Bediener:“ nur mit denen, die an einem dieser Tage am
+  Einsatz stehen; der Abgleich vergleicht den Inhalt je Termin und schickt nur geänderte hinaus.
+- Bleibt: Zugriff auf den Auftrag (`app/orders.py::_assigned_order_id_queries()` -- ein Tag genügt), Auftragsliste der Zeiterfassung (Fenster ±14 Tage um die
+  Einsätze der AV), Kolonne starten (Stammdaten), Einsatzbericht, Lohn.
+
+#### Festlegungen 1.9.262 (Bitte bestätigen)
+
+1. „Heute“: eine Karte nur an ihren Tagen; „Heutiger Einsatz · von–bis“ = ihre Folge von Tagen um heute -- ein Tag, der kein Arbeitstag ist, unterbricht sie
+   nicht, ein Arbeitstag ohne sie schon; aus allen Einsätzen des Auftrags, an denen sie heute steht.
+2. „Mit dir“ und „ist nicht da“ nur, wer heute am Einsatz steht; ein zweiter Einsatz desselben Auftrags, an dem sie heute nicht steht, zählt nicht.
+3. „Nächste Tage“: nur ihre Tage; „mit …“ je Tag nur, wer an dem Tag dabei ist; „weiter“ nur, wenn sie heute am Einsatz steht.
+4. Die Vorwahl der Zeiterfassung folgt den Karten: nur an ihren Tagen.
+5. `GET /api/field-view/today` (assignments) und `/upcoming`: nur Einsätze, an denen sie am Tag bzw. im Fenster einen Tag hat; der Zeitraum darin bleibt der des
+   Einsatzes.
+6. Kran-Kalender: jeder Termin nennt als Besetzung bzw. Bediener nur, wer an einem seiner Tage am Einsatz steht.
+7. Unverändert: Zugriff auf den Auftrag (ein Tag genügt), Auftragsliste der Zeiterfassung, Einsatzbericht, Lohn.
+
+#### Tests und Prüfung 1.9.262
+
+Neu: `tests/test_v662_monteurin_je_tag.py` (Karte nur an ihren Tagen, von–bis als Folge, über das Wochenende, „Mit dir“, Nächste Tage mit „mit“ je Tag,
+„weiter“, Vorwahl, `/today` und `/upcoming`, Kran-Termine, zwei Einsätze desselben Auftrags). Neu: `scripts/klicktest_heute_tage.py` (Kai am Mittwoch ohne
+Einsatz -- „Heute ist nichts eingeplant.“, keine Vorwahl, Nächste Tage Do–Fr mit den anderen dieser Tage und nur Di 17.11. am Dachfenster, quer und hoch, hell
+und dunkel; Mia mit der Karte Ortgang und „Mit dir“ Tom; Ole mit der Karte Sturmschaden; Lia mit „mit Kai“ nur am Di). Gegenproben: Archiv `gegenproben-stufe6-r5a.md` -- die Gegenprobe
+`262_3d` und `262_3e` blieben im Klicktest zuerst grün (Kais künftige Tage waren genau die restlichen Tage des Einsatzes, und an ihnen standen alle anderen
+ohnehin dabei); der Klicktest bekam den Einsatz „Dachfenster Krüger“ (Lia an allen Tagen, Kai nur am Di) und die Sicht von Lia („mit Kai“ nur am Di), dieselben
+Gegenproben danach. Angepasste Erwartungen: keine.
