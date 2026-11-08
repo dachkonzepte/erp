@@ -1204,3 +1204,97 @@ Vorgabe vom 16.10.2026, Punkt 4 (Nebenbefund 1.8.112 Nr. 2): der Outlook-Hinweis
   nicht neu lud (dieselbe Adresse mit `#outlook-sync` ist nur ein Sprung im Dokument); jetzt mit anderer Adresse und Prüfung, dass die
   Seite neu geladen ist.
 - **Angepasste Erwartungen** (Regel 28): keine.
+
+## Inaktive Mitarbeiter ausblenden (1.9.271)
+
+Vorgabe vom 08.11.2026 („Zusatz vor R5c, eigene Version“): Stammdaten -> Mitarbeiter bekommt über der Liste ein Kästchen „Inaktive MA ausblenden“, Vorgabe
+angehakt, daneben die Zahl („1 inaktiv“). Ohne Haken stehen Inaktive grau mit „Inaktiv“ in der Liste. Die Wahl merkt sich der Browser. Nur die Anzeige der
+Liste, keine Änderung an Daten oder Rechten. Dazu nur prüfen und berichten: zählen inaktive Mitarbeiter in den Kacheln oder in der Kalkulation des
+Verrechnungssatzes und der Gemeinkosten mit? (Im Bestand steht ein inaktiver Mitarbeiter unter „Variable GK“.)
+
+### Umsetzung 1.9.271
+
+- `master_data.html`, Zweig `employees` von `render()`: zwischen den Kacheln und der Tabelle `.inaktiv-wahl` mit dem Kästchen `#inaktiveAusblenden` und
+  `#inaktivZahl` („N inaktiv“ aus `employees.filter(e=>!e.active).length` -- alle Mitarbeiter, nicht nach der Suche). Die Liste ist
+  `mitarbeiterDerListe(employees, inaktiveVersteckt)`, danach die Suche wie bisher. Eine inaktive Zeile trägt `class="inaktiv"`
+  (`tr.inaktiv td, tr.inaktiv td b {color: var(--muted)}`), die Spalte Status zeigt „Inaktiv“ wie bisher; „Bearbeiten“ bleibt ein Link.
+- Merken: `inaktiveGemerkt()` liest `localStorage['erp_stammdaten_inaktive']` (`ausblenden` | `zeigen`; fehlt er oder steht etwas anderes darin, gilt die
+  Vorgabe „ausblenden“) einmal beim Laden in `inaktiveVersteckt`; `inaktiveMerken()` setzt den Wert, schreibt ihn (in try/catch) und zeichnet neu -- ohne Anfrage.
+  Ohne Speicher (privates Fenster, gesperrte Websitedaten) gilt die Wahl bis zum Neuladen.
+- Unverändert: die Kacheln „MA im Verrechnungssatz“, „Gewichteter Mittellohn“, „MA in variablen GK“ rechnen aus allen Mitarbeitern mit `active`, der Untertitel
+  „N Mitarbeiterstammsätze“ zählt weiter alle, `GET /api/employees` liefert weiter alle (Monteurin, Büro – Auftrag und Büro – Finanzen je mit ihrem Schema).
+
+### Geprüft, nicht geändert: zählen inaktive Mitarbeiter mit?
+
+Nein, an keiner Stelle, die rechnet. Je Stelle:
+
+| Stelle | Datei und Funktion | inaktive zählen? |
+|---|---|---|
+| Kacheln „MA im Verrechnungssatz“, „Gewichteter Mittellohn“, „MA in variablen GK“ | `app/templates/master_data.html`, `render()`, Zweig `employees` (`commercial`, `mean`, `varCount`) | nein -- jede Kachel filtert `e.active` |
+| Verrechnungssatz und Gemeinkosten (Einstellungen -> Kalkulation) | `app/labor_rate.py::calculate_labor_rate()` über `active_employees()` (`Employee.active.is_(True)`); angezeigt von `settings.html::renderLaborRate()` über `app/routers/labor_rate.py::get_labor_rate_calculation()` | nein -- direkt (Mittellohn, Lohnkosten, Anzahl) wie „Variable GK“ (`variable_employee_costs`, `variable_overhead_employee_count`) |
+| Satz übernehmen | `app/routers/labor_rate.py::apply_labor_rate_calculation()` -> `calculate_labor_rate()` | nein |
+| Gemeinkosten aus den Betriebskosten (Vorschlag, Übernehmen) | `app/labor_rate.py::recurring_cost_overhead_proposal()` (zweimal `calculate_labor_rate()`), `apply_recurring_cost_overhead_proposal()` (schreibt nur die Gemeinkosten-Felder) | nein |
+| Produktivstunden (Schlechtwetter, Krankheit) | `app/productive_hours.py::labor_rate_employees()` über `active_employees()` -> `weather_days_actual()`, `sick_days_actual()` | nein |
+| Kalkulation einer Leistung bzw. Position | `app/calculation.py` (Satz aus `CalculationSettings.labor_rate` bzw. `labor_rate_override`) | rechnet nicht mit Mitarbeitern -- liest den gespeicherten Satz |
+
+Zu beachten: der gespeicherte Verrechnungssatz (`CalculationSettings.labor_rate`) ist der Stand des letzten „Übernehmen“. Wurde er übernommen, als ein heute
+inaktiver Mitarbeiter noch aktiv war, steckt dessen Anteil darin, bis der Satz neu übernommen wird; ebenso ein von Hand eingetragener Betrag „zusätzliche
+variable GK“. Ob das im Bestand so ist, ist nicht geprüft (nichts gegen den Server). Beleg mit einer Wegwerf-Datenbank (dieselben vier Mitarbeiter wie im
+Klicktest): mit Ina (Variable GK) inaktiv rechnet `calculate_labor_rate()` 1 Mitarbeiter variable GK und 39.000,00 € variable Mitarbeiterkosten im Jahr, mit
+Ina aktiv 2 und 62.400,00 € -- Anzahl und Mittellohn der direkt Zugeordneten bleiben 2 und 23,50 €/h.
+
+#### Festlegungen 1.9.271 (Bitte bestätigen)
+
+1. **Das Kästchen steht zwischen den Kacheln und der Tabelle, Vorgabe angehakt**; daneben „N inaktiv“ -- gezählt über alle Mitarbeiter, auch während der Suche.
+2. **Mit Haken fehlt ein Inaktiver auch in der Suche** (anders als die Hauptadressen bei den Objekten, die eine Suche immer zeigt); die Zahl daneben sagt, dass
+   es ihn gibt.
+3. **Ohne Haken steht eine inaktive Zeile in gedämpfter Schrift** (`var(--muted)`), „Inaktiv“ in der Spalte Status wie bisher, „Bearbeiten“ bleibt ein Link.
+4. **Die Wahl merkt sich der Browser, je Gerät, nicht je Konto** (`localStorage` `erp_stammdaten_inaktive`): wer sich am selben Gerät anmeldet, sieht dieselbe
+   Wahl; ohne Speicher gilt sie bis zum Neuladen.
+5. **Nur die Anzeige**: beim Umschalten keine Anfrage; Kacheln, Untertitel („N Mitarbeiterstammsätze“, weiter alle) und die Antwort des Servers bleiben.
+6. **Für jede Rolle, die die Liste sieht** -- auch Büro – Auftrag.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v671_inaktive_mitarbeiter_ausblenden.py` (12 Tests): in node mit dem Code der Seite Vorgabe, gemerkte Wahl, Umschalten (schreibt und
+  zeichnet neu), ohne Speicher, Liste mit und ohne Haken; am Text der Vorlage Ort und Text des Kästchens, Zahl über alle, Liste und Suche, graue Zeile mit
+  „Inaktiv“, Kacheln nur aktive, Umschalten ohne Anfrage, keine Rolle um das Kästchen.
+- Neu Klicktest `scripts/klicktest_stammdaten_inaktive.py` (52 Prüfungen): Vorgabe, echter Mausklick, Ina grau (berechnete Farbe gleich der gedämpften Schrift,
+  Tom nicht), Kacheln und Zahl unverändert, keine Anfrage (Zähler an fetch/XMLHttpRequest und Netzprotokoll), Suche mit und ohne Haken, Neuladen hell und dunkel
+  in beide Richtungen, Büro – Auftrag, 412 px; Bilder `stammdaten_inaktive_{hell|dunkel}_{ausgeblendet|gezeigt}.png`.
+- Nebenbefund (nicht geändert): bei 412 px laufen die Stammdaten schon vor 1.9.271 in jeder Ansicht über (Kunden 457 px, Kolonnen 428 px, Mitarbeiter bis
+  1020 px): auf schmalen Bildschirmen wird die Spalte des Rasters `1fr` statt `minmax(0,1fr)`, die Tabelle bestimmt ihre Mindestbreite. Der Klicktest prüft
+  deshalb, dass das Kästchen die Seite nicht breiter macht und in der Karte bleibt.
+- **Angepasste Erwartungen** (Regel 28): keine.
+
+#### Gegenproben 1.9.271 (Regel 24)
+
+Ablauf wie in den Runden der Stufe 6 (`docs/archiv/gegenproben-stufe6-r5b.md`): in einer eigenen Arbeitskopie auf dem Stand der Version die Stelle in
+`master_data.html` mit dem Marker `GEGENPROBE` ändern, die Tests bzw. den Klicktest laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mindestens
+ein Test schlägt an (FAILED) bzw. der Klicktest endet nicht wie erwartet.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Vorgabe angehakt | nur mit gemerktem „ausblenden“ (`271_1a`) | 3 rot: v671::test_vorgabe_angehakt, v671::test_gemerkte_wahl_gilt_beim_laden, v671::test_ohne_speicher_gilt_die_wahl_bis_zum_neuladen |
+| Nr. 1 – im Browser | ebenso (`271_1d`, Klicktest) | rot: stammdaten_inaktive -- 21 Prüfungen (Vorgabe, ohne Haken, Suche, Neuladen hell und dunkel, Büro – Auftrag) |
+| Nr. 1 – die Zahl über alle, auch in der Suche | nach der Suche gezählt (`271_1b`) | 1 rot: v671::test_zahl_ueber_alle_mitarbeiter_nicht_nach_der_suche |
+| Nr. 1 – im Browser | ebenso (`271_1e`, Klicktest) | rot: stammdaten_inaktive -- „Suche „Tom“: Zahl bleibt“ |
+| Nr. 1 – zwischen Kacheln und Tabelle | unter der Tabelle (`271_1c`) | 2 rot: v671::test_kaestchen_ueber_der_liste_mit_zahl, v671::test_fuer_jede_rolle_der_liste |
+| Nr. 1 – im Browser | ebenso (`271_1f`, Klicktest) | rot: stammdaten_inaktive -- „Vorgabe: Kästchen zwischen Kacheln und Tabelle“ |
+| Nr. 2 – mit Haken auch in der Suche weg | die Suche zeigt Inaktive (`271_2a`) | 1 rot: v671::test_liste_filtert_nach_der_wahl_auch_in_der_suche |
+| Nr. 2 – im Browser | ebenso (`271_2b`, Klicktest) | rot: stammdaten_inaktive -- „Suche mit Haken: „Alt“ findet niemanden“ |
+| Nr. 3 – grau | ohne die Regel `tr.inaktiv` (`271_3a`) | 1 rot: v671::test_inaktive_zeile_grau_mit_inaktiv |
+| Nr. 3 – im Browser | ebenso (`271_3c`, Klicktest) | rot: stammdaten_inaktive -- „Ina grau“ hell, dunkel und als Büro – Auftrag |
+| Nr. 3 – mit „Inaktiv“ | Status leer bei Inaktiven (`271_3b`) | 1 rot: v671::test_inaktive_zeile_grau_mit_inaktiv |
+| Nr. 3 – im Browser | ebenso (`271_3d`, Klicktest) | rot: stammdaten_inaktive -- „ohne Haken: Ina mit „Inaktiv““ |
+| Nr. 4 – der Browser merkt sich die Wahl | ohne Schreiben in den Speicher (`271_4a`) | 1 rot: v671::test_umschalten_merkt_im_browser_und_zeichnet_neu |
+| Nr. 4 – im Browser | ebenso (`271_4c`, Klicktest) | rot: stammdaten_inaktive -- 8 Prüfungen („gemerkt“, nach dem Neuladen hell und dunkel) |
+| Nr. 4 – ohne Speicher bis zum Neuladen | die Wahl nur aus dem Speicher (`271_4b`) | 1 rot: v671::test_ohne_speicher_gilt_die_wahl_bis_zum_neuladen |
+| Nr. 5 – Kacheln unverändert | „MA in variablen GK“ aus der sichtbaren Liste (`271_5a`) | 1 rot: v671::test_kacheln_zaehlen_weiter_nur_aktive |
+| Nr. 5 – im Browser | ebenso (`271_5c`, Klicktest) | rot: stammdaten_inaktive -- „ohne Haken: Kacheln unverändert“ |
+| Nr. 5 – keine Anfrage beim Umschalten | lädt neu statt neu zu zeichnen (`271_5b`) | 3 rot: v671::test_umschalten_ohne_anfrage, v671::test_umschalten_merkt_im_browser_und_zeichnet_neu, v671::test_ohne_speicher_gilt_die_wahl_bis_zum_neuladen |
+| Nr. 5 – im Browser | ebenso (`271_5d`, Klicktest) | rot: stammdaten_inaktive -- „keine Anfrage der Seite“, „nichts an /api/ im Netz“ und Folgen (Suche, Dialog „Seite verlassen?“ beim Neuladen während des Ladens) |
+| Nr. 6 – jede Rolle | nur Admin und Büro – Finanzen (`271_6a`) | 2 rot: v671::test_fuer_jede_rolle_der_liste, v671::test_kaestchen_ueber_der_liste_mit_zahl |
+| Nr. 6 – im Browser | ebenso (`271_6b`, Klicktest) | rot: stammdaten_inaktive -- Büro – Auftrag: Seite nicht bereit (kein Kästchen), seine Prüfungen |
+
+Alle 21 im ersten Lauf rot. Ohne eigene Gegenprobe: der Untertitel „N Mitarbeiterstammsätze“ und die Antwort des Servers (Nr. 5, nichts daran geändert).
