@@ -3,7 +3,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import ClassVar, Literal
 from urllib.parse import urlparse
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, create_model, field_validator, model_validator
 
 from .berlin_time import berlin_today
 
@@ -1025,7 +1025,17 @@ class EmployeeUpdate(EmployeeCreate):
     pass
 
 
-class EmployeeOut(EmployeeCreate):
+def _felder_ohne_pruefung(eingabe: type[BaseModel], name: str) -> type[BaseModel]:
+    """Seit 1.9.265 (Stufe 6, R5b, Punkt 0a): die Felder eines Eingabeschemas ohne seine Prüfung -- gleicher Name, Typ und Vorgabe, aber ohne Grenzen
+    (min_length, ge, pattern …) und ohne Validatoren. Für eine Antwort: was gespeichert ist, wird gezeigt, auch wenn das Formular es heute ablehnen würde."""
+    felder = {n: (f.annotation, ... if f.is_required() else f.default) for n, f in eingabe.model_fields.items()}
+    return create_model(name, **felder)
+
+
+class EmployeeOut(_felder_ohne_pruefung(EmployeeCreate, "_EmployeeFelder")):
+    """Seit 1.9.265 (Punkt 0a, Nebenbefund R5a): nicht mehr von EmployeeCreate abgeleitet -- bis 1.9.264 prüfte die Antwort wie das Formular
+    (validate_commercial_wage, Grenzen der Felder), und GET /api/employees antwortete Admin und Büro – Finanzen mit 500 für die ganze Liste, sobald ein
+    gewerblicher Mitarbeiter keinen Stundenlohn hatte. Die Prüfung gilt nur beim Speichern (EmployeeCreate/EmployeeUpdate)."""
     id: int
     function_name: str | None = None
     effective_hourly_wage: Decimal | None = None

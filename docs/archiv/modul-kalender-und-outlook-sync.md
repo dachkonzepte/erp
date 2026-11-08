@@ -1610,7 +1610,7 @@ Oberfläche) mit den Antworten 3, 4, 11 und 14. Je Punkt eine Version.
 - Stammdaten -> Kolonnen: in der Liste `plantafelHinweis()` je Mitglied („Vera Test · nicht zeigen“, title mit dem Grund), im Formular der Kolonne „· nicht
   zeigen“ hinter der Funktion.
 
-#### Festlegungen 1.9.259 (Bitte bestätigen)
+#### Festlegungen 1.9.259 (bestätigt am 08.11.2026)
 
 1. Die Kolonne schlägt nur Mitglieder ohne „nicht zeigen“ vor -- beim Anlegen, beim Wechsel der Kolonne (auch Ziehen in ihre Zeile) und in der Prüfung des
    Dialogs; das Kennzeichen wie überall (gespeichert, sonst die Vorgabe aus Gruppe und Funktion). Ersetzt 1.9.253 Nr. 6 zweiter Teil.
@@ -1647,7 +1647,7 @@ Prüfung „Tom, Bea, Vera“ vor; neu: „Tom, Bea“.
 - Dialog (`planning.html`): der Zustand heißt `einsatz.besetzung` [{employee_id, tage}] (bis 1.9.259 `employee_ids`); Öffnen, Prüfung, Häkchen, „+ Person“,
   Wechsel der Art und der Kolonne halten die Tage, gesendet wird `besetzung`. Tage wählen lassen sich ab 1.9.264.
 
-#### Festlegungen 1.9.260 (Bitte bestätigen)
+#### Festlegungen 1.9.260 (bestätigt am 08.11.2026)
 
 1. Eine Person am Einsatz hat ihre Tage wie ein Gerät (leer = alle Tage); der Bestand steht an allen Tagen, die Migration schreibt nichts.
 2. `downgrade()` bricht ab, solange jemand an einzelnen Tagen steht.
@@ -1685,7 +1685,7 @@ Angepasste Erwartung (Regel 28): `tests/test_v637_plantafel_bedienbar.py::test_d
   eine gewählte Person an ihren Tagen, sonst gegen alle Tage des Einsatzes; abwesend nur an ihren Tagen; ein Antrag nur, wenn er ihre Tage berührt.
 - Der Bestand (alle an allen Tagen) meldet dieselben Konflikte wie bisher, nur mit den Tagen; die Tests bis 1.9.260 laufen ohne Änderung.
 
-#### Festlegungen 1.9.261 (Bitte bestätigen)
+#### Festlegungen 1.9.261 (bestätigt am 08.11.2026)
 
 1. „Person doppelt“ nur an gemeinsamen Tagen; Person und Gerät doppelt nennen ihre Tage; der Zähler zählt ein Paar weiter einmal.
 2. Abwesend, Freistellung des Arbeitszeitkalenders und Antrag offen nur an den Tagen der Person; der Antrag mit dem ersten betroffenen Tag.
@@ -1716,7 +1716,7 @@ Person und mit Gerät, Verteilung je Tag, Rechnung je Person, Dialog „auch bei
 - Bleibt: Zugriff auf den Auftrag (`app/orders.py::_assigned_order_id_queries()` -- ein Tag genügt), Auftragsliste der Zeiterfassung (Fenster ±14 Tage um die
   Einsätze der AV), Kolonne starten (Stammdaten), Einsatzbericht, Lohn.
 
-#### Festlegungen 1.9.262 (Bitte bestätigen)
+#### Festlegungen 1.9.262 (bestätigt am 08.11.2026)
 
 1. „Heute“: eine Karte nur an ihren Tagen; „Heutiger Einsatz · von–bis“ = ihre Folge von Tagen um heute -- ein Tag, der kein Arbeitstag ist, unterbricht sie
    nicht, ein Arbeitstag ohne sie schon; aus allen Einsätzen des Auftrags, an denen sie heute steht.
@@ -1761,7 +1761,7 @@ Gegenproben danach. Angepasste Erwartungen: keine.
   `wenn_leer` noch einmal hinaus -- beim Speichern im Dialog und beim Ziehen (z. B. in die Zeile einer leeren Kolonne). Der Einsatz-Dialog nennt es schon vorher
   („… beim Speichern: löschen oder behalten“). Die Lücke im Balken kommt mit 1.9.264.
 
-#### Festlegungen 1.9.263 (Bitte bestätigen)
+#### Festlegungen 1.9.263 (bestätigt am 08.11.2026 -- Nr. 2: ein ganz leerer Einsatz meldet seit 1.9.266 keine Kapazität (Frage 2))
 
 1. Am Rand fällt jeder Tag ohne Person und Gerät weg (auch ein Wochenende), nach jedem Anlegen und Ändern; einzelne Tage bleiben in der Normalform; die Stunden
    bleiben. Ein Einsatz ohne jemanden behält seinen Zeitraum.
@@ -1812,7 +1812,7 @@ Angepasste Erwartungen (Regel 28):
   Person zählt je Tag (`doppeltText()`, bis 1.9.263 die Überschneidung der Zeiträume). Der Titel eines Balkens nennt je Person ihre Tage („Kai Kolb (nur 12.11.,
   13.11.)“).
 
-#### Festlegungen 1.9.264 (Bitte bestätigen)
+#### Festlegungen 1.9.264 (bestätigt am 08.11.2026)
 
 1. Dialog: je gewählter Person ihre Tage wie bei den Geräten („alle Tage“ oder „nur …“, Knöpfe je Tag, der letzte Tag nicht abwählbar); ändert sich im Dialog der
    Zeitraum, behalten Personen und Geräte mit einzelnen Tagen nur die Tage darin, wer keinen hat, fällt weg.
@@ -1842,3 +1842,41 @@ Suite der Arbeitskopie fand ihn, vier Tests mit „imStueck is not defined“). 
 Die Besetzung gilt je Tag, gespeichert wie bei den Geräten; der Bestand steht an allen Tagen und sieht aus wie vorher. Konflikte, Kapazität, „Heute“, „Nächste
 Tage“, die Vorwahl der Zeit und die Kran-Termine rechnen je Tag; der leere Tag kürzt am Rand und lässt in der Mitte eine Lücke; die Tafel zeigt und ändert die Tage
 im Dialog. Die Falle (Verlängern ohne Mitnehmen) liegt als `update_slot(alle_tage_mitnehmen=False)` bereit -- die Tag-Aktionen nutzen sie mit R5b.
+
+## Stufe 6, R5b: Tag-Aktionen (ab 1.9.265)
+
+Auftrag vom 08.11.2026, Start 55ea3fd (live, Datenbank `b6e4d2a9c731`, R5a eingespielt). Bestätigt: Festlegungen 1.9.259–1.9.264. Fragen aus R5a: 1 ja (werden
+mehrere Tage zugleich leer, bleibt der erste); 2 ein Einsatz mit „niemand“ meldet keine Kapazität (Punkt 0b); 3 ja (ein Tag ohne Arbeit unterbricht die Folge
+nicht); 4 ja (Normalform auch für Geräte). Punkte: vorweg 0a Nebenbefund `GET /api/employees`, 0b leerer Einsatz ohne Kapazität; dann nach Befund G und D mit
+den Antworten 5–8 und 12: 1 Tag setzen (dazu, verlängern, neu) für Person, Kolonne und Gerät mit Prüfen ohne Schreiben, die Falle über
+`alle_tage_mitnehmen=False`; 2 Umsetzen, Herausnehmen, Verlängern; 3 Sperren in fester Reihenfolge, Zugehörigkeit, Rolle, Teil-Update, keine Datenbank auf der
+Event-Loop, Rückgängig; 4 Ziehen in „Personen“ und „Geräte“ nur für diese Person bzw. dieses Gerät, in eine andere Zeile umsetzen. Je Punkt eine Version.
+
+### Umsetzung 1.9.265 (Punkt 0a): Mitarbeiterliste ohne die Prüfung des Formulars
+
+Befund (R5a, Abschnitt 10 des Berichts): `EmployeeOut` erbte von `EmployeeCreate` die Prüfung des Formulars (`validate_commercial_wage`: gewerblich oder in der
+Kalkulation -> positiver Stundenlohn bzw. Monatsgehalt; dazu die Grenzen der Felder). `GET /api/employees` (und `/api/employees/{id}`, `/caseworkers`) baute
+die Antwort für Admin und Büro – Finanzen mit `EmployeeOut.model_validate()` -- ein gespeicherter Mitarbeiter, den das Formular heute ablehnen würde, brachte die
+ganze Liste auf 500. Büro – Auftrag (`EmployeeRosterOut`) und die Monteurin (`EmployeeNameOut`) waren nicht betroffen.
+
+- `app/schemas.py::_felder_ohne_pruefung(eingabe, name)`: die Felder eines Eingabeschemas mit Name, Typ und Vorgabe, ohne Grenzen und ohne Validatoren
+  (`pydantic.create_model`). `EmployeeOut` erbt davon statt von `EmployeeCreate` -- ein neues Feld im Formular kommt von selbst in die Antwort, eine neue Prüfung
+  nicht.
+- Anlegen und Ändern (`EmployeeCreate`/`EmployeeUpdate`) prüfen unverändert (422).
+- Nicht geändert, nur gesehen: vier weitere Antwortschemata erben eine Prüfung ihres Eingabeschemas -- `EmployeeFunctionOut` (`validate_group`),
+  `EmployeeAbsenceOut` (`validate_dates`), `AccountOut` (`validate_default_tax_rate`), `IncomingInvoiceItemOut` (`validate_tax_rate`). Ob gespeicherte Werte sie
+  verletzen können, ist nicht geprüft.
+
+#### Festlegungen 1.9.265 (Bitte bestätigen)
+
+1. Die Antwort mit dem Mitarbeiter (`EmployeeOut`) prüft nicht wie das Formular: keine Validatoren, keine Grenzen; sie hat jedes Feld des Formulars und zeigt, was
+   gespeichert ist.
+2. Geprüft wird nur beim Speichern: Anlegen und Ändern ohne Stundenlohn (gewerblich) weiter 422 -- wie bisher an zwei Stellen, im Schema
+   (`EmployeeCreate.validate_commercial_wage`) und in `app/employees.py::apply_employee_payload()`.
+3. Die vier anderen Antworten mit geerbter Prüfung bleiben, wie sie sind (oben).
+
+#### Tests und Prüfung 1.9.265
+
+Neu: `tests/test_v665_mitarbeiter_ohne_stundenlohn.py` (Liste und einzeln als Admin, Büro – Finanzen und Büro – Auftrag mit einem gewerblichen Mitarbeiter ohne
+Stundenlohn; Anlegen und Ändern ohne Stundenlohn 422, die Liste danach lesbar; die Antwort ohne Validatoren und Grenzen mit allen Feldern des Formulars).
+Gegenproben: Archiv `gegenproben-stufe6-r5b.md`. Angepasste Erwartungen: keine.

@@ -778,7 +778,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`.
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b: `docs/archiv/gegenproben-stufe6-r5b.md`.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position
@@ -1263,7 +1263,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   nur beim Anlegen (`tests/test_v663_leerer_tag.py`); seit 1.9.264 zeigt die Tafel die Tage je Person: im Dialog „alle Tage“/„nur …“ mit Knöpfen je Tag
   (`personTagUmschalten()`, `tageImZeitraum()`), in „Kolonnen“ je Stück ein Balken mit Lücke am leeren Tag (`stueckItems()`, Vornamen je Stück), in „Personen“ je
   Folge ihrer Tage, Warnung am Stück ihrer Tage (`imStueck()`), „doppelt“ je Tag (`tests/test_v664_plantafel_tage.py`, Klicktest `klicktest_plantafel_tage.py`).
-  Befund R5 und Herleitung:
+  **Stufe 6, R5b (ab 1.9.265, Tag-Aktionen):** vorweg prüft die Antwort von `GET /api/employees` nicht mehr wie das Formular (`EmployeeOut` aus
+  `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
