@@ -1264,7 +1264,7 @@ Ina aktiv 2 und 62.400,00 € -- Anzahl und Mittellohn der direkt Zugeordneten b
   in beide Richtungen, Büro – Auftrag, 412 px; Bilder `stammdaten_inaktive_{hell|dunkel}_{ausgeblendet|gezeigt}.png`.
 - Nebenbefund (nicht geändert): bei 412 px laufen die Stammdaten schon vor 1.9.271 in jeder Ansicht über (Kunden 457 px, Kolonnen 428 px, Mitarbeiter bis
   1020 px): auf schmalen Bildschirmen wird die Spalte des Rasters `1fr` statt `minmax(0,1fr)`, die Tabelle bestimmt ihre Mindestbreite. Der Klicktest prüft
-  deshalb, dass das Kästchen die Seite nicht breiter macht und in der Karte bleibt.
+  deshalb, dass das Kästchen die Seite nicht breiter macht und in der Karte bleibt. *Behoben mit 1.9.275* („Untertitel und Breite der Stammdaten“).
 - **Angepasste Erwartungen** (Regel 28): keine.
 
 #### Gegenproben 1.9.271 (Regel 24)
@@ -1340,3 +1340,73 @@ Klicktest laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = 
 | Nr. 3 – im Browser | ebenso (`274_3b`, Klicktest) | rot: stammdaten_inaktive -- Büro – Auftrag: Untertitel |
 
 Alle 7 im ersten Lauf rot.
+
+### Umsetzung 1.9.275 (Punkt 4): bei 412 px ohne Überlauf, die Mitarbeitertabelle bei 1440 px ohne Rollen
+
+Gemessen vorher (Wegwerf-Instanz, lange wirklichkeitsnahe Werte): bei 412 px liefen sieben von neun Ansichten über (Kunden 761 px, Mitarbeiter 1288 px,
+Lieferanten 574 px …); bei 1440 px hatte die Mitarbeitertabelle 877 px Platz und brauchte 1230 px (Leiste offen) -- allein die lange E-Mail 283 px. Selbst wenn
+alle Texte umbrechen dürfen, blieben bei elf Spalten 909 px: Spalten mit festen Werten (Std./Woche, Vergütung, Kosten-Zuordnung, Sachbearbeiter, Planung,
+Status, Bearbeiten) brauchen allein rund 680 px. Deshalb weniger Spalten, nicht nur Umbruch.
+
+- Raster: unter 850 px `.layout{grid-template-columns:minmax(0,1fr)}` (bis 1.9.274 `1fr` -- die Spalte nahm die Mindestbreite der Tabelle an). Jede Tabelle rollt
+  dann in ihrem Rahmen (`.wrap`), die Seite bleibt so breit wie das Gerät -- in allen neun Ansichten.
+- Mitarbeitertabelle (`table(headers,rows,true)` -> `<table class="mitarbeiter">`), acht Spalten statt elf (Büro – Auftrag sieben, ohne Vergütung):
+  Mitarbeiter (darunter „Nr. … · Geb. …“, der Punkt nur zwischen beiden) · Funktion (darunter „Gewerblich · 40 h/Woche“) · Kontakt · Vergütung · Kosten-Zuordnung
+  · Kennzeichen (`td.kennzeichen`: „Sachbearbeiter“, dann „Plantafel“ bzw. „Bauleitung“, ohne beides „—“) · Status · Bearbeiten. Die Suche findet weiter die
+  Nummer.
+- Umbruch: die E-Mail steht in `<span class="mail">` mit `<wbr>` vor dem „@“ und `overflow-wrap:anywhere` (bricht bevorzugt vor dem „@“, sonst mitten im Wort);
+  Funktion und Kosten-Zuordnung `td.trennbar{hyphens:auto}`; Namen, Telefonnummer, Kennzeichen, Status und „Bearbeiten“ ohne beides. Unter 850 px beides aus
+  (`overflow-wrap:normal`, `hyphens:manual`) -- die Tabelle rollt dort ohnehin, die Spalten behalten ihre natürliche Breite. Innenabstand der Mitarbeitertabelle
+  8 statt 9 px je Seite (`table.mitarbeiter`); die übrigen Tabellen bleiben.
+- Gemessen nachher (Klicktest, lange Werte): 1440 px Tabelle = Rahmen 877 px, mindestens 681 px mit, 768 px ohne Silbentrennung (Rahmen dann 862 px mit
+  senkrechter Bildlaufleiste); 1280 px Rahmen 687 px, mindestens 681 px mit Silbentrennung -- passt knapp; ohne Silbentrennung (Chrome ohne deutsche
+  Trenndaten) rollt sie dort im Rahmen. 412 px: keine Ansicht läuft über.
+
+#### Festlegungen 1.9.275 (Bitte bestätigen)
+
+1. Bei 412 px läuft keine Ansicht der Stammdaten über; eine Tabelle rollt in ihrem Rahmen (unter 850 px Raster `minmax(0,1fr)`).
+2. Die Mitarbeitertabelle hat acht Spalten (Büro – Auftrag sieben): Nr. und Geburtstag unter dem Namen, Gruppe und Stunden je Woche unter der Funktion,
+   „Sachbearbeiter“ und „Planung“ als eine Spalte „Kennzeichen“ (Sachbearbeiter, Plantafel bzw. Bauleitung, sonst „—“); Status und „Bearbeiten“ bleiben eigene
+   Spalten.
+3. Umbruch: die E-Mail bevorzugt vor dem „@“, wenn nötig mitten im Wort; Funktion und Kosten-Zuordnung nach Silben; Namen, Telefonnummern, Kennzeichen, Status
+   und „Bearbeiten“ nie; unter 850 px beides nicht.
+4. Bei 1440 px rollt die Mitarbeitertabelle nicht -- gemessen mit langen Werten, auch ohne Silbentrennung; bei 1280 px passt sie mit Silbentrennung, ohne
+   rollt sie im Rahmen.
+5. Innenabstand der Mitarbeitertabelle 8 statt 9 px je Seite; die übrigen Ansichten und ihre Tabellen bleiben.
+
+#### Tests und Prüfung 1.9.275
+
+Neu: `tests/test_v675_stammdaten_breite.py` (Raster unter 850 px, acht Spalten, Nr. und Geburtstag unter dem Namen, Stunden unter der Funktion, Kennzeichen in
+einer Spalte, Umbruch nur E-Mail und Silben, die Klasse nur an der Mitarbeitertabelle). Neu: Klicktest `klicktest_stammdaten_breite.py` (silbentrennung=True,
+lange Werte in allen neun Ansichten; 412 px alle Ansichten ohne Überlauf; 1440 px Spalten, Inhalt der Zeilen, ohne Rollen hell und dunkel, auch ohne Haken und
+ohne Silbentrennung nachgestellt; 1280 px hell und dunkel; Büro – Auftrag; Bilder `stammdaten_mitarbeiter_{1440|1280|412}_{hell|dunkel}.png`).
+**Angepasste Erwartungen** (Regel 28):
+- `tests/test_v671_inaktive_mitarbeiter_ausblenden.py::test_kaestchen_ueber_der_liste_mit_zahl`: alt „…`+table(headers,rows)`“, neu „…`+table(headers,rows,true)`“
+  -- nur der Aufbau (die Tabelle trägt ihre Klasse), Ort und Text des Kästchens gleich.
+- `scripts/klicktest_stammdaten_inaktive.py`, `NAMEN` und `FARBEN`: alt der Name in der zweiten Spalte und die Farbe der Spalte Nr., neu der Name in der ersten
+  Spalte und die Farbe der Zelle Funktion daneben -- nur der Aufbau, die Prüfungen gleich. Neu dort: „412 px: die Seite läuft nicht über (seit 1.9.275)“.
+
+#### Gegenproben 1.9.275
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – unter 850 px `minmax(0,1fr)` | wieder `1fr` (`275_1a`) | 1 rot: v675::test_raster_unter_850_px_rollt_im_rahmen |
+| Nr. 1 – im Browser: keine Ansicht läuft über | ebenso (`275_1b`, Klicktest) | rot: stammdaten_breite -- „läuft nicht über“ bei 412 px in 8 der 9 Ansichten |
+| Nr. 2 – Nr. und Geburtstag unter dem Namen | ohne Nr. (`275_2a`) | 1 rot: v675::test_nummer_und_geburtstag_unter_dem_namen |
+| Nr. 2 – im Browser | ebenso (`275_2b`, Klicktest) | rot: stammdaten_breite -- „Zeile Maximilian“ |
+| Nr. 2 – Stunden unter der Funktion | ohne Stunden (`275_2c`) | 1 rot: v675::test_stunden_unter_der_funktion |
+| Nr. 2 – im Browser | ebenso (`275_2d`, Klicktest) | rot: stammdaten_breite -- „Zeile Maximilian“ |
+| Nr. 2 – Kennzeichen in einer Spalte | ohne „Sachbearbeiter“ (`275_2e`) | 1 rot: v675::test_kennzeichen_in_einer_spalte |
+| Nr. 2 – im Browser | ebenso (`275_2f`, Klicktest) | rot: stammdaten_breite -- „Zeile Maximilian“, „Kennzeichen Christina“ (dazu „Kennzeichen Kai-Uwe“ nur wegen des Markers als Text in der Zelle) |
+| Nr. 3 – E-Mail bricht vor dem „@“ | ohne `<wbr>` (`275_3a`) | 1 rot: v675::test_umbruch_nur_email_und_silben |
+| Nr. 3 – Silben nur in Funktion und Kosten-Zuordnung | auch Status (`275_3b`) | 1 rot: v675::test_umbruch_nur_email_und_silben |
+| Nr. 3 – unter 850 px beides nicht | ohne die Regel für schmal (`275_3c`) | 1 rot: v675::test_umbruch_nur_email_und_silben |
+| Nr. 3 – nie die Telefonnummer | die ganze Zelle Kontakt bricht (`275_3d`) | 1 rot: v675::test_umbruch_nur_email_und_silben |
+| Nr. 3 – wenn nötig mitten im Wort (Browser) | E-Mail ohne `overflow-wrap:anywhere` (`275_4b`, Klicktest) | rot: stammdaten_breite -- 1280 px hell und dunkel rollt (bei 1440 px reicht der Platz auch so) |
+| Nr. 4 – 1440 px ohne Rollen, auch ohne Silbentrennung | Tabelle mindestens 900 px (`275_4a`, Klicktest) | rot: stammdaten_breite -- 1440 hell, ohne Haken, ohne Silbentrennung, dunkel; 1280 hell und dunkel; Büro – Auftrag |
+| Nr. 4 – 1280 px mit Silbentrennung | ohne Silbentrennung (`275_4c`, Klicktest) | rot: stammdaten_breite -- 1280 px hell und dunkel rollt |
+| Nr. 5 – Innenabstand 8 px | wieder 9 px (`275_5a`) | 1 rot: v675::test_nur_die_mitarbeitertabelle_hat_die_klasse |
+| Nr. 5 – im Browser | ebenso (`275_5b`, Klicktest) | rot: stammdaten_breite -- 1280 px hell und dunkel rollt |
+
+Alle 17 im ersten Lauf rot (`275_3b` war beim ersten Versuch nicht eindeutig -- ein Fehler der Gegenprobe, kein Lauf --, eindeutig gemacht und rot). Ohne
+eigene Gegenprobe: „die übrigen Ansichten und ihre Tabellen bleiben“ (Nr. 5, zweiter Satz) -- nichts daran geändert, belegt durch die Klicktests der Seite.

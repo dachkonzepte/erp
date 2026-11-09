@@ -8,7 +8,7 @@ Variable GK, aktiv) und Ina Alt (kaufmännisch, Variable GK, INAKTIV -- wie im B
     Suche       ohne Haken findet „Alt“ Ina, mit Haken nicht; die Zahl bleibt „1 inaktiv“, auch während der Suche
     merken      nach dem Neuladen bleibt die Wahl (hell und dunkel, beide Richtungen); Bilder je Zustand hell und dunkel
     Büro – A.   sieht das Kästchen mit derselben Wahl (der Browser merkt sie je Gerät), ohne Kachel Mittellohn
-    412 px      das Kästchen macht die Seite nicht breiter und bleibt in der Karte (die Stammdaten laufen dort schon vorher über)
+    412 px      das Kästchen macht die Seite nicht breiter und bleibt in der Karte; seit 1.9.275 läuft die Seite dort nicht mehr über
 
 AUFRUF (aus dem Projektordner):
 
@@ -31,16 +31,17 @@ ANGEHAKT = "document.getElementById('inaktiveAusblenden').checked"
 ZAHL = "document.getElementById('inaktivZahl').textContent"
 UNTERTITEL = "document.getElementById('seitenkopfUntertitel').textContent"  # seit 1.9.274
 NAMEN = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>1)"
-         ".map(r=>r.cells[1].querySelector('b').textContent).sort()")
+         ".map(r=>r.cells[0].querySelector('b').textContent).sort()")  # seit 1.9.275 der Name in der ersten Spalte (bis 1.9.274 die Nummer davor)
 KACHELN = ("[...document.querySelectorAll('#content .metric')]"
            ".map(m=>m.querySelector('.muted').textContent+': '+m.querySelector('b').textContent)")
 GEMERKT = "localStorage.getItem('erp_stammdaten_inaktive')"
-# Farbe der Zeile Ina gegen die gedämpfte Schrift der Seite (die Zahl daneben trägt sie) und gegen eine aktive Zeile
+# Farbe der Zeile Ina gegen die gedämpfte Schrift der Seite (die Zahl daneben trägt sie) und gegen eine aktive Zeile -- seit 1.9.275 Name in der
+# ersten Spalte, „nr“ ist die Zelle Funktion daneben (bis 1.9.274 die Spalte Nr.)
 FARBEN = """(()=>{const z=[...document.querySelectorAll('#content tbody tr')];
 const ina=z.find(r=>r.textContent.includes('Ina Alt')),tom=z.find(r=>r.textContent.includes('Tom Dach'));
 if(!ina||!tom)return null;
-return {klasse:ina.className,name:getComputedStyle(ina.cells[1].querySelector('b')).color,nr:getComputedStyle(ina.cells[0]).color,
- tom:getComputedStyle(tom.cells[1].querySelector('b')).color,muted:getComputedStyle(document.getElementById('inaktivZahl')).color,
+return {klasse:ina.className,name:getComputedStyle(ina.cells[0].querySelector('b')).color,nr:getComputedStyle(ina.cells[1]).color,
+ tom:getComputedStyle(tom.cells[0].querySelector('b')).color,muted:getComputedStyle(document.getElementById('inaktivZahl')).color,
  status:ina.cells[ina.cells.length-2].textContent.trim()}})()"""
 ZAEHLER = ("(()=>{window.__anfragen=0;const f=window.fetch;window.fetch=function(){window.__anfragen++;return f.apply(this,arguments)};"
            "const o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){window.__anfragen++;return o.apply(this,arguments)};return true})()")
@@ -179,8 +180,8 @@ async def pruefen(tab, seed, p):
     await klicken(tab, "#inaktiveAusblenden")
     p.pruefe("Büro – Auftrag ohne Haken: Ina grau", grau(await tab.js(FARBEN)), True)
 
-    # 412 px -- die Stammdaten laufen dort schon vor 1.9.271 in jeder Ansicht über (die Tabelle bestimmt die Breite der Spalte des Rasters,
-    # Nebenbefund 1.9.271); geprüft wird, dass das Kästchen die Seite nicht breiter macht und in der Karte bleibt
+    # 412 px -- bis 1.9.274 liefen die Stammdaten dort in jeder Ansicht über (Nebenbefund 1.9.271, behoben mit 1.9.275: das Raster mit
+    # minmax(0,1fr), klicktest_stammdaten_breite); geprüft wird, dass das Kästchen die Seite nicht breiter macht und in der Karte bleibt
     await tab.fenster(412, 900, mobil=True)
     await neu_laden(tab, p, 6, "412 px")
     mit = await tab.ueberlauf()
@@ -188,6 +189,7 @@ async def pruefen(tab, seed, p):
     ohne = await tab.ueberlauf()
     await tab.js("document.querySelector('.inaktiv-wahl').style.display=''")
     p.pruefe("412 px: das Kästchen macht die Seite nicht breiter", mit == ohne, True)
+    p.pruefe("412 px: die Seite läuft nicht über (seit 1.9.275)", mit, [])
     p.pruefe("412 px: Kästchen und Zahl in der Karte", await tab.js(
         "(()=>{const c=document.getElementById('content').getBoundingClientRect();"
         "return [...document.querySelectorAll('.inaktiv-wahl label, #inaktivZahl')].every(e=>{const b=e.getBoundingClientRect();"

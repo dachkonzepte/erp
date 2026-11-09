@@ -1350,7 +1350,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Zugangsdaten; seit 1.9.271 „Inaktive MA ausblenden“ über der Liste der Mitarbeiter: Vorgabe an, gemerkt im Browser (`erp_stammdaten_inaktive`), nur
   Anzeige -- Kacheln und Kalkulation zählen ohnehin nur aktive, `tests/test_v671_inaktive_mitarbeiter_ausblenden.py`, Klicktest
   `klicktest_stammdaten_inaktive.py`; seit 1.9.274 Untertitel „N aktiv · M inaktiv“ über alle, `mitarbeiterUntertitel()`,
-  `tests/test_v674_untertitel_mitarbeiter.py`) -- `docs/archiv/stammdaten-und-sidebar.md`
+  `tests/test_v674_untertitel_mitarbeiter.py`; seit 1.9.275 bei 412 px ohne Überlauf -- unter 850 px Raster `minmax(0,1fr)`, eine Tabelle rollt in ihrem
+  Rahmen --, die Mitarbeitertabelle in acht Spalten bei 1440 px ohne Rollen (Nr. unter dem Namen, Stunden unter der Funktion, Kennzeichen in einer Spalte),
+  `tests/test_v675_stammdaten_breite.py`, Klicktest `klicktest_stammdaten_breite.py`) -- `docs/archiv/stammdaten-und-sidebar.md`
 - **Adressimport & Objekte** (Altsystem-Import, Hauptadressen-Kennzeichnung) --
   `docs/archiv/adressimport-und-objekte.md`
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,

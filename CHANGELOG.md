@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.275 – Stammdaten: bei 412 px ohne Überlauf, Mitarbeitertabelle bei 1440 px ohne Rollen
+
+Bei 412 px Breite lief jede Ansicht der Stammdaten über (Nebenbefund 1.9.271): auf schmalen Bildschirmen war die Spalte des Rasters `1fr`, und die Tabelle bestimmte ihre Mindestbreite. Jetzt ist sie `minmax(0,1fr)` -- eine Tabelle rollt in ihrem Rahmen, die Seite bleibt so breit wie das Gerät, in allen neun Ansichten.
+
+Bei 1440 px rollte die Mitarbeitertabelle waagrecht, „Bearbeiten“ und ein Teil von „Status“ waren nicht zu sehen: elf Spalten brauchten mit langen Werten bis zu 1230 px, Platz sind 877 px. Jetzt acht Spalten: Nummer und Geburtstag stehen unter dem Namen, Gruppe und Stunden je Woche unter der Funktion, „Sachbearbeiter“ und „Planung“ sind eine Spalte „Kennzeichen“ (Sachbearbeiter, Plantafel bzw. Bauleitung). Eine lange E-Mail-Adresse bricht vor dem „@“ um, wenn nötig auch mitten im Wort; Funktion und Kosten-Zuordnung trennen nach Silben; Namen, Telefonnummern, Kennzeichen, Status und „Bearbeiten“ nie. Gemessen mit langen Werten: bei 1440 px mindestens 768 px (ohne Silbentrennung) bei 862 px Platz; bei 1280 px passt die Tabelle mit Silbentrennung knapp, ohne rollt sie im Rahmen.
+
+Neu `tests/test_v675_stammdaten_breite.py` und der Klicktest `klicktest_stammdaten_breite.py` (alle neun Ansichten bei 412 px, die Mitarbeiter bei 1440 und 1280 px hell und dunkel, Admin und Büro – Auftrag, Bilder). Keine Migration.
+
 ## 1.9.274 – Stammdaten: Untertitel der Mitarbeiter „N aktiv · M inaktiv“
 
 Unter dem Titel „Mitarbeiter“ steht jetzt „3 aktiv · 1 inaktiv“ statt „4 Mitarbeiterstammsätze“ -- so bei der Bestätigung von 1.9.271 gewünscht. Gezählt wird über alle Mitarbeiter, unabhängig von der Suche und vom Kästchen „Inaktive MA ausblenden“; beide Zahlen stehen immer da, auch „0 inaktiv“. Für jede Rolle, die die Liste sieht.

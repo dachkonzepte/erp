@@ -95,7 +95,7 @@ def test_kaestchen_ueber_der_liste_mit_zahl():
     zweig = _mitarbeiter_zweig()
     wahl = ('<div class="inaktiv-wahl"><label><input type="checkbox" id="inaktiveAusblenden" onchange="inaktiveMerken(this.checked)" '
             "${inaktiveVersteckt?'checked':''}> Inaktive MA ausblenden</label><span id=\"inaktivZahl\" class=\"muted\">${inaktivZahl} inaktiv</span></div>`"
-            "+table(headers,rows)")
+            "+table(headers,rows,true)")  # seit 1.9.275 mit der Klasse der Mitarbeitertabelle (bis 1.9.274 table(headers,rows))
     assert wahl in zweig  # direkt über der Tabelle, unter den Kacheln
     assert zweig.index("MA in variablen GK") < zweig.index('id="inaktiveAusblenden"')
 
