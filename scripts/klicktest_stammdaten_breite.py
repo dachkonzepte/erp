@@ -7,7 +7,10 @@ Materialkatalog); Anna (Admin) und Bert (Büro – Auftrag).
     412 px     keine der neun Ansichten läuft über (eine Tabelle rollt in ihrem Rahmen)
     1440 px    die Mitarbeitertabelle rollt nicht -- „Bearbeiten“ und „Status“ ganz zu sehen, für Admin und Büro – Auftrag, hell und dunkel, auch ohne
                Silbentrennung (nachgestellt)
-    1280 px    passt mit Silbentrennung (Chrome mit deutschen Trenndaten, wie silbentrennung=True)
+    1280 px    seit 1.9.278 das Untermenü oben (unter 1400 px): passt auch ohne Silbentrennung, die E-Mail höchstens zweizeilig (bis 1.9.277 nur mit
+               Silbentrennung, die E-Mail bis zu sechs Zeilen)
+    Untermenü  links bei 1440 px, oben bei 1400 und 1280 px (seit 1.9.278)
+    Telefon    die Telefonnummer einzeilig bei 1440 und 1280 px (seit 1.9.278)
     Spalten    Mitarbeiter (Nr. und Geburtstag darunter) · Funktion (Gruppe und Stunden darunter) · Kontakt · Vergütung (nur ab Büro – Finanzen) ·
                Kosten-Zuordnung · Kennzeichen (Sachbearbeiter, Plantafel bzw. Bauleitung) · Status · Bearbeiten
     Bilder     stammdaten_mitarbeiter_{1440|1280|412}_{hell|dunkel}.png (Vorgabe: Inaktive ausgeblendet)
@@ -37,6 +40,13 @@ const z=[...t.querySelectorAll('tbody tr')].find(x=>x.cells.length>1);const n=z.
 const ganz=[z.cells[n-2],z.cells[n-1]].every(c=>{const b=c.getBoundingClientRect();return b.left>=r.left-0.5&&b.right<=r.right+0.5});
 const alt=t.style.width;t.style.width='min-content';const mindest=t.offsetWidth;t.style.width=alt;
 return {rollt:t.scrollWidth>w.clientWidth,tabelle:t.scrollWidth,rahmen:w.clientWidth,mindest:mindest,letzte_ganz:ganz}})()"""
+# seit 1.9.278: liegt das Untermenü links neben der Karte oder darüber?
+UNTERMENUE = """(()=>{const s=document.querySelector('aside.side').getBoundingClientRect(),c=document.querySelector('section.card').getBoundingClientRect();
+return s.right<=c.left?'links':s.bottom<=c.top?'oben':'?'})()"""
+# Zeilen je Telefonnummer und je E-Mail (verschiedene Oberkanten der Zeilen)
+ZEILEN = """(sel=>[...document.querySelectorAll('#content '+sel)].map(e=>new Set([...e.getClientRects()].map(r=>Math.round(r.top))).size))"""
+OHNE_TRENNUNG = ("(()=>{const s=document.createElement('style');s.id='ohneTrennung';s.textContent='td.trennbar{hyphens:manual!important}';"
+                 "document.head.appendChild(s);return true})()")
 ZEILE = """(name=>{const z=[...document.querySelectorAll('#content tbody tr')].find(r=>r.cells[0].querySelector('b')?.textContent===name);
 if(!z)return null;return [...z.cells].map(c=>c.innerText.replace(/\\s+/g,' ').trim())})"""
 
@@ -144,6 +154,8 @@ async def pruefen(tab, seed, p):
     print(f"    1440 hell: Tabelle {r['tabelle']} px im Rahmen {r['rahmen']} px, mindestens {r['mindest']} px")
     p.pruefe("1440 hell: Tabelle rollt nicht", r["rollt"], False)
     p.pruefe("1440 hell: Status und Bearbeiten ganz zu sehen", r["letzte_ganz"], True)
+    p.pruefe("1440: Untermenü links", await tab.js(UNTERMENUE), "links")
+    p.pruefe("1440: Telefonnummern einzeilig", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
     await tab.bild("stammdaten_mitarbeiter_1440_hell")
     # ohne Haken: auch mit der inaktiven Ina
     await tab.js("document.getElementById('inaktiveAusblenden').click()")
@@ -151,8 +163,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("1440 ohne Haken: Tabelle rollt nicht", (await tab.js(ROLLEN))["rollt"], False)
     await tab.js("document.getElementById('inaktiveAusblenden').click()")
     # ohne Trenndaten (nachgestellt): bei 1440 px passt die Tabelle trotzdem
-    await tab.js("(()=>{const s=document.createElement('style');s.id='ohneTrennung';s.textContent='td.trennbar{hyphens:manual!important}';"
-                 "document.head.appendChild(s);return true})()")
+    await tab.js(OHNE_TRENNUNG)
     r = await tab.js(ROLLEN)
     print(f"    1440 ohne Silbentrennung: Tabelle {r['tabelle']} px im Rahmen {r['rahmen']} px, mindestens {r['mindest']} px")
     p.pruefe("1440 ohne Silbentrennung: Tabelle rollt nicht", r["rollt"], False)
@@ -164,22 +175,43 @@ async def pruefen(tab, seed, p):
     p.pruefe("1440 dunkel: Status und Bearbeiten ganz zu sehen", r["letzte_ganz"], True)
     await tab.bild("stammdaten_mitarbeiter_1440_dunkel")
 
-    # 1280 px mit Silbentrennung
+    # seit 1.9.278: bei 1400 px steht das Untermenü schon oben
+    await tab.fenster(1400, 900)
+    await laden(tab, p, 8, "light", "1400")
+    p.pruefe("1400: Untermenü oben", await tab.js(UNTERMENUE), "oben")
+
+    # 1280 px: das Untermenü oben (seit 1.9.278)
     await tab.fenster(1280, 900)
     for n, thema in ((3, "light"), (4, "dark")):
         name = "hell" if thema == "light" else "dunkel"
         await laden(tab, p, n, thema, f"1280 {name}")
         r = await tab.js(ROLLEN)
         print(f"    1280 {name}: Tabelle {r['tabelle']} px im Rahmen {r['rahmen']} px, mindestens {r['mindest']} px")
-        p.pruefe(f"1280 {name}: Tabelle rollt nicht (mit Silbentrennung)", r["rollt"], False)
+        p.pruefe(f"1280 {name}: Untermenü oben", await tab.js(UNTERMENUE), "oben")
+        p.pruefe(f"1280 {name}: Tabelle rollt nicht", r["rollt"], False)
         p.pruefe(f"1280 {name}: Status und Bearbeiten ganz zu sehen", r["letzte_ganz"], True)
+        p.pruefe(f"1280 {name}: Telefonnummern einzeilig", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
+        zeilen = await tab.js(f"({ZEILEN})('.mail')")
+        print(f"    1280 {name}: Zeilen je E-Mail {zeilen}")
+        p.pruefe(f"1280 {name}: E-Mail höchstens zweizeilig", max(zeilen) <= 2, True)
         await tab.bild(f"stammdaten_mitarbeiter_1280_{name}")
+    await tab.js(OHNE_TRENNUNG)
+    r = await tab.js(ROLLEN)
+    print(f"    1280 ohne Silbentrennung: Tabelle {r['tabelle']} px im Rahmen {r['rahmen']} px, mindestens {r['mindest']} px")
+    p.pruefe("1280 ohne Silbentrennung: Tabelle rollt nicht", r["rollt"], False)
+    # seit 1.9.278 (Gegenprobe 278_2b blieb zuerst grün: mit den Testdaten ist die Spalte überall breit genug): die Spalte Kontakt eng gezwungen -- die
+    # Telefonnummer bleibt trotzdem in einer Zeile (sie ragt dann hinaus, statt umzubrechen)
+    await tab.js("(()=>{const s=document.createElement('style');s.id='eng';s.textContent='#content td.kontakt{width:60px;max-width:60px}';"
+                 "document.head.appendChild(s);return true})()")
+    p.pruefe("eng (Kontakt 60 px): Telefonnummern einzeilig", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
+    await tab.js("document.getElementById('eng').remove()")
 
     # 412 px: keine Ansicht läuft über
     await tab.fenster(412, 900, mobil=True)
     for n, thema in ((5, "light"), (6, "dark")):
         name = "hell" if thema == "light" else "dunkel"
         await laden(tab, p, n, thema, f"412 {name}")
+        p.pruefe(f"412 {name}: Telefonnummern einzeilig (seit 1.9.278)", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
         await tab.bild(f"stammdaten_mitarbeiter_412_{name}")
     for ansicht in ANSICHTEN:
         await tab.js(f"(()=>{{showView({json.dumps(ansicht)});return true}})()")

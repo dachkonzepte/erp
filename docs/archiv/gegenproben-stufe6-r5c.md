@@ -34,3 +34,15 @@ Alle 10 im ersten Lauf rot. Ohne Gegenprobe: Nr. 5 (der Dialog bleibt in Kalende
 v677::test_dialog_bleibt_in_kalendertagen und die Tests des Dialogs). Im Browser: die Klicktests mit Ziehen (`plantafel_bedienen`, `plantafel_ziehen`,
 `plantafel_konflikte`, `plantafel_besetzung`) liefen grün; sie ziehen innerhalb einer Woche, eine eigene Gegenprobe im Browser hat Nr. 1 nicht (die Anfrage der
 Tafel prüft v649 in node).
+
+## 1.9.278 (Punkt 0c): Untermenü der Stammdaten unter 1400 px oben
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – unter 1400 px oben | die Regel wieder erst unter 850 px (`278_1a`) | 2 rot: v678::test_untermenue_unter_1400_px_oben, v678::test_unter_850_px_wie_bisher |
+| Nr. 1 – im Browser | ebenso (`278_1b`, Klicktest) | rot: stammdaten_breite -- „1400: Untermenü oben“, bei 1280 px hell und dunkel Untermenü, Rollen, Status und Bearbeiten, E-Mail zweizeilig, ohne Silbentrennung |
+| Nr. 2 – Telefonnummer ohne Umbruch | ohne `white-space:nowrap` (`278_2a`) | 1 rot: v678::test_telefonnummer_ohne_umbruch |
+| Nr. 2 – im Browser | ebenso (`278_2b`, Klicktest) | im ersten Lauf GRÜN -- mit den Testdaten ist die Spalte Kontakt bei 1440, 1280 und 412 px breit genug, die Nummer bricht auch ohne die Regel nicht. Klicktest nachgezogen (die Spalte eng gezwungen, „eng (Kontakt 60 px): Telefonnummern einzeilig“), dieselbe Gegenprobe: rot -- „eng (Kontakt 60 px)“ |
+| Nr. 3 – unter 850 px wie bisher | ohne `overflow-wrap:normal` für die E-Mail (`278_3a`) | 1 rot: v678::test_unter_850_px_wie_bisher |
+
+Alle 5 rot (`278_2b` nach dem Nachziehen des Klicktests).

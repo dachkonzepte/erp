@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.278 – Stammdaten: Untermenü unter 1400 px oben, Telefonnummer ohne Umbruch
+
+Unter 1400 px Fensterbreite steht das Untermenü der Stammdaten (Kunden, Objekte, Mitarbeiter …) jetzt als Zeile über der Karte statt links daneben -- wie bisher erst unter 850 px (Antwort 2 zur Nachrunde R5b, Weg a). Bei 1280 px hat die Mitarbeitertabelle damit 955 statt 687 px: sie passt auch ohne Silbentrennung, jede E-Mail-Adresse steht auf höchstens zwei Zeilen (vorher bis zu sechs). Die Telefonnummer bricht nicht mehr um, auch nicht an ihren Leerzeichen (gegen 1.9.275 Nr. 3 brach sie bei 1280 px um). Ab 1401 px bleibt das Untermenü links.
+
+Neu `tests/test_v678_stammdaten_untermenue_oben.py`; der Klicktest `klicktest_stammdaten_breite.py` prüft das Untermenü bei 1440, 1400 und 1280 px, die Zeilen je E-Mail und Telefonnummer. Keine Migration.
+
 ## 1.9.277 – Plantafel: Verschieben zählt Arbeitstage
 
 Wer auf der Plantafel einen Einsatz oder eine Person verschiebt, verschiebt jetzt in Arbeitstagen (Antwort 4 zur Nachrunde R5b): der erste Tag landet auf dem Tag, auf dem losgelassen wird, jeder weitere behält seinen Abstand in Arbeitstagen -- Montag bis Freitag einen Tag weiter wird Dienstag bis Freitag und der nächste Montag (bis 1.9.276 Dienstag bis Samstag). Auf einen freien Tag (Wochenende, Feiertag, betriebsfrei, Heiligabend, Silvester) kommt nur, wer ausdrücklich dort losgelassen wird. Das gilt für das Umsetzen einer Person oder eines Geräts in „Personen“ und „Geräte“ und für das Ziehen des ganzen Einsatzes in „Kolonnen“; Beginn und Ende im Dialog bleiben Kalendertage.

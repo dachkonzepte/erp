@@ -1410,3 +1410,34 @@ ohne Silbentrennung nachgestellt; 1280 px hell und dunkel; Büro – Auftrag; Bi
 
 Alle 17 im ersten Lauf rot (`275_3b` war beim ersten Versuch nicht eindeutig -- ein Fehler der Gegenprobe, kein Lauf --, eindeutig gemacht und rot). Ohne
 eigene Gegenprobe: „die übrigen Ansichten und ihre Tabellen bleiben“ (Nr. 5, zweiter Satz) -- nichts daran geändert, belegt durch die Klicktests der Seite.
+
+### Umsetzung 1.9.278 (Stufe 6, R5c, Punkt 0c): Untermenü unter 1400 px oben
+
+Antwort 2 zur Nachrunde R5b: „Weg a -- bei 1280 px bricht heute die E-Mail über sechs Zeilen und die Telefonnummer um (gegen 1.9.275 Nr. 3).“ Weg a: das Untermenü
+der Stammdaten wandert unter etwa 1400 px nach oben, wie bis dahin unter 850 px.
+
+- `master_data.html`: `@media(max-width:1400px)` setzt das Raster auf `minmax(0,1fr)` und das Untermenü als Zeile über die Karte (`.side` flex, rollt waagrecht,
+  ohne Überschrift, Knöpfe ohne Umbruch) -- die Regeln standen bis 1.9.277 in `@media(max-width:850px)`; dort bleiben E-Mail und Funktion ohne Umbruch im Wort und
+  das Suchfeld in voller Breite.
+- Die Telefonnummer steht in `<span class="tel">` mit `white-space:nowrap` -- sie bricht auch an ihren Leerzeichen nicht um (1.9.275 Nr. 3 versprach „nie“, bei
+  1280 px brach sie an den Leerzeichen).
+- Gemessen (Klicktest, lange Werte): 1440 px Untermenü links, Tabelle 877 px, mindestens 734 px mit und 821 px ohne Silbentrennung (die Telefonnummer ist jetzt eine
+  Einheit); 1400 px Untermenü oben; 1280 px Untermenü oben, Tabelle 955 px, mindestens 734 bzw. 821 px -- passt auch ohne Silbentrennung, jede E-Mail zwei Zeilen
+  (vor dem „@“ getrennt); 412 px die Telefonnummer einzeilig, die Tabelle rollt in ihrem Rahmen.
+
+#### Festlegungen 1.9.278 (Bitte bestätigen)
+
+1. Unter 1400 px Fensterbreite steht das Untermenü der Stammdaten über der Karte (eine Zeile, rollt waagrecht), ab 1401 px links.
+2. Die Telefonnummer bricht nie um, auch nicht an ihren Leerzeichen.
+3. Unter 850 px bleibt es wie bisher: E-Mail und Funktion ohne Umbruch im Wort, Suchfeld in voller Breite.
+
+#### Tests und Prüfung 1.9.278
+
+Neu: `tests/test_v678_stammdaten_untermenue_oben.py` (die Regeln unter 1400 px, unter 850 px wie bisher, die Telefonnummer). Klicktest
+`klicktest_stammdaten_breite.py`: Untermenü links bei 1440, oben bei 1400 und 1280 px; Telefonnummern einzeilig bei 1440, 1280 und 412 px; bei 1280 px die E-Mail
+höchstens zweizeilig und die Tabelle ohne Rollen auch ohne Silbentrennung. Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.278“.
+**Angepasste Erwartungen** (Regel 28):
+- `tests/test_v675_stammdaten_breite.py::test_raster_unter_850_px_rollt_im_rahmen`: alt `minmax(0,1fr)` in der Regel für 850 px, neu in der für 1400 px.
+- `tests/test_v675_stammdaten_breite.py::test_umbruch_nur_email_und_silben`: alt die Telefonnummer als `esc(…)` in der Zelle, neu in `<span class="tel">`.
+- `scripts/klicktest_stammdaten_breite.py`: alt „1280 hell/dunkel: Tabelle rollt nicht (mit Silbentrennung)“, neu „1280 …: Tabelle rollt nicht“ (das Untermenü oben,
+  dazu dieselbe Prüfung ohne Silbentrennung).

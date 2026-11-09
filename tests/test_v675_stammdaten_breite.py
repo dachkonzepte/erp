@@ -19,14 +19,19 @@ def _css() -> str:
     return text[text.index("<style>"):text.index("</style>")]
 
 
-def _schmal() -> str:
+def _unter(px: int) -> str:
     css = _css()
-    start = css.index("@media(max-width:850px){")
+    start = css.index(f"@media(max-width:{px}px){{")
     return css[start:css.index("}}", start) + 2]
 
 
+def _schmal() -> str:
+    return _unter(850)
+
+
 def test_raster_unter_850_px_rollt_im_rahmen():
-    assert ".layout{grid-template-columns:minmax(0,1fr)}" in _schmal()
+    # seit 1.9.278 steht das Raster mit dem Untermenü oben schon unter 1400 px (bis 1.9.277 in der Regel für 850 px)
+    assert ".layout{grid-template-columns:minmax(0,1fr)}" in _unter(1400)
     assert not re.search(r"grid-template-columns:\s*1fr", _css())  # 1fr nimmt die Mindestbreite der Tabelle an -- die Seite liefe über
 
 
@@ -68,7 +73,8 @@ def test_umbruch_nur_email_und_silben():
     assert "td.kontakt .mail{overflow-wrap:normal}" in schmal and "td.trennbar{hyphens:manual}" in schmal
     assert "<span class=\"mail\">${esc(x.email.split('@')[0])}${x.email.includes('@')?`<wbr>@${esc(x.email.split('@').slice(1).join('@'))}`:''}</span>" in zweig
     assert zweig.count('class="trennbar"') == 2  # Funktion und Kosten-Zuordnung -- nicht Name, Kennzeichen, Status, Bearbeiten
-    assert "${x.mobile||x.phone?esc(x.mobile||x.phone):''}" in zweig  # die Telefonnummer außerhalb von .mail: bricht nie mitten in der Zahl
+    # die Telefonnummer außerhalb von .mail: bricht nie mitten in der Zahl -- seit 1.9.278 in .tel, auch nicht an Leerzeichen
+    assert "${x.mobile||x.phone?`<span class=\"tel\">${esc(x.mobile||x.phone)}</span>`:''}" in zweig
 
 
 def test_nur_die_mitarbeitertabelle_hat_die_klasse():
