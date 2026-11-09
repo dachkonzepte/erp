@@ -1298,3 +1298,45 @@ ein Test schlägt an (FAILED) bzw. der Klicktest endet nicht wie erwartet.
 | Nr. 6 – im Browser | ebenso (`271_6b`, Klicktest) | rot: stammdaten_inaktive -- Büro – Auftrag: Seite nicht bereit (kein Kästchen), seine Prüfungen |
 
 Alle 21 im ersten Lauf rot. Ohne eigene Gegenprobe: der Untertitel „N Mitarbeiterstammsätze“ und die Antwort des Servers (Nr. 5, nichts daran geändert).
+
+## Untertitel und Breite der Stammdaten (1.9.274–1.9.275)
+
+Auftrag vom 09.11.2026 (Nachrunde R5b, Punkte 3 und 4; Herleitung und Punkte 1 und 2 im Archiv „Kalender und Outlook-Sync“, „Stufe 6, R5b Nachrunde“):
+3 Mitarbeiter: Untertitel „N aktiv · M inaktiv“ (Frage 1 zu 1.9.271); 4 Stammdaten bei 412 px ohne Überlauf (Nebenbefund 1.9.271, Frage 3) -- dazu: bei
+1440 px rollt die Mitarbeitertabelle waagrecht, „Bearbeiten“ und ein Teil von „Status“ sind nicht zu sehen; bei 1440 px ohne Rollen. Bilder: Mitarbeiter bei
+1440, 1280 und 412 px, hell und dunkel.
+
+### Umsetzung 1.9.274 (Punkt 3): Untertitel „N aktiv · M inaktiv“
+
+- `master_data.html`: `mitarbeiterUntertitel(liste)` zählt die inaktiven (`!e.active`) und gibt „<aktiv> aktiv · <inaktiv> inaktiv“ zurück; der Zweig `employees`
+  von `render()` setzt `sub.textContent=mitarbeiterUntertitel(employees)` -- über alle Mitarbeiter, nicht über die Liste nach Kästchen und Suche (bis 1.9.273
+  „N Mitarbeiterstammsätze“). Die Zahl neben dem Kästchen („1 inaktiv“, 1.9.271) bleibt.
+
+#### Festlegungen 1.9.274 (Bitte bestätigen)
+
+1. Der Untertitel heißt „N aktiv · M inaktiv“; beide Zahlen stehen immer da, auch „0 inaktiv“.
+2. Gezählt über alle Mitarbeiter -- unabhängig von der Suche und vom Kästchen „Inaktive MA ausblenden“.
+3. Für jede Rolle, die die Liste sieht (auch Büro – Auftrag).
+
+#### Tests und Prüfung 1.9.274
+
+Neu: `tests/test_v674_untertitel_mitarbeiter.py` (in node mit dem Code der Seite: 3 aktiv · 1 inaktiv, immer beide Zahlen, leer; am Text der Vorlage: über
+alle gezählt, der alte Untertitel weg). Klicktest `klicktest_stammdaten_inaktive.py` um vier Prüfungen ergänzt (Vorgabe, ohne Haken, Suche „Tom“, Büro – Auftrag:
+„3 aktiv · 1 inaktiv“). Angepasste Erwartungen: keine.
+
+#### Gegenproben 1.9.274
+
+Ablauf wie 1.9.271: in einer eigenen Arbeitskopie auf dem Stand der Version die Stelle in `master_data.html` mit dem Marker `GEGENPROBE` ändern, Tests bzw.
+Klicktest laufen lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mindestens ein Test schlägt an (FAILED) bzw. der Klicktest endet nicht wie erwartet.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „N aktiv · M inaktiv“ | der alte Untertitel (`274_1a`) | 2 rot: v674::test_immer_beide_zahlen, v674::test_untertitel_aktiv_und_inaktiv |
+| Nr. 1 – im Browser | ebenso (`274_1c`, Klicktest) | rot: stammdaten_inaktive -- Untertitel bei Vorgabe, ohne Haken, Suche „Tom“, Büro – Auftrag |
+| Nr. 1 – immer beide Zahlen | ohne „0 inaktiv“ (`274_1b`) | 1 rot: v674::test_immer_beide_zahlen |
+| Nr. 2 – über alle gezählt | über die Liste nach dem Kästchen (`274_2a`) | 1 rot: v674::test_gezaehlt_ueber_alle_nicht_nach_suche_oder_kaestchen |
+| Nr. 2 – im Browser | ebenso (`274_2b`, Klicktest) | rot: stammdaten_inaktive -- Untertitel bei Vorgabe, Suche „Tom“, Büro – Auftrag (ohne Haken stimmt die Zahl auch so) |
+| Nr. 3 – jede Rolle | nur ab Büro – Finanzen (`274_3a`) | 1 rot: v674::test_gezaehlt_ueber_alle_nicht_nach_suche_oder_kaestchen |
+| Nr. 3 – im Browser | ebenso (`274_3b`, Klicktest) | rot: stammdaten_inaktive -- Büro – Auftrag: Untertitel |
+
+Alle 7 im ersten Lauf rot.

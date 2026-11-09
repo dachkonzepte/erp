@@ -3,7 +3,7 @@
 Testdaten: vier Mitarbeiter -- Tom Dach und Kai Ziegel (gewerblich, Verrechnungssatz, 25 bzw. 22 €/h, je 40 h), Vera Kontor (kaufmännisch,
 Variable GK, aktiv) und Ina Alt (kaufmännisch, Variable GK, INAKTIV -- wie im Bestand); Anna (Admin) und Bert (Büro – Auftrag).
 
-    Vorgabe     Kästchen angehakt, daneben „1 inaktiv“, Ina fehlt in der Liste; Kacheln 2 / 23,50 €/h / 1
+    Vorgabe     Kästchen angehakt, daneben „1 inaktiv“, Ina fehlt in der Liste; Kacheln 2 / 23,50 €/h / 1; Untertitel „3 aktiv · 1 inaktiv“ (seit 1.9.274)
     ohne Haken  per Mausklick: Ina steht grau mit „Inaktiv“ in der Liste, Kacheln und Zahl unverändert, keine Anfrage an den Server
     Suche       ohne Haken findet „Alt“ Ina, mit Haken nicht; die Zahl bleibt „1 inaktiv“, auch während der Suche
     merken      nach dem Neuladen bleibt die Wahl (hell und dunkel, beide Richtungen); Bilder je Zustand hell und dunkel
@@ -29,6 +29,7 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 BEREIT = "!!document.getElementById('inaktiveAusblenden')&&document.querySelectorAll('#content tbody tr').length>0"
 ANGEHAKT = "document.getElementById('inaktiveAusblenden').checked"
 ZAHL = "document.getElementById('inaktivZahl').textContent"
+UNTERTITEL = "document.getElementById('seitenkopfUntertitel').textContent"  # seit 1.9.274
 NAMEN = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>1)"
          ".map(r=>r.cells[1].querySelector('b').textContent).sort()")
 KACHELN = ("[...document.querySelectorAll('#content .metric')]"
@@ -107,6 +108,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vorgabe: daneben die Zahl", await tab.js(ZAHL), "1 inaktiv")
     p.pruefe("Vorgabe: Ina nicht in der Liste", [n.split()[0] for n in await tab.js(NAMEN)], aktive)
     p.pruefe("Vorgabe: Kacheln", await tab.js(KACHELN), kacheln_admin)
+    p.pruefe("Vorgabe: Untertitel", await tab.js(UNTERTITEL), "3 aktiv · 1 inaktiv")
     p.pruefe("Vorgabe: Kästchen zwischen Kacheln und Tabelle", await tab.js(
         "(()=>{const k=[...document.querySelectorAll('#content .metric')].pop().getBoundingClientRect(),"
         "w=document.querySelector('.inaktiv-wahl').getBoundingClientRect(),t=document.querySelector('#content table').getBoundingClientRect();"
@@ -127,6 +129,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("ohne Haken: Ina mit „Inaktiv“", (farben or {}).get("status"), "Inaktiv")
     p.pruefe("ohne Haken: Kacheln unverändert", await tab.js(KACHELN), kacheln_admin)
     p.pruefe("ohne Haken: Zahl unverändert", await tab.js(ZAHL), "1 inaktiv")
+    p.pruefe("ohne Haken: Untertitel unverändert", await tab.js(UNTERTITEL), "3 aktiv · 1 inaktiv")
     p.pruefe("ohne Haken: keine Anfrage der Seite", await tab.js("window.__anfragen"), 0)
     p.pruefe("ohne Haken: nichts an /api/ im Netz", [e["url"] for e in tab.netz.suche(r"/api/", None, ab=vorher)], [])
     await tab.bild("stammdaten_inaktive_hell_gezeigt")
@@ -142,6 +145,7 @@ async def pruefen(tab, seed, p):
     await suchen(tab, "Tom")
     p.pruefe("Suche „Tom“: nur Tom", await tab.js(NAMEN), ["Tom Dach"])
     p.pruefe("Suche „Tom“: Zahl bleibt", await tab.js(ZAHL), "1 inaktiv")
+    p.pruefe("Suche „Tom“: Untertitel bleibt", await tab.js(UNTERTITEL), "3 aktiv · 1 inaktiv")
     await suchen(tab, "")
     await klicken(tab, "#inaktiveAusblenden")
     p.pruefe("wieder ohne Haken", await tab.js(GEMERKT), "zeigen")
@@ -170,6 +174,7 @@ async def pruefen(tab, seed, p):
     await neu_laden(tab, p, 5, "Büro – Auftrag")
     p.pruefe("Büro – Auftrag: Kästchen angehakt (gemerkt im Browser)", await tab.js(ANGEHAKT), True)
     p.pruefe("Büro – Auftrag: Zahl", await tab.js(ZAHL), "1 inaktiv")
+    p.pruefe("Büro – Auftrag: Untertitel", await tab.js(UNTERTITEL), "3 aktiv · 1 inaktiv")
     p.pruefe("Büro – Auftrag: Kacheln ohne Mittellohn", await tab.js(KACHELN), ["MA im Verrechnungssatz: 2", "MA in variablen GK: 1"])
     await klicken(tab, "#inaktiveAusblenden")
     p.pruefe("Büro – Auftrag ohne Haken: Ina grau", grau(await tab.js(FARBEN)), True)
