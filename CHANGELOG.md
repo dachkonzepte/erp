@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.283 – Plantafel: „Zum Einplanen“ in „Aufträge“ immer offen, schmalere Tagesspalten
+
+In „Aufträge“ startet die Liste „Zum Einplanen“ jetzt immer offen -- auch unter 1440 px, wo „Nicht eingeplant“ in den übrigen Ansichten eingeklappt startet (1.9.257); zurück in diesen Ansichten gilt wieder deren Zustand, und Auf- und Zuklappen in „Aufträge“ merkt sich nichts. Damit bei 1280 px mit offener Liste nichts seitlich rollt (bis 1.9.282 verlangte die Tabelle mindestens 832 px bei 721 px Platz, der Freitag war abgeschnitten), sind die Tage mindestens 84 statt 110 px breit und unter 1400 px Fensterbreite die Namensspalte 200 statt 230 px; bei 1280 px sind die Tage 94 px breit. Ist eine Karte zu schmal für Gerätezeichen und Kurzname, fällt nur das Gerätezeichen weg -- „HS-DK 202“ bleibt lesbar, der Kran behält sein Zeichen. Bei 1440 px bleibt alles wie bisher (Tage 120 px).
+
+Neu `tests/test_v683_auftraege_liste_offen.py`, ergänzt `klicktest_plantafel_auftraege.py` (Platz, Freitag, Zeichen, Wechsel der Ansicht); angepasst v657, v679 und `klicktest_plantafel_auftraege_ziehen.py` (die Liste ist offen). Keine Migration.
+
 ## 1.9.282 – Plantafel: Leiste „Rückgängig“ über der Tafel, Klick in einen freien Tag in „Aufträge“
 
 Nach einem Zug in „Kolonnen“ (einen Einsatz verschieben), „Personen“ und „Geräte“ (eine Person bzw. ein Gerät ziehen) steht über der Tafel eine schmale Leiste: was geschah -- „Am Wasserturm 4: 09.–13.11. → 10.–16.11.“, „Lia Lang · Sturmschaden …: 10.–11.11. → ab Mi 11.11.“ oder „… Ole Offen → Tom Monteur“ -- und „Rückgängig“ (Antwort 5 zu R5b). Sie bleibt bis zur nächsten Aktion: dem nächsten Klick außerhalb der Leiste, einer anderen Ansicht, einem anderen Zeitraum. Beide Züge gehen jetzt über denselben Weg wie in „Aufträge“: mehrere Rückfragen nacheinander gelten zusammen -- bis 1.9.281 ging beim Ziehen in „Personen“ und „Geräte“ nach „niemand mehr“ die Rückfrage einer Warnung verloren.

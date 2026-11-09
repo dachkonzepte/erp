@@ -13,7 +13,7 @@ Maus, 1440 px hell:
                 für alle, „Trotzdem planen“ -> neuer vorläufiger Einsatz mit Kai, Lia, Nele und HS-DK 204
     Liste       Lia aus der Zelle zurück auf die Liste -> für Mo herausgenommen
     Escape      mitten im Ziehen bricht ab, nichts gespeichert
-Finger (Touch-Emulation), 1280 px dunkel: die Liste eingeklappt, der Knopf „Zum Einplanen aufklappen“; Chips greifbar (Höhe ≥ 40 px bei grobem Zeiger), antippen -> „Einsatz öffnen“, Nele aus der Zelle auf die Liste,
+Finger (Touch-Emulation), 1280 px dunkel: die Liste offen (seit 1.9.283), der Knopf „Zum Einplanen einklappen“; Chips greifbar (Höhe ≥ 40 px bei grobem Zeiger), antippen -> „Einsatz öffnen“, Nele aus der Zelle auf die Liste,
 Lia aus der Liste auf Kaminverwahrung Mo mit Anzeige vor dem Loslassen (Bild) und „Rückgängig“.
 Keine JS-Fehler.
 
@@ -253,11 +253,10 @@ async def pruefen(tab, seed, p):
     await tab.js("setView('auftraege')")
     p.pruefe("Finger: Aufträge bereit", await tab.warten(BEREIT), True)
     await tab.warte_auf_ruhe()
-    # unter 1440 px startet die Liste eingeklappt (seit 1.9.257) -- der Knopf heißt wie die Liste
-    p.pruefe("Finger: Liste eingeklappt, Knopf „Zum Einplanen aufklappen“", await tab.js(
+    # seit 1.9.283 startet „Zum Einplanen“ in „Aufträge“ immer offen, auch unter 1440 px (bis 1.9.282 dort eingeklappt) -- der Knopf heißt wie die Liste
+    p.pruefe("Finger: Liste offen, Knopf „Zum Einplanen einklappen“", await tab.js(
         "[document.getElementById('tafelLayout').classList.contains('rk-zu'),document.getElementById('rkKnopf').getAttribute('aria-label')]"),
-        [True, "Zum Einplanen aufklappen"])
-    await tab.js("document.getElementById('rkKnopf').click()")
+        [False, "Zum Einplanen einklappen"])
     p.pruefe("Finger: Liste offen", await tab.warten("!document.getElementById('tafelLayout').classList.contains('rk-zu')&&!!document.querySelector('#backlog .chip')"), True)
     await tab.warte_auf_ruhe()
     grob = await tab.js("matchMedia('(pointer:coarse)').matches")

@@ -14,6 +14,8 @@ Bediener“; der Kran ist am Fr doppelt); offen ohne Einsatz: Dachfenster Krüge
     Liste       „Zum Einplanen“: Kolonnen, Personen, Geräte mit Wochenleiste (Kai Mo–Do eingeplant, Fr frei; Nele Do beantragt; Kran Fr doppelt)
     Bedienen    Klick auf eine Karte öffnet ihren Einsatz; ab 2 Wochen schmalere Chips mit dem Namen im title; der Filter zeigt nur Aufträge mit Warnung
                 oder Hinweis
+    Platz       (seit 1.9.283) bei 1440 und 1280 px rollt die Tafel nicht, kein Chip ist gekürzt, „Zum Einplanen“ offen; bei 1280 px der Freitag zu sehen, das
+                Kranzeichen da, die Gerätezeichen weg; „Kolonnen“ zu, „Aufträge“ offen, Zuklappen dort merkt nichts, der nächste Wechsel öffnet wieder
     Bilder      „Aufträge“ bei 1440 und 1280 px, hell und dunkel
     keine JS-Fehler
 
@@ -43,6 +45,10 @@ ZELLE = ("((name,tag)=>{const z=[...document.querySelectorAll('#planner tr.a-zei
          "['vorlaeufig','kran','niemand'].filter(x=>k.classList.contains(x)).join(' ')||'fest',[...k.querySelectorAll('.chip')].map(ch=>ch.textContent.trim()"
          "+(ch.querySelector('.warnzeichen')?' ⚠':'')+(ch.querySelector('.hinweis-punkt')?' •':'')+(ch.querySelector('.kranzeichen')?' (Kran)':''))"
          ",k.classList.contains('niemand')?k.textContent.trim():null])})")
+# seit 1.9.283: rollt die Tafel seitlich? Welche Chips sind gekürzt (Text breiter als der Chip)? Ist die Liste offen?
+PLATZ = ("(()=>{const p=document.getElementById('planner');return [p.scrollWidth>p.clientWidth,"
+         "[...p.querySelectorAll('.chip')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim()),"
+         "!document.getElementById('tafelLayout').classList.contains('rk-zu')]})()")
 LEISTE = ("((art,name)=>{const c=[...document.querySelectorAll('#backlog .ze-zeile .chip')].find(x=>x.dataset.art===art&&x.textContent.trim()===name);"
           "return c?[...c.closest('.ze-zeile').querySelectorAll('.wl i')].map(i=>i.className||'frei'):null})")
 
@@ -169,6 +175,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Wochenleiste HS-DK 202", await leiste("geraet", "HS-DK 202"), ["eingeplant", "eingeplant", "eingeplant", "eingeplant", "eingeplant"])
     p.pruefe("Kran mit eigenem Zeichen in der Liste", await tab.js("!!document.querySelector('#backlog .chip[data-art=geraet] .kranzeichen')"), True)
     p.pruefe("nichts ragt über das Fenster", await tab.ueberlauf(), [])
+    p.pruefe("1440 hell: rollt nicht, kein Chip gekürzt, Liste offen", await tab.js(PLATZ), [False, [], True])
     await tab.bild("auftraege_1440_hell")
     # der Filter „Warnungen · Hinweise“: nur Aufträge mit einem Einsatz mit Warnung oder Hinweis
     await tab.js("document.getElementById('filterKnopf').click()")
@@ -209,7 +216,33 @@ async def pruefen(tab, seed, p):
         await laden(tab, p, n, thema, f"1280 {name}")
         p.pruefe(f"1280 {name}: Zeilen da", len(await tab.js(ZEILEN)), 10)
         p.pruefe(f"1280 {name}: nichts ragt über das Fenster", await tab.ueberlauf(), [])
+        # seit 1.9.283 (R5d, Punkt 1): „Zum Einplanen“ offen, die Tafel rollt nicht seitlich (der Freitag ist zu sehen), kein Chip gekürzt
+        p.pruefe(f"1280 {name}: Liste offen, rollt nicht, kein Chip gekürzt", await tab.js(PLATZ), [False, [], True])
+        p.pruefe(f"1280 {name}: Freitag zu sehen", await tab.js(
+            f"(th=>{{const r=th.getBoundingClientRect(),p=document.getElementById('planner').getBoundingClientRect();return r.right<=p.right+0.5}})"
+            f"(document.querySelector('#planner thead th[title^=\"{FR[8:]}.{FR[5:7]}.\"]'))"), True)
+        p.pruefe(f"1280 {name}: Kran behält sein Zeichen, Geräte ohne Zeichen", await tab.js(
+            "[[...document.querySelectorAll('#planner .kranzeichen')].every(s=>s.getClientRects().length>0),"
+            "[...document.querySelectorAll('#planner .geraetzeichen')].every(s=>s.getClientRects().length===0)]"), [True, True])
         await tab.bild(f"auftraege_1280_{name}")
+    # 1280 px: in „Kolonnen“ ist die Liste zu (unter 1440 px, nichts gemerkt), in „Aufträge“ offen; Zuklappen dort merkt nichts
+    await tab.js("setView('teams')")
+    await tab.warten("view==='teams'&&!!document.querySelector('#planner .planner-row')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280 Kolonnen: Liste zu", await tab.js("document.getElementById('tafelLayout').classList.contains('rk-zu')"), True)
+    await tab.js("setView('auftraege')")
+    await tab.warten(BEREIT)
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280 Aufträge: Liste offen", await tab.js("document.getElementById('tafelLayout').classList.contains('rk-zu')"), False)
+    await tab.js("document.getElementById('rkKnopf').click()")
+    p.pruefe("1280 Aufträge: zugeklappt, nichts gemerkt", await tab.js(
+        "[document.getElementById('tafelLayout').classList.contains('rk-zu'),localStorage.getItem('plantafel_rueckstand')]"), [True, None])
+    await tab.js("setView('teams')")
+    await tab.warten("view==='teams'&&!!document.querySelector('#planner .planner-row')")
+    await tab.js("setView('auftraege')")
+    await tab.warten(BEREIT)
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280 Aufträge: beim nächsten Wechsel wieder offen", await tab.js("document.getElementById('tafelLayout').classList.contains('rk-zu')"), False)
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

@@ -164,6 +164,8 @@ def _seite(speicher: dict | None, ablauf: str, *, wirft: bool = False) -> list:
         "var localStorage = {getItem(k){ if (WIRFT) throw new Error('kein Speicher'); return k in SPEICHER ? SPEICHER[k] : null; },"
         " setItem(k, v){ if (WIRFT) throw new Error('kein Speicher'); SPEICHER[k] = String(v); }};"
         "function loadBoard(){ GELADEN++; } function renderBoard(){ GEZEICHNET++; } var view = 'teams'; var AUFRUFE = AUFRUFE || [];"
+        # seit 1.9.283 öffnet setView() in „Aufträge“ die Liste „Zum Einplanen“ (test_v683) -- hier nur, dass es sie gibt
+        "function rueckstandZeigen(){} function rueckstandStartZu(){ return false; }"
         + _vorgaben() + "document.getElementById('rangeDays').value = '14';")
     # seit 1.9.282 schließt setView() die Leiste „Rückgängig“ über der Tafel (bandSchliessen)
     return im_browser("planning.html", ["zeitraumGemerkt", "zeitraumMerken", "setView", "tageAnzahl", "bandSchliessen"], vorbereitung, ablauf)

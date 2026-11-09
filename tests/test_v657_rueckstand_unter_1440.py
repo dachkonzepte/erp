@@ -39,7 +39,8 @@ def test_ohne_speicher_wie_nichts_gemerkt():
 
 def test_nur_der_knopf_merkt():
     html = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
-    assert "function rueckstandZeigen(offen,merken=true){" in html
+    assert "function rueckstandZeigen(offen,merken=true,zeichnen=true){" in html  # seit 1.9.283 auch ohne Neuzeichnen (beim Wechsel der Ansicht)
     assert "if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}" in html
     assert "if(rueckstandStartZu(window.innerWidth))rueckstandZeigen(false,false);" in html
-    assert "addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu')))" in html
+    # seit 1.9.283: in „Aufträge“ merkt der Knopf nichts (dort startet die Liste immer offen, test_v683)
+    assert "addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu'),view!=='auftraege'))" in html

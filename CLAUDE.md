@@ -779,7 +779,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
     „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
-  `docs/archiv/gegenproben-stufe6-r5c.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -1296,7 +1296,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `tests/test_v681_ziehen_auftraege.py`, Klicktest `klicktest_plantafel_auftraege_ziehen.py`); seit 1.9.282 nach einem Zug in „Kolonnen“, „Personen“ und
   „Geräte“ eine Leiste über der Tafel mit dem Zug und „Rückgängig“, bis zur nächsten Aktion (`bandZeigen()`, beide Züge über `zugSenden()`), in „Aufträge“ öffnet
   ein Klick in einen freien Tag den Dialog für Auftrag und Tag (`tests/test_v682_leiste_rueckgaengig.py`, Klicktest `klicktest_plantafel_rueckgaengig.py`).
-  Befund R5 und Herleitung:
+  **Stufe 6, R5d (ab 1.9.283, Nachrunde):** in „Aufträge“ startet „Zum Einplanen“ immer offen (zurück gilt der gemerkte Zustand, dort merkt der Knopf nichts),
+  die Tage mindestens 84 px, unter 1400 px die Namensspalte 200 px -- bei 1280 px mit offener Liste rollt nichts; ist die Karte zu schmal, fällt das
+  Gerätezeichen weg (Container-Query, `tests/test_v683_auftraege_liste_offen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

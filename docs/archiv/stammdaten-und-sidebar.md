@@ -1425,7 +1425,7 @@ der Stammdaten wandert unter etwa 1400 px nach oben, wie bis dahin unter 850 px.
   Einheit); 1400 px Untermenü oben; 1280 px Untermenü oben, Tabelle 955 px, mindestens 734 bzw. 821 px -- passt auch ohne Silbentrennung, jede E-Mail zwei Zeilen
   (vor dem „@“ getrennt); 412 px die Telefonnummer einzeilig, die Tabelle rollt in ihrem Rahmen.
 
-#### Festlegungen 1.9.278 (Bitte bestätigen)
+#### Festlegungen 1.9.278 (bestätigt am 09.11.2026)
 
 1. Unter 1400 px Fensterbreite steht das Untermenü der Stammdaten über der Karte (eine Zeile, rollt waagrecht), ab 1401 px links.
 2. Die Telefonnummer bricht nie um, auch nicht an ihren Leerzeichen.

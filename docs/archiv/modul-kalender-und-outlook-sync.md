@@ -2199,7 +2199,7 @@ Finger (Tag setzen, Umsetzen, Herausnehmen, Anzeige vor dem Loslassen, Rückfrag
 - Für alle: auf der Plantafel gilt der Kalendertag wie ein betriebsfreier Tag für jede Person und jedes Gerät -- im Lohn gilt er weiter nur, wer an dem Tag
   Sollzeit hat und zur Gruppe gehört (unverändert, `kalendertage_im_zeitraum()`); auch der Hinweis „Freistellung“ der Tafel bleibt, wie er war.
 
-#### Festlegungen 1.9.276 (Bitte bestätigen)
+#### Festlegungen 1.9.276 (bestätigt am 09.11.2026)
 
 1. Ein aktiver Tag des Arbeitszeitkalenders (Heiligabend, Silvester) ist auf der Plantafel kein Arbeitstag -- wie ein betriebsfreier Tag, für alle Personen und
    Geräte; Gruppe und Sollzeit spielen dafür keine Rolle (statt 1.9.272 Nr. 2, zweiter Satz).
@@ -2232,7 +2232,7 @@ ganzen Einsatzes in „Kolonnen“. Freie Tage nur ausdrücklich.“
   Geräten mit Tagen von vorher (`_zuruecksetzen()`, ohne Prüfung der Personen) -- nur solange der Einsatz unverändert ist, sonst 409.
 - Unverändert: Beginn und Ende im Dialog (PUT) in Kalendertagen (`_tage_mitnehmen()`), Tag setzen (ein Tag, ausdrücklich), Verlängern (1.9.272).
 
-#### Festlegungen 1.9.277 (Bitte bestätigen)
+#### Festlegungen 1.9.277 (bestätigt am 09.11.2026)
 
 1. Verschieben zählt Arbeitstage: der erste Tag landet auf dem Tag, auf dem losgelassen wird, jeder weitere behält seinen Abstand in Arbeitstagen (Mo–Fr einen Tag
    weiter: Di–Fr und der nächste Mo) -- für Umsetzen und das Ziehen des ganzen Einsatzes.
@@ -2273,7 +2273,7 @@ Kalendertagen; API mit Prüfen, 404, Kran mit Kolonne 422, Monteurin 403, def un
   Ansicht; ohne Speicher die Vorgabe: „Aufträge“ 7, sonst 14 Tage, Antwort 15). Wechselt die Ansicht, gilt ihr Zeitraum; die gezeigte Woche (`periodStart`) bleibt;
   ändert sich die Zahl der Tage, lädt die Tafel neu, sonst zeichnet sie nur. Die Auftragsliste lädt nur die Ansicht „Aufträge“ (ab 1.9.280).
 
-#### Festlegungen 1.9.279 (Bitte bestätigen)
+#### Festlegungen 1.9.279 (bestätigt am 09.11.2026)
 
 1. Zeilen: alle offenen Aufträge (läuft, pausiert); mit Einsatz im Zeitraum oben nach ihrem ersten Tag im Zeitraum, dann nach Nummer; darunter die übrigen nach
    Nummer; abgeschlossene und stornierte nicht.
@@ -2311,7 +2311,7 @@ ersten Lauf vor dem Commit.
 - Ecken (v460): der Einsatz im Tag (`.a-einsatz`, 8 px wie der Balken der Zeichnung) ist ein Tafelteil, der Chip (`.chip`) ein Kennzeichen -- bis zum ersten
   vollen Lauf hieß die Karte `.a-karte`, und v460 verlangte für einen Namen mit „karte“ die Ecke der Karte (12 px).
 
-#### Festlegungen 1.9.280 (Bitte bestätigen)
+#### Festlegungen 1.9.280 (bestätigt am 09.11.2026)
 
 1. Kurzname am Gerät: eigene Spalte, höchstens 30 Zeichen, leer = der Name, Leerzeichen am Rand weg; im Stammdaten-Formular; `PUT /api/resources/{id}` ist ein
    Teil-Update.
@@ -2366,7 +2366,7 @@ maß die Breite gegen `innerWidth`, jetzt `tab.ueberlauf()`).
 - Bei 1280 px startet die Liste eingeklappt (Regel seit 1.9.257, „solange nichts gemerkt ist“) -- in „Aufträge“ muss sie zum Ziehen erst aufgeklappt werden (Frage im
   Bericht).
 
-#### Festlegungen 1.9.281 (Bitte bestätigen)
+#### Festlegungen 1.9.281 (bestätigt am 09.11.2026, außer Nr. 7: Chips 32 statt 40 px, der Treffbereich mit dem Finger größer -- seit 1.9.284)
 
 1. Aus der Liste gezogen: Person, Kolonne oder Gerät für diesen Tag an den Auftrag (`tag-setzen`); auf einer Karte genau dieser Einsatz, an einer freien Stelle entscheidet
    der Server (dazu, verlängert, neu und vorläufig).
@@ -2413,7 +2413,7 @@ und `renderBacklog();renderFilter();return`, neu mit `chipTipp` und `chipZiehenE
   Auftrag, nur dieser Tag, ohne Kolonne; Mauszeiger „copy“ über dem Tag, „pointer“ über der Karte; der Hinweis unter der Tafel nennt es.
 - Die Leiste ist eine Karte (Ecke der Karte, v460 „zug-band“); mit der Maus (`pointer:fine`) ist ihr Knopf 32 px hoch, mit dem Finger bleibt er 40 px.
 
-#### Festlegungen 1.9.282 (Bitte bestätigen)
+#### Festlegungen 1.9.282 (bestätigt am 09.11.2026, außer Nr. 4: Klick in einen freien Tag schlägt die Kolonne vor, wenn der Auftrag an anderen Tagen genau eine hat -- seit 1.9.285)
 
 1. Nach einem Zug in „Kolonnen“, „Personen“ und „Geräte“ eine schmale Leiste über der Tafel mit dem Zug in Worten (Auftrag, Zeitraum bzw. Tage, Person oder Gerät,
    bei einer anderen Zeile „Name → Name“, bei einer anderen Kolonne ihr Name) und „Rückgängig“ -- nur mit Umkehrung in der Antwort, einmal.
@@ -2437,3 +2437,53 @@ geprüften Anfragen sind unverändert. Ebenso `tests/test_v399_teil_updates_rest
 `tests/test_v663_leerer_tag.py::test_dialog_und_ziehen_nehmen_die_rueckfrage`: alt `&&!leerFrage(err,wahl=>senden(false,wahl))` und `...(wahl?{wenn_leer:wahl}:{})` (die
 eigene Schleife von `umsetzenZiehen()`), neu `!leerFrage(err,wahl=>versuch({...opt,wenn_leer:wahl}))` in `zugSenden()` und der Aufruf aus `umsetzenZiehen()`.
 `tests/test_v460_ecken_der_karten.py`: `zug-band` als Karte (Hinweiskasten) eingeordnet -- ein neuer Eintrag.
+
+## Stufe 6, R5d: Nachrunde (ab 1.9.283)
+
+Auftrag vom 09.11.2026, Start 55be423 (live, Datenbank `c3e9f1a7b285`). Bestätigt: Festlegungen 1.9.276–1.9.282, außer 1.9.281 Nr. 7 (Punkt 2) und 1.9.282
+Nr. 4 (Punkt 3). Je Punkt eine Version:
+1 Frage 1: in „Aufträge“ startet „Zum Einplanen“ immer offen; die Tagesspalten werden schmaler, damit bei 1280 px mit offener Liste nichts seitlich rollt (bis
+  1.9.282 war der Freitag abgeschnitten).
+2 Frage 2: Chips 32 px hoch, der Treffbereich mit dem Finger größer.
+3 Frage 3: Klick in einen freien Tag schlägt die Kolonne vor, wenn der Auftrag an anderen Tagen genau eine hat; sonst ohne.
+4 Frage 4: „Ganze Kolonne“ nennt vor dem Loslassen auch Geräte, die schon woanders sind.
+5 Die Anzeige vor dem Loslassen schwebt über der Zelle und macht die Zeile nicht höher (bis 1.9.282 wuchs die Zeile beim Ziehen, alles darunter rutschte weg).
+6 „Nicht eingeplant“ und „Aufträge“ zeigen die Stunden beide wie die Akte (Kaminverwahrung Schulz: „Soll 0,00 h“ gegen „Soll 6,00 h“).
+7 Leiste: neuer Zeitraum statt „ab“; „40 h/Woche“ ohne Umbruch; Untermenü der Stammdaten bei 1280 px in zwei Zeilen statt seitlich rollend.
+
+### Umsetzung 1.9.283 (Punkt 1): „Zum Einplanen“ immer offen, schmalere Tagesspalten
+
+- `setView()`: wechselt die Ansicht nach „Aufträge“, öffnet sie die Liste (`rueckstandZeigen(true, false, false)` -- ohne zu merken, ohne Neuzeichnen, das folgt
+  in `setView()`); zurück in eine der übrigen Ansichten gilt wieder `rueckstandStartZu(innerWidth)` (gemerkt „zu“/„offen“, sonst unter 1440 px zu, 1.9.257).
+  Der Knopf merkt in „Aufträge“ nichts (`rueckstandZeigen(…, view!=='auftraege')`) -- dort startet die Liste ohnehin offen; zugeklappt bleibt sie bis zum
+  nächsten Wechsel in die Ansicht.
+- Spalten: gemessen bei 1280 px mit offener Liste 721 px Platz, die Tabelle verlangte bis 1.9.282 mindestens 230 + 5 × 110 + 2 × 26 = 832 px. Jetzt
+  `nameW + Arbeitstage × 84 + Wochenende × 26` (2–4 Wochen wie bisher 56 je Tag), `nameW` = 200 unter 1400 px Fensterbreite, sonst 230 (an der Spalte gesetzt).
+  Bei 1280 px: Tabelle 721 px, Tage je 94 px; bei 1440 px wie bisher 881 px, Tage 120 px.
+- Chips: die Karte ist ein Container (`container-type:inline-size`); unter 93 px Inhalt (`@container (max-width:92px)`) fällt das Gerätezeichen weg
+  (`.geraetzeichen`), das Kranzeichen bleibt. Innenabstand der Zelle 4 statt 5 px, der Karte 3 statt 4 px, des Chips 6 statt 7 px -- bei 1280 px passt
+  „HS-DK 202“ ohne Zeichen (74 px) in die Karte (75 px); gemessen kein gekürzter Chip bei 1440 und 1280 px.
+- 2–4 Wochen bei 1280 px mit offener Liste: die Tabelle rollt weiter in ihrem Rahmen (2 Wochen mindestens 200 + 10 × 56 + 4 × 26 = 864 px).
+
+#### Festlegungen 1.9.283 (Bitte bestätigen)
+
+1. In „Aufträge“ startet „Zum Einplanen“ immer offen; zurück in den übrigen Ansichten gilt wieder deren Zustand (gemerkt, sonst unter 1440 px zu).
+2. Auf- und Zuklappen in „Aufträge“ merkt sich nichts; zugeklappt bleibt die Liste bis zum nächsten Wechsel in die Ansicht.
+3. Tage mindestens 84 px (1 Woche, bis 1.9.282 110 px), unter 1400 px Fensterbreite die Namensspalte 200 statt 230 px: bei 1280 px mit offener Liste rollt
+   nichts (Tage 94 px); bei 1440 px wie bisher.
+4. Ist eine Karte zu schmal für Gerätezeichen und Kurzname, fällt nur das Gerätezeichen weg; das Kranzeichen bleibt immer. Innenabstände je 1 px kleiner
+   (Zelle 4, Karte 3, Chip 6 px).
+5. 2–4 Wochen: wie bisher mindestens 56 px je Tag -- bei 1280 px mit offener Liste rollt die Tabelle dann in ihrem Rahmen.
+
+#### Tests und Prüfung 1.9.283
+
+Neu: `tests/test_v683_auftraege_liste_offen.py` (in node mit dem Code der Seite: Liste beim Wechsel nach „Aufträge“ offen und zurück wie gemerkt -- vier Fälle aus
+Breite und Merken --, zugeklappt in „Aufträge“ bleibt bis zum nächsten Wechsel, nichts gemerkt; die übrigen Ansichten unverändert; Aufbau der Spalten und Chips).
+`scripts/klicktest_plantafel_auftraege.py` ergänzt: bei 1440 und 1280 px rollt nichts, kein Chip gekürzt, Liste offen; bei 1280 px der Freitag zu sehen, das
+Kranzeichen da, Gerätezeichen weg; „Kolonnen“ zu, „Aufträge“ offen, zugeklappt nichts gemerkt, beim nächsten Wechsel wieder offen. Gegenproben: Archiv
+`gegenproben-stufe6-r5d.md`, „1.9.283“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v657_rueckstand_unter_1440.py::test_nur_der_knopf_merkt` -- alt `function rueckstandZeigen(offen,merken=true){`
+und der Knopf `rueckstandZeigen(…contains('rk-zu'))`, neu mit `zeichnen=true` und `…contains('rk-zu'),view!=='auftraege')` (in „Aufträge“ merkt der Knopf
+nichts). `tests/test_v679_auftragsliste.py::_seite` -- die node-Attrappe bekommt `rueckstandZeigen()` und `rueckstandStartZu()` als Platzhalter (`setView()` ruft
+sie seit 1.9.283); die geprüften Zahlen unverändert. `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger“ (1280 px): alt „Liste eingeklappt, Knopf
+„Zum Einplanen aufklappen““ und ein Klick zum Aufklappen, neu „Liste offen, Knopf „Zum Einplanen einklappen““ ohne Klick.

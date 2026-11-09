@@ -159,7 +159,7 @@
 .auftraege{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12.5px}
 .auftraege col.a-name-spalte{width:230px}
 .auftraege col.we{width:26px}
-.auftraege th,.auftraege td{border-bottom:1px solid var(--ds-linie);vertical-align:top;padding:6px 5px;text-align:left}
+.auftraege th,.auftraege td{border-bottom:1px solid var(--ds-linie);vertical-align:top;padding:6px 4px;text-align:left}
 .auftraege td+td,.auftraege th+th,.auftraege th+td{border-left:1px solid var(--ds-linie)}
 .auftraege thead th{position:sticky;top:0;z-index:2;background:var(--ds-flaeche);font:600 11px var(--ds-schrift-text);color:var(--ds-text-2);vertical-align:bottom}
 .auftraege thead th b{display:block;color:var(--ds-text);font-size:12px}
@@ -171,7 +171,7 @@
 .a-name a{display:block;font:650 13.5px var(--ds-schrift-text);color:var(--ds-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .a-name a:hover{text-decoration:underline}
 .a-name .klein{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.a-einsatz{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:34px;margin-bottom:4px;padding:4px;box-sizing:border-box;border:1px solid var(--ds-aktion-rand);border-radius:8px;background:var(--ds-aktion-hell);cursor:pointer}
+.a-einsatz{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:34px;margin-bottom:4px;padding:3px;box-sizing:border-box;container-type:inline-size;border:1px solid var(--ds-aktion-rand);border-radius:8px;background:var(--ds-aktion-hell);cursor:pointer}
 .a-einsatz:last-child{margin-bottom:0}
 .a-einsatz.vorlaeufig{background:var(--ds-flaeche);border:1.5px dashed color-mix(in srgb,var(--ds-aktion) 70%,var(--ds-flaeche))}
 .a-einsatz.kran{background:repeating-linear-gradient(135deg,var(--ds-info-hell) 0 4px,color-mix(in srgb,var(--ds-info-hell) 82%,var(--ds-info)) 4px 8px);border-color:color-mix(in srgb,var(--ds-info) 45%,var(--ds-flaeche))}
@@ -179,8 +179,11 @@
 .a-einsatz.schmal{min-height:34px;padding:0;border-radius:5px}
 .a-einsatz.zu{opacity:.55}
 .a-einsatz:focus-visible,.chip:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:1px}
-.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:26px;padding:2px 7px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:6px;background:var(--ds-flaeche);color:var(--ds-text);font:600 12px var(--ds-schrift-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:26px;padding:2px 6px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:6px;background:var(--ds-flaeche);color:var(--ds-text);font:600 12px var(--ds-schrift-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chip svg{flex:none}
+/* seit 1.9.283 (Stufe 6, R5d, Punkt 1): ist die Karte schmaler als ein Gerät mit Zeichen und Kurzname (bei 1280 px mit offener Liste), fällt nur das
+   Gerätezeichen weg -- der Kurzname bleibt lesbar; das Kranzeichen bleibt immer */
+@container (max-width:92px){.a-einsatz .geraetzeichen{display:none}}
 .chip .warnzeichen{color:var(--ds-fehler-text)}
 .chip.warn{border:1.5px solid var(--ds-fehler)}
 .ze-gruppe{margin:12px 0 4px;font:600 11px var(--ds-schrift-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ds-text-2)}
@@ -395,7 +398,10 @@ function goToday(){periodStart=monday(berlinTodayDate());loadBoard()}
 const ZEITRAUM_SCHLUESSEL='plantafel_zeitraum',ZEITRAUM_VORGABE={auftraege:7},ZEITRAEUME=[7,14,21,28];
 function zeitraumGemerkt(v){let w=null;try{w=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}')[v]}catch(e){}return ZEITRAEUME.includes(w)?w:(ZEITRAUM_VORGABE[v]||14)}
 function zeitraumMerken(v,tage){try{const m=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}');m[v]=tage;localStorage.setItem(ZEITRAUM_SCHLUESSEL,JSON.stringify(m))}catch(e){}}
-function setView(v){bandSchliessen();const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
+function setView(v){bandSchliessen();const vorher=tageAnzahl(),warAuftraege=view==='auftraege';view=v;
+  // seit 1.9.283 (Punkt 1): in „Aufträge“ startet „Zum Einplanen“ immer offen; zurück in den übrigen Ansichten gilt wieder der gemerkte Zustand (unter 1440 px zu)
+  if(v==='auftraege'&&!warAuftraege)rueckstandZeigen(true,false,false);else if(v!=='auftraege'&&warAuftraege)rueckstandZeigen(!rueckstandStartZu(window.innerWidth),false,false);
+  document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
 const LABEL_W=168,WE_W=22,MIN_TAG=44,SPUR_H=30,SPUR_OBEN=8;
@@ -520,7 +526,7 @@ function renderBacklog(){const auftr=view==='auftraege';document.getElementById(
    jemanden „niemand“. Ein Chip trägt ⚠ bzw. den Punkt nur bei der betroffenen Person oder dem Gerät an diesem Tag. Ab 2 Wochen werden die Chips schmaler (der
    Name steht im title). Links „Zum Einplanen“: Kolonnen, Personen und Geräte, je mit einer Wochenleiste (eingeplant, frei, beantragt, abwesend, doppelt). */
 let auftragsliste=null;
-const GERAETZEICHEN='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V8h11v8M14 11h4l3 3v2h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>';
+const GERAETZEICHEN='<svg class="geraetzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V8h11v8M14 11h4l3 3v2h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>';
 const KRANZEICHEN='<svg class="kranzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h2l12 4H7"/><path d="M17 8v5"/><path d="M15.5 13h3v3h-3z"/><path d="M3 21h7"/></svg>';
 function geraetInfo(id){return board.resources.find(r=>r.id===id)||{}}
 function geraetName(id,fallback){const g=geraetInfo(id);return g.kurzname||g.name||fallback||''}
@@ -547,13 +553,16 @@ function auftraegeHtml(){const dates=datumsliste(),liste=auftragsliste?auftragsl
   const mitWarnung=z=>board.slots.some(s=>s.order_id===z.order_id&&(s.conflicts||[]).length);
   const zeilen=liste.filter(z=>!filterAn||mitWarnung(z)),oben=zeilen.filter(z=>z.eingeplant),unten=zeilen.filter(z=>!z.eingeplant);
   const arbeit=dates.filter(d=>!istWochenende(d)).length,we=dates.length-arbeit,eng=tageAnzahl()>7;
-  const cols=`<colgroup><col class="a-name-spalte">${dates.map(d=>`<col${istWochenende(d)?' class="we"':''}>`).join('')}</colgroup>`;
+  // seit 1.9.283 (Punkt 1): unter 1400 px Fensterbreite die Namensspalte 200 statt 230 px, die Tage mindestens 84 statt 110 px (1 Woche) -- bei 1280 px mit
+  // offener Liste rollt nichts seitlich (bis 1.9.282 mindestens 832 px bei 721 px Platz, der Freitag war abgeschnitten)
+  const nameW=window.innerWidth<1400?200:230;
+  const cols=`<colgroup><col class="a-name-spalte" style="width:${nameW}px">${dates.map(d=>`<col${istWochenende(d)?' class="we"':''}>`).join('')}</colgroup>`;
   const kopf=`<thead><tr><th class="a-name" scope="col">Auftrag</th>${dates.map(d=>{const f=feiertagAm(d),w=istWochenende(d);return `<th scope="col" class="${w?'we':f?'ft':''}${d===heute?' heute':''}" title="${esc([fmtJahr(d),f?f.name:''].filter(Boolean).join(' · '))}">${w?esc(wochentag(d).slice(0,1)):`<b>${esc(wochentag(d))}</b>${esc(fmt(d))}`}</th>`}).join('')}</tr></thead>`;
   const abschnitt=txt=>`<tr class="a-abschnitt"><td colspan="${dates.length+1}">${esc(txt)}</td></tr>`;
   const woche=tageAnzahl()===7?'dieser Woche':'diesem Zeitraum';
   const body=(oben.length?abschnitt('Eingeplant in '+woche)+oben.map(z=>auftragZeileHtml(z,dates)).join(''):'')+(unten.length?abschnitt('Offen, ohne Einsatz in '+woche)+unten.map(z=>auftragZeileHtml(z,dates)).join(''):'');
   const leer=auftragsliste?(filterAn?'Kein Auftrag mit Warnung oder Hinweis.':'Keine offenen Aufträge.'):'Aufträge werden geladen …';
-  return `<table class="auftraege" style="min-width:${230+arbeit*(eng?56:110)+we*26}px">${cols}${kopf}<tbody>${body||`<tr><td colspan="${dates.length+1}" class="leer">${esc(leer)}</td></tr>`}</tbody></table>`}
+  return `<table class="auftraege" style="min-width:${nameW+arbeit*(eng?56:84)+we*26}px">${cols}${kopf}<tbody>${body||`<tr><td colspan="${dates.length+1}" class="leer">${esc(leer)}</td></tr>`}</tbody></table>`}
 // Wochenleiste: je Arbeitstag des Zeitraums, was die Person bzw. das Gerät dort tut (abwesend ohne Art, Antwort 13)
 function personZustand(id,d){const ab=(board.abwesenheiten||[]).filter(a=>a.employee_id===id&&a.von<=d&&a.bis>=d);const n=board.slots.filter(s=>!aufGeschlossen(s)&&personTageIn(s,id).includes(d)).length;
   if(ab.some(a=>a.stand!=='beantragt'))return ['abwesend','abwesend'+(n?', eingeplant':'')];if(n>1)return ['doppelt','doppelt eingeplant'];if(ab.length)return ['beantragt','Abwesenheit beantragt'+(n?', eingeplant':'')];return n?['eingeplant','eingeplant']:['frei','frei']}
@@ -683,7 +692,7 @@ function personName(id){return (board.employees.find(e=>e.id===id)||{}).name||''
 // merken=false (seit 1.9.257): nur zeigen, nichts im Browser merken -- der Start unter 1440 px
 // seit 1.9.281: der Knopf heißt wie die Liste -- in „Aufträge“ „Zum Einplanen aufklappen“
 function rkKnopfBeschriften(){const k=document.getElementById('rkKnopf');k.setAttribute('aria-label',(view==='auftraege'?'Zum Einplanen':'Nicht eingeplant')+(k.getAttribute('aria-expanded')==='true'?' einklappen':' aufklappen'))}
-function rueckstandZeigen(offen,merken=true){document.getElementById('tafelLayout').classList.toggle('rk-zu',!offen);const k=document.getElementById('rkKnopf');k.setAttribute('aria-expanded',String(offen));rkKnopfBeschriften();k.querySelector('path').setAttribute('d',offen?'M15 6l-6 6 6 6':'M9 6l6 6-6 6');if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}if(board)renderBoard()}
+function rueckstandZeigen(offen,merken=true,zeichnen=true){document.getElementById('tafelLayout').classList.toggle('rk-zu',!offen);const k=document.getElementById('rkKnopf');k.setAttribute('aria-expanded',String(offen));rkKnopfBeschriften();k.querySelector('path').setAttribute('d',offen?'M15 6l-6 6 6 6':'M9 6l6 6-6 6');if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}if(board&&zeichnen)renderBoard()}
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Plantafel zeichnet nie über eine neuere.
 async function loadBoard(){const d=datumsliste(),start=d[0],end=d[d.length-1];document.getElementById('zeitraum').textContent=zeitraumText();document.getElementById('status').textContent='Lädt …';try{await lesen('tafel',()=>api(`/api/planning?start=${start}&end=${end}`),b=>{board=b;renderBoard();document.getElementById('status').textContent=''});if(view==='auftraege')await ladeAuftragsliste()}catch(e){document.getElementById('planner').innerHTML=`<div class="leer">Fehler: ${esc(e.message)}</div>`;document.getElementById('status').textContent='Fehler'}}
 
@@ -899,7 +908,8 @@ document.getElementById('heute').addEventListener('click',()=>goToday());
 document.getElementById('rangeDays').addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()});
 document.querySelectorAll('.viewtabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.getElementById('filterKnopf').addEventListener('click',()=>{filterAn=!filterAn;renderBoard()});
-document.getElementById('rkKnopf').addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu')));
+// seit 1.9.283: in „Aufträge“ merkt Auf- und Zuklappen nichts (dort startet die Liste immer offen)
+document.getElementById('rkKnopf').addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu'),view!=='auftraege'));
 document.getElementById('neuerEinsatz').addEventListener('click',()=>openCreate());
 document.getElementById('menueAbwesenheit').addEventListener('click',()=>openAbsences());
 document.getElementById('menueKran').addEventListener('click',()=>openCreate(null,null,null,{art:'kranvermietung'}));
