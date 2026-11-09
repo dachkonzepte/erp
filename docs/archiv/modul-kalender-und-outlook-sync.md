@@ -2210,3 +2210,49 @@ Finger (Tag setzen, Umsetzen, Herausnehmen, Anzeige vor dem Loslassen, Rückfrag
 
 Neu: `tests/test_v676_kalendertage_kein_arbeitstag.py` (Verlängern 21.–31.12. ohne 24. und 31.12., Gerät ebenso, Tag setzen am 28.12. verlängert den Einsatz bis
 23.12., abgeschaltet wieder Arbeitstag). Gegenproben: Archiv `gegenproben-stufe6-r5c.md`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.277 (Punkt 0b): Verschieben in Arbeitstagen
+
+Antwort 4 zur Nachrunde R5b: „Verschieben zählt Arbeitstage -- Mo–Fr einen Tag weiter wird Di–Fr und der nächste Mo; gilt für Umsetzen und für das Ziehen des
+ganzen Einsatzes in „Kolonnen“. Freie Tage nur ausdrücklich.“
+
+- `app/tag_aktionen.py::verschiebung(von, auf, arbeitstag)`: die Abbildung der Tage, wenn `von` auf `auf` gezogen wird -- `von` landet auf `auf` (dort losgelassen,
+  auch ein freier Tag), jeder spätere Tag behält seinen Abstand in Arbeitstagen zu `von` (Zahl der Arbeitstage nach `von` bis zu ihm) und landet auf dem
+  entsprechenden Arbeitstag nach `auf`. Ein freier Tag, an dem jemand stand, hat denselben Abstand wie der Arbeitstag davor und geht in dessen Abbild auf. Ohne
+  Verschiebung (`auf == von`) bleibt alles, auch ein freier Tag. Arbeitstag = `_arbeitstag()` (Planungsgrundlagen, Feiertage, betriebsfreie Tage, seit 1.9.276
+  der Arbeitszeitkalender); `_arbeitstag_fuer()` holt die Feiertage weit genug nach beiden Enden.
+- Umsetzen (`umsetzen()`): die Zieltage sind die Abbilder (bis 1.9.276 gleich viele Kalendertage weiter) -- in „Personen“ und „Geräte“ beim Ziehen, aus einer Zelle
+  der Ansicht „Aufträge“ (Punkt 3).
+- Den ganzen Einsatz ziehen (`verschieben()`, `POST /api/planning/slots/{id}/verschieben` mit `auf` und `team_id` nur, wenn gesendet; die Tafel ruft es aus
+  `verschieben()` in „Kolonnen“, bis 1.9.276 PUT mit Beginn und Ende): `_update_slot(…, tage_abbild=abbild)` setzt Beginn `auf` und Ende = Abbild des letzten Tags
+  und gibt jeder Zeile die Abbilder ihrer bisherigen Tage (`_tage_abbilden()`; wer neu dazukommt, weil die Kolonne wechselt, die Abbilder aller Tage) -- in der
+  Normalform: „alle Tage“ nur, wenn sie danach an allen Tagen des Einsatzes stehen; sonst einzelne Tage, ein Wochenende dazwischen bleibt frei („niemand“, in
+  „Kolonnen“ eine Lücke). Es fragt wie bisher bei jeder Warnung des Einsatzes (`_warnungen_pruefen()`; die Tag-Aktionen fragen nur bei neuen, 1.9.267 Nr. 10,
+  bestätigt mit der Unterscheidung in Frage 1 zu R5b). Rückgängig: Schritt „zurueck“ mit dem Stand danach (`einsatz_stand()`) und Zeitraum, Kolonne, Personen und
+  Geräten mit Tagen von vorher (`_zuruecksetzen()`, ohne Prüfung der Personen) -- nur solange der Einsatz unverändert ist, sonst 409.
+- Unverändert: Beginn und Ende im Dialog (PUT) in Kalendertagen (`_tage_mitnehmen()`), Tag setzen (ein Tag, ausdrücklich), Verlängern (1.9.272).
+
+#### Festlegungen 1.9.277 (Bitte bestätigen)
+
+1. Verschieben zählt Arbeitstage: der erste Tag landet auf dem Tag, auf dem losgelassen wird, jeder weitere behält seinen Abstand in Arbeitstagen (Mo–Fr einen Tag
+   weiter: Di–Fr und der nächste Mo) -- für Umsetzen und das Ziehen des ganzen Einsatzes.
+2. Freie Tage nur ausdrücklich: der Tag, auf dem losgelassen wird, darf frei sein; ein freier Tag, an dem jemand stand, geht im Arbeitstag davor auf.
+3. Ganzer Einsatz: jede Person und jedes Gerät bekommt die Abbilder ihrer Tage; „alle Tage“ nur, wenn sie danach an allen Tagen stehen, sonst einzelne Tage; eine
+   andere Kolonne bringt ihre Mitglieder an die Abbilder aller Tage.
+4. Das Ziehen des ganzen Einsatzes geht über `POST …/verschieben`, fragt wie bisher bei jeder Warnung des Einsatzes, Prüfen schreibt nichts; Rückgängig stellt
+   Zeitraum, Kolonne, Personen und Geräte wieder her, nur solange der Einsatz unverändert ist (409).
+5. Beginn und Ende im Dialog bleiben Kalendertage.
+
+#### Tests und Prüfung 1.9.277
+
+Neu: `tests/test_v677_verschieben_in_arbeitstagen.py` (die Abbildung vor und zurück, freier Zieltag, freier Tag geht auf; Umsetzen von Person und Gerät; ganzer
+Einsatz Mo–Fr, einzelne Tage, Wochenende im Einsatz, freier Zieltag, andere Kolonne, fragt bei jeder Warnung und Prüfen, Rückgängig und 409, Dialog in
+Kalendertagen; API mit Prüfen, 404, Kran mit Kolonne 422, Monteurin 403, def und Sitzung). Gegenproben: Archiv `gegenproben-stufe6-r5c.md`.
+**Angepasste Erwartungen** (Regel 28):
+- `tests/test_v668_umsetzen_herausnehmen.py::test_umsetzen_mehrerer_tage_ueberlappend_mit_der_falle`: alt Do–Fr einen Tag weiter = Fr, Sa (Einsatz bis Sa), neu Fr
+  und der nächste Mo (Einsatz bis Mo).
+- `tests/test_v670_ziehen_einzeln.py::test_geraet_auf_geraet`: ebenso, alt Fr, Sa, neu Fr, Mo.
+- `tests/test_v649_plantafel_bedienen.py::test_ziehen_je_zielzeile`: alt je Zug PUT `/api/planning/slots/{id}` mit Beginn und Ende, neu POST `…/verschieben` mit dem
+  neuen ersten Tag (`auf`) und der Kolonne wie bisher.
+- `tests/test_v399_teil_updates_rest.py::test_plantafel_verschieben_schickt_nur_team_und_zeitraum`: alt PUT mit Kolonne, Beginn, Ende und danach 14.–18.10., neu
+  POST `…/verschieben` mit Kolonne und `auf` und danach 14.–20.10. (Mo–Fr auf Mi: Mi–Fr, Mo, Di); Status, Notiz, Stunden bleiben wie bisher.

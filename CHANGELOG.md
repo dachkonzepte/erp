@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.277 – Plantafel: Verschieben zählt Arbeitstage
+
+Wer auf der Plantafel einen Einsatz oder eine Person verschiebt, verschiebt jetzt in Arbeitstagen (Antwort 4 zur Nachrunde R5b): der erste Tag landet auf dem Tag, auf dem losgelassen wird, jeder weitere behält seinen Abstand in Arbeitstagen -- Montag bis Freitag einen Tag weiter wird Dienstag bis Freitag und der nächste Montag (bis 1.9.276 Dienstag bis Samstag). Auf einen freien Tag (Wochenende, Feiertag, betriebsfrei, Heiligabend, Silvester) kommt nur, wer ausdrücklich dort losgelassen wird. Das gilt für das Umsetzen einer Person oder eines Geräts in „Personen“ und „Geräte“ und für das Ziehen des ganzen Einsatzes in „Kolonnen“; Beginn und Ende im Dialog bleiben Kalendertage.
+
+Das Ziehen des ganzen Einsatzes hat dafür einen eigenen Weg (`POST /api/planning/slots/{id}/verschieben`, bis 1.9.276 PUT mit Beginn und Ende): er fragt wie bisher bei jeder Warnung des Einsatzes und gibt ein Rückgängig zurück, das Zeitraum, Kolonne, Personen und Geräte wiederherstellt, solange niemand den Einsatz geändert hat.
+
+Neu `tests/test_v677_verschieben_in_arbeitstagen.py`; angepasst: v649, v399, v668, v670 (Abschnitt „Tests“ im Archiv). Keine Migration.
+
 ## 1.9.276 – Plantafel: Heiligabend und Silvester sind keine Arbeitstage
 
 Ein aktiver Tag des Arbeitszeitkalenders -- vorbelegt Heiligabend und Silvester -- zählt auf der Plantafel jetzt wie ein betriebsfreier Tag nicht als Arbeitstag, für alle Personen und Geräte (Antwort 1 zur Nachrunde R5b; bis 1.9.275 zählten sie, 1.9.272 Nr. 2). Verlängern lässt sie aus, und „direkt anschließend“ beim Tag setzen springt über sie hinweg: ein Einsatz bis Mittwoch, 23.12., wird mit Montag, 28.12., verlängert. Ein abgeschalteter Kalendertag ist wieder ein Arbeitstag.

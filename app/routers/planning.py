@@ -25,8 +25,8 @@ from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, _load_slot, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, Rueckgaengig, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern
-from ..tag_aktionen import RueckgaengigNichtMoeglich, herausnehmen, rueckgaengig, tag_setzen, umsetzen, verlaengern
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, Rueckgaengig, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern, EinsatzVerschieben
+from ..tag_aktionen import RueckgaengigNichtMoeglich, herausnehmen, rueckgaengig, tag_setzen, umsetzen, verlaengern, verschieben
 
 router = APIRouter()
 
@@ -416,6 +416,13 @@ def post_herausnehmen(slot_id: int, payload: TagHerausnehmen, db: Session = Depe
 def post_verlaengern(slot_id: int, payload: TagVerlaengern, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes -- prüft wie Planen."""
     return _tag_aktion(db, _role, lambda: verlaengern(db, slot_id=slot_id, **payload.model_dump()))
+
+
+@router.post("/api/planning/slots/{slot_id}/verschieben")
+def post_verschieben(slot_id: int, payload: EinsatzVerschieben, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): den ganzen Einsatz ziehen (in „Kolonnen“) -- in Arbeitstagen, fragt bei jeder Warnung des Einsatzes,
+    mit Rückgängig. team_id nur, wenn gesendet (Regel 22)."""
+    return _tag_aktion(db, _role, lambda: verschieben(db, slot_id=slot_id, **payload.model_dump(exclude_unset=True)))
 
 
 @router.post("/api/planning/rueckgaengig")

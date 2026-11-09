@@ -18,7 +18,8 @@ Tag setzen (Punkt 1)
 Alles in einer Transaktion unter der Sperre der Arbeitsvorbereitung des Auftrags.
 
 Umsetzen, Herausnehmen, Verlängern (Punkt 2, seit 1.9.268) -- für eine Person oder ein Gerät, keine Kolonne
-    Umsetzen       aus einer Zelle auf einen anderen Auftrag oder Tag: erst setzen (Regeln wie oben, die Tage um gleich viele Kalendertage), dann am alten Platz
+    Umsetzen       aus einer Zelle auf einen anderen Auftrag oder Tag: erst setzen (Regeln wie oben; die Tage wandern seit 1.9.277 in Arbeitstagen, bis
+                   1.9.276 um gleich viele Kalendertage -- verschiebung()), dann am alten Platz
                    herausnehmen -- im selben Einsatz nur die Tage, die sie nicht behält; beide Arbeitsvorbereitungen aufsteigend gesperrt; der alte Platz fragt
                    nicht (er ist danach frei), eine neue Warnung am Ziel schon
     Herausnehmen   für Tage oder alle; am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; wird er ganz leer, die Rückfrage „Der Einsatz hat dann niemanden
@@ -40,9 +41,9 @@ from sqlalchemy.orm import Session
 from . import kran_kalender
 from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt
 from .models import Order, PlanningSlot, WorkPreparation
-from .planning import (BesetzungUngueltig, PlanungsWarnung, _besetzte_tage, _combined_holiday_map, _create_slot, _einsatz_abfrage, _is_workday,
-                       _kolonne_schlaegt_geraete_vor, _kolonne_schlaegt_vor, _load_slot, _load_team, _tage_der_zeile, _update_slot, einsatz_konflikte,
-                       load_planning_settings)
+from .planning import (BesetzungUngueltig, PlanungsWarnung, _besetzte_tage, _besetzung_setzen, _combined_holiday_map, _create_slot, _einsatz_abfrage,
+                       _geraete_setzen, _is_workday, _kolonne_schlaegt_geraete_vor, _kolonne_schlaegt_vor, _load_slot, _load_team, _tage_der_zeile,
+                       _tage_lesen, _update_slot, _warnungen_pruefen, einsatz_konflikte, ensure_team_assignment, load_planning_settings)
 from .zugehoerigkeit import IdNichtGefunden
 
 KRAN_KOLONNE = "Eine Kranvermietung hat keine Kolonne – bitte einzelne Bediener ziehen."
@@ -80,6 +81,41 @@ def _arbeitstag(db: Session, von: date, bis: date):
     feiertage = set(_combined_holiday_map(db, von - timedelta(days=MAX_LUECKE + 1), bis + timedelta(days=MAX_LUECKE + 1))[0])
     kalender = aktive(db)
     return lambda t: _is_workday(t, settings, feiertage) and not im_kalender(kalender, t)
+
+
+def verschiebung(von: date, auf: date, arbeitstag):
+    """Seit 1.9.277 (Stufe 6, R5c, Punkt 0b; Antwort 4 der Nachrunde R5b): wie Tage wandern, wenn der Tag `von` auf `auf` gezogen wird -- in
+    Arbeitstagen. `von` landet auf `auf` (dort losgelassen, auch ein freier Tag: ausdrücklich); jeder spätere Tag behält seinen Abstand in Arbeitstagen zu
+    `von` (die Arbeitstage nach `von` bis zu ihm) und landet auf dem entsprechenden Arbeitstag nach `auf`. Ein freier Tag, an dem jemand stand, geht im
+    Arbeitstag davor auf -- auf einen freien Tag kommt nur, wer ausdrücklich dorthin gezogen wird. Mo–Fr einen Tag weiter: Di–Fr und der nächste Mo.
+    Gibt die Abbildung zurück (Tag -> Tag); Tage vor `von` gibt es nicht (der erste Tag ist `von`)."""
+    if auf == von:
+        return lambda t: t
+    ziele: dict[int, date] = {0: auf}
+
+    def nter(k: int) -> date:
+        if k not in ziele:
+            d, n = auf, 0
+            while n < k:
+                d += timedelta(days=1)
+                n += 1 if arbeitstag(d) else 0
+            ziele[k] = d
+        return ziele[k]
+
+    def abbild(tag: date) -> date:
+        if tag < von:
+            raise ValueError("Der Tag liegt vor dem ersten verschobenen Tag.")
+        n, d = 0, von
+        while d < tag:
+            d += timedelta(days=1)
+            n += 1 if arbeitstag(d) else 0
+        return nter(n)
+    return abbild
+
+
+def _arbeitstag_fuer(db: Session, von: date, bis: date, auf: date):
+    """Die Arbeitstage für eine Verschiebung von [von, bis] auf `auf` -- mit Feiertagen weit genug nach beiden Enden (Dauer und Abstand)."""
+    return _arbeitstag(db, min(von, auf), max(bis, auf) + (bis - von) + timedelta(days=14))
 
 
 def anschliessend(vorher: date, nachher: date, arbeitstag) -> bool:
@@ -366,7 +402,8 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
              ziel_order_id: int | None = None, ziel_slot_id: int | None = None, trotzdem_planen: bool = False, wenn_leer: str | None = None,
              pruefen: bool = False, genau: bool = False, auf_employee_id: int | None = None, auf_resource_id: int | None = None) -> dict:
     """Aus einer Zelle (Punkt 2): eine Person oder ein Gerät für diese Tage auf einen anderen Auftrag oder Tag -- setzen und herausnehmen in einer
-    Transaktion. Die Tage wandern um gleich viele Kalendertage (der erste auf ziel_tag); das Ziel nach den Regeln von Tag setzen (Karte = ziel_slot_id,
+    Transaktion. Die Tage wandern in Arbeitstagen (seit 1.9.277, verschiebung(); der erste auf ziel_tag, bis 1.9.276 um gleich viele Kalendertage); das
+    Ziel nach den Regeln von Tag setzen (Karte = ziel_slot_id,
     Antwort 6). Beide Arbeitsvorbereitungen werden aufsteigend gesperrt. Wird der Einsatz, aus dem sie kommt, leer: Rückfrage (Antwort 3), wenn_leer.
     Seit 1.9.270 (Punkt 4, Antwort 12): genau -- genau der Einsatz ziel_slot_id, auch an Tagen außerhalb (verlängert); auf_employee_id/auf_resource_id --
     eine andere Person bzw. ein anderes Gerät übernimmt die Tage (in „Personen“ bzw. „Geräte“ in eine andere Zeile gezogen)."""
@@ -379,7 +416,8 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
         tage = sorted(set(tage))
         if not tage:
             raise BesetzungUngueltig("Bitte mindestens einen Tag nennen.")
-        ziel_tage = [t + (ziel_tag - tage[0]) for t in tage]
+        abbild = verschiebung(tage[0], ziel_tag, _arbeitstag_fuer(db, tage[0], tage[-1], ziel_tag))  # seit 1.9.277 in Arbeitstagen
+        ziel_tage = sorted({abbild(t) for t in tage})
         ziel_order = _auftrag(db, ziel_order_id if ziel_order_id is not None else quelle.preparation.order_id)
         q_prep, z_prep = quelle.preparation_id, _prep_id(db, ziel_order.id)
         _sperren(db, [q_prep, z_prep])
@@ -487,9 +525,76 @@ def verlaengern(db: Session, *, slot_id: int, ab_tag: date, employee_id: int | N
         raise
 
 
+# --- seit 1.9.277 (Stufe 6, R5c, Punkt 0b): den ganzen Einsatz verschieben, in Arbeitstagen -----------------------------------------------------
+
+def _stand_zum_zuruecksetzen(slot: PlanningSlot) -> dict:
+    """Was „zurueck“ braucht, um den Einsatz genau so wiederherzustellen: Zeitraum, Kolonne, Personen und Geräte mit ihren Tagen (None = alle Tage)."""
+    tage = lambda row: [d.isoformat() for d in _tage_lesen(row)] if row.tage else None  # noqa: E731
+    return {"start_date": slot.start_date.isoformat(), "end_date": slot.end_date.isoformat(), "team_id": _team(slot),
+            "besetzung": [{"employee_id": x.employee_id, "tage": tage(x)} for x in slot.besetzung],
+            "geraete": [{"resource_id": x.resource_id, "tage": tage(x)} for x in slot.geraete]}
+
+
+def verschieben(db: Session, *, slot_id: int, auf: date, trotzdem_planen: bool = False, pruefen: bool = False, **kolonne) -> dict:
+    """Seit 1.9.277 (Punkt 0b): den ganzen Einsatz ziehen (in „Kolonnen“) -- der erste Tag auf `auf`, alles andere in Arbeitstagen (verschiebung(); bis
+    1.9.276 über PUT um gleich viele Kalendertage). Jede Person und jedes Gerät bekommt die Abbilder ihrer Tage; der Einsatz endet am Abbild seines letzten
+    Tags. kolonne: team_id (eine Kolonne oder None = ohne), nur wenn gesendet -- eine andere Kolonne bringt ihre Mitglieder an die Abbilder aller Tage.
+    Fragt wie bisher bei jeder Warnung des Einsatzes (nicht nur bei neuen: 1.9.267 Nr. 10 gilt für die Tag-Aktionen). Rückgängig: „zurueck“ mit dem Stand."""
+    try:
+        if set(kolonne) - {"team_id"}:
+            raise TypeError("Unbekannte Felder: " + ", ".join(sorted(set(kolonne) - {"team_id"})))
+        slot = _einsatz(db, slot_id)
+        _sperren(db, [slot.preparation_id])
+        slot = _load_slot(db, slot_id, frisch=True)
+        if slot.art == "kranvermietung" and kolonne.get("team_id") is not None:
+            raise BesetzungUngueltig(KRAN_KOLONNE)
+        if "team_id" in kolonne and kolonne["team_id"] == _team(slot):
+            kolonne = {}
+        if auf == slot.start_date and not kolonne:
+            return {"aktion": "unveraendert", "slot_id": slot.id, "start_date": slot.start_date.isoformat(), "end_date": slot.end_date.isoformat(),
+                    "umkehrung": None}
+        vorher = _stand_zum_zuruecksetzen(slot)
+        abbild = verschiebung(slot.start_date, auf, _arbeitstag_fuer(db, slot.start_date, slot.end_date, auf))
+        danach = _update_slot(db, slot.id, start_date=auf, end_date=abbild(slot.end_date), tage_abbild=abbild, trotzdem_planen=True, _offen=True, **kolonne)
+        ergebnis = {"aktion": "verschoben", "slot_id": danach.id, "start_date": danach.start_date.isoformat(), "end_date": danach.end_date.isoformat()}
+        if pruefen:
+            konflikte = einsatz_konflikte(db, danach)
+            ergebnis.update(warnungen=konflikte["warnungen"], hinweise=konflikte["hinweise"], fragt=bool(konflikte["warnungen"]))
+            db.rollback()
+            return ergebnis
+        if not trotzdem_planen:
+            _warnungen_pruefen(db, danach.id)  # jede Warnung des Einsatzes fragt (PlanungsWarnung, alles zurück)
+        stand = einsatz_stand(danach)
+        abschliessen(db, [danach], {}, trotzdem_planen=True)
+        ergebnis["umkehrung"] = umkehrung([{"art": "zurueck", "slot_id": slot_id, "stand": stand, **vorher}])
+        return ergebnis
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _zuruecksetzen(db: Session, slot: PlanningSlot, s: dict) -> None:
+    """Rückgängig nach dem Verschieben (seit 1.9.277): Zeitraum, Kolonne, Personen und Geräte genau wie vorher -- ohne Prüfung der Personen (auch wer
+    inzwischen inaktiv ist, kehrt zurück; er stand ja schon dort)."""
+    datum = lambda x: x if isinstance(x, date) else date.fromisoformat(str(x))  # noqa: E731
+    tage = lambda z: None if z.get("tage") is None else [datum(d) for d in z["tage"]]  # noqa: E731
+    team = s.get("team_id")
+    if team != _team(slot):
+        if team is None:
+            slot.team_assignment_id, slot.team_assignment = None, None
+        else:
+            assignment = ensure_team_assignment(db, slot.preparation, int(team))
+            slot.team_assignment_id, slot.team_assignment = assignment.id, assignment
+    slot.start_date, slot.end_date = datum(s["start_date"]), datum(s["end_date"])
+    _besetzung_setzen(db, slot, [{"employee_id": int(z["employee_id"]), "tage": tage(z)} for z in s.get("besetzung") or []])
+    _geraete_setzen(slot, [{"resource_id": int(z["resource_id"]), "tage": tage(z)} for z in s.get("geraete") or []])
+    db.flush()
+
+
 # --- seit 1.9.269 (Punkt 3): Rückgängig ----------------------------------------------------------------------------------------------------------
 
 RUECKGAENGIG_GEAENDERT = "Der Einsatz wurde seitdem geändert – Rückgängig geht nicht mehr, bitte im Dialog löschen."
+RUECKGAENGIG_GEAENDERT_VERSCHOBEN = "Der Einsatz wurde seitdem geändert – Rückgängig geht nicht mehr, bitte im Dialog ändern."  # seit 1.9.277
 RUECKGAENGIG_PFAD = "/api/planning/rueckgaengig"
 
 
@@ -538,7 +643,8 @@ def umkehrung(schritte: list[dict]) -> dict | None:
 def rueckgaengig(db: Session, *, schritte: list[dict]) -> dict:
     """Die Umkehrung einer Tag-Aktion, in einer Transaktion unter den Sperren aller berührten Arbeitsvorbereitungen (aufsteigend). Schritte: „weg“ (Tage
     einer Person bzw. eines Geräts heraus, ein dabei leerer Einsatz bleibt „niemand“), „dazu“ (Tage zurück, genau dieser Einsatz, verlängert mit der
-    Falle), „loeschen“ (ein eben angelegter Einsatz -- nur mit dem Stand von damals, sonst 409, Antwort 5). Fragt nie (es stellt einen früheren Stand her)."""
+    Falle), „loeschen“ (ein eben angelegter Einsatz -- nur mit dem Stand von damals, sonst 409, Antwort 5), seit 1.9.277 „zurueck“ (nach dem Verschieben:
+    Zeitraum, Kolonne, Personen und Geräte wie vorher -- nur mit dem Stand danach, sonst 409). Fragt nie (es stellt einen früheren Stand her)."""
     try:
         if not schritte:
             raise BesetzungUngueltig("Nichts rückgängig zu machen.")
@@ -550,6 +656,11 @@ def rueckgaengig(db: Session, *, schritte: list[dict]) -> dict:
             slot = _load_slot(db, sid, frisch=True)
             if slot is None:
                 raise IdNichtGefunden("Einsatz wurde nicht gefunden.")
+            if s["art"] == "zurueck":  # seit 1.9.277: nach dem Verschieben -- nur, solange der Einsatz unverändert ist
+                if einsatz_stand(slot) != s.get("stand"):
+                    raise RueckgaengigNichtMoeglich(RUECKGAENGIG_GEAENDERT_VERSCHOBEN)
+                _zuruecksetzen(db, slot, s)
+                continue
             if s["art"] == "loeschen":
                 if einsatz_stand(slot) != s.get("stand"):
                     raise RueckgaengigNichtMoeglich(RUECKGAENGIG_GEAENDERT)

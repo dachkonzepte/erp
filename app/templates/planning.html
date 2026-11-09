@@ -558,12 +558,14 @@ function terminUebernehmen(){const t=terminOffen;if(!t||!t.uebernehmbar)return;t
    In „Kolonnen“ (auch in ihren Gerätezeilen) weiter der ganze Einsatz (verschieben()). */
 let zug=null,nachZiehen=false;
 function tagAnX(x){const s=geo.spalten;for(let i=s.length-1;i>=0;i--)if(x>=s[i].x)return i;return 0}
-// verschiebt den Einsatz: Beginn = der Tag startIdx des Bilds (auch davor oder danach), Dauer bleibt; ziel = die Zeile (data-zeile, data-id) oder null
-async function verschieben(id,ziel,startIdx){const s=findSlot(id);if(!s)return;const start=addDays(geo.spalten[0].d,startIdx),end=addDays(start,s.duration_days-1);
-  const body={start_date:start,end_date:end};if(ziel&&s.art!=='kranvermietung'){if(ziel.dataset.zeile==='kolonne')body.team_id=Number(ziel.dataset.id);else if(ziel.dataset.zeile==='ohne')body.team_id=null}
-  if('team_id' in body&&body.team_id===s.team_id)delete body.team_id;if(start===s.start_date&&!('team_id' in body))return;
-  /* seit 1.8.96 nur Kolonne, Beginn und Ende (Regel 22) */const senden=async(trotzdem,wahl)=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{}),...(wahl?{wenn_leer:wahl}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a);await loadBoard()};
-  try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück, seit 1.9.263 auch ein leerer Einsatz */if(!konfliktFrage(err,()=>senden(true))&&!leerFrage(err,wahl=>senden(false,wahl)))document.getElementById('status').textContent='Fehler: '+err.message}}
+// verschiebt den Einsatz: sein erster Tag auf den Tag startIdx des Bilds (auch davor oder danach); ziel = die Zeile (data-zeile, data-id) oder null.
+// Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): der Server verschiebt in Arbeitstagen (POST …/verschieben, Mo–Fr einen Tag weiter: Di–Fr und der nächste Mo) --
+// bis 1.9.276 PUT mit Beginn und Ende um gleich viele Kalendertage. Nur Kolonne (wenn sie wechselt) und der neue erste Tag (Regel 22).
+async function verschieben(id,ziel,startIdx){const s=findSlot(id);if(!s)return;const auf=addDays(geo.spalten[0].d,startIdx);
+  const body={auf};if(ziel&&s.art!=='kranvermietung'){if(ziel.dataset.zeile==='kolonne')body.team_id=Number(ziel.dataset.id);else if(ziel.dataset.zeile==='ohne')body.team_id=null}
+  if('team_id' in body&&body.team_id===s.team_id)delete body.team_id;if(auf===s.start_date&&!('team_id' in body))return;
+  const senden=async trotzdem=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}/verschieben`,{method:'POST',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a.einsatz);await loadBoard()};
+  try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück */if(!konfliktFrage(err,()=>senden(true)))document.getElementById('status').textContent='Fehler: '+err.message}}
 // seit 1.9.270: zieht der Balken nur diese Person bzw. dieses Gerät? In „Personen“ und „Geräte“ ja, in „Kolonnen“ nie (auch nicht in den Gerätezeilen)
 function nurDieseZeile(spur){return (view==='employees'&&spur.dataset.zeile==='person')||(view==='resources'&&spur.dataset.zeile==='geraet')}
 function geraetTageIn(s,rid){const r=s.resources.find(x=>x.id===rid);return !r?[]:r.tage?r.tage.slice():einsatzTage(s)}

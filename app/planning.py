@@ -592,6 +592,23 @@ def _tage_mitnehmen(slot: PlanningSlot, alt_start: date, alt_ende: date, attr: s
         setattr(slot, attr, bleiben)
 
 
+def _zeilen_der_tage(slot: PlanningSlot) -> dict[tuple[str, int], set[date]]:
+    """Je Person und Gerät des Einsatzes ihre Tage (Schlüssel: Feld und ID)."""
+    tage = {("employee_id", x.employee_id): _tage_der_zeile(slot, x) for x in slot.besetzung}
+    tage.update({("resource_id", x.resource_id): _tage_der_zeile(slot, x) for x in slot.geraete})
+    return tage
+
+
+def _tage_abbilden(slot: PlanningSlot, alt: dict[tuple[str, int], set[date]], alle_alt: set[date], abbild) -> None:
+    """Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): der Einsatz hat seinen neuen Zeitraum -- jede Zeile bekommt die Abbilder ihrer bisherigen Tage (wer neu
+    dazukam, die aller bisherigen Tage), in der Normalform (an allen Tagen heißt „alle Tage“)."""
+    alle_neu = set(_date_range(slot.start_date, slot.end_date))
+    for attr, feld in (("besetzung", "employee_id"), ("geraete", "resource_id")):
+        for row in getattr(slot, attr):
+            neu = {abbild(t) for t in alt.get((feld, getattr(row, feld)), alle_alt)} & alle_neu
+            row.tage = None if neu == alle_neu else _tage_schreiben(sorted(neu))
+
+
 def _tage_aendern(db: Session, slot: PlanningSlot, *, dazu: list[dict], weg: list[dict]) -> None:
     """Seit 1.9.267 (Stufe 6, R5b, Tag-Aktionen): einer Person ({employee_id, tage}) oder einem Gerät ({resource_id, tage}) Tage geben (dazu) oder nehmen
     (weg, tage None = alle). Ihre übrigen Tage bleiben, ebenso jede andere Zeile -- nur die genannte ändert sich. Wer keinen Tag mehr hat, fällt aus dem
@@ -900,7 +917,7 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, all
 
 
 def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, alle_tage_mitnehmen: bool = True, wenn_leer: str | None = None,
-                 _pruefen: dict | None = None, _offen: bool = False, **changes) -> PlanningSlot | dict | None:
+                 _pruefen: dict | None = None, _offen: bool = False, tage_abbild=None, **changes) -> PlanningSlot | dict | None:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
@@ -921,7 +938,10 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
     Seit 1.9.263 (Punkt 4, der leere Tag): am Rand fällt jeder Tag ohne Person und Gerät weg (_raender_kuerzen()); in der Mitte bleibt der Einsatz einer.
     Nähme die Änderung dem Einsatz den letzten Tag mit jemandem, fragt sie zurück (EinsatzWirdLeer, nichts gespeichert): wenn_leer="loeschen" löscht ihn
     (Rückgabe None), "behalten" lässt ihn mit dem zuletzt geleerten Tag stehen („niemand“) -- werden mehrere Tage zugleich leer (Dialog), mit dem ersten. Ohne Kolonne darf er danach leer sein; eine Kranvermietung
-    braucht ihr Gerät nur beim Anlegen (bis 1.9.262: ohne Kolonne immer eine Person, eine Kranvermietung immer ein Gerät -- je 422)."""
+    braucht ihr Gerät nur beim Anlegen (bis 1.9.262: ohne Kolonne immer eine Person, eine Kranvermietung immer ein Gerät -- je 422).
+    Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): tage_abbild (Tag -> Tag, app/tag_aktionen.py::verschiebung()) -- beim Verschieben in Arbeitstagen bekommt jede
+    Zeile die Abbilder ihrer bisherigen Tage statt _tage_mitnehmen() (Kalendertage); wer neu dazukommt (Kolonne gewechselt), die Abbilder aller bisherigen
+    Tage. Stehen sie danach an allen Tagen des Einsatzes, heißt das „alle Tage“, sonst einzelne Tage (ein Wochenende dazwischen bleibt frei)."""
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
@@ -940,6 +960,7 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
     vorher = (vorher_team, slot.start_date, slot.end_date, _besetzung_stand(slot), _geraete_stand(slot))
     alt_start, alt_ende = slot.start_date, slot.end_date
     besetzt_vorher = _besetzte_tage(slot)  # seit 1.9.263: wer stand vorher an welchem Tag (leer werden, zuerst geleerter Tag)
+    alt_zeilen = _zeilen_der_tage(slot) if tage_abbild is not None else None  # seit 1.9.277: Verschieben in Arbeitstagen
     start_date = changes.get("start_date", slot.start_date)
     end_date = changes.get("end_date", slot.end_date)
     if end_date < start_date:
@@ -973,14 +994,16 @@ def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, al
         _besetzung_setzen(db, slot, personen)
     slot.start_date = start_date
     slot.end_date = end_date
-    if personen is None and (start_date, end_date) != (alt_start, alt_ende):  # seit 1.9.260 auch die Tage der Personen
+    if personen is None and (start_date, end_date) != (alt_start, alt_ende) and tage_abbild is None:  # seit 1.9.260 auch die Tage der Personen
         _tage_mitnehmen(slot, alt_start, alt_ende, "besetzung")
     if changes.get("geraete") is not None:
         _geraete_setzen(slot, _geraete_pruefen(db, changes["geraete"], start_date, end_date))
     elif neues_team != vorher_team and neues_team is not None:
         _geraete_setzen(slot, _kolonne_schlaegt_geraete_vor(db, neues_team))
-    elif (start_date, end_date) != (alt_start, alt_ende):
+    elif (start_date, end_date) != (alt_start, alt_ende) and tage_abbild is None:
         _tage_mitnehmen(slot, alt_start, alt_ende)
+    if tage_abbild is not None:  # seit 1.9.277: jede Zeile die Abbilder ihrer Tage (in Arbeitstagen)
+        _tage_abbilden(slot, alt_zeilen, set(_date_range(alt_start, alt_ende)), tage_abbild)
     if changes.get("dazu") or changes.get("weg"):  # seit 1.9.267 (Stufe 6, R5b): Tag-Aktionen -- Tage einzelner Personen und Geräte
         _tage_aendern(db, slot, dazu=changes.get("dazu") or [], weg=changes.get("weg") or [])
     # seit 1.9.263 (Punkt 4): am Rand kein Tag ohne jemanden; wird der Einsatz leer, die Rückfrage (Antwort 3)

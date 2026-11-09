@@ -1282,7 +1282,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Geräts (`umsetzenZiehen()` -> Umsetzen mit `genau` im selben Einsatz, in eine andere Zeile mit `auf_employee_id`/`auf_resource_id`; `nurDieseZeile()`; Balken mit
   `data-von`/`data-bis`), in „Kolonnen“ weiter der ganze Einsatz (`tests/test_v670_ziehen_einzeln.py`, Klicktest `klicktest_plantafel_ziehen.py`). **Stufe 6, R5c (ab 1.9.276, Ansicht „Aufträge“):** vorweg ist ein aktiver Tag des
   Arbeitszeitkalenders (Heiligabend, Silvester) kein Arbeitstag der Planung -- wie ein betriebsfreier Tag, für alle (`tag_aktionen._arbeitstag()` über
-  `arbeitszeitkalender.im_kalender()`; Verlängern, „direkt anschließend“; `tests/test_v676_kalendertage_kein_arbeitstag.py`). Befund R5 und Herleitung:
+  `arbeitszeitkalender.im_kalender()`; Verlängern, „direkt anschließend“; `tests/test_v676_kalendertage_kein_arbeitstag.py`); seit 1.9.277 verschiebt die Tafel in
+  Arbeitstagen (`tag_aktionen.verschiebung()`: der erste Tag auf den Zieltag, jeder weitere behält seinen Abstand in Arbeitstagen, Mo–Fr +1 = Di–Fr + Mo; freie Tage nur
+  ausdrücklich) -- Umsetzen und das Ziehen des ganzen Einsatzes (`POST /api/planning/slots/{id}/verschieben`, `verschieben()`, `_update_slot(tage_abbild=…)`, fragt
+  bei jeder Warnung, Rückgängig „zurueck“); der Dialog bleibt in Kalendertagen (`tests/test_v677_verschieben_in_arbeitstagen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

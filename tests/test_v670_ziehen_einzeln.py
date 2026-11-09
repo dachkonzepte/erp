@@ -67,7 +67,8 @@ def test_geraet_auf_geraet(welt):
              auf_resource_id=welt["kran"])
     assert _geraete(db, slot.id) == [(welt["pritsche"], [_iso(0), _iso(1), _iso(2)]), (welt["kran"], [_iso(3), _iso(4)])]
     umsetzen(db, slot_id=slot.id, resource_id=welt["kran"], tage=[_tag(3), _tag(4)], ziel_tag=_tag(4), ziel_slot_id=slot.id, genau=True)  # eigene Zeile
-    assert _geraete(db, slot.id)[-1] == (welt["kran"], [_iso(4), _iso(5)]) and _zeitraum(db, slot.id) == (_tag(0), _tag(5))
+    # seit 1.9.277 in Arbeitstagen: Do, Fr einen Tag weiter -> Fr und der nächste Mo (bis 1.9.276: Fr, Sa)
+    assert _geraete(db, slot.id)[-1] == (welt["kran"], [_iso(4), _iso(7)]) and _zeitraum(db, slot.id) == (_tag(0), _tag(7))
 
 
 def test_regeln(welt):

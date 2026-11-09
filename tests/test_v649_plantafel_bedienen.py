@@ -35,12 +35,13 @@ def test_ziehen_je_zielzeile():
               f"await verschieben(1, null, 1);"                       # ohne Ziel, nichts geändert -> keine Anfrage
               f"await verschieben(2, {_ziel('kolonne', 9)}, 3);")     # Kranvermietung: nie eine Kolonne
     aufrufe = im_browser("planning.html", FUNKTIONEN, VORBEREITUNG, ablauf)
-    assert [(u, b) for _m, u, b in schreibende(aufrufe)] == [
-        ("/api/planning/slots/1", {"start_date": "2026-11-04", "end_date": "2026-11-06", "team_id": 9}),
-        ("/api/planning/slots/1", {"start_date": "2026-11-03", "end_date": "2026-11-05", "team_id": None}),
-        ("/api/planning/slots/1", {"start_date": "2026-11-05", "end_date": "2026-11-07"}),
-        ("/api/planning/slots/1", {"start_date": "2026-11-02", "end_date": "2026-11-04"}),
-        ("/api/planning/slots/2", {"start_date": "2026-11-05", "end_date": "2026-11-06"}),
+    # seit 1.9.277 POST …/verschieben mit dem neuen ersten Tag -- das Ende rechnet der Server in Arbeitstagen (bis 1.9.276 PUT mit Beginn und Ende)
+    assert [(m, u, b) for m, u, b in schreibende(aufrufe)] == [
+        ("POST", "/api/planning/slots/1/verschieben", {"auf": "2026-11-04", "team_id": 9}),
+        ("POST", "/api/planning/slots/1/verschieben", {"auf": "2026-11-03", "team_id": None}),
+        ("POST", "/api/planning/slots/1/verschieben", {"auf": "2026-11-05"}),
+        ("POST", "/api/planning/slots/1/verschieben", {"auf": "2026-11-02"}),
+        ("POST", "/api/planning/slots/2/verschieben", {"auf": "2026-11-05"}),
     ]
 
 

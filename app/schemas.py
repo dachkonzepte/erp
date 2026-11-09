@@ -3340,17 +3340,32 @@ class TagHerausnehmen(BaseModel):
 class RueckgaengigSchritt(BaseModel):
     """Seit 1.9.269 (Stufe 6, R5b, Punkt 3): ein Schritt der Umkehrung, wie ihn eine Tag-Aktion in „umkehrung“ zurückgibt -- „weg“ und „dazu“ mit
     einer Person oder einem Gerät und Tagen, „loeschen“ mit dem Stand des eben angelegten Einsatzes."""
-    art: Literal["weg", "dazu", "loeschen"]
+    art: Literal["weg", "dazu", "loeschen", "zurueck"]
     slot_id: int
     employee_id: int | None = None
     resource_id: int | None = None
     tage: list[date] | None = None
     stand: str | None = Field(default=None, max_length=64)
+    # seit 1.9.277 (Stufe 6, R5c, Punkt 0b): „zurueck“ nach dem Verschieben -- Zeitraum, Kolonne, Personen und Geräte mit ihren Tagen wie vorher
+    start_date: date | None = None
+    end_date: date | None = None
+    team_id: int | None = None
+    besetzung: list[PlanningSlotPerson] | None = None
+    geraete: list[PlanningSlotGeraet] | None = None
 
 
 class Rueckgaengig(BaseModel):
     """Seit 1.9.269: POST /api/planning/rueckgaengig -- die Schritte in einer Transaktion."""
     schritte: list[RueckgaengigSchritt] = Field(min_length=1)
+
+
+class EinsatzVerschieben(BaseModel):
+    """Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): POST /api/planning/slots/{id}/verschieben -- den ganzen Einsatz ziehen, der erste Tag auf `auf`, alles
+    andere in Arbeitstagen (app/tag_aktionen.py::verschieben()). team_id nur, wenn gesendet: eine Kolonne oder null = ohne Kolonne."""
+    auf: date
+    team_id: int | None = None
+    trotzdem_planen: bool = False
+    pruefen: bool = False
 
 
 class TagVerlaengern(BaseModel):

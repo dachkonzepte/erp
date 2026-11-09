@@ -166,11 +166,13 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
         "return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; } "
         "document.getElementById('rangeDays').value = '14';",
         f"await verschieben({tafel['id']}, {{dataset: {{zeile: 'kolonne', id: '{tafel['team_b']}'}}}}, 2);")  # in die Zeile der Kolonne B, ab dem dritten Tag
-    body = {"team_id": tafel["team_b"], "start_date": "2026-10-14", "end_date": "2026-10-18"}
-    assert schreibende(aufrufe) == [("PUT", tafel["url"], body)]
+    # seit 1.9.277 POST …/verschieben mit Kolonne und dem neuen ersten Tag (bis 1.9.276 PUT mit Kolonne, Beginn und Ende)
+    body = {"team_id": tafel["team_b"], "auf": "2026-10-14"}
+    assert schreibende(aufrufe) == [("POST", tafel["url"] + "/verschieben", body)]
     senden(client, aufrufe)
     stand = _einsatz_stand(db, tafel["id"])
-    assert (stand["start_date"], stand["end_date"]) == (date(2026, 10, 14), date(2026, 10, 18))
+    # Mo 12.–Fr 16.10. auf Mi 14.10.: in Arbeitstagen Mi–Fr und Mo, Di -- Ende Di 20.10. (bis 1.9.276 in Kalendertagen So 18.10.)
+    assert (stand["start_date"], stand["end_date"]) == (date(2026, 10, 14), date(2026, 10, 20))
     assert (stand["status"], stand["notes"], stand["planned_hours"], stand["travel"]) == ("fest", "Gerüst steht", D("30"),
                                                                                         D("1"))
     assert client.get("/api/planning", params={"start": "2026-10-12", "end": "2026-10-25"}).json()["slots"][0]["team_id"] == \

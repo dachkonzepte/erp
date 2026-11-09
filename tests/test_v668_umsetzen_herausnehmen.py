@@ -55,16 +55,17 @@ def test_umsetzen_auf_einen_anderen_tag_im_selben_einsatz(welt):
 
 
 def test_umsetzen_mehrerer_tage_ueberlappend_mit_der_falle(welt):
-    """Do–Fr um einen Tag weiter: Fr–Sa -- der Freitag bleibt (nicht erst gesetzt, dann wieder genommen); Tom und Mia stehen nur bis Fr (die Falle)."""
+    """Do–Fr um einen Tag weiter: seit 1.9.277 in Arbeitstagen Fr und der nächste Mo (bis 1.9.276 Fr–Sa) -- der Freitag bleibt (nicht erst gesetzt, dann
+    wieder genommen); Tom und Mia stehen nur bis Fr (die Falle)."""
     db = welt["db"]
     slot = _einsatz(welt, "a", 0, 4, team=welt["nord"].id)
     from app.tag_aktionen import tag_setzen
     tag_setzen(db, order_id=welt["a"].id, tag=_tag(3), employee_id=welt["kai"])
     tag_setzen(db, order_id=welt["a"].id, tag=_tag(4), employee_id=welt["kai"])
     e = umsetzen(db, slot_id=slot.id, employee_id=welt["kai"], tage=[_tag(3), _tag(4)], ziel_tag=_tag(4))
-    assert e["tage"] == [_iso(4), _iso(5)] and _zeitraum(db, slot.id) == (_tag(0), _tag(5))
+    assert e["tage"] == [_iso(4), _iso(7)] and _zeitraum(db, slot.id) == (_tag(0), _tag(7))
     woche = [_iso(n) for n in range(5)]
-    assert _personen(db, slot.id) == [(welt["tom"], woche), (welt["mia"], woche), (welt["kai"], [_iso(4), _iso(5)])]
+    assert _personen(db, slot.id) == [(welt["tom"], woche), (welt["mia"], woche), (welt["kai"], [_iso(4), _iso(7)])]
 
 
 def test_allein_im_einsatz_wandert_der_einsatz(welt):
