@@ -1290,7 +1290,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   „1 Woche“, jede Ansicht merkt sich ihren Zeitraum im Browser (`plantafel_zeitraum`; `tests/test_v679_auftragsliste.py`); seit 1.9.280 die Ansicht
   „Aufträge“ (Zeile je offenem Auftrag, je Einsatz eine Karte im Tag mit Chips der Personen und Geräte dieses Tags, „niemand“, links „Zum Einplanen“ mit
   Wochenleiste), der Kurzname am Gerät (`OperationalResource.kurzname`, Migration `c3e9f1a7b285`, `PUT /api/resources/{id}` als Teil-Update) und der Kran
-  mit eigenem Zeichen (`app/planning.py::ist_kran()`; `tests/test_v680_ansicht_auftraege.py`, Klicktest `klicktest_plantafel_auftraege.py`). Befund R5 und Herleitung:
+  mit eigenem Zeichen (`app/planning.py::ist_kran()`; `tests/test_v680_ansicht_auftraege.py`, Klicktest `klicktest_plantafel_auftraege.py`); seit 1.9.281 Ziehen
+  in „Aufträge“ mit Maus und Finger: aus der Liste Tag setzen, aus der Zelle umsetzen, auf die Liste oder angetippt herausnehmen, die Zelle zeigt vor dem Loslassen,
+  was passiert (aus den geladenen Daten), danach „nur <Tag>“ mit „bis … verlängern“ und „Rückgängig“; mehrere Rückfragen gelten zusammen (`zugSenden()`;
+  `tests/test_v681_ziehen_auftraege.py`, Klicktest `klicktest_plantafel_auftraege_ziehen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

@@ -2339,3 +2339,60 @@ vier (dazu „Aufträge“). `tests/test_v329_update_handler_struktur.py`: `BEKA
 Klicktests vor dem Commit.
 Gefunden im ersten vollen Lauf vor dem Commit: v460 (siehe oben), v436 und v438 (der Feldname „Kurzname“ fehlte in `FIELD_LABELS`) und v558 (der Klicktest
 maß die Breite gegen `innerWidth`, jetzt `tab.ueberlauf()`).
+
+### Umsetzung 1.9.281 (Punkt 3): Ziehen in „Aufträge“ mit Maus und Finger
+
+- Pointer Events am Layout (`chipZiehenEinrichten()`, einmal je Seite): `pointerdown` auf einem Chip mit `data-art` merkt den Zug (`azug`: Art, ID, Einsatz und Tag
+  der Zelle, Name), ab 6 px Bewegung schwebt eine Kopie über dem Zeiger (`.zug-geist`), `pointerup` führt aus (`zugAusfuehren()`), ohne Bewegung ist es Antippen
+  (`chipMenue()`), `pointercancel` und Escape brechen ab. `chipTipp` hält den Klick, der nach dem Antippen auf der Karte ankommt, vom Öffnen des Einsatzes ab.
+- Ziel (`zielAnPunkt()`): die Liste (`#backlog`) oder eine Zelle `td.a-tag` mit Tag, Auftrag und -- wenn der Zeiger auf einer Karte steht -- dem Einsatz.
+- Aus der Liste: `POST /api/planning/tag-setzen` mit `order_id`, `tag`, `employee_id` | `team_id` | `resource_id` (`FELD`), auf einer Karte `slot_id` (Antwort 6).
+  Aus einer Zelle: `POST /api/planning/slots/{id}/umsetzen` mit `tage` = [Tag der Zelle], `ziel_tag`, `ziel_order_id`, auf einer Karte `ziel_slot_id`; dieselbe Zelle
+  und derselbe Einsatz: nichts. Auf die Liste: `POST …/herausnehmen` mit `tage`; angetippt zusätzlich `alle`.
+- Anzeige (`zugAnzeige()`, nur aus `board`): Person abwesend (genehmigt) -> „Abwesend – Rückfrage „Trotzdem planen““; an einem anderen Einsatz eines anderen Auftrags an
+  dem Tag (`schonWoanders()`, ohne den Einsatz, aus dem sie kommt) -> „Schon woanders: <Projekte> – Rückfrage „Trotzdem planen““, ebenso ein Gerät; Antrag offen ->
+  „Antrag offen – plant ohne Rückfrage“; sonst „Frei – <Tag>“. Kolonne: „Ganze Kolonne – <Tag>“ bzw. „Ganze Kolonne – <Vornamen> schon woanders: Rückfrage für
+  alle“. Die Zelle trägt `zug-ziel` und `zug-frei` | `zug-woanders` | `zug-antrag`, darunter der Text (`.zug-anzeige`); kommt der Chip aus einer Zelle, ist die Liste als
+  Ziel umrandet (`zug-ziel-liste`).
+- Senden (`zugSenden(url, body, fertig)`): über `speichern('tafel', …)`; 409 mit Warnungen -> Konflikt-Dialog, „niemand mehr“ -> Löschen | Behalten; jede Antwort
+  kommt zu den bisherigen dazu (`versuch({...opt, …})`), sonst die Meldung im Status. Nach dem Erfolg `fertig(Antwort)` -- hier `merkeZug()`, die Antwort bleibt für
+  die Leiste --, danach `loadBoard()`.
+- Danach (`zugNachZeigen()` nach jedem Zeichnen, `letzterZug`): am Chip „<Name> · nur <Tage>“ bzw. „alle Tage“, je weiterem Tag Mo–Fr des Einsatzes danach der Zustand
+  (`personZustand()`/`geraetZustand()`), „bis <Ende> verlängern“ (`POST …/verlaengern` ab dem letzten Tag, nur mit Tagen danach und nicht nach dem Verlängern),
+  „Rückgängig“ (`POST` der Umkehrung aus der Antwort, nur mit Umkehrung, danach nichts mehr); herausgenommen „<Tag> herausgenommen“ bzw. „an allen Tagen
+  herausgenommen“; Kolonne: Name und Tag. Die Leiste schließt mit dem nächsten Ziehen, dem ×, dem Antippen eines Chips und einer anderen Ansicht.
+- Finger: `.ansicht-auftraege .chip[data-art]` mit `touch-action:none` und `user-select:none`, bei `(pointer:coarse)` mindestens 40 px hoch. Der Knopf der Liste heißt
+  wie die Liste (`rkKnopfBeschriften()`), unter der Tafel steht je Ansicht ihr Hinweis (`fussTafel`, `fussAuftraege`).
+- Bei 1280 px startet die Liste eingeklappt (Regel seit 1.9.257, „solange nichts gemerkt ist“) -- in „Aufträge“ muss sie zum Ziehen erst aufgeklappt werden (Frage im
+  Bericht).
+
+#### Festlegungen 1.9.281 (Bitte bestätigen)
+
+1. Aus der Liste gezogen: Person, Kolonne oder Gerät für diesen Tag an den Auftrag (`tag-setzen`); auf einer Karte genau dieser Einsatz, an einer freien Stelle entscheidet
+   der Server (dazu, verlängert, neu und vorläufig).
+2. Aus einer Zelle gezogen: diese Person bzw. dieses Gerät für diesen Tag umsetzen (`umsetzen`) -- auf einen anderen Auftrag oder Tag, auf einer Karte in genau diesen
+   Einsatz; an den eigenen Platz zurück: nichts.
+3. Herausnehmen: auf die Liste gezogen für diesen Tag; angetippt eine Leiste „Für diesen Tag herausnehmen“, „An allen Tagen herausnehmen“, „Einsatz öffnen“ -- das
+   Antippen öffnet den Einsatz nicht, ein Klick neben die Chips weiter.
+4. Vor dem Loslassen zeigt die Zelle aus den geladenen Daten, ohne Anfrage: „Frei – <Tag>“, „Schon woanders: … – Rückfrage „Trotzdem planen““ (auch am Gerät),
+   „Antrag offen – plant ohne Rückfrage“, „Abwesend – Rückfrage …“, „Ganze Kolonne – <Tag>“ bzw. „… schon woanders: Rückfrage für alle“; der Einsatz, aus dem gezogen
+   wird, zählt nicht als „woanders“; die Liste ist als Ziel umrandet, wenn der Chip aus einer Zelle kommt.
+5. Beim Loslassen prüft der Server (nur neue Warnungen fragen, „niemand mehr“ fragt Löschen | Behalten); mehrere Rückfragen nacheinander, die Antworten gelten zusammen.
+6. Danach am Chip „<Name> · nur <Tage>“ (bzw. „alle Tage“), je weiterem Tag Mo–Fr des Einsatzes danach der Zustand, „bis <Ende> verlängern“ (nur mit Tagen danach,
+   nicht nach dem Verlängern) und „Rückgängig“ (nur mit Umkehrung, einmal); nach dem Herausnehmen „<Tag> herausgenommen“ bzw. „an allen Tagen herausgenommen“; nach einer
+   Kolonne ihr Name und der Tag; bis zur nächsten Aktion.
+7. Maus und Finger über Pointer Events wie R4: Chips mit `touch-action:none`, ohne Textauswahl, bei grobem Zeiger mindestens 40 px hoch; Escape bricht ab; die Kopie des
+   Chips schwebt über dem Zeiger.
+8. Der Knopf der Liste heißt wie die Liste („Zum Einplanen aufklappen“); unter der Tafel steht in „Aufträge“ ein eigener Hinweis zu Karten und Chips.
+
+#### Tests und Prüfung 1.9.281
+
+Neu: `tests/test_v681_ziehen_auftraege.py` (in node mit dem Code der Seite: die Anzeige für frei, schon woanders -- auch aus der eigenen Zelle mit einem weiteren
+Einsatz --, Antrag, abwesend, Gerät, Kolonne; was beim Loslassen hinausgeht für Liste, Zelle, eigenen Platz und Liste als Ziel; Rückfragen nacheinander; danach
+verlängern, Rückgängig nur mit Umkehrung und einmal; Aufbau: Finger, Pointer Events, Escape, Knopf und Hinweis je Ansicht), Klicktest
+`scripts/klicktest_plantafel_auftraege_ziehen.py` (Daten wie `klicktest_plantafel_auftraege.py` und die Zeichnung: Antippen und herausnehmen, frei mit „nur Do“ und
+verlängern, schon woanders mit Rückfrage, umsetzen ohne Rückfrage, Antrag offen, ganze Kolonne, zurück auf die Liste, Escape; mit dem Finger bei 1280 px dunkel; Bilder).
+Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.281“.
+`tests/test_v460_ecken_der_karten.py`: `zug-leiste` als Karte (Aufklappfläche, Ecke der Karte) eingeordnet -- ein neuer Eintrag.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v680_ansicht_auftraege.py::test_reiter_legende_und_laden_nur_in_auftraege`: alt `aktion('auftragKarte',el=>openEdit(…))`
+und `renderBacklog();renderFilter();return`, neu mit `chipTipp` und `chipZiehenEinrichten();zugNachZeigen();` (nur der Aufbau, die Aussagen bleiben).

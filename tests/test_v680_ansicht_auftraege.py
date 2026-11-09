@@ -195,5 +195,8 @@ def test_reiter_legende_und_laden_nur_in_auftraege():
     assert '<button type="button" data-view="auftraege" aria-pressed="false">Aufträge</button>' in seite
     assert '<div class="legende legende-auftraege" aria-label="Legende der Aufträge">' in seite
     assert "if(view==='auftraege')await ladeAuftragsliste()" in seite  # die übrigen Ansichten laden die Liste nicht
-    assert "aktion('auftragKarte',el=>openEdit(Number(el.dataset.id)));" in seite
-    assert "if(view==='auftraege'){document.getElementById('planner').innerHTML=auftraegeHtml();renderBacklog();renderFilter();return}" in seite
+    # seit 1.9.281 öffnet die Karte nach dem Antippen eines Chips nicht (dann das Menü des Chips)
+    assert "aktion('auftragKarte',el=>{if(chipTipp){chipTipp=false;return}openEdit(Number(el.dataset.id))});" in seite
+    # seit 1.9.281 danach das Ziehen und die Leiste des letzten Zugs
+    assert ("if(view==='auftraege'){document.getElementById('planner').innerHTML=auftraegeHtml();renderBacklog();renderFilter();chipZiehenEinrichten();"
+            "zugNachZeigen();return}") in seite

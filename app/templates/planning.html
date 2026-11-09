@@ -205,6 +205,22 @@
 #backlog .klein,.a-name .klein{display:block;font-size:12px;line-height:1.35;color:var(--ds-text-2)}
 #backlog p.klein{margin:0 0 4px}
 .ansicht-auftraege .legende-auftraege{display:flex}
+/* seit 1.9.281 (Stufe 6, R5c, Punkt 3): Ziehen in „Aufträge“ -- Chips mit Maus und Finger, die Zelle zeigt vor dem Loslassen, was passiert */
+.ansicht-auftraege .chip[data-art]{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
+@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:40px;padding:4px 10px}}
+.zug-geist{position:fixed;z-index:60;pointer-events:none;box-shadow:0 6px 16px color-mix(in srgb,var(--ds-stark) 30%,transparent);opacity:.95}
+#planner td.a-tag{position:relative}
+#planner td.zug-ziel{outline:2px dashed var(--ds-aktion);outline-offset:-3px}
+#planner td.zug-frei{background:var(--ds-aktion-hell)}
+#planner td.zug-woanders{outline-color:var(--ds-fehler);background:var(--ds-fehler-hell)}
+#planner td.zug-antrag{outline-color:var(--ds-text-3);background:var(--ds-flaeche-2)}
+.zug-anzeige{margin-top:4px;font-size:11.5px;font-weight:600;line-height:1.3;color:var(--ds-text)}
+td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
+#backlog.zug-ziel-liste{outline:2px dashed var(--ds-aktion);outline-offset:4px;border-radius:8px}
+.zug-leiste{position:absolute;z-index:40;display:flex;flex-direction:column;gap:6px;align-items:flex-start;max-width:300px;padding:10px 36px 10px 12px;box-sizing:border-box;background:var(--ds-flaeche);border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-karte);box-shadow:0 8px 24px color-mix(in srgb,var(--ds-stark) 22%,transparent);font-size:13px;color:var(--ds-text)}
+.zug-leiste[hidden]{display:none}
+.zug-leiste .klein{font-size:12px;color:var(--ds-text-2)}
+.zug-leiste .zug-zu{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;background:transparent;color:var(--ds-text-2);font-size:18px;cursor:pointer;border-radius:6px}
 </style>
 </head>
 <body class="ds-seite">
@@ -252,7 +268,7 @@
     </div>
   </section>
 </div>
-<p class="fuss">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</p>
+<p class="fuss"><span id="fussTafel">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</span><span id="fussAuftraege" hidden>Eine Karte ist ein Einsatz an diesem Tag, Klick öffnet ihn. Personen, Kolonnen und Geräte ziehen (Maus und Finger): aus der Liste kommen sie für diesen Tag dazu, aus einer Zelle werden sie für diesen Tag umgesetzt; zurück auf die Liste ziehen oder antippen nimmt heraus. Zwei Einsätze am selben Tag stehen untereinander.</span></p>
 </main>
 </div>
 </div>
@@ -482,11 +498,12 @@ function balkenEinpassen(wurzel){for(const s of wurzel.querySelectorAll('.slot:n
   const r=document.createRange();r.selectNodeContents(t);if(r.getBoundingClientRect().width>t.getBoundingClientRect().width)s.classList.remove('zweizeilig');s.classList.add('gekuerzt')}}
 function renderBoard(){if(!board)return;document.querySelectorAll('.viewtabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));geo=geometrie(datumsliste());document.getElementById('zeitraum').textContent=zeitraumText();
   // seit 1.9.280: „Aufträge“ zeichnet eine Tabelle und links „Zum Einplanen“ (die übrigen Ansichten die Zeitachse und „Nicht eingeplant“)
-  document.getElementById('tafelLayout').classList.toggle('ansicht-auftraege',view==='auftraege');
-  if(view==='auftraege'){document.getElementById('planner').innerHTML=auftraegeHtml();renderBacklog();renderFilter();return}
+  document.getElementById('tafelLayout').classList.toggle('ansicht-auftraege',view==='auftraege');document.getElementById('fussTafel').hidden=view==='auftraege';document.getElementById('fussAuftraege').hidden=view!=='auftraege';
+  if(view==='auftraege'){document.getElementById('planner').innerHTML=auftraegeHtml();renderBacklog();renderFilter();chipZiehenEinrichten();zugNachZeigen();return}
+  zugLeisteSchliessen();
   const z=zeilen();const leer=!z.some(x=>!x.abschnitt)?`<div class="leer">Keine ${view==='employees'?'Personen':'Geräte'} vorhanden. Bitte zuerst in den Stammdaten anlegen.</div>`:'';document.getElementById('planner').innerHTML=`<div class="tafel-inhalt" style="width:${esc(LABEL_W+geo.breite)}px">${kopfHtml()}${z.map(zeileHtml).join('')}</div>${leer}`;balkenEinpassen(document.getElementById('planner'));ziehenEinrichten();renderBacklog();renderFilter();document.getElementById('legendeFerien').hidden=!geo.spalten.some(c=>schoolAt(c.d).length)}
 function renderFilter(){const z=board.zaehler||{warnungen:0,hinweise:0},k=document.getElementById('filterKnopf');const teile=[z.warnungen?`${z.warnungen} ${z.warnungen===1?'Warnung':'Warnungen'}`:'',z.hinweise?`${z.hinweise} ${z.hinweise===1?'Hinweis':'Hinweise'}`:''].filter(Boolean);document.getElementById('filterText').textContent=teile.join(' · ')||'Keine Warnungen';k.disabled=!teile.length;if(!teile.length)filterAn=false;k.setAttribute('aria-pressed',String(filterAn));k.title=(filterAn?'Alle Einsätze zeigen':'Nur Einsätze mit Warnung oder Hinweis zeigen')+' – berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität.'}
-function renderBacklog(){const auftr=view==='auftraege';document.getElementById('rkTitel').textContent=auftr?'Zum Einplanen':'Nicht eingeplant';document.getElementById('backlogCount').hidden=auftr;if(auftr){document.getElementById('backlog').innerHTML=zumEinplanenHtml();return}
+function renderBacklog(){const auftr=view==='auftraege';document.getElementById('rkTitel').textContent=auftr?'Zum Einplanen':'Nicht eingeplant';rkKnopfBeschriften();document.getElementById('backlogCount').hidden=auftr;if(auftr){document.getElementById('backlog').innerHTML=zumEinplanenHtml();return}
   document.getElementById('backlogCount').textContent=board.backlog.length;document.getElementById('backlog').innerHTML=board.backlog.map(x=>`<div class="rk-eintrag"><a href="/projects/${x.project_id}?auftrag=${x.order_id}">${esc(x.project_number)}</a><b>${esc(x.project_name)}</b><span class="klein">Soll ${esc(zahlText(x.planned_hours,2))} h · ${x.suggested_start?'ab '+esc(fmtJahr(x.suggested_start)):'ohne Termin'}</span>${x.order_status==='pausiert'?`<span class="klein">Auftrag pausiert${x.order_status_reason?' · '+esc(x.order_status_reason):''}</span>`:''}<button type="button" class="ds-knopf" data-klick="einplanen" data-auftrag="${x.order_id}">Einplanen …</button></div>`).join('')||'<div class="rk-leer">Alle Aufträge sind eingeplant.</div>'}
 /* --- seit 1.9.280 (Stufe 6, R5c, Punkt 2): Ansicht „Aufträge“ (Zeichnung entwurf-stufe6/plantafel-auftraege.html) ------------------------------
    Eine Zeile je offenem Auftrag (GET /api/planning/auftragsliste: eingeplante oben, Stunden wie die Akte), eine Spalte je Tag. In der Zelle je Einsatz eine
@@ -542,8 +559,104 @@ function zumEinplanenHtml(){const dates=datumsliste().filter(d=>!istWochenende(d
   return `<p class="klein">Auf Auftrag und Tag ziehen. Aus einer Zelle ziehen setzt für diesen Tag um.</p><div class="ze-gruppe">Kolonnen</div>${kolonnen}<div class="ze-gruppe">Personen</div>${kopf}${personen}<div class="ze-gruppe">Geräte</div>${geraete}${legende}`}
 // lädt die Auftragsliste für den gezeigten Zeitraum -- nur in „Aufträge“ (die anderen Ansichten laden sie nicht)
 async function ladeAuftragsliste(){const d=datumsliste(),start=d[0],end=d[d.length-1];await lesen('auftragsliste',()=>api(`/api/planning/auftragsliste?start=${start}&end=${end}`),x=>{auftragsliste=x;if(view==='auftraege'&&board)renderBoard()})}
+/* --- seit 1.9.281 (Stufe 6, R5c, Punkt 3): Ziehen in „Aufträge“ mit Maus und Finger (Pointer Events wie R4) -----------------------------------------------
+   Aus der Liste „Zum Einplanen“: Person, Kolonne oder Gerät für diesen Tag an den Auftrag (POST /api/planning/tag-setzen; auf einer Karte genau dieser Einsatz,
+   Antwort 6). Aus einer Zelle: diese Person bzw. dieses Gerät für diesen Tag umsetzen (POST …/umsetzen) -- auf einen anderen Auftrag oder Tag; zurück auf die
+   Liste gezogen oder angetippt: herausnehmen. Vor dem Loslassen zeigt die Zelle, was passiert (frei, schon woanders, Antrag offen, ganze Kolonne) -- aus den
+   geladenen Daten, keine Anfrage je Bewegung. Beim Loslassen prüft der Server; eine neue Warnung fragt zurück („Trotzdem planen“), ein leerer Einsatz auch. Danach
+   steht am Chip „nur <Tag>“ mit „bis … verlängern“ und „Rückgängig“, bis zur nächsten Aktion. */
+let azug=null,letzterZug=null,chipTipp=false;
+const FELD={person:'employee_id',geraet:'resource_id',kolonne:'team_id'};
+function tagText(d){return wochentag(d)+' '+fmt(d)}
+function slotVon(id){return board.slots.find(s=>s.id===id)}
+// steht die Person bzw. das Gerät an diesem Tag schon an einem anderen Einsatz (nicht dem, aus dem sie kommt; nicht an diesem Auftrag)? Dann fragt der Server
+// beim Loslassen zurück (Person bzw. Gerät doppelt ist eine neue Warnung) -- aus der eigenen Zelle umgesetzt ohne einen weiteren Einsatz nicht
+function schonWoanders(art,id,tag,auftrag,ausSlot){return board.slots.filter(s=>!aufGeschlossen(s)&&s.id!==ausSlot&&s.order_id!==auftrag&&(art==='person'?personTageIn(s,id):geraetTageIn(s,id)).includes(tag))}
+function zugAnzeige(z,ziel){const tag=ziel.tag;
+  if(z.art==='kolonne'){const t=board.teams.find(x=>x.id===z.id),woanders=(t?t.employees:[]).filter(e=>schonWoanders('person',e.id,tag,ziel.auftrag,null).length);
+    return woanders.length?{klasse:'woanders',text:'Ganze Kolonne – '+woanders.map(e=>e.vorname||e.name).join(', ')+' schon woanders: Rückfrage für alle'}:{klasse:'frei',text:'Ganze Kolonne – '+tagText(tag)}}
+  const woanders=schonWoanders(z.art,z.id,tag,ziel.auftrag,z.slot);
+  if(z.art==='person'){const [k]=personZustand(z.id,tag);if(k==='abwesend')return {klasse:'woanders',text:'Abwesend – Rückfrage „Trotzdem planen“'};
+    if(woanders.length)return {klasse:'woanders',text:'Schon woanders: '+woanders.map(s=>s.project_name).join(', ')+' – Rückfrage „Trotzdem planen“'};
+    if(k==='beantragt')return {klasse:'antrag',text:'Antrag offen – plant ohne Rückfrage'}}
+  else if(woanders.length)return {klasse:'woanders',text:'Schon woanders: '+woanders.map(s=>s.project_name).join(', ')+' – Rückfrage „Trotzdem planen“'};
+  return {klasse:'frei',text:'Frei – '+tagText(tag)}}
+function zielAnPunkt(x,y){const el=document.elementFromPoint(x,y);if(!el)return null;if(el.closest('#backlog'))return {art:'liste'};const td=el.closest('#planner td.a-tag');if(!td)return null;
+  const karte=el.closest('.a-einsatz');return {art:'zelle',td,tag:td.dataset.date,auftrag:Number(td.dataset.auftrag),karte:karte?Number(karte.dataset.id):null}}
+function zugZielZeigen(ziel){document.querySelectorAll('#planner td.zug-ziel').forEach(td=>{if(!ziel||td!==ziel.td){td.classList.remove('zug-ziel','zug-frei','zug-woanders','zug-antrag');td.querySelector('.zug-anzeige')?.remove()}});
+  document.getElementById('backlog').classList.toggle('zug-ziel-liste',!!(ziel&&ziel.art==='liste'&&azug&&azug.slot));if(!ziel||ziel.art!=='zelle')return;
+  const a=zugAnzeige(azug,ziel);ziel.td.classList.remove('zug-frei','zug-woanders','zug-antrag');ziel.td.classList.add('zug-ziel','zug-'+a.klasse);
+  let el=ziel.td.querySelector('.zug-anzeige');if(!el){el=document.createElement('div');el.className='zug-anzeige';ziel.td.appendChild(el)}el.textContent=a.text}
+function zugAbbrechen(){if(!azug)return;azug.geist?.remove();zugZielZeigen(null);azug=null}
+function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout');if(lay.dataset.chipZiehen)return;lay.dataset.chipZiehen='1';
+  lay.addEventListener('pointerdown',e=>{chipTipp=false;if(view!=='auftraege'||e.button>0)return;const c=e.target.closest('.chip[data-art]');if(!c||!lay.contains(c))return;
+    azug={art:c.dataset.art,id:Number(c.dataset.id),slot:c.dataset.slot?Number(c.dataset.slot):null,tag:c.dataset.tag||null,name:c.title.split('\n')[0].split(' · ')[0]||c.textContent.trim(),chip:c,x0:e.clientX,y0:e.clientY,aktiv:false,ziel:null};
+    try{c.setPointerCapture(e.pointerId)}catch(x){}});
+  lay.addEventListener('pointermove',e=>{if(!azug)return;if(!azug.aktiv){if(Math.hypot(e.clientX-azug.x0,e.clientY-azug.y0)<6)return;azug.aktiv=true;zugLeisteSchliessen();
+      const g=azug.chip.cloneNode(true);g.classList.add('zug-geist');document.body.appendChild(g);azug.geist=g}
+    azug.geist.style.left=(e.clientX+12)+'px';azug.geist.style.top=(e.clientY-azug.geist.offsetHeight-12)+'px';  /* über dem Zeiger: Finger und Anzeige bleiben frei */azug.ziel=zielAnPunkt(e.clientX,e.clientY);zugZielZeigen(azug.ziel)});
+  lay.addEventListener('pointerup',e=>{if(!azug)return;const z=azug,ziel=z.aktiv?zielAnPunkt(e.clientX,e.clientY):null;zugAbbrechen();chipTipp=true;
+    if(!z.aktiv){if(z.slot)chipMenue(z);return}if(ziel)zugAusfuehren(z,ziel)});
+  lay.addEventListener('pointercancel',()=>zugAbbrechen());
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&azug){chipTipp=true;zugAbbrechen()}})}
+async function zugAusfuehren(z,ziel){
+  if(ziel.art==='liste'){if(z.slot)await herausnehmenTag(z,{tage:[z.tag]});return}
+  if(z.slot){const s=slotVon(z.slot);if(s&&ziel.auftrag===s.order_id&&ziel.tag===z.tag&&(!ziel.karte||ziel.karte===z.slot))return;
+    const body={[FELD[z.art]]:z.id,tage:[z.tag],ziel_tag:ziel.tag,ziel_order_id:ziel.auftrag};if(ziel.karte)body.ziel_slot_id=ziel.karte;
+    return zugSenden(`/api/planning/slots/${z.slot}/umsetzen`,body,merkeZug({z,tag:ziel.tag}))}
+  const body={order_id:ziel.auftrag,tag:ziel.tag,[FELD[z.art]]:z.id};if(ziel.karte)body.slot_id=ziel.karte;
+  return zugSenden('/api/planning/tag-setzen',body,merkeZug({z,tag:ziel.tag}))}
+// schickt einen Zug; Warnungen und ein leerer Einsatz fragen zurück -- nacheinander, die Antworten gelten zusammen (erst „niemand mehr“, dann eine Warnung:
+// „Behalten“ bleibt beim „Trotzdem planen“); nach dem Erfolg fertig(Antwort), dann neu laden
+async function zugSenden(url,body,fertig){
+  const versuch=async opt=>{try{const a=await speichern('tafel',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,...opt})}));
+      fertig(a);einsatzHinweise(a.einsatz);await loadBoard()}
+    catch(err){if(!konfliktFrage(err,()=>versuch({...opt,trotzdem_planen:true}))&&!leerFrage(err,wahl=>versuch({...opt,wenn_leer:wahl})))throw err}};
+  try{await versuch({})}catch(err){document.getElementById('status').textContent='Fehler: '+err.message}}
+// in „Aufträge“: die Antwort bleibt für die Leiste am Chip
+function merkeZug(zug){return a=>{letzterZug={...zug,antwort:a}}}
+async function herausnehmenTag(z,auswahl){const body={[FELD[z.art]]:z.id,...auswahl};return zugSenden(`/api/planning/slots/${z.slot}/herausnehmen`,body,merkeZug({z,tag:z.tag,raus:true,alle:!!auswahl.alle}))}
+// angetippt: „Für diesen Tag herausnehmen“, „An allen Tagen herausnehmen“, „Einsatz öffnen“
+function chipMenue(z){letzterZug=null;zugLeisteZeigen(z.chip,`<b>${esc(z.name)}</b><span class="klein">${esc(tagText(z.tag))}</span>`+
+  `<button type="button" class="ds-knopf" data-klick="chipRausTag">Für diesen Tag herausnehmen</button><button type="button" class="ds-knopf" data-klick="chipRausAlle">An allen Tagen herausnehmen</button>`+
+  `<button type="button" class="ds-knopf" data-klick="chipEinsatz">Einsatz öffnen</button>`,z)}
+let leisteZug=null;
+function zugLeisteZeigen(anker,html,z){let l=document.getElementById('zugLeiste');if(!l){l=document.createElement('div');l.id='zugLeiste';l.className='zug-leiste';l.setAttribute('role','dialog');document.body.appendChild(l)}
+  leisteZug=z||null;l.innerHTML=html+`<button type="button" class="zug-zu" data-klick="zugLeisteZu" aria-label="Schließen">×</button>`;l.hidden=false;
+  const r=anker.getBoundingClientRect();l.style.left=Math.max(8,Math.min(r.left+scrollX,scrollX+innerWidth-l.offsetWidth-8))+'px';l.style.top=(r.bottom+scrollY+6)+'px'}
+function zugLeisteSchliessen(){const l=document.getElementById('zugLeiste');if(l)l.hidden=true;leisteZug=null}
+// nach dem Neuzeichnen: die Leiste des letzten Zugs am Chip -- „nur <Tag>“, die übrigen Tage des Einsatzes, „bis … verlängern“, „Rückgängig“
+function zugNachZeigen(){const lz=letzterZug;if(!lz||view!=='auftraege'){zugLeisteSchliessen();return}const a=lz.antwort||{},z=lz.z;
+  const s=a.slot_id?slotVon(a.slot_id):null,td=s&&document.querySelector(`#planner td.a-tag[data-auftrag="${s.order_id}"][data-date="${lz.tag}"]`);
+  const chip=td&&z.art!=='kolonne'?td.querySelector(`.chip[data-art="${z.art}"][data-id="${z.id}"][data-slot="${a.slot_id}"]`):null;
+  const anker=chip||(td&&td.querySelector(`.a-einsatz[data-id="${a.slot_id}"]`))||td||(lz.raus&&z.chip&&document.body.contains(z.chip)?z.chip:null);
+  const rueck=a.umkehrung?'<button type="button" class="ds-knopf" data-klick="zugZurueck">Rückgängig</button>':'';
+  if(lz.raus){const tdAlt=document.querySelector(`#planner td.a-tag[data-date="${lz.tag}"] .a-einsatz[data-id="${z.slot}"]`)?.closest('td')||document.querySelector(`#planner td.a-tag[data-date="${lz.tag}"]`);
+    if(!tdAlt){zugLeisteSchliessen();return}zugLeisteZeigen(tdAlt,`<b>${esc(z.name)}</b><span class="klein">${esc(lz.alle?'an allen Tagen herausgenommen':tagText(lz.tag)+' herausgenommen')}</span>${rueck}`);return}
+  if(!anker){zugLeisteSchliessen();return}
+  if(z.art==='kolonne'){zugLeisteZeigen(anker,`<b>${esc(z.name)}</b><span class="klein">${esc(tagText(lz.tag))}</span>${rueck}`);return}
+  const tage=(a.tage||[]).slice().sort(),letzter=tage[tage.length-1]||lz.tag;
+  const danach=s?einsatzTage(s).filter(d=>d>letzter&&!istWochenende(d)):[];
+  const zustand=d=>z.art==='person'?personZustand(z.id,d)[1]:geraetZustand(z.id,d)[1];
+  const nur=s&&tage.length===einsatzTage(s).length?'alle Tage':'nur '+tage.map(tagText).join(', ');
+  const verl=danach.length&&!lz.verlaengert?`<button type="button" class="ds-knopf" data-klick="zugVerlaengern">bis ${esc(tagText(s.end_date))} verlängern</button>`:'';
+  zugLeisteZeigen(anker,`<b>${esc(z.name)} · ${esc(nur)}</b>${danach.map(d=>`<span class="klein">${esc(tagText(d)+': '+zustand(d))}</span>`).join('')}${verl}${rueck}`)}
+async function zugVerlaengern(){const lz=letzterZug;if(!lz||!lz.antwort)return;const a=lz.antwort,z=lz.z,tage=(a.tage||[]).slice().sort();
+  const body={[FELD[z.art]]:z.id,ab_tag:tage[tage.length-1]||lz.tag};
+  return zugSenden(`/api/planning/slots/${a.slot_id}/verlaengern`,body,merkeZug({z,tag:lz.tag,verlaengert:true}))}
+async function zugZurueck(){const lz=letzterZug;if(!lz||!lz.antwort||!lz.antwort.umkehrung)return;const u=lz.antwort.umkehrung;letzterZug=null;zugLeisteSchliessen();
+  try{await speichern('tafel',()=>api(u.pfad,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(u.body)}));await loadBoard()}
+  catch(err){document.getElementById('status').textContent='Fehler: '+err.message}}
+aktion('chipRausTag',()=>{const z=leisteZug;zugLeisteSchliessen();if(z)herausnehmenTag(z,{tage:[z.tag]})});
+aktion('chipRausAlle',()=>{const z=leisteZug;zugLeisteSchliessen();if(z)herausnehmenTag(z,{alle:true})});
+aktion('chipEinsatz',()=>{const z=leisteZug;zugLeisteSchliessen();if(z)openEdit(z.slot)});
+aktion('zugVerlaengern',()=>zugVerlaengern());
+aktion('zugZurueck',()=>zugZurueck());
+aktion('zugLeisteZu',()=>{letzterZug=null;zugLeisteSchliessen()});
 // merken=false (seit 1.9.257): nur zeigen, nichts im Browser merken -- der Start unter 1440 px
-function rueckstandZeigen(offen,merken=true){document.getElementById('tafelLayout').classList.toggle('rk-zu',!offen);const k=document.getElementById('rkKnopf');k.setAttribute('aria-expanded',String(offen));k.setAttribute('aria-label',offen?'Nicht eingeplant einklappen':'Nicht eingeplant aufklappen');k.querySelector('path').setAttribute('d',offen?'M15 6l-6 6 6 6':'M9 6l6 6-6 6');if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}if(board)renderBoard()}
+// seit 1.9.281: der Knopf heißt wie die Liste -- in „Aufträge“ „Zum Einplanen aufklappen“
+function rkKnopfBeschriften(){const k=document.getElementById('rkKnopf');k.setAttribute('aria-label',(view==='auftraege'?'Zum Einplanen':'Nicht eingeplant')+(k.getAttribute('aria-expanded')==='true'?' einklappen':' aufklappen'))}
+function rueckstandZeigen(offen,merken=true){document.getElementById('tafelLayout').classList.toggle('rk-zu',!offen);const k=document.getElementById('rkKnopf');k.setAttribute('aria-expanded',String(offen));rkKnopfBeschriften();k.querySelector('path').setAttribute('d',offen?'M15 6l-6 6 6 6':'M9 6l6 6-6 6');if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}if(board)renderBoard()}
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Plantafel zeichnet nie über eine neuere.
 async function loadBoard(){const d=datumsliste(),start=d[0],end=d[d.length-1];document.getElementById('zeitraum').textContent=zeitraumText();document.getElementById('status').textContent='Lädt …';try{await lesen('tafel',()=>api(`/api/planning?start=${start}&end=${end}`),b=>{board=b;renderBoard();document.getElementById('status').textContent=''});if(view==='auftraege')await ladeAuftragsliste()}catch(e){document.getElementById('planner').innerHTML=`<div class="leer">Fehler: ${esc(e.message)}</div>`;document.getElementById('status').textContent='Fehler'}}
 
@@ -739,7 +852,7 @@ async function deleteAbsence(id){if(!confirm('Abwesenheit wirklich löschen? Ein
 /* --- Bedienung ---------------------------------------------------------------------------------------------------------------------- */
 aktion('einsatz',el=>{if(nachZiehen){nachZiehen=false;return}openEdit(Number(el.dataset.id))});
 aktion('einplanen',el=>openCreate(Number(el.dataset.auftrag)));
-aktion('auftragKarte',el=>openEdit(Number(el.dataset.id)));  // seit 1.9.280: eine Karte in „Aufträge“ öffnet ihren Einsatz
+aktion('auftragKarte',el=>{if(chipTipp){chipTipp=false;return}openEdit(Number(el.dataset.id))});  // seit 1.9.280: eine Karte öffnet ihren Einsatz -- seit 1.9.281 nicht nach einem Chip
 aktion('kranTermin',el=>terminZeigen(Number(el.dataset.id)));
 aktion('personTermin',el=>terminImKalender(el.dataset.id));
 aktion('terminUebernehmen',()=>terminUebernehmen());

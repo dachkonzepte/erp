@@ -28,6 +28,7 @@ KARTEN_OHNE_NAMEN = {
     "top": "Kopfkarte von Auftrag und Rechnung",
     "side": "Untermenü der Stammdaten",
     "settings-sidebar": "Untermenü der Einstellungen",
+    "zug-leiste": "Leiste am Chip nach einem Zug in der Ansicht „Aufträge“ der Plantafel (seit 1.9.281, Aufklappfläche)",
     "metric": "Kennzahl-Kachel",
     "toolbar": "Werkzeugleiste als Karte",
     "column": "Spalte einer Tafel (Aufgaben, Anfragen)",

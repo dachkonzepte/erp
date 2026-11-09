@@ -99,3 +99,44 @@ Alle 26 rot (17 gegen Tests, 9 gegen den Klicktest), jede Datei byte-genau zurü
 war ebenfalls ganz rot; wiederholt nach der Umbenennung in `.a-einsatz` (v460: ein Name mit „karte“ verlangt die Ecke der Karte). Ohne eigene Gegenprobe: Nr. 3
 „vierter Reiter“ (Aufbau, v647 prüft die Reiter), Nr. 7 „Kolonnen mit Mitgliedern und Geräten“ (Anzeige, im Klicktest „Kolonnen in der Liste“ und im Bild),
 Nr. 9 „bestehende Geräte ohne Kurznamen“ (nach `280_9a` belegt die Migrationsprobe den leeren Wert).
+
+## 1.9.281 (Punkt 3): Ziehen in „Aufträge“ mit Maus und Finger
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – auf einer Karte genau dieser Einsatz (`slot_id`) | ohne `slot_id` (`281_1a`) | 1 rot: v681::test_aus_der_liste_tag_setzen |
+| Nr. 1 – Person, Kolonne oder Gerät | Kolonne mit falschem Feld (`281_1b`) | 1 rot: v681::test_aus_der_liste_tag_setzen |
+| Nr. 1 – für diesen Auftrag | anderer Auftrag (`281_1c`) | Klicktest auftraege_ziehen: „Frei“, „nur Do mit verlängern“ und 16 weitere |
+| Nr. 2 – auf einer Karte in genau diesen Einsatz (`ziel_slot_id`) | ohne `ziel_slot_id` (`281_2a`) | 1 rot: v681::test_aus_der_zelle_umsetzen_oder_herausnehmen |
+| Nr. 2 – an den eigenen Platz zurück: nichts | sendet trotzdem (`281_2b`) | 1 rot: v681::test_aus_der_zelle_umsetzen_oder_herausnehmen |
+| Nr. 2 – umsetzen statt dazu | aus der Zelle `tag-setzen` (`281_2c`) | Klicktest auftraege_ziehen: „Umsetzen: keine Rückfrage“ und 15 weitere |
+| Nr. 3 – auf die Liste gezogen: herausnehmen | nichts (`281_3a`, `281_3d`) | 1 rot: v681::test_aus_der_zelle_umsetzen_oder_herausnehmen; Klicktest: „Liste: Lia herausgenommen“, „Finger: Nele auf die Liste“ u. a. |
+| Nr. 3 – angetippt die Leiste | kein Menü (`281_3b`, `281_3e`) | 1 rot: v681::test_chips_mit_dem_finger_greifbar_ohne_textauswahl; Klicktest: „Kai angetippt: Leiste“, „Finger: angetippt“ u. a. |
+| Nr. 3 – Antippen öffnet den Einsatz nicht | Karte öffnet auch nach dem Antippen (`281_3c`, `281_3f`) | 1 rot: v680::test_reiter_legende_und_laden_nur_in_auftraege; Klicktest: „Antippen öffnet den Einsatz nicht“ u. a. |
+| Nr. 4 – der eigene Einsatz zählt nicht als „woanders“ | zählt mit (`281_4a`) | 1 rot: v681::test_anzeige_frei_und_schon_woanders |
+| Nr. 4 – „Antrag offen – plant ohne Rückfrage“ | Antrag offen als „Frei“ (`281_4b`) | 1 rot: v681::test_anzeige_antrag_abwesend_und_geraet |
+| Nr. 4 – ganze Kolonne: wer schon woanders ist | nie woanders (`281_4c`) | 1 rot: v681::test_anzeige_ganze_kolonne |
+| Nr. 4 – „Abwesend – Rückfrage …“ | ohne (`281_4d`) | 1 rot: v681::test_anzeige_antrag_abwesend_und_geraet |
+| Nr. 4 – auch am Gerät | Gerät nie woanders (`281_4e`) | 1 rot: v681::test_anzeige_antrag_abwesend_und_geraet |
+| Nr. 4 – die Liste als Ziel umrandet | nicht umrandet (`281_4f`) | Klicktest: „Liste: Ziel markiert“ |
+| Nr. 4 – ohne Anfrage beim Ziehen | eine Anfrage je Bewegung (`281_4g`) | Klicktest: „Frei: keine Anfrage beim Ziehen“ |
+| Nr. 5 – Rückfrage bei neuer Warnung | ohne Konflikt-Dialog (`281_5b`, `281_5c`) | 1 rot: v681::test_rueckfragen_nacheinander_gelten_zusammen; Klicktest: „Woanders: Rückfrage“, „Kolonne: eine Rückfrage“ u. a. |
+| Nr. 5 – die Antworten gelten zusammen (erst Warnung, dann „niemand mehr“) | „niemand mehr“ vergisst „Trotzdem planen“ (`281_5a`) | im ersten Lauf GRÜN; Test nachgezogen (umgekehrte Reihenfolge), dieselbe Gegenprobe: 1 rot: v681::test_rueckfragen_nacheinander_gelten_zusammen |
+| Nr. 5 – … (erst „niemand mehr“, dann Warnung) | „Trotzdem planen“ vergisst „Behalten“ (`281_5d`) | 1 rot: v681::test_rueckfragen_nacheinander_gelten_zusammen |
+| Nr. 6 – verlängern ab ihrem letzten Tag | ab dem Tag des Zugs (`281_6a`) | im ersten Lauf GRÜN; Test nachgezogen (sie steht danach schon an weiteren Tagen), dieselbe Gegenprobe: 1 rot: v681::test_danach_verlaengern_und_rueckgaengig |
+| Nr. 6 – Rückgängig einmal | bleibt nach dem Rückgängig (`281_6b`) | 1 rot: v681::test_danach_verlaengern_und_rueckgaengig |
+| Nr. 6 – Rückgängig nur mit Umkehrung | auch ohne (`281_6c`) | 1 rot: v681::test_danach_verlaengern_und_rueckgaengig |
+| Nr. 6 – „<Name> · nur <Tage>“ | „am …“ (`281_6d`) | Klicktest: „nur Do mit verlängern“, „verlängert: Leiste“, „Umsetzen: Leiste“, „Finger: Leiste“ |
+| Nr. 6 – verlängern nur mit Tagen danach | immer (`281_6e`) | Klicktest: „Umsetzen: Leiste“, „Finger: Leiste“ |
+| Nr. 6 – die übrigen Tage mit Zustand | ohne (`281_6f`) | Klicktest: „nur Do mit verlängern“ und vier weitere |
+| Nr. 7 – Chips mit `touch-action:none` | ohne (`281_7a`, `281_7d`) | 1 rot: v681::test_chips_…; Klicktest: sechs Prüfungen „Finger“ |
+| Nr. 7 – keine Textauswahl | ohne `user-select:none` (`281_7e`) | Klicktest: „Frei: nichts markiert, der Chip über dem Zeiger“ |
+| Nr. 7 – bei grobem Zeiger mindestens 40 px | ohne (`281_7b`, `281_7f`) | 1 rot: v681::test_chips_…; Klicktest: „Finger: Chips greifbar“ |
+| Nr. 7 – Escape bricht ab | ohne (`281_7c`, `281_7g`) | 1 rot: v681::test_chips_…; Klicktest: „Escape: Anzeige weg“ |
+| Nr. 7 – die Kopie über dem Zeiger | unter dem Zeiger (`281_7h`) | Klicktest: „Frei: nichts markiert, der Chip über dem Zeiger“ |
+| Nr. 8 – der Knopf heißt wie die Liste | immer „Nicht eingeplant“ (`281_8a`, `281_8c`) | 1 rot: v681::test_knopf_und_hinweis_je_ansicht; Klicktest: „Finger: Liste eingeklappt, Knopf …“ |
+| Nr. 8 – eigener Hinweis unter der Tafel | ohne Wechsel (`281_8b`) | 1 rot: v681::test_knopf_und_hinweis_je_ansicht |
+
+40 Gegenproben (23 gegen Tests, 17 gegen den Klicktest), alle rot -- `281_5a` und `281_6a` erst nach dem nachgezogenen Test (Regel 24); jede Datei byte-genau
+zurück, kein Marker geblieben. Ohne eigene Gegenprobe: Nr. 1 „sonst entscheidet der Server“ (die Entscheidung dazu/verlängert/neu prüft v667 seit 1.9.267), Nr. 6
+„bis zur nächsten Aktion“ (die Leiste schließt beim nächsten Ziehen, belegt durch „Frei: die Leiste ist beim Ziehen zu“).
