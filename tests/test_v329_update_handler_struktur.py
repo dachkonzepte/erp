@@ -227,7 +227,6 @@ BEKANNT = {
     "PUT /api/quotes/{quote_id}": _VOLLES_FORMULAR,
     "PUT /api/quotes/{quote_id}/document-meta": _VOLLES_FORMULAR,
     "PUT /api/quotes/{quote_id}/sections/{section_id}": _VOLLES_FORMULAR,
-    "PUT /api/resources/{resource_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-component-types/{component_type_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}/position": _LEEREN_GEWOLLT,

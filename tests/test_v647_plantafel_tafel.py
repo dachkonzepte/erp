@@ -214,7 +214,8 @@ def test_seitenkopf_mit_einsatz_und_menue():
     assert 'href="/settings#planning"' in kopf
     leiste = re.search(r'<div class="leiste".*?</div>\n<div class="ds-status"', eigen, flags=re.S).group(0)
     assert [x for x in re.findall(r'<option value="(\d+)">', leiste)] == ["7", "14", "21", "28"]  # seit 1.9.279 auch „1 Woche“
-    assert re.findall(r'data-view="(\w+)"[^>]*>(\w+)<', leiste) == [("teams", "Kolonnen"), ("employees", "Personen"), ("resources", "Geräte")]
+    # seit 1.9.280 dazu „Aufträge“
+    assert re.findall(r'data-view="(\w+)"[^>]*>(\w+)<', leiste) == [("teams", "Kolonnen"), ("employees", "Personen"), ("resources", "Geräte"), ("auftraege", "Aufträge")]
     assert 'id="filterKnopf"' in leiste
 
 

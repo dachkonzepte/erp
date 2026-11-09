@@ -69,3 +69,33 @@ Alle 5 rot (`278_2b` nach dem Nachziehen des Klicktests).
 
 Alle 15 im ersten Lauf rot. Ohne Gegenprobe im Browser: die Tafel zeigt in 1.9.279 noch keine Ansicht mit der Liste (ab 1.9.280 im Klicktest
 `plantafel_auftraege`); „die gezeigte Woche bleibt“ (Nr. 5) beschreibt, was bleibt (`periodStart` unberührt).
+
+## 1.9.280 (Punkt 2): Ansicht „Aufträge“, Kurzname am Gerät
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Leerzeichen am Rand weg, leer = kein Kurzname | ohne Bereinigung (`280_1a`) | 1 rot: v680::test_kurzname_anlegen_und_aendern_als_teil_update |
+| Nr. 1 – `PUT /api/resources/{id}` als Teil-Update | `model_dump()` ohne `exclude_unset` (`280_1b`) | 1 rot: v680::test_kurzname_anlegen_und_aendern_als_teil_update |
+| Nr. 1 – höchstens 30 Zeichen | ohne Grenze (`280_1c`) | 1 rot: v680::test_kurzname_anlegen_und_aendern_als_teil_update |
+| Nr. 1 – im Stammdaten-Formular | Formular schickt ihn nicht (`280_1d`) | 1 rot: v680::test_stammdaten_formular_mit_kurzname |
+| Nr. 2 – Kran am Typ (enthält „Kran“) | nur genau „Kran“ (`280_2a`) | 2 rot: v680::test_kran_am_typ[Autokran], [kran] |
+| Nr. 2 – eigenes Zeichen am Chip | Kran mit dem Zeichen eines Geräts (`280_2b`, `280_2c`) | 1 rot: v680::test_karte_mit_chips_am_tag; Klicktest auftraege: „Wasserturm Fr mit Kai und Kran“, „Kranvermietung Fr“, „Kran mit eigenem Zeichen in der Liste“ |
+| Nr. 3 – nur „Aufträge“ lädt die Auftragsliste | jede Ansicht lädt sie (`280_3a`) | 1 rot: v680::test_reiter_legende_und_laden_nur_in_auftraege |
+| Nr. 3 – der Name öffnet die Akte des Auftrags | Link nur auf das Projekt (`280_3b`) | Klicktest auftraege: „Name verlinkt die Akte“ |
+| Nr. 3 – Abschnitte „Eingeplant in …“ | Titel ohne Woche (`280_3c`) | Klicktest auftraege: „Zeilen“ |
+| Nr. 4 – „niemand“ an einem Tag ohne jemanden | nie „niemand“ (`280_4a`, `280_4d`) | 1 rot: v680::test_karte_mit_chips_am_tag; Klicktest auftraege: „Wasserturm Mi“ |
+| Nr. 4 – Chips nur der Personen dieses Tags | alle Personen des Einsatzes (`280_4b`) | 1 rot: v680::test_karte_mit_chips_am_tag |
+| Nr. 4 – Klick auf die Karte öffnet den Einsatz | Klick tut nichts (`280_4c`, `280_4e`) | 1 rot: v680::test_reiter_legende_und_laden_nur_in_auftraege; Klicktest auftraege: „Klick auf die Karte öffnet den Einsatz“ |
+| Nr. 5 – ⚠ nur am betroffenen Chip | jeder Konflikt an jedem Chip des Tags (`280_5b`, `280_5c`) | 2 rot: v680::test_karte_mit_chips_am_tag, ::test_karte_vorlaeufig_kran_und_hinweis; Klicktest auftraege: „Wasserturm Fr …“, „Wartung Do“, „Kranvermietung Fr“ |
+| Nr. 5 – … und nur an seinem Tag | Konflikt an jedem Tag (`280_5a`) | 1 rot: v680::test_karte_mit_chips_am_tag |
+| Nr. 6 – ab 2 Wochen schmalere Chips | immer der ganze Name (`280_6a`, `280_6b`) | 1 rot: v680::test_ab_zwei_wochen_schmale_chips_mit_name_im_title; Klicktest auftraege: „2 Wochen“ |
+| Nr. 7 – abwesend | genehmigte Abwesenheit nicht erkannt (`280_7a`) | 1 rot: v680::test_wochenleiste |
+| Nr. 7 – abwesend ohne Art | mit Art (`280_7b`) | 1 rot: v680::test_wochenleiste |
+| Nr. 7 – doppelt | Gerät nie doppelt (`280_7c`, `280_7d`) | 1 rot: v680::test_wochenleiste; Klicktest auftraege: „Wochenleiste Kran“ |
+| Nr. 8 – Filter nur mit Warnung oder Hinweis | Filter zeigt alle (`280_8a`) | Klicktest auftraege: „Filter“ |
+| Nr. 9 – downgrade entfernt die Spalte | downgrade ohne Wirkung (`280_9a`) | 2 rot: v680::test_migration_sqlite, ::test_migration_postgresql |
+
+Alle 26 rot (17 gegen Tests, 9 gegen den Klicktest), jede Datei byte-genau zurück, kein Marker geblieben. Ein erster Lauf auf dem Stand mit der Klasse `.a-karte`
+war ebenfalls ganz rot; wiederholt nach der Umbenennung in `.a-einsatz` (v460: ein Name mit „karte“ verlangt die Ecke der Karte). Ohne eigene Gegenprobe: Nr. 3
+„vierter Reiter“ (Aufbau, v647 prüft die Reiter), Nr. 7 „Kolonnen mit Mitgliedern und Geräten“ (Anzeige, im Klicktest „Kolonnen in der Liste“ und im Bild),
+Nr. 9 „bestehende Geräte ohne Kurznamen“ (nach `280_9a` belegt die Migrationsprobe den leeren Wert).

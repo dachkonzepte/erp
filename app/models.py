@@ -2377,6 +2377,8 @@ class OperationalResource(Base):
     identifier: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # seit 1.9.280 (Stufe 6, R5c, Punkt 2): kurzer Name auf der Plantafel (Chip in „Aufträge“), leer = der Name
+    kurzname: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Seit 1.9.161: das Postfach dieses Geräts (Kran-Kalender), Pflege nur Admin (Einstellungen -> Outlook-Kalender). Einträge dort hängen am Gerät und belegen es. Eindeutig und klein geschrieben;
     # dass keine Adresse zugleich an einem Konto steht, prüft app/outlook_calendar_sync.py::postfach_pruefen().
     outlook_mailbox: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)

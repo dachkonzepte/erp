@@ -219,3 +219,9 @@ Stammdaten im Dialog und schickt nur, was geändert ist. Bis 1.9.135 ein Eintrag
 `tests/test_v556_kunde_verlauf_und_stammdaten.py`; Herleitung `docs/archiv/redesign.md`, „R3, Punkt 1b“.
 
 `PUT /api/orders/{order_id}/work-preparation` übernimmt seit 1.9.145 nur gesendete Felder (`WorkPreparationUpdate` von `PartialUpdate`, `NOT_NULL` status). Anlass: F12, die Seite schickt den Zeitraum nur noch ohne Einsatz. Die Liste `BEKANNT` hat jetzt 59. Bis 1.9.144 setzte ein PUT nur mit Beginn den Status auf „offen“ und leerte Ende und Hinweise. `tests/test_v565_av_zeitraum.py`.
+
+## Geräte als Teil-Update (seit 1.9.280)
+
+`PUT /api/resources/{resource_id}` übernimmt nur gesendete Felder (`OperationalResourceUpdate` von `PartialUpdate`, `NOT_NULL` resource_type, name, active;
+Handler `model_dump(exclude_unset=True)`). Anlass: das neue Feld „Kurzname“ (Stufe 6, R5c) -- ein Speichern ohne Kurzname soll ihn nicht leeren. Die Liste
+`BEKANNT` hat jetzt 57. `tests/test_v680_ansicht_auftraege.py::test_kurzname_anlegen_und_aendern_als_teil_update`.

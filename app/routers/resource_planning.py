@@ -31,7 +31,7 @@ def _supplier_dict(x: Supplier):
 
 def _resource_dict(x: OperationalResource):
     return {k: getattr(x, k) for k in (
-        "id","resource_number","resource_type","name","manufacturer","model","identifier","notes","active"
+        "id","resource_number","resource_type","name","manufacturer","model","identifier","notes","active","kurzname"
     )}
 
 
@@ -155,7 +155,8 @@ def get_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_r
 def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     if payload.resource_number and db.scalar(select(OperationalResource).where(OperationalResource.resource_number==payload.resource_number)):
         raise HTTPException(status_code=409,detail="Ressourcennummer ist bereits vergeben.")
-    x=OperationalResource(**payload.model_dump()); db.add(x); db.commit(); db.refresh(x)
+    werte=payload.model_dump(); werte["kurzname"]=(werte.get("kurzname") or "").strip() or None  # seit 1.9.280: leer = der Name
+    x=OperationalResource(**werte); db.add(x); db.commit(); db.refresh(x)
     return OperationalResourceOut.model_validate(_resource_dict(x))
 
 
@@ -163,10 +164,12 @@ def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db,
 def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
-    if payload.resource_number:
-        other=db.scalar(select(OperationalResource).where(OperationalResource.resource_number==payload.resource_number,OperationalResource.id!=resource_id))
+    werte=payload.model_dump(exclude_unset=True)  # seit 1.9.280 ein Teil-Update (Regel 22): nur die gesendeten Felder
+    if werte.get("resource_number"):
+        other=db.scalar(select(OperationalResource).where(OperationalResource.resource_number==werte["resource_number"],OperationalResource.id!=resource_id))
         if other: raise HTTPException(status_code=409,detail="Ressourcennummer ist bereits vergeben.")
-    for k,v in payload.model_dump().items(): setattr(x,k,v)
+    if "kurzname" in werte: werte["kurzname"]=(werte["kurzname"] or "").strip() or None
+    for k,v in werte.items(): setattr(x,k,v)
     db.commit(); db.refresh(x); return OperationalResourceOut.model_validate(_resource_dict(x))
 
 

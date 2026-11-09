@@ -155,6 +155,56 @@
   .absence-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--ds-linie);font-size:13px}
   @media (max-width:640px){.ed-vier{grid-template-columns:repeat(2,minmax(0,1fr))}.wahl{flex-wrap:wrap}.wahl-zustand{margin-left:28px;text-align:left}}
   @media (max-width:900px){.tafel-layout,.tafel-layout.rk-zu{grid-template-columns:minmax(0,1fr)}.rk-zu .rk-kopf{flex-direction:row}.rk-zu .rk-kopf h2{display:block}.filter{margin-left:0}.felder{grid-template-columns:minmax(0,1fr)}.tafel-main{padding:16px}}
+/* seit 1.9.280 (Stufe 6, R5c, Punkt 2): Ansicht „Aufträge“ -- Zeichnung entwurf-stufe6/plantafel-auftraege.html */
+.auftraege{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12.5px}
+.auftraege col.a-name-spalte{width:230px}
+.auftraege col.we{width:26px}
+.auftraege th,.auftraege td{border-bottom:1px solid var(--ds-linie);vertical-align:top;padding:6px 5px;text-align:left}
+.auftraege td+td,.auftraege th+th,.auftraege th+td{border-left:1px solid var(--ds-linie)}
+.auftraege thead th{position:sticky;top:0;z-index:2;background:var(--ds-flaeche);font:600 11px var(--ds-schrift-text);color:var(--ds-text-2);vertical-align:bottom}
+.auftraege thead th b{display:block;color:var(--ds-text);font-size:12px}
+.auftraege .we{background:var(--ds-flaeche-2);text-align:center}
+.auftraege .ft{background:color-mix(in srgb,var(--ds-warn-hell) 45%,var(--ds-flaeche))}
+.auftraege .heute{box-shadow:inset 0 2px 0 var(--ds-aktion)}
+.a-abschnitt td{font:600 11px var(--ds-schrift-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ds-text-2);background:var(--ds-flaeche-2);padding:7px 10px}
+.a-name{font-weight:400}
+.a-name a{display:block;font:650 13.5px var(--ds-schrift-text);color:var(--ds-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.a-name a:hover{text-decoration:underline}
+.a-name .klein{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.a-einsatz{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:34px;margin-bottom:4px;padding:4px;box-sizing:border-box;border:1px solid var(--ds-aktion-rand);border-radius:8px;background:var(--ds-aktion-hell);cursor:pointer}
+.a-einsatz:last-child{margin-bottom:0}
+.a-einsatz.vorlaeufig{background:var(--ds-flaeche);border:1.5px dashed color-mix(in srgb,var(--ds-aktion) 70%,var(--ds-flaeche))}
+.a-einsatz.kran{background:repeating-linear-gradient(135deg,var(--ds-info-hell) 0 4px,color-mix(in srgb,var(--ds-info-hell) 82%,var(--ds-info)) 4px 8px);border-color:color-mix(in srgb,var(--ds-info) 45%,var(--ds-flaeche))}
+.a-einsatz.niemand{justify-content:center;align-items:center;background:transparent;border:1.5px dashed var(--ds-linie-stark);color:var(--ds-text-3);font-size:12px}
+.a-einsatz.schmal{min-height:34px;padding:0;border-radius:5px}
+.a-einsatz.zu{opacity:.55}
+.a-einsatz:focus-visible,.chip:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:1px}
+.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:26px;padding:2px 7px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:6px;background:var(--ds-flaeche);color:var(--ds-text);font:600 12px var(--ds-schrift-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip svg{flex:none}
+.chip .warnzeichen{color:var(--ds-fehler-text)}
+.chip.warn{border:1.5px solid var(--ds-fehler)}
+.ze-gruppe{margin:12px 0 4px;font:600 11px var(--ds-schrift-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ds-text-2)}
+.ze-eintrag{display:flex;flex-direction:column;gap:3px;padding:6px 0}
+.ze-zeile{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ze-zeile .chip{flex:0 1 auto;min-width:0}
+.wl{display:flex;gap:3px;flex:none}
+.wl i{display:block;width:11px;height:11px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:3px;background:var(--ds-flaeche)}
+.wl.eng i{width:7px}
+.wl i.eingeplant{background:var(--ds-aktion-hell);border-color:var(--ds-aktion-rand)}
+.wl i.doppelt{background:var(--ds-warn-hell);border-color:var(--ds-warn-text)}
+.wl i.beantragt{border:1.5px dashed var(--ds-text-3)}
+.wl i.abwesend{background:repeating-linear-gradient(135deg,var(--ds-flaeche-2) 0 2px,var(--ds-linie-stark) 2px 4px)}
+.wl-kopf{display:flex;gap:3px;justify-content:flex-end;font:600 9.5px var(--ds-schrift-mono);color:var(--ds-text-3)}
+.wl-kopf span{width:11px;text-align:center}
+.ze-legende{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ds-linie);font-size:11.5px;color:var(--ds-text-2)}
+.ze-legende span{display:inline-flex;align-items:center;gap:5px}
+.ze-legende .wl i{display:inline-block}
+.ansicht-auftraege .legende-tafel{display:none}
+.legende-auftraege{display:none}
+#backlogCount[hidden]{display:none}
+#backlog .klein,.a-name .klein{display:block;font-size:12px;line-height:1.35;color:var(--ds-text-2)}
+#backlog p.klein{margin:0 0 4px}
+.ansicht-auftraege .legende-auftraege{display:flex}
 </style>
 </head>
 <body class="ds-seite">
@@ -175,7 +225,7 @@
   <button type="button" class="ds-knopf" id="heute">Heute</button>
   <select id="rangeDays" aria-label="Zeitraum"><option value="7">1 Woche</option><option value="14">2 Wochen</option><option value="21">3 Wochen</option><option value="28">4 Wochen</option></select>
   <div class="segment viewtabs" role="group" aria-label="Ansicht">
-    <button type="button" data-view="teams" aria-pressed="true">Kolonnen</button><button type="button" data-view="employees" aria-pressed="false">Personen</button><button type="button" data-view="resources" aria-pressed="false">Geräte</button>
+    <button type="button" data-view="teams" aria-pressed="true">Kolonnen</button><button type="button" data-view="employees" aria-pressed="false">Personen</button><button type="button" data-view="resources" aria-pressed="false">Geräte</button><button type="button" data-view="auftraege" aria-pressed="false">Aufträge</button>
   </div>
   <button type="button" class="filter" id="filterKnopf" aria-pressed="false" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17H2.5L12 3z"/><path d="M12 10v4M12 17.5v.5"/></svg><span id="filterText">Keine Warnungen</span></button>
 </div>
@@ -189,11 +239,16 @@
   </aside>
   <section class="karte tafel" aria-label="Plantafel">
     <div class="tafel-scroll" id="planner"><div class="leer">Plantafel wird geladen …</div></div>
-    <div class="legende" aria-label="Legende">
+    <div class="legende legende-tafel" aria-label="Legende">
       <span><i class="muster"></i>fest</span><span><i class="muster vorlaeufig"></i>vorläufig</span><span><i class="muster kran"></i>Kranvermietung</span>
       <span><i class="muster abwesend"></i>abwesend</span><span><i class="muster beantragt"></i>beantragt</span><span><i class="muster termin"></i>Termin aus Kalender/Outlook</span>
       <span><svg class="warnzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17H2.5L12 3z"/><path d="M12 10v4M12 17.5v.5"/></svg>Warnung</span>
       <span><i class="hinweis-punkt"></i>Hinweis</span><span id="legendeFerien" hidden><i class="muster ferien"></i>Schulferien (nur Anzeige)</span>
+    </div>
+    <div class="legende legende-auftraege" aria-label="Legende der Aufträge">
+      <span><i class="muster"></i>Einsatz fest</span><span><i class="muster vorlaeufig"></i>vorläufig</span><span><i class="muster kran"></i>Kranvermietung</span>
+      <span><i class="muster beantragt"></i>niemand an dem Tag</span><span><span class="chip">Mia</span>Person</span><span><span class="chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V8h11v8M14 11h4l3 3v2h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>HS-DK 202</span>Gerät</span>
+      <span><svg class="warnzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17H2.5L12 3z"/><path d="M12 10v4M12 17.5v.5"/></svg>Warnung</span><span><i class="hinweis-punkt"></i>Hinweis</span>
     </div>
   </section>
 </div>
@@ -315,7 +370,7 @@ function goToday(){periodStart=monday(berlinTodayDate());loadBoard()}
 const ZEITRAUM_SCHLUESSEL='plantafel_zeitraum',ZEITRAUM_VORGABE={auftraege:7},ZEITRAEUME=[7,14,21,28];
 function zeitraumGemerkt(v){let w=null;try{w=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}')[v]}catch(e){}return ZEITRAEUME.includes(w)?w:(ZEITRAUM_VORGABE[v]||14)}
 function zeitraumMerken(v,tage){try{const m=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}');m[v]=tage;localStorage.setItem(ZEITRAUM_SCHLUESSEL,JSON.stringify(m))}catch(e){}}
-function setView(v){const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else renderBoard()}
+function setView(v){const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
 const LABEL_W=168,WE_W=22,MIN_TAG=44,SPUR_H=30,SPUR_OBEN=8;
@@ -425,13 +480,72 @@ function balkenEinpassen(wurzel){for(const s of wurzel.querySelectorAll('.slot:n
   s.classList.add('zweizeilig');if(textPasst(t))continue;
   if(t.querySelector('.leise')){s.classList.add('ohne-namen');s.classList.remove('zweizeilig');if(textPasst(t))continue;s.classList.add('zweizeilig');if(textPasst(t))continue}
   const r=document.createRange();r.selectNodeContents(t);if(r.getBoundingClientRect().width>t.getBoundingClientRect().width)s.classList.remove('zweizeilig');s.classList.add('gekuerzt')}}
-function renderBoard(){if(!board)return;document.querySelectorAll('.viewtabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));geo=geometrie(datumsliste());document.getElementById('zeitraum').textContent=zeitraumText();const z=zeilen();const leer=!z.some(x=>!x.abschnitt)?`<div class="leer">Keine ${view==='employees'?'Personen':'Geräte'} vorhanden. Bitte zuerst in den Stammdaten anlegen.</div>`:'';document.getElementById('planner').innerHTML=`<div class="tafel-inhalt" style="width:${esc(LABEL_W+geo.breite)}px">${kopfHtml()}${z.map(zeileHtml).join('')}</div>${leer}`;balkenEinpassen(document.getElementById('planner'));ziehenEinrichten();renderBacklog();renderFilter();document.getElementById('legendeFerien').hidden=!geo.spalten.some(c=>schoolAt(c.d).length)}
+function renderBoard(){if(!board)return;document.querySelectorAll('.viewtabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));geo=geometrie(datumsliste());document.getElementById('zeitraum').textContent=zeitraumText();
+  // seit 1.9.280: „Aufträge“ zeichnet eine Tabelle und links „Zum Einplanen“ (die übrigen Ansichten die Zeitachse und „Nicht eingeplant“)
+  document.getElementById('tafelLayout').classList.toggle('ansicht-auftraege',view==='auftraege');
+  if(view==='auftraege'){document.getElementById('planner').innerHTML=auftraegeHtml();renderBacklog();renderFilter();return}
+  const z=zeilen();const leer=!z.some(x=>!x.abschnitt)?`<div class="leer">Keine ${view==='employees'?'Personen':'Geräte'} vorhanden. Bitte zuerst in den Stammdaten anlegen.</div>`:'';document.getElementById('planner').innerHTML=`<div class="tafel-inhalt" style="width:${esc(LABEL_W+geo.breite)}px">${kopfHtml()}${z.map(zeileHtml).join('')}</div>${leer}`;balkenEinpassen(document.getElementById('planner'));ziehenEinrichten();renderBacklog();renderFilter();document.getElementById('legendeFerien').hidden=!geo.spalten.some(c=>schoolAt(c.d).length)}
 function renderFilter(){const z=board.zaehler||{warnungen:0,hinweise:0},k=document.getElementById('filterKnopf');const teile=[z.warnungen?`${z.warnungen} ${z.warnungen===1?'Warnung':'Warnungen'}`:'',z.hinweise?`${z.hinweise} ${z.hinweise===1?'Hinweis':'Hinweise'}`:''].filter(Boolean);document.getElementById('filterText').textContent=teile.join(' · ')||'Keine Warnungen';k.disabled=!teile.length;if(!teile.length)filterAn=false;k.setAttribute('aria-pressed',String(filterAn));k.title=(filterAn?'Alle Einsätze zeigen':'Nur Einsätze mit Warnung oder Hinweis zeigen')+' – berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität.'}
-function renderBacklog(){document.getElementById('backlogCount').textContent=board.backlog.length;document.getElementById('backlog').innerHTML=board.backlog.map(x=>`<div class="rk-eintrag"><a href="/projects/${x.project_id}?auftrag=${x.order_id}">${esc(x.project_number)}</a><b>${esc(x.project_name)}</b><span class="klein">Soll ${esc(zahlText(x.planned_hours,2))} h · ${x.suggested_start?'ab '+esc(fmtJahr(x.suggested_start)):'ohne Termin'}</span>${x.order_status==='pausiert'?`<span class="klein">Auftrag pausiert${x.order_status_reason?' · '+esc(x.order_status_reason):''}</span>`:''}<button type="button" class="ds-knopf" data-klick="einplanen" data-auftrag="${x.order_id}">Einplanen …</button></div>`).join('')||'<div class="rk-leer">Alle Aufträge sind eingeplant.</div>'}
+function renderBacklog(){const auftr=view==='auftraege';document.getElementById('rkTitel').textContent=auftr?'Zum Einplanen':'Nicht eingeplant';document.getElementById('backlogCount').hidden=auftr;if(auftr){document.getElementById('backlog').innerHTML=zumEinplanenHtml();return}
+  document.getElementById('backlogCount').textContent=board.backlog.length;document.getElementById('backlog').innerHTML=board.backlog.map(x=>`<div class="rk-eintrag"><a href="/projects/${x.project_id}?auftrag=${x.order_id}">${esc(x.project_number)}</a><b>${esc(x.project_name)}</b><span class="klein">Soll ${esc(zahlText(x.planned_hours,2))} h · ${x.suggested_start?'ab '+esc(fmtJahr(x.suggested_start)):'ohne Termin'}</span>${x.order_status==='pausiert'?`<span class="klein">Auftrag pausiert${x.order_status_reason?' · '+esc(x.order_status_reason):''}</span>`:''}<button type="button" class="ds-knopf" data-klick="einplanen" data-auftrag="${x.order_id}">Einplanen …</button></div>`).join('')||'<div class="rk-leer">Alle Aufträge sind eingeplant.</div>'}
+/* --- seit 1.9.280 (Stufe 6, R5c, Punkt 2): Ansicht „Aufträge“ (Zeichnung entwurf-stufe6/plantafel-auftraege.html) ------------------------------
+   Eine Zeile je offenem Auftrag (GET /api/planning/auftragsliste: eingeplante oben, Stunden wie die Akte), eine Spalte je Tag. In der Zelle je Einsatz eine
+   Karte (fest, vorläufig, Kranvermietung; zwei Einsätze = zwei Karten untereinander) mit den Personen und Geräten an diesem Tag als Chips -- an einem Tag ohne
+   jemanden „niemand“. Ein Chip trägt ⚠ bzw. den Punkt nur bei der betroffenen Person oder dem Gerät an diesem Tag. Ab 2 Wochen werden die Chips schmaler (der
+   Name steht im title). Links „Zum Einplanen“: Kolonnen, Personen und Geräte, je mit einer Wochenleiste (eingeplant, frei, beantragt, abwesend, doppelt). */
+let auftragsliste=null;
+const GERAETZEICHEN='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V8h11v8M14 11h4l3 3v2h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>';
+const KRANZEICHEN='<svg class="kranzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h2l12 4H7"/><path d="M17 8v5"/><path d="M15.5 13h3v3h-3z"/><path d="M3 21h7"/></svg>';
+function geraetInfo(id){return board.resources.find(r=>r.id===id)||{}}
+function geraetName(id,fallback){const g=geraetInfo(id);return g.kurzname||g.name||fallback||''}
+// ab 2 Wochen schmaler: zwei Zeichen, der volle Name im title
+function chipName(n){return tageAnzahl()>7?String(n).slice(0,2):n}
+function aufGeschlossen(s){return s.order_status==='abgeschlossen'||s.order_status==='storniert'}
+// was am Einsatz diese Person bzw. dieses Gerät an diesem Tag betrifft
+function konflikteAm(s,feld,id,d){const ks=(s.conflicts||[]).filter(c=>c[feld]===id&&imStueck(c,[d,d]));return {warn:ks.some(c=>c.stufe==='warnung'),hint:ks.some(c=>c.stufe!=='warnung'),text:ks.map(c=>(c.stufe==='warnung'?'⚠ ':'· ')+(KONFLIKT_ART[c.type]||'')+c.label).join('\n')}}
+function chipHtml(c){const zeichen=c.art==='geraet'?(c.kran?KRANZEICHEN:GERAETZEICHEN):'';const punkt=c.hint&&!c.warn?'<span class="hinweis-punkt" aria-hidden="true"></span>':'';
+  return `<span class="chip${c.warn?' warn':''}" data-art="${esc(c.art)}" data-id="${c.id}"${c.slot?` data-slot="${esc(c.slot)}" data-tag="${esc(c.tag)}"`:''} title="${esc(c.titel)}">${zeichen}${punkt}${esc(chipName(c.name))}${c.warn?WARNZEICHEN:''}</span>`}
+function personenAm(s,d){return s.employees.filter(e=>personTageIn(s,e.id).includes(d))}
+function geraeteAm(s,d){return s.resources.filter(r=>geraetTageIn(s,r.id).includes(d))}
+function karteHtml(s,d){const leute=personenAm(s,d),geraete=geraeteAm(s,d),titel=einsatzTitel(s);
+  const kl=['a-einsatz',s.status==='vorlaeufig'?'vorlaeufig':'',s.art==='kranvermietung'?'kran':'',aufGeschlossen(s)?'zu':''].filter(Boolean).join(' ');
+  if(!leute.length&&!geraete.length)return `<div class="a-einsatz niemand" data-klick="auftragKarte" data-id="${s.id}" tabindex="0" title="${esc(titel)}">niemand</div>`;
+  if(istWochenende(d))return `<div class="${kl} schmal" data-klick="auftragKarte" data-id="${s.id}" tabindex="0" title="${esc([fmt(d)+': '+[...leute.map(e=>e.name),...geraete.map(r=>geraetName(r.id,r.name))].join(', '),titel].join('\n'))}"></div>`;
+  const chips=[...leute.map(e=>{const k=konflikteAm(s,'employee_id',e.id,d);return chipHtml({art:'person',id:e.id,name:e.vorname||e.name,titel:[e.name,k.text].filter(Boolean).join('\n'),warn:k.warn,hint:k.hint,slot:s.id,tag:d})}),
+    ...geraete.map(r=>{const g=geraetInfo(r.id),k=konflikteAm(s,'resource_id',r.id,d);return chipHtml({art:'geraet',id:r.id,name:g.kurzname||r.name,titel:[r.name,k.text].filter(Boolean).join('\n'),warn:k.warn,hint:k.hint,kran:g.kran,slot:s.id,tag:d})})];
+  return `<div class="${kl}" data-klick="auftragKarte" data-id="${s.id}" tabindex="0" title="${esc(titel)}">${chips.join('')}</div>`}
+function auftragZeileHtml(z,dates){const slots=board.slots.filter(s=>s.order_id===z.order_id).sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.id-b.id);
+  const zellen=dates.map(d=>{const hier=slots.filter(s=>s.start_date<=d&&s.end_date>=d);return `<td class="a-tag${istWochenende(d)?' we':feiertagAm(d)?' ft':''}" data-date="${esc(d)}" data-auftrag="${z.order_id}">${hier.map(s=>karteHtml(s,d)).join('')}</td>`}).join('');
+  return `<tr class="a-zeile" data-auftrag="${z.order_id}"><th scope="row" class="a-name"><a href="/projects/${z.project_id}?auftrag=${z.order_id}" title="${esc([z.project_name,z.order_number].filter(Boolean).join(' · '))}">${esc(z.project_name||z.order_number)}</a><span class="klein">${esc([z.project_number,z.customer_name].filter(Boolean).join(' · '))}</span><span class="klein">${esc([z.stunden,...z.zusatz].join(' · '))}</span></th>${zellen}</tr>`}
+function auftraegeHtml(){const dates=datumsliste(),liste=auftragsliste?auftragsliste.auftraege:[],heute=berlinToday();
+  const mitWarnung=z=>board.slots.some(s=>s.order_id===z.order_id&&(s.conflicts||[]).length);
+  const zeilen=liste.filter(z=>!filterAn||mitWarnung(z)),oben=zeilen.filter(z=>z.eingeplant),unten=zeilen.filter(z=>!z.eingeplant);
+  const arbeit=dates.filter(d=>!istWochenende(d)).length,we=dates.length-arbeit,eng=tageAnzahl()>7;
+  const cols=`<colgroup><col class="a-name-spalte">${dates.map(d=>`<col${istWochenende(d)?' class="we"':''}>`).join('')}</colgroup>`;
+  const kopf=`<thead><tr><th class="a-name" scope="col">Auftrag</th>${dates.map(d=>{const f=feiertagAm(d),w=istWochenende(d);return `<th scope="col" class="${w?'we':f?'ft':''}${d===heute?' heute':''}" title="${esc([fmtJahr(d),f?f.name:''].filter(Boolean).join(' · '))}">${w?esc(wochentag(d).slice(0,1)):`<b>${esc(wochentag(d))}</b>${esc(fmt(d))}`}</th>`}).join('')}</tr></thead>`;
+  const abschnitt=txt=>`<tr class="a-abschnitt"><td colspan="${dates.length+1}">${esc(txt)}</td></tr>`;
+  const woche=tageAnzahl()===7?'dieser Woche':'diesem Zeitraum';
+  const body=(oben.length?abschnitt('Eingeplant in '+woche)+oben.map(z=>auftragZeileHtml(z,dates)).join(''):'')+(unten.length?abschnitt('Offen, ohne Einsatz in '+woche)+unten.map(z=>auftragZeileHtml(z,dates)).join(''):'');
+  const leer=auftragsliste?(filterAn?'Kein Auftrag mit Warnung oder Hinweis.':'Keine offenen Aufträge.'):'Aufträge werden geladen …';
+  return `<table class="auftraege" style="min-width:${230+arbeit*(eng?56:110)+we*26}px">${cols}${kopf}<tbody>${body||`<tr><td colspan="${dates.length+1}" class="leer">${esc(leer)}</td></tr>`}</tbody></table>`}
+// Wochenleiste: je Arbeitstag des Zeitraums, was die Person bzw. das Gerät dort tut (abwesend ohne Art, Antwort 13)
+function personZustand(id,d){const ab=(board.abwesenheiten||[]).filter(a=>a.employee_id===id&&a.von<=d&&a.bis>=d);const n=board.slots.filter(s=>!aufGeschlossen(s)&&personTageIn(s,id).includes(d)).length;
+  if(ab.some(a=>a.stand!=='beantragt'))return ['abwesend','abwesend'+(n?', eingeplant':'')];if(n>1)return ['doppelt','doppelt eingeplant'];if(ab.length)return ['beantragt','Abwesenheit beantragt'+(n?', eingeplant':'')];return n?['eingeplant','eingeplant']:['frei','frei']}
+function geraetZustand(id,d){const n=board.slots.filter(s=>!aufGeschlossen(s)&&geraetTageIn(s,id).includes(d)).length;return n>1?['doppelt','doppelt eingeplant']:n?['eingeplant','eingeplant']:['frei','frei']}
+function wochenleiste(zustand,id,dates){return `<span class="wl${dates.length>5?' eng':''}">${dates.map(d=>{const [k,txt]=zustand(id,d);return `<i class="${esc(k)}" title="${esc(wochentag(d)+' '+fmt(d)+': '+txt)}"></i>`}).join('')}</span>`}
+function zumEinplanenHtml(){const dates=datumsliste().filter(d=>!istWochenende(d));
+  const kopf=dates.length<=5?`<div class="wl-kopf" aria-hidden="true">${dates.map(d=>`<span>${esc(wochentag(d).slice(0,1))}</span>`).join('')}</div>`:'';
+  const kolonnen=board.teams.filter(t=>t.active!==false).map(t=>`<div class="ze-eintrag"><div class="ze-zeile">${chipHtml({art:'kolonne',id:t.id,name:t.name,titel:t.name})}</div><span class="klein">${esc([mitgliederText(t),...(t.resources||[]).map(r=>geraetName(r.id,r.name))].join(' · '))}</span></div>`).join('')||'<div class="rk-leer">Keine Kolonnen.</div>';
+  const personen=board.employees.map(e=>`<div class="ze-zeile">${chipHtml({art:'person',id:e.id,name:e.name,titel:[e.name,e.function].filter(Boolean).join(' · ')})}${wochenleiste(personZustand,e.id,dates)}</div>`).join('')||'<div class="rk-leer">Keine Personen.</div>';
+  const geraete=geraeteSortiert().map(r=>`<div class="ze-zeile">${chipHtml({art:'geraet',id:r.id,name:r.kurzname||r.name,titel:r.name,kran:r.kran})}${wochenleiste(geraetZustand,r.id,dates)}</div>`).join('')||'<div class="rk-leer">Keine Geräte.</div>';
+  const legende=`<div class="ze-legende"><span><span class="wl"><i class="eingeplant"></i></span>eingeplant</span><span><span class="wl"><i></i></span>frei</span><span><span class="wl"><i class="beantragt"></i></span>beantragt</span><span><span class="wl"><i class="abwesend"></i></span>abwesend</span><span><span class="wl"><i class="doppelt"></i></span>doppelt</span></div>`;
+  return `<p class="klein">Auf Auftrag und Tag ziehen. Aus einer Zelle ziehen setzt für diesen Tag um.</p><div class="ze-gruppe">Kolonnen</div>${kolonnen}<div class="ze-gruppe">Personen</div>${kopf}${personen}<div class="ze-gruppe">Geräte</div>${geraete}${legende}`}
+// lädt die Auftragsliste für den gezeigten Zeitraum -- nur in „Aufträge“ (die anderen Ansichten laden sie nicht)
+async function ladeAuftragsliste(){const d=datumsliste(),start=d[0],end=d[d.length-1];await lesen('auftragsliste',()=>api(`/api/planning/auftragsliste?start=${start}&end=${end}`),x=>{auftragsliste=x;if(view==='auftraege'&&board)renderBoard()})}
 // merken=false (seit 1.9.257): nur zeigen, nichts im Browser merken -- der Start unter 1440 px
 function rueckstandZeigen(offen,merken=true){document.getElementById('tafelLayout').classList.toggle('rk-zu',!offen);const k=document.getElementById('rkKnopf');k.setAttribute('aria-expanded',String(offen));k.setAttribute('aria-label',offen?'Nicht eingeplant einklappen':'Nicht eingeplant aufklappen');k.querySelector('path').setAttribute('d',offen?'M15 6l-6 6 6 6':'M9 6l6 6-6 6');if(merken)try{localStorage.setItem('plantafel_rueckstand',offen?'offen':'zu')}catch(e){}if(board)renderBoard()}
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Plantafel zeichnet nie über eine neuere.
-async function loadBoard(){const d=datumsliste(),start=d[0],end=d[d.length-1];document.getElementById('zeitraum').textContent=zeitraumText();document.getElementById('status').textContent='Lädt …';try{await lesen('tafel',()=>api(`/api/planning?start=${start}&end=${end}`),b=>{board=b;renderBoard();document.getElementById('status').textContent=''})}catch(e){document.getElementById('planner').innerHTML=`<div class="leer">Fehler: ${esc(e.message)}</div>`;document.getElementById('status').textContent='Fehler'}}
+async function loadBoard(){const d=datumsliste(),start=d[0],end=d[d.length-1];document.getElementById('zeitraum').textContent=zeitraumText();document.getElementById('status').textContent='Lädt …';try{await lesen('tafel',()=>api(`/api/planning?start=${start}&end=${end}`),b=>{board=b;renderBoard();document.getElementById('status').textContent=''});if(view==='auftraege')await ladeAuftragsliste()}catch(e){document.getElementById('planner').innerHTML=`<div class="leer">Fehler: ${esc(e.message)}</div>`;document.getElementById('status').textContent='Fehler'}}
 
 /* --- Einsatz-Dialog (seit 1.9.248, Stufe 6, R4, Punkt 4; Zeichnung plantafel-einsatz.html) -----------------------------------------------
    einsatz = der Stand im Dialog; geaendert = was beim Bearbeiten gesendet wird (Teil-Update, Regel 22: nur, was der Dialog geändert hat). Der Server prüft
@@ -625,6 +739,7 @@ async function deleteAbsence(id){if(!confirm('Abwesenheit wirklich löschen? Ein
 /* --- Bedienung ---------------------------------------------------------------------------------------------------------------------- */
 aktion('einsatz',el=>{if(nachZiehen){nachZiehen=false;return}openEdit(Number(el.dataset.id))});
 aktion('einplanen',el=>openCreate(Number(el.dataset.auftrag)));
+aktion('auftragKarte',el=>openEdit(Number(el.dataset.id)));  // seit 1.9.280: eine Karte in „Aufträge“ öffnet ihren Einsatz
 aktion('kranTermin',el=>terminZeigen(Number(el.dataset.id)));
 aktion('personTermin',el=>terminImKalender(el.dataset.id));
 aktion('terminUebernehmen',()=>terminUebernehmen());

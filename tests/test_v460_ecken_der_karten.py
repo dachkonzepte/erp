@@ -102,9 +102,10 @@ NICHT_KARTEN = {
         "tag-knopf")},  # seit 1.9.248 ein Tag eines Geräts im Einsatz-Dialog der Plantafel
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
-        "status-pill", "einsatz-zu", "phase-kreis", "muster")},  # muster seit 1.9.247: Farbmuster der Legende der Plantafel  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
+        "status-pill", "einsatz-zu", "phase-kreis", "muster", "chip")},  # chip seit 1.9.280: Person oder Gerät am Tag in der Ansicht „Aufträge“ der Plantafel  # muster seit 1.9.247: Farbmuster der Legende der Plantafel  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
     **{k: "Raster oder Tafelteil (Linien zwischen den Zellen, Plantafel, Zeitstrahl, Kopf der Positionen)" for k in (
-        "month-grid", "rate-result", "timeline", "lv-columns", "slot")},
+        "month-grid", "rate-result", "timeline", "lv-columns", "slot",
+        "a-einsatz")},  # seit 1.9.280: ein Einsatz im Tag der Ansicht „Aufträge“ der Plantafel (8 px wie der Balken, Zeichnung plantafel-auftraege.html)
     **{k: "Skizze der Dachfläche" for k in ("sketch-wrap", "sketch-rect", "sketch-rect-preview", "sketch-marker", "sketch-marker-label")},
     "marke-kachel": "Kachel der Bildmarke -- eigene Ecke wie in Leiste und Monteurskopf (_marke.html)",
     "abschluss-leiste": "feste Leiste unten in Schritt 5 des Einsatzberichts (seit 1.9.72) -- oben runde Ecken, unten am Fensterrand",

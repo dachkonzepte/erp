@@ -2007,6 +2007,12 @@ def _geraet_pruefung(pruefungen: list[tuple[str, date]], heute: date) -> str | N
     return f"{art} fällig seit {faellig:%d.%m.%Y}" if faellig < heute else f"{art} gültig bis {faellig:%m/%Y}"
 
 
+def ist_kran(resource: OperationalResource) -> bool:
+    """Seit 1.9.280 (Stufe 6, R5c, Punkt 2): ein Kran bekommt auf der Tafel sein eigenes Zeichen -- am Typ erkannt („Kran“ aus der Optionsgruppe
+    resource_types, auch „Autokran“ o. ä.)."""
+    return "kran" in (resource.resource_type or "").lower()
+
+
 def abwesenheiten_der_tafel(db: Session, absence_rows: list[EmployeeAbsence], absences: dict, employee_ids: set[int], start: date, end: date,
                             antraege: dict | None = None) -> list[dict]:
     """Seit 1.9.247 (Stufe 6, R4): je Person die Abwesenheiten im Bild als Zeiträume -- genehmigt (gespeichert), Freistellung des Arbeitszeitkalenders
@@ -2285,7 +2291,9 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
                      "plantafel":kennzeichen[x.id]} for x in employees],  # seit 1.9.253 das Kennzeichen (1.9.250–1.9.252 „konto“: ohne Kolonne mit Konto hieß „Bauleitung“)
         # seit 1.9.247: die nächste Prüfung (Betriebsmittel) und ob das Gerät einen Kalender hat (eigenes Postfach)
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier,
-                      "pruefung":_geraet_pruefung(pruefungen.get(x.id,[]),berlin_today()),"kalender":bool(x.outlook_mailbox)} for x in resources],
+                      "pruefung":_geraet_pruefung(pruefungen.get(x.id,[]),berlin_today()),"kalender":bool(x.outlook_mailbox),
+                      # seit 1.9.280 (Stufe 6, R5c, Punkt 2): der Kurzname für den Chip (leer = der Name) und ob es ein Kran ist (eigenes Zeichen)
+                      "kurzname":x.kurzname,"kran":ist_kran(x)} for x in resources],
         "slots":slot_dicts,"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if any(k["type"] not in FAERBT_NICHT for k in conflict_map.get(x.id,[]))),
         "zaehler":tafel_zaehler(slot_dicts),  # seit 1.9.247: Knopf „n Warnungen · n Hinweise“
         "geraete_termine":geraete_termine(db,{x.id for x in resources},start_date,end_date),  # seit 1.9.247: Termine direkt im Kalender eines Geräts

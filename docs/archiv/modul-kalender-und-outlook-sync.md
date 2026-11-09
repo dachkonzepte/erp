@@ -2292,3 +2292,50 @@ Ansicht, unbekannter Wert und ohne Speicher, Laden nur bei anderer Zahl der Tage
 **Angepasste Erwartungen** (Regel 28): `tests/test_v647_plantafel_tafel.py::test_seitenkopf_mit_einsatz_und_menue`: alt die Auswahl 14/21/28, neu 7/14/21/28. `tests/test_v447_auswahl_altwerte.py`: `KLASSEN` um `('planning.html', 'P2', 'rangeDays')` mit Klasse „neu“ ergänzt
 (der Zeitraum der Ansicht kommt jetzt aus dem Browser, nur Werte der Liste über `zeitraumGemerkt()` -- kein gespeicherter Wert); der Wächter fand die Zuweisung im
 ersten Lauf vor dem Commit.
+
+### Umsetzung 1.9.280 (Punkt 2): Ansicht „Aufträge“, Kurzname am Gerät
+
+- Reiter „Aufträge“ (`view==='auftraege'`, vierter Knopf der Leiste): die Tafel zeichnet `auftraegeHtml()` -- je Zeile der Auftragsliste (1.9.279, nur diese Ansicht
+  lädt sie: `ladeAuftragsliste()` in `loadBoard()` und `setView()`) der Name als Link auf die Akte (`/projects/<Projekt>?auftrag=<Auftrag>`), Nummer und Kunde, Stunden
+  und Zusatz; Abschnitte „Eingeplant in <Woche>“ und „Offen, ohne Einsatz in <Woche>“.
+- Zelle je Tag (`td.a-tag` mit `data-date`, `data-auftrag`): je Einsatz des Auftrags an dem Tag eine Karte (`karteHtml()`; Klassen `vorlaeufig`, `kran`, `niemand`), zwei
+  Einsätze untereinander; Chips der Personen (`personenAm()`) und Geräte (`geraeteAm()`) dieses Tags, am Gerät der Kurzname, am Kran `KRANZEICHEN`; ein Tag ohne Person und
+  Gerät „niemand“. ⚠ bzw. Hinweispunkt nur am Chip, dessen Konflikt diesen Tag trifft (`konflikteAm()` über `imStueck()`). Ab 2 Wochen Chips mit zwei Buchstaben, der
+  Name im title (`chipName()`). Ein Klick auf die Karte öffnet ihren Einsatz (`aktion('auftragKarte')`).
+- Links „Zum Einplanen“ (`zumEinplanenHtml()`): Kolonnen mit Mitgliedern und Geräten, Personen, Geräte, je mit Wochenleiste der Arbeitstage (`personZustand()`,
+  `geraetZustand()`: eingeplant, frei, beantragt, abwesend -- ohne Art, Antwort 13 --, doppelt), Legende darunter; die Zahl „Nicht eingeplant“ entfällt dort.
+- Filter „Warnungen · Hinweise“: nur Aufträge mit einem Einsatz mit Warnung oder Hinweis im Zeitraum.
+- Kurzname: `operational_resources.kurzname` VARCHAR(30), leer = der Name, beim Speichern ohne Leerzeichen am Rand; Stammdaten-Formular „Kurzname auf der Plantafel“;
+  `GET /api/planning` liefert je Gerät `kurzname` und `kran` (`app/planning.py::ist_kran()`: der Typ enthält „Kran“, auch „Autokran“); in der Änderungshistorie
+  „Kurzname auf der Plantafel“ (`app/audit.py::FIELD_LABELS`).
+- Ecken (v460): der Einsatz im Tag (`.a-einsatz`, 8 px wie der Balken der Zeichnung) ist ein Tafelteil, der Chip (`.chip`) ein Kennzeichen -- bis zum ersten
+  vollen Lauf hieß die Karte `.a-karte`, und v460 verlangte für einen Namen mit „karte“ die Ecke der Karte (12 px).
+
+#### Festlegungen 1.9.280 (Bitte bestätigen)
+
+1. Kurzname am Gerät: eigene Spalte, höchstens 30 Zeichen, leer = der Name, Leerzeichen am Rand weg; im Stammdaten-Formular; `PUT /api/resources/{id}` ist ein
+   Teil-Update.
+2. Kran am Typ erkannt (enthält „Kran“), eigenes Zeichen am Chip -- in der Zelle und in der Liste.
+3. „Aufträge“ ist der vierte Reiter; nur diese Ansicht lädt die Auftragsliste; der Name öffnet die Akte; Abschnitte „Eingeplant in …“ und „Offen, ohne Einsatz in …“.
+4. Je Einsatz eine Karte (fest, vorläufig, Kran), zwei Einsätze zwei Karten untereinander; Chips nur der Personen und Geräte dieses Tags; ein Tag ohne jemanden
+   „niemand“; Klick auf die Karte öffnet den Einsatz.
+5. ⚠ und Hinweispunkt nur am betroffenen Chip und Tag.
+6. Ab 2 Wochen schmalere Chips (zwei Buchstaben), der Name im title.
+7. Links „Zum Einplanen“ mit Wochenleiste: eingeplant, frei, beantragt, abwesend (ohne Art), doppelt.
+8. Der Filter „Warnungen · Hinweise“ zeigt nur Aufträge mit Warnung oder Hinweis.
+9. Migration `c3e9f1a7b285`: Spalte dazu, bestehende Geräte ohne Kurznamen; downgrade entfernt sie.
+
+#### Tests und Prüfung 1.9.280
+
+Neu: `tests/test_v680_ansicht_auftraege.py` (Kurzname als Teil-Update mit Grenze, Kran am Typ, Tafel mit `kurzname`/`kran`, Formular, Migration unter SQLite und
+PostgreSQL mit Bestand; in node mit dem Code der Seite: Karte mit Chips am Tag, vorläufig und Kran mit Hinweis, schmale Chips, Wochenleiste; Reiter, Legende, Laden nur
+in „Aufträge“), Klicktest `scripts/klicktest_plantafel_auftraege.py` (Daten wie die Zeichnung, Zeilen, Zellen, Liste, Klick auf die Karte, 2 Wochen, Filter, Bilder
+bei 1440 und 1280 px hell und dunkel). Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.280“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v647_plantafel_tafel.py::test_seitenkopf_mit_einsatz_und_menue`: alt drei Reiter (Kolonnen, Personen, Geräte), neu
+vier (dazu „Aufträge“). `tests/test_v329_update_handler_struktur.py`: `BEKANNT` ohne `PUT /api/resources/{resource_id}` (58 -> 57, darf nur kürzer werden).
+`tests/test_v460_ecken_der_karten.py`: `NICHT_KARTEN` um `a-einsatz` (Tafelteil) und `chip` (Kennzeichen) ergänzt -- neue Einträge, keine geänderte Regel.
+`scripts/klicktest_plantafel_tafel.py`, Prüfung „Legende: acht Einträge“: alt jedes `.legende > span` ohne `hidden`, neu nur die sichtbaren (die Seite hat seit
+1.9.280 eine zweite Legende für „Aufträge“, in den übrigen Ansichten per CSS versteckt) -- nur der Aufbau, die acht Einträge bleiben; rot im ersten Lauf der
+Klicktests vor dem Commit.
+Gefunden im ersten vollen Lauf vor dem Commit: v460 (siehe oben), v436 und v438 (der Feldname „Kurzname“ fehlte in `FIELD_LABELS`) und v558 (der Klicktest
+maß die Breite gegen `innerWidth`, jetzt `tab.ueberlauf()`).

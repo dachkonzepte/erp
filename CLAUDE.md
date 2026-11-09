@@ -749,7 +749,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
     `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 58 Altfälle (seit 1.9.167, bis 1.9.166 59, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 57 Altfälle (seit 1.9.280, bis 1.9.279 58, bis 1.9.166 59, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -1287,7 +1287,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   ausdrücklich) -- Umsetzen und das Ziehen des ganzen Einsatzes (`POST /api/planning/slots/{id}/verschieben`, `verschieben()`, `_update_slot(tage_abbild=…)`, fragt
   bei jeder Warnung, Rückgängig „zurueck“); der Dialog bleibt in Kalendertagen (`tests/test_v677_verschieben_in_arbeitstagen.py`); seit 1.9.279 die
   Auftragsliste der Woche (`app/auftragsliste.py`, `GET /api/planning/auftragsliste`: alle offenen, eingeplante oben, Stunden wie die Akte, feste Zahl Abfragen) und
-  „1 Woche“, jede Ansicht merkt sich ihren Zeitraum im Browser (`plantafel_zeitraum`; `tests/test_v679_auftragsliste.py`). Befund R5 und Herleitung:
+  „1 Woche“, jede Ansicht merkt sich ihren Zeitraum im Browser (`plantafel_zeitraum`; `tests/test_v679_auftragsliste.py`); seit 1.9.280 die Ansicht
+  „Aufträge“ (Zeile je offenem Auftrag, je Einsatz eine Karte im Tag mit Chips der Personen und Geräte dieses Tags, „niemand“, links „Zum Einplanen“ mit
+  Wochenleiste), der Kurzname am Gerät (`OperationalResource.kurzname`, Migration `c3e9f1a7b285`, `PUT /api/resources/{id}` als Teil-Update) und der Kran
+  mit eigenem Zeichen (`app/planning.py::ist_kran()`; `tests/test_v680_ansicht_auftraege.py`, Klicktest `klicktest_plantafel_auftraege.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
@@ -2326,7 +2329,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **58 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.167 die Lohnstammdaten, seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+- **57 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.280 die Geräte, seit 1.9.167 die Lohnstammdaten, seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
   Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, der
   Einsatzbericht seit 1.9.66, Regel 22;
   darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.

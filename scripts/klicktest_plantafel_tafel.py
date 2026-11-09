@@ -212,8 +212,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Jeder Text im Balken sichtbar oder im title", await tab.js(TEXTE), [])
     print(f"    gekürzt (mit title): {await tab.js(GEKUERZT)} Balken")
     ferien = await tab.js("(board.school_holidays||[]).length>0")  # seit 1.9.247: der Eintrag „Schulferien“ nur mit Ferien im Bild (Testdaten: je nach Bundesland)
+    # seit 1.9.280 nur die sichtbare Legende (die von „Aufträge“ ist in den übrigen Ansichten versteckt)
     p.pruefe("Legende: acht Einträge (dazu Schulferien, wenn welche im Bild sind)", await tab.js(
-        "[...document.querySelectorAll('.legende > span')].filter(s=>!s.hidden).map(s=>s.textContent.trim())"),
+        "[...document.querySelectorAll('.legende > span')].filter(s=>!s.hidden&&s.getClientRects().length).map(s=>s.textContent.trim())"),
              ["fest", "vorläufig", "Kranvermietung", "abwesend", "beantragt", "Termin aus Kalender/Outlook", "Warnung", "Hinweis"]
              + (["Schulferien (nur Anzeige)"] if ferien else []))
     p.pruefe("Filterknopf: 1 Warnung · 1 Hinweis", await tab.js("[document.getElementById('filterText').textContent,document.getElementById('filterKnopf').disabled]"),

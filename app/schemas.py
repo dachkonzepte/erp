@@ -3089,9 +3089,21 @@ class OperationalResourceCreate(BaseModel):
     identifier: str | None = Field(default=None, max_length=120)
     notes: str | None = None
     active: bool = True
+    kurzname: str | None = Field(default=None, max_length=30)  # seit 1.9.280: kurzer Name auf der Plantafel, leer = der Name
 
-class OperationalResourceUpdate(OperationalResourceCreate):
-    pass
+class OperationalResourceUpdate(PartialUpdate):
+    """Seit 1.9.280 (Stufe 6, R5c, Punkt 2) ein Teil-Update (Regel 22): nur die gesendeten Felder -- bis 1.9.279 setzte ein weggelassenes Feld den
+    Vorgabewert (ein Altfall in BEKANNT). Dieselben Grenzen wie beim Anlegen."""
+    NOT_NULL = frozenset({"resource_type", "name", "active"})
+    resource_number: str | None = Field(default=None, max_length=50)
+    resource_type: str | None = Field(default=None, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    manufacturer: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+    identifier: str | None = Field(default=None, max_length=120)
+    notes: str | None = None
+    active: bool | None = None
+    kurzname: str | None = Field(default=None, max_length=30)
 
 class OperationalResourceOut(OperationalResourceCreate):
     model_config = ConfigDict(from_attributes=True)
