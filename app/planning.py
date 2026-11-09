@@ -2170,7 +2170,11 @@ def offene_auftraege(db: Session) -> list[dict]:
 
 
 def rueckstand(db: Session) -> list[dict]:
-    """„Nicht eingeplant“: offene Aufträge ohne Einsatz (seit 1.9.144 im SQL gefiltert und auf einmal geladen; bis 1.9.143 alle Aufträge und load_order() je Auftrag)."""
+    """„Nicht eingeplant“: offene Aufträge ohne Einsatz (seit 1.9.144 im SQL gefiltert und auf einmal geladen; bis 1.9.143 alle Aufträge und load_order() je Auftrag).
+    Seit 1.9.288 (Stufe 6, R5d, Punkt 6) mit `stunden` wie die Auftragsliste und die Akte (app/auftragsliste.py::stunden_zeile(): „Soll …“, solange nichts
+    gebucht ist, dann „Rest …“, „nach Aufwand“, „Wartungsvertrag“) -- bis 1.9.287 zeigte die Liste immer „Soll <planned_hours> h“, auch „Soll 0,00 h“ bei einem
+    Auftrag nach Aufwand. Zwei Abfragen mehr, fest (gebuchte Stunden, Herkunft Wartungsvertrag); eine Kranvermietung hat einen Einsatz, steht hier also nie."""
+    from .auftragsliste import aus_wartungsvertrag, gebuchte_stunden, stunden_zeile  # lokal: auftragsliste ist ein Blatt, planning bleibt ohne Zyklus
     mit_einsatz = select(WorkPreparation.order_id).join(PlanningSlot, PlanningSlot.preparation_id == WorkPreparation.id)
     orders = db.scalars(
         select(Order)
@@ -2182,6 +2186,8 @@ def rueckstand(db: Session) -> list[dict]:
         return []
     vorbereitungen = {x.order_id: x for x in db.scalars(select(WorkPreparation).where(WorkPreparation.order_id.in_([o.id for o in orders])))}
     pausen = pause_begruendungen(db, orders)
+    gebucht = gebuchte_stunden(db, [o.id for o in orders])
+    wartung = aus_wartungsvertrag(db, list({o.project_id for o in orders}))
     zeilen = []
     for order in orders:
         prep = vorbereitungen.get(order.id)
@@ -2193,6 +2199,8 @@ def rueckstand(db: Session) -> list[dict]:
             address = order.property_address.replace("\n", ", ")
         zeilen.append({"order_id": order.id, "order_number": order.order_number, "project_id": order.project_id, "project_number": order.project.project_number,
                        "project_name": order.project.name, "customer_name": order.customer_name, "property_address": address, "planned_hours": planned_hours(order),
+                       "stunden": stunden_zeile(soll=planned_hours(order), gebucht=gebucht.get(order.id, Decimal("0")), kran=None,
+                                                wartungsvertrag=order.project_id in wartung),
                        "suggested_start": prep.planned_start if prep else order.execution_start, "suggested_end": prep.planned_end if prep else order.execution_end,
                        "order_status": status_wert(order.status), "order_status_label": status_name(order.status), "order_status_reason": pausen.get(order.id)})
     return zeilen

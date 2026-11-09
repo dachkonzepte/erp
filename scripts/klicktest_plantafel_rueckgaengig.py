@@ -10,6 +10,7 @@ Testdaten wie klicktest_plantafel_ziehen (Zeichnung KW 46, dazu die Pritsche HS-
     Aufträge  Klick in einen freien Tag („Kaminverwahrung Schulz“, nicht eingeplant, am Mo) öffnet den Dialog für diesen Auftrag, nur diesen Tag, ohne
               Kolonne; seit 1.9.285 der freie Samstag beim Wasserturm mit seiner Kolonne Nord; eine Karte („Ortgang Lindenweg 9“) öffnet weiter ihren
               Einsatz; keine Leiste
+    Stunden   (seit 1.9.288) „Nicht eingeplant“ und „Aufträge“ zeigen für „Kaminverwahrung Schulz“ dieselbe Zeile wie die Akte („Soll 6,00 h · ohne Termin“)
     Bilder    die Leiste in „Kolonnen“ und „Personen“ (1440 px hell), in „Personen“ 1280 px dunkel
     keine JS-Fehler
 
@@ -39,7 +40,7 @@ def befuellen(db, k):
     """wie klicktest_plantafel_ziehen, dazu ein Auftrag ohne Einsatz („Kaminverwahrung Schulz“, steht unter „Nicht eingeplant“)"""
     from decimal import Decimal
 
-    from app.models import Customer, Order, OrderItem, Project, Property
+    from app.models import Customer, Order, OrderItem, OrderItemCalculationSnapshot, Project, Property
     from app.project_pipeline_columns import default_pipeline_column_id
 
     seed = befuellen_ziehen(db, k)
@@ -53,7 +54,10 @@ def befuellen(db, k):
     o = Order(order_number="AUF-2026-0149", project_id=projekt.id, source_quote_id=949, quote_number_snapshot="A-KT-149", title="Kaminverwahrung Schulz",
               customer_name=kunde.name, property_name=prop.name, property_address="Kirchstraße 3\n52531 Übach-Palenberg")
     db.add(o); db.flush()
-    db.add(OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Arbeit", quantity=Decimal("1"), unit="psch", unit_price=Decimal("1")))
+    item = OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Arbeit", quantity=Decimal("1"), unit="psch", unit_price=Decimal("1"))
+    db.add(item); db.flush()
+    # seit 1.9.288 mit 6 h Soll wie in klicktest_plantafel_auftraege -- derselbe Auftrag zeigt in beiden Testdaten dieselben Stunden
+    db.add(OrderItemCalculationSnapshot(order_item_id=item.id, site_time_minutes=Decimal("360"), workshop_time_minutes=Decimal("0")))
     db.commit()
     return {**seed, "kamin": o.id}
 
@@ -87,6 +91,10 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     vorher = await tab.js(STAND)
     p.pruefe("ohne Zug keine Leiste", await tab.js(BAND), None)
+    # seit 1.9.288 (R5d, Punkt 6): „Nicht eingeplant“ zeigt die Stunden wie „Aufträge“ und die Akte (bis 1.9.287 immer „Soll <Planstunden> h“)
+    p.pruefe("Nicht eingeplant: Kaminverwahrung wie die Akte", await tab.js(
+        "[...document.querySelectorAll('#backlog .rk-eintrag')].filter(e=>e.querySelector('b').textContent.trim()==='Kaminverwahrung Schulz')"
+        ".map(e=>e.querySelector('.klein').textContent.trim())"), ["Soll 6,00 h · ohne Termin"])
 
     # Kolonnen: der ganze Einsatz einen Arbeitstag weiter -- Tom, Mia, Ole und Kai wären dann doppelt: erst die Rückfrage, die Leiste erst danach
     await _ziehen(tab, "Kolonne Nord", "Am Wasserturm", 1)
@@ -146,6 +154,9 @@ async def pruefen(tab, seed, p):
     zelle = ("[...document.querySelectorAll('#planner tr.a-zeile')].find(r=>r.querySelector('.a-name a').textContent.trim()==='Kaminverwahrung Schulz')"
              f".querySelector('td[data-date=\"{MO}\"]')")
     p.pruefe("Aufträge: der Tag ist frei", await tab.js(f"{zelle}.querySelectorAll('.a-einsatz').length"), 0)
+    p.pruefe("Aufträge: Kaminverwahrung mit denselben Stunden wie „Nicht eingeplant“", await tab.js(
+        "[...[...document.querySelectorAll('#planner tr.a-zeile')].find(r=>r.querySelector('.a-name a').textContent.trim()==='Kaminverwahrung Schulz')"
+        ".querySelectorAll('.a-name .klein')].map(k=>k.textContent.trim())[1]"), "Soll 6,00 h · ohne Termin")
     punkt = await tab.js(f"(td=>{{td.scrollIntoView({{block:'center'}});const r=td.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]}})({zelle})")
     await maus_klick(tab, *punkt)
     p.pruefe("Aufträge: Klick in einen freien Tag öffnet den Dialog", await tab.warten("document.getElementById('einsatzDialog').open", 8), True)

@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.288 – Plantafel: „Nicht eingeplant“ zeigt die Stunden wie die Akte
+
+„Nicht eingeplant“ zeigt die Stunden jetzt mit derselben Zeile wie „Aufträge“ und die Akte: „Soll …“, solange nichts gebucht ist, dann „Rest …“, ohne Soll „nach Aufwand“, aus einem Wartungsvertrag „Wartungsvertrag“ (Punkt 6). Bis 1.9.287 stand dort immer „Soll <Planstunden> h“ -- auch „Soll 0,00 h“ für einen Auftrag nach Aufwand und das volle Soll, wenn schon gebucht war. Der Unterschied „Soll 0,00 h“ gegen „Soll 6,00 h“ bei „Kaminverwahrung Schulz“ in den Bildern kam allerdings aus verschiedenen Testdaten: im Klicktest „Rückgängig“ hatte der Auftrag keine Kalkulation; er hat dort jetzt dieselben 6 h.
+
+Neu `tests/test_v688_rueckstand_stunden.py`, ergänzt `klicktest_plantafel_rueckgaengig.py`. Keine Migration.
+
 ## 1.9.287 – Plantafel: die Anzeige beim Ziehen schwebt über der Zelle
 
 Die Anzeige vor dem Loslassen („Frei“, „Schon woanders …“, „Antrag offen …“, „Ganze Kolonne …“) steht jetzt schwebend oberhalb der Zelle, so breit wie sie -- die Zeile wird beim Ziehen nicht mehr höher, nichts darunter rutscht weg, und die Chips des Ziels bleiben zu sehen. Bis 1.9.286 stand sie im Fluss der Zelle: die Zeile wuchs, mit dem Finger rutschte das Ziel dabei unter dem Finger weg. Die Kopie des gezogenen Chips steht jetzt rechts neben dem Zeiger statt darüber, damit sie die Anzeige nicht verdeckt. Mit dem Finger haben die Chips seitlich 6 px Innenabstand wie mit der Maus -- mit 7 px (1.9.284) war „HS-DK 202“ bei 1280 px wieder gekürzt.

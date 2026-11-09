@@ -46,6 +46,21 @@ def stunden_zeile(*, soll: Decimal, gebucht: Decimal, kran: bool | None, wartung
     return f"Rest {stunden_text(rest)}" if rest >= 0 else f"{stunden_text(-rest)} über Soll"
 
 
+def gebuchte_stunden(db: Session, order_ids) -> dict[int, Decimal]:
+    """Seit 1.9.288: gebuchte Baustelle & Werkstatt je Auftrag in einer Abfrage (wie die Akte) -- für die Auftragsliste und „Nicht eingeplant“.
+    order_ids: Liste oder Unterabfrage."""
+    return {oid: Decimal(h or 0) for oid, h in db.execute(
+        select(TimeEntry.order_id, func.sum(TimeEntry.hours))
+        .where(TimeEntry.order_id.in_(order_ids), TimeEntry.status == "booked", TimeEntry.entry_type.in_(BAUSTELLE_WERKSTATT))
+        .group_by(TimeEntry.order_id))}
+
+
+def aus_wartungsvertrag(db: Session, project_ids) -> set[int]:
+    """Seit 1.9.288: die Projekte (IDs), die aus einem Wartungsvertrag entstanden sind -- eine Abfrage. project_ids: Liste oder Unterabfrage."""
+    return set(db.scalars(select(ProjectProfile.project_id).where(ProjectProfile.source_maintenance_contract_id.is_not(None),
+                                                                   ProjectProfile.project_id.in_(project_ids))))
+
+
 def auftragsliste(db: Session, start: date, ende: date) -> list[dict]:
     """Die Zeilen der Ansicht „Aufträge“ für den Zeitraum start–ende (höchstens 63 Tage)."""
     if ende < start:
@@ -55,10 +70,7 @@ def auftragsliste(db: Session, start: date, ende: date) -> list[dict]:
     offen = select(Order.id).where(offen_bedingung()).scalar_subquery()
     orders = db.scalars(select(Order).options(selectinload(Order.project), selectinload(Order.items).selectinload(OrderItem.calculation_snapshot))
                         .where(offen_bedingung())).all()
-    gebucht = {oid: Decimal(h or 0) for oid, h in db.execute(
-        select(TimeEntry.order_id, func.sum(TimeEntry.hours))
-        .where(TimeEntry.order_id.in_(offen), TimeEntry.status == "booked", TimeEntry.entry_type.in_(BAUSTELLE_WERKSTATT))
-        .group_by(TimeEntry.order_id))}
+    gebucht = gebuchte_stunden(db, offen)
     im_zeitraum: dict[int, list[tuple[date, date, str]]] = {}
     for oid, von, bis, status in db.execute(
             select(WorkPreparation.order_id, PlanningSlot.start_date, PlanningSlot.end_date, PlanningSlot.status)
@@ -74,8 +86,7 @@ def auftragsliste(db: Session, start: date, ende: date) -> list[dict]:
         .join(PlanningSlot, PlanningSlot.preparation_id == WorkPreparation.id)
         .outerjoin(PlanningSlotEmployee, PlanningSlotEmployee.slot_id == PlanningSlot.id)
         .where(WorkPreparation.order_id.in_(offen), PlanningSlot.art == "kranvermietung").group_by(WorkPreparation.order_id))}
-    wartung = set(db.scalars(select(ProjectProfile.project_id).where(ProjectProfile.source_maintenance_contract_id.is_not(None),
-                                                                      ProjectProfile.project_id.in_(select(Order.project_id).where(offen_bedingung())))))
+    wartung = aus_wartungsvertrag(db, select(Order.project_id).where(offen_bedingung()))
     zeilen = []
     for o in orders:
         einsaetze = im_zeitraum.get(o.id, [])

@@ -2585,3 +2585,27 @@ Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.287“.
 **Angepasste Erwartungen** (Regel 28): `tests/test_v684_chips_finger.py::test_finger_32_px_mit_groesserem_treffbereich` -- alt `padding:3px 7px`, neu `padding:3px 6px`.
 `scripts/klicktest_plantafel_auftraege_ziehen.py`, „Frei: nichts markiert, der Chip über dem Zeiger“ -- alt die Unterkante der Kopie über dem Zeiger, neu „… der Chip
 neben dem Zeiger“: links mindestens 12 px rechts vom Zeiger, der Zeiger zwischen Ober- und Unterkante.
+
+### Umsetzung 1.9.288 (Punkt 6): „Nicht eingeplant“ zeigt die Stunden wie die Akte
+
+- Befund: beide Listen rechnen dasselbe Soll (`app/akte.py::soll_stunden()`). „Soll 0,00 h“ in „Nicht eingeplant“ gegen „Soll 6,00 h“ in „Aufträge“ bei
+  „Kaminverwahrung Schulz“ kam aus verschiedenen Testdaten: im Klicktest `klicktest_plantafel_rueckgaengig.py` (1.9.282) hatte der Auftrag keine Kalkulation, im
+  Klicktest `klicktest_plantafel_auftraege.py` 6 h. Ein echter Unterschied blieb trotzdem: „Nicht eingeplant“ zeigte immer „Soll <Planstunden> h“ -- auch
+  „Soll 0,00 h“ statt „nach Aufwand“ und das volle Soll statt „Rest …“, wenn schon gebucht war.
+- `app/planning.py::rueckstand()` liefert dazu `stunden` aus `app/auftragsliste.py::stunden_zeile()` (Kranvermietung nie -- sie hat einen Einsatz), gebucht und
+  Herkunft Wartungsvertrag über die gemeinsamen Abfragen `gebuchte_stunden()` und `aus_wartungsvertrag()` (die Auftragsliste nutzt sie ebenso) -- zwei Abfragen
+  mehr, fest. Die Liste zeigt `stunden` statt „Soll <planned_hours> h“; `planned_hours` bleibt in der Antwort (Dialog, Kapazität).
+- Der Klicktest „Rückgängig“ legt „Kaminverwahrung Schulz“ jetzt mit 6 h Soll an -- derselbe Auftrag zeigt in beiden Testdaten dieselben Stunden.
+
+#### Festlegungen 1.9.288 (Bitte bestätigen)
+
+1. „Nicht eingeplant“ zeigt die Stunden mit derselben Zeile wie „Aufträge“ und die Akte („Soll …“, „Rest …“, „… über Soll“, „nach Aufwand“, „Wartungsvertrag“).
+2. Gebucht zählt wie die Akte nur Baustelle & Werkstatt (keine Fahrzeit, keine laufende Zeit).
+3. Die Zahl der Abfragen bleibt fest (je eine für gebucht und Herkunft Wartungsvertrag, unabhängig von der Zahl der Aufträge).
+
+#### Tests und Prüfung 1.9.288
+
+Neu: `tests/test_v688_rueckstand_stunden.py` (vier Aufträge -- Soll, Rest mit Fahrzeit und einer laufenden Zeit, nach Aufwand, Wartungsvertrag --, dieselbe Zeile wie die Auftragsliste, die
+Planstunden bleiben; die Liste zeigt `stunden`). `scripts/klicktest_plantafel_rueckgaengig.py` ergänzt: „Nicht eingeplant“ und „Aufträge“ zeigen für
+„Kaminverwahrung Schulz“ „Soll 6,00 h · ohne Termin“. Die feste Zahl Abfragen prüft weiter `tests/test_v564_plantafel_leistung.py`. Gegenproben: Archiv
+`gegenproben-stufe6-r5d.md`, „1.9.288“. Angepasste Erwartungen: keine.

@@ -73,3 +73,19 @@ unverändert).
 
 12 Gegenproben (6 gegen Tests, 6 gegen den Klicktest); `287_2d` blieb zuerst grün, nach dem Nachziehen des Klicktests dieselbe Gegenprobe noch einmal: rot. Jede Datei
 byte-genau zurück, kein Marker geblieben.
+
+## 1.9.288 (Punkt 6): „Nicht eingeplant“ zeigt die Stunden wie die Akte
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Nicht eingeplant“ rechnet die Zeile wie „Aufträge“ | `stunden` wieder „Soll <Planstunden> h“ (`288_1a`) | 1 rot: v688::test_rueckstand_wie_die_auftragsliste |
+| Nr. 1 – „Rest …“, sobald gebucht ist | gebucht immer 0 (`288_1b`) | 1 rot: v688::test_rueckstand_wie_die_auftragsliste |
+| Nr. 1 – „Wartungsvertrag“ | Herkunft nie Wartungsvertrag (`288_1c`) | 1 rot: v688::test_rueckstand_wie_die_auftragsliste |
+| Nr. 1 – die Liste zeigt die Zeile | die Seite zeigt wieder „Soll <planned_hours> h“ (`288_2a`, `288_2b`) | 1 rot: v688::test_die_liste_zeigt_die_zeile; Klicktest rueckgaengig: „Nicht eingeplant: Kaminverwahrung wie die Akte“ |
+| Nr. 1 – dieselbe Zeile wie in „Aufträge“ (Klicktest) | `stunden` immer „nach Aufwand“ (`288_1d`) | Klicktest: „Nicht eingeplant: Kaminverwahrung wie die Akte“ |
+| Nr. 2 – nur Baustelle & Werkstatt | jede Zeitart zählt (`288_4a`) | 1 rot: v688::test_rueckstand_wie_die_auftragsliste (Fahrzeit 3 h: „Rest 1,50 h“) |
+| Nr. 2 – keine laufende Zeit | auch laufende zählen (`288_4b`; der Test bekam dafür eine laufende Zeit mit 2 h -- vorher hätte die Gegenprobe nichts gefunden) | 1 rot: v688::test_rueckstand_wie_die_auftragsliste |
+| Nr. 3 – feste Zahl Abfragen | je Auftrag eine Abfrage für gebucht (`288_3a`) | 1 rot: v564::test_abfragen_haengen_nicht_am_rueckstand |
+
+10 Gegenproben (8 gegen Tests, 2 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Nr. 2 hatte beim Bauen noch keine eigene
+Gegenprobe; `288_4a` und `288_4b` sind nachgezogen, für `288_4b` zuerst der Test um eine laufende Zeit mit Stunden ergänzt.

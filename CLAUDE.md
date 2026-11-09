@@ -1303,7 +1303,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   einen freien Tag die Kolonne vor, wenn der Auftrag an anderen Tagen genau eine hat (`kolonneDesAuftrags()`, `tests/test_v685_kolonne_beim_klick.py`); seit
   1.9.286 nennt „Ganze Kolonne“ auch Geräte, die schon woanders sind (`tests/test_v686_ganze_kolonne_geraete.py`); seit 1.9.287 schwebt die Anzeige vor dem
   Loslassen über der Zelle (absolut, vorn in der Zelle -- hinten verlöre die letzte Karte `:last-child`), die Zeile wird nicht höher; die Kopie des Chips rechts
-  neben dem Zeiger (`tests/test_v687_anzeige_schwebt.py`). Befund R5 und Herleitung:
+  neben dem Zeiger (`tests/test_v687_anzeige_schwebt.py`); seit 1.9.288 zeigt „Nicht eingeplant“ die Stunden wie „Aufträge“ und die Akte (`rueckstand()` mit
+  `stunden` über `app/auftragsliste.py::stunden_zeile()`, gemeinsame Abfragen `gebuchte_stunden()`, `aus_wartungsvertrag()`; `tests/test_v688_rueckstand_stunden.py`).
+  Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
