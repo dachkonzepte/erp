@@ -2514,3 +2514,26 @@ Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.284“.
 neu `min-height:32px;` (Festlegung 1.9.281 Nr. 7 geändert). `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger“ -- alt „Chips greifbar (≥ 40 px bei
 grobem Zeiger)“, neu die Höhe 32 px und der Treffbereich (oben). `scripts/klicktest_plantafel_auftraege.py`, `PLATZ` -- alt gekürzte Chips am `.chip`, neu am
 `.chip-text` (nur der Aufbau).
+
+### Umsetzung 1.9.285 (Punkt 3): Klick in einen freien Tag schlägt die Kolonne vor
+
+- `kolonneDesAuftrags(auftrag)`: die Kolonnen der Einsätze dieses Auftrags in `board.slots` (der geladene Zeitraum; der freie Tag selbst hat keinen Einsatz des
+  Auftrags, also sind es seine Einsätze an anderen Tagen), Einsätze ohne Kolonne zählen nicht -- genau eine: ihre ID, sonst `null`.
+- Der Klick in einen freien Teil eines Tags (1.9.282) ruft `openCreate(Auftrag, Tag, kolonneDesAuftrags(Auftrag), {bis: Tag})`; der Dialog schlägt dann wie beim
+  Anlegen aus einer Kolonnenzeile deren Mitglieder vor. Der Hinweis unter der Tafel nennt es.
+
+#### Festlegungen 1.9.285 (Bitte bestätigen)
+
+1. Klick in einen freien Tag: hat der Auftrag an anderen Tagen (seine Einsätze im geladenen Zeitraum) genau eine Kolonne, schlägt der Dialog sie vor; keine oder
+   mehrere -- ohne Kolonne (statt 1.9.282 Nr. 4).
+2. Einsätze ohne Kolonne zählen nicht (eine Kolonne und ein Einsatz ohne Kolonne: die Kolonne).
+3. Weiter nur dieser Tag; eine Karte öffnet ihren Einsatz.
+
+#### Tests und Prüfung 1.9.285
+
+Neu: `tests/test_v685_kolonne_beim_klick.py` (in node mit dem Code der Seite: fünf Aufträge -- dieselbe Kolonne zweimal, zwei verschiedene, nur ohne, eine und ohne,
+kein Einsatz --, der Handler wörtlich aus der Seite). `scripts/klicktest_plantafel_rueckgaengig.py` ergänzt: Wasserturm am freien Samstag -- Kolonne Nord, nur
+Sa. Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.285“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v682_leiste_rueckgaengig.py::test_klick_in_einen_freien_tag_in_auftraege` -- alt `openCreate(…,null,{bis:…})`
+und der Hinweis „… plant den Auftrag an diesem Tag.“, neu `openCreate(auftrag,…,kolonneDesAuftrags(auftrag),{bis:…})` und „… an diesem Tag (mit seiner Kolonne,
+wenn er genau eine hat).“ (Festlegung 1.9.282 Nr. 4 geändert).

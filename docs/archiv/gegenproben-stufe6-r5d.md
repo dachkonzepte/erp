@@ -36,3 +36,15 @@ unverändert).
 
 10 Gegenproben (5 gegen Tests, 5 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen gemessen: mit
 `inset:-4px -2px` reichte der Treffbereich nur 3 px über und 2 px unter den Chip -- `inset` zählt vom Innenrand, der Rand ist 1 px; deshalb `-5px -3px`.
+
+## 1.9.285 (Punkt 3): Klick in einen freien Tag schlägt die Kolonne vor
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – genau eine Kolonne wird vorgeschlagen | `kolonneDesAuftrags()` gibt immer `null` (`285_1a`, `285_1c`) | 3 rot: v685::test_genau_eine_kolonne[10-5], [13-6], test_klick_oeffnet_den_dialog_mit_der_kolonne; Klicktest rueckgaengig: „Aufträge: Wasserturm Sa -- Kolonne Nord vorgeschlagen, nur Sa“ |
+| Nr. 1 – mehrere Kolonnen: ohne | `k.length>=1` statt `===1` (`285_1b`) | 1 rot: v685::test_genau_eine_kolonne[11-None] |
+| Nr. 1 – der Klick nutzt den Vorschlag | `openCreate(…, null, …)` wie bis 1.9.284 (`285_3a`, `285_3b`) | 2 rot: v682::test_klick_in_einen_freien_tag_in_auftraege, v685::test_klick_oeffnet_den_dialog_mit_der_kolonne; Klicktest: „Aufträge: Wasserturm Sa -- Kolonne Nord vorgeschlagen, nur Sa“ |
+| Nr. 2 – Einsätze ohne Kolonne zählen nicht | ohne `s.team_id!=null` (`285_2a`) | 1 rot: v685::test_genau_eine_kolonne[13-6] |
+| Nr. 3 – weiter nur dieser Tag, eine Karte öffnet ihren Einsatz | keine eigene Gegenprobe: unverändert seit 1.9.282 (Gegenproben dort); der Klicktest prüft „nur Sa“ in derselben Zeile wie Nr. 1 | -- |
+
+6 Gegenproben (4 gegen Tests, 2 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben.

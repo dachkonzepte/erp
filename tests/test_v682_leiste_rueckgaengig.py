@@ -109,6 +109,8 @@ def test_leiste_schliesst_mit_der_naechsten_aktion():
 
 def test_klick_in_einen_freien_tag_in_auftraege():
     seite = SEITE.read_text(encoding="utf-8")
+    # seit 1.9.285 mit der Kolonne des Auftrags, wenn er an anderen Tagen genau eine hat (test_v685; bis 1.9.284 immer ohne: null)
     assert ("document.getElementById('planner').addEventListener('click',e=>{if(view!=='auftraege'||e.target.closest('.a-einsatz'))return;"
-            "const td=e.target.closest('td.a-tag');if(!td)return;\n    openCreate(Number(td.dataset.auftrag),td.dataset.date,null,{bis:td.dataset.date})});") in seite.replace("\r\n", "\n")
-    assert "Klick in einen freien Teil eines Tags plant den Auftrag an diesem Tag." in seite
+            "const td=e.target.closest('td.a-tag');if(!td)return;\n    const auftrag=Number(td.dataset.auftrag);"
+            "openCreate(auftrag,td.dataset.date,kolonneDesAuftrags(auftrag),{bis:td.dataset.date})});") in seite.replace("\r\n", "\n")
+    assert "Klick in einen freien Teil eines Tags plant den Auftrag an diesem Tag (mit seiner Kolonne, wenn er genau eine hat)." in seite

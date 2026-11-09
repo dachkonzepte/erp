@@ -284,7 +284,7 @@ td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
     </div>
   </section>
 </div>
-<p class="fuss"><span id="fussTafel">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</span><span id="fussAuftraege" hidden>Eine Karte ist ein Einsatz an diesem Tag, Klick öffnet ihn. Personen, Kolonnen und Geräte ziehen (Maus und Finger): aus der Liste kommen sie für diesen Tag dazu, aus einer Zelle werden sie für diesen Tag umgesetzt; zurück auf die Liste ziehen oder antippen nimmt heraus. Klick in einen freien Teil eines Tags plant den Auftrag an diesem Tag. Zwei Einsätze am selben Tag stehen untereinander.</span></p>
+<p class="fuss"><span id="fussTafel">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</span><span id="fussAuftraege" hidden>Eine Karte ist ein Einsatz an diesem Tag, Klick öffnet ihn. Personen, Kolonnen und Geräte ziehen (Maus und Finger): aus der Liste kommen sie für diesen Tag dazu, aus einer Zelle werden sie für diesen Tag umgesetzt; zurück auf die Liste ziehen oder antippen nimmt heraus. Klick in einen freien Teil eines Tags plant den Auftrag an diesem Tag (mit seiner Kolonne, wenn er genau eine hat). Zwei Einsätze am selben Tag stehen untereinander.</span></p>
 </main>
 </div>
 </div>
@@ -620,9 +620,10 @@ function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout')
   lay.addEventListener('pointerup',e=>{if(!azug)return;const z=azug,ziel=z.aktiv?zielAnPunkt(e.clientX,e.clientY):null;zugAbbrechen();chipTipp=true;
     if(!z.aktiv){if(z.slot)chipMenue(z);return}if(ziel)zugAusfuehren(z,ziel)});
   lay.addEventListener('pointercancel',()=>zugAbbrechen());
-  // seit 1.9.282: Klick in einen freien Teil eines Tags öffnet den Dialog für diesen Auftrag und Tag (ohne Kolonne, nur dieser Tag); eine Karte öffnet ihren Einsatz
+  // seit 1.9.282: Klick in einen freien Teil eines Tags öffnet den Dialog für diesen Auftrag und Tag (nur dieser Tag); eine Karte öffnet ihren Einsatz.
+  // Seit 1.9.285 mit der Kolonne, die der Auftrag an anderen Tagen hat -- nur, wenn es genau eine ist, sonst ohne (bis 1.9.284 immer ohne)
   document.getElementById('planner').addEventListener('click',e=>{if(view!=='auftraege'||e.target.closest('.a-einsatz'))return;const td=e.target.closest('td.a-tag');if(!td)return;
-    openCreate(Number(td.dataset.auftrag),td.dataset.date,null,{bis:td.dataset.date})});
+    const auftrag=Number(td.dataset.auftrag);openCreate(auftrag,td.dataset.date,kolonneDesAuftrags(auftrag),{bis:td.dataset.date})});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&azug){chipTipp=true;zugAbbrechen()}})}
 async function zugAusfuehren(z,ziel){
   if(ziel.art==='liste'){if(z.slot)await herausnehmenTag(z,{tage:[z.tag]});return}
@@ -641,6 +642,8 @@ async function zugSenden(url,body,fertig){
 // in „Aufträge“: die Antwort bleibt für die Leiste am Chip
 function merkeZug(zug){return a=>{letzterZug={...zug,antwort:a}}}
 async function herausnehmenTag(z,auswahl){const body={[FELD[z.art]]:z.id,...auswahl};return zugSenden(`/api/planning/slots/${z.slot}/herausnehmen`,body,merkeZug({z,tag:z.tag,raus:true,alle:!!auswahl.alle}))}
+// seit 1.9.285: die Kolonne der Einsätze dieses Auftrags (im geladenen Zeitraum) -- genau eine, sonst null (keine oder mehrere; Einsätze ohne Kolonne zählen nicht)
+function kolonneDesAuftrags(auftrag){const k=[...new Set(board.slots.filter(s=>s.order_id===auftrag&&s.team_id!=null).map(s=>s.team_id))];return k.length===1?k[0]:null}
 // angetippt: „Für diesen Tag herausnehmen“, „An allen Tagen herausnehmen“, „Einsatz öffnen“
 function chipMenue(z){letzterZug=null;zugLeisteZeigen(z.chip,`<b>${esc(z.name)}</b><span class="klein">${esc(tagText(z.tag))}</span>`+
   `<button type="button" class="ds-knopf" data-klick="chipRausTag">Für diesen Tag herausnehmen</button><button type="button" class="ds-knopf" data-klick="chipRausAlle">An allen Tagen herausnehmen</button>`+

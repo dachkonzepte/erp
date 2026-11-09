@@ -8,7 +8,8 @@ Testdaten wie klicktest_plantafel_ziehen (Zeichnung KW 46, dazu die Pritsche HS-
               bleibt; Oles „Sturmschaden“ in Toms Zeile -> Rückfrage, „Trotzdem planen“ -> Leiste „… Ole Offen → Tom Monteur“, „Rückgängig“ -> wie vorher
     Geräte    die Pritsche 202 „Am Wasserturm“ einen Tag weiter -> Leiste, „Rückgängig“; eine andere Ansicht schließt die Leiste
     Aufträge  Klick in einen freien Tag („Kaminverwahrung Schulz“, nicht eingeplant, am Mo) öffnet den Dialog für diesen Auftrag, nur diesen Tag, ohne
-              Kolonne; eine Karte („Ortgang Lindenweg 9“) öffnet weiter ihren Einsatz; keine Leiste
+              Kolonne; seit 1.9.285 der freie Samstag beim Wasserturm mit seiner Kolonne Nord; eine Karte („Ortgang Lindenweg 9“) öffnet weiter ihren
+              Einsatz; keine Leiste
     Bilder    die Leiste in „Kolonnen“ und „Personen“ (1440 px hell), in „Personen“ 1280 px dunkel
     keine JS-Fehler
 
@@ -152,6 +153,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("Aufträge: für diesen Auftrag, nur diesen Tag, ohne Kolonne", await tab.js(
         f"[einsatz.id,einsatz.order_id==={seed['kamin']},einsatz.start_date,einsatz.end_date,einsatz.team_id]"),
         [None, True, MO, MO, None])
+    await tab.js("document.getElementById('einsatzDialog').close()")
+    # seit 1.9.285 (R5d, Punkt 3): hat der Auftrag an anderen Tagen genau eine Kolonne, schlägt der Dialog sie vor -- der Wasserturm am freien Samstag
+    sa = "2026-11-14"
+    zelle_sa = ("[...document.querySelectorAll('#planner tr.a-zeile')].find(r=>r.querySelector('.a-name a').textContent.trim()==='Am Wasserturm 4')"
+                f".querySelector('td[data-date=\"{sa}\"]')")
+    punkt = await tab.js(f"(td=>{{td.scrollIntoView({{block:'center'}});const r=td.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]}})({zelle_sa})")
+    await maus_klick(tab, *punkt)
+    p.pruefe("Aufträge: Wasserturm Sa -- Dialog mit der Kolonne des Auftrags", await tab.warten("document.getElementById('einsatzDialog').open", 8), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Aufträge: Wasserturm Sa -- Kolonne Nord vorgeschlagen, nur Sa", await tab.js(
+        f"[einsatz.id,einsatz.team_id===board.teams.find(t=>t.name==='Kolonne Nord').id,einsatz.start_date,einsatz.end_date]"), [None, True, sa, sa])
     await tab.js("document.getElementById('einsatzDialog').close()")
     # eine Karte öffnet weiter ihren Einsatz (nicht den Dialog für einen neuen)
     karte = ("[...document.querySelectorAll('#planner tr.a-zeile')].find(r=>r.querySelector('.a-name a').textContent.trim()==='Ortgang Lindenweg 9')"
