@@ -1304,8 +1304,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   1.9.286 nennt „Ganze Kolonne“ auch Geräte, die schon woanders sind (`tests/test_v686_ganze_kolonne_geraete.py`); seit 1.9.287 schwebt die Anzeige vor dem
   Loslassen über der Zelle (absolut, vorn in der Zelle -- hinten verlöre die letzte Karte `:last-child`), die Zeile wird nicht höher; die Kopie des Chips rechts
   neben dem Zeiger (`tests/test_v687_anzeige_schwebt.py`); seit 1.9.288 zeigt „Nicht eingeplant“ die Stunden wie „Aufträge“ und die Akte (`rueckstand()` mit
-  `stunden` über `app/auftragsliste.py::stunden_zeile()`, gemeinsame Abfragen `gebuchte_stunden()`, `aus_wartungsvertrag()`; `tests/test_v688_rueckstand_stunden.py`).
-  Befund R5 und Herleitung:
+  `stunden` über `app/auftragsliste.py::stunden_zeile()`, gemeinsame Abfragen `gebuchte_stunden()`, `aus_wartungsvertrag()`; `tests/test_v688_rueckstand_stunden.py`);
+  seit 1.9.289 nennt die Leiste nach dem Ziehen einer Person oder eines Geräts alten und neuen Zeitraum („10.–11.11. → 11.–12.11.“ statt „→ ab …“), den neuen vom
+  Server (`ziel_tage` in der Antwort von `umsetzen()`, in Arbeitstagen; `tests/test_v689_leiste_zeitraum_und_stammdaten.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über
@@ -1379,7 +1380,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `tests/test_v674_untertitel_mitarbeiter.py`; seit 1.9.275 bei 412 px ohne Überlauf -- unter 850 px Raster `minmax(0,1fr)`, eine Tabelle rollt in ihrem
   Rahmen --, die Mitarbeitertabelle in acht Spalten bei 1440 px ohne Rollen (Nr. unter dem Namen, Stunden unter der Funktion, Kennzeichen in einer Spalte),
   `tests/test_v675_stammdaten_breite.py`, Klicktest `klicktest_stammdaten_breite.py`; seit 1.9.278 unter 1400 px das Untermenü über der Karte, die
-  Telefonnummer ohne Umbruch (`.tel`), `tests/test_v678_stammdaten_untermenue_oben.py`) -- `docs/archiv/stammdaten-und-sidebar.md`
+  Telefonnummer ohne Umbruch (`.tel`), `tests/test_v678_stammdaten_untermenue_oben.py`; seit 1.9.289 dort in Zeilen statt seitlich rollend -- unter 850 px eine
+  Zeile, die im Rahmen rollt --, „40 h/Woche“ ohne Umbruch (`.nw`), `tests/test_v689_leiste_zeitraum_und_stammdaten.py`) -- `docs/archiv/stammdaten-und-sidebar.md`
 - **Adressimport & Objekte** (Altsystem-Import, Hauptadressen-Kennzeichnung) --
   `docs/archiv/adressimport-und-objekte.md`
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,

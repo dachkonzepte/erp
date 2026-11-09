@@ -55,7 +55,7 @@ def test_stunden_unter_der_funktion():
     zweig = _mitarbeiter_zweig()
     assert "<td class=\"number\">${Number(x.weekly_hours)" not in zweig
     assert ("<td class=\"trennbar\">${esc(x.function_name||x.job_title||'—')}<div class=\"muted small\">${x.employee_group==='gewerblich'?"
-            "'Gewerblich':'Kaufmännisch'} · ${Number(x.weekly_hours).toLocaleString('de-DE')} h/Woche</div></td>") in zweig
+            "'Gewerblich':'Kaufmännisch'} · <span class=\"nw\">${Number(x.weekly_hours).toLocaleString('de-DE')} h/Woche</span></div></td>") in zweig  # seit 1.9.289 ohne Umbruch
 
 
 def test_kennzeichen_in_einer_spalte():

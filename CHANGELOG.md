@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.289 – Plantafel und Stammdaten: Leiste mit dem neuen Zeitraum, „40 h/Woche“ ohne Umbruch, Untermenü in Zeilen
+
+Nach dem Ziehen einer Person oder eines Geräts in „Personen“ und „Geräte“ nennt die Leiste über der Tafel jetzt den alten und den neuen Zeitraum („Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. → 11.–12.11.“), bis 1.9.288 nur den ersten neuen Tag („→ ab Mi 11.11.“). Den neuen Zeitraum liefert der Server (`ziel_tage` in der Antwort von „Umsetzen“, in Arbeitstagen -- Do–Fr um einen Tag weiter wird Fr und der nächste Mo); in eine andere Zeile gezogen steht er hinter dem alten, nur wenn er sich ändert (Punkt 7).
+
+In den Stammdaten bricht „40 h/Woche“ in der Spalte Funktion nicht mehr um, und das Untermenü steht unter 1400 px in Zeilen über der Karte statt seitlich zu rollen -- bei 1280 px zwei Zeilen; unter 850 px bleibt es eine Zeile, die im Rahmen rollt. Neu `tests/test_v689_leiste_zeitraum_und_stammdaten.py`, angepasst `tests/test_v682_leiste_rueckgaengig.py`, `tests/test_v663_leerer_tag.py`, `tests/test_v678_stammdaten_untermenue_oben.py`, `tests/test_v675_stammdaten_breite.py`, `klicktest_plantafel_rueckgaengig.py`, ergänzt `klicktest_stammdaten_breite.py`. Keine Migration.
+
 ## 1.9.288 – Plantafel: „Nicht eingeplant“ zeigt die Stunden wie die Akte
 
 „Nicht eingeplant“ zeigt die Stunden jetzt mit derselben Zeile wie „Aufträge“ und die Akte: „Soll …“, solange nichts gebucht ist, dann „Rest …“, ohne Soll „nach Aufwand“, aus einem Wartungsvertrag „Wartungsvertrag“ (Punkt 6). Bis 1.9.287 stand dort immer „Soll <Planstunden> h“ -- auch „Soll 0,00 h“ für einen Auftrag nach Aufwand und das volle Soll, wenn schon gebucht war. Der Unterschied „Soll 0,00 h“ gegen „Soll 6,00 h“ bei „Kaminverwahrung Schulz“ in den Bildern kam allerdings aus verschiedenen Testdaten: im Klicktest „Rückgängig“ hatte der Auftrag keine Kalkulation; er hat dort jetzt dieselben 6 h.

@@ -211,7 +211,8 @@ def test_dialog_und_ziehen_nehmen_die_rueckfrage():
     assert "if(leerFrage(e,async wahl=>{const a=await speichern('tafel',()=>api(url,{method:methode,headers:{'Content-Type':'application/json'},body:JSON.stringify({...w,wenn_leer:wahl})}))" in seite
     # seit 1.9.282 geht das Ziehen in „Personen“ und „Geräte“ über zugSenden() -- die Rückfrage „niemand mehr“ kommt zu den übrigen Antworten dazu
     assert "!leerFrage(err,wahl=>versuch({...opt,wenn_leer:wahl}))" in seite
-    assert "return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text,a.umkehrung))}" in seite
+    # seit 1.9.289 baut die Leiste ihren Text aus der Antwort (text(a): der neue Zeitraum aus ziel_tage, test_v689)
+    assert "return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text(a),a.umkehrung))}" in seite
     assert '<button type="button" class="ds-knopf" id="leerLoeschen" data-klick="leerWahl" data-wahl="loeschen">Löschen</button>' in seite
     assert "textContent=p.leer?'Der Einsatz hat dann niemanden mehr – beim Speichern: löschen oder behalten.':''" in seite  # der Dialog sagt es vorher
 

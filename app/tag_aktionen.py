@@ -436,7 +436,9 @@ def umsetzen(db: Session, *, slot_id: int, tage: list[date], ziel_tag: date, emp
         leer = ziel_id != quelle_id and (danach is None or not _besetzte_tage(danach))
         beruehrt = [ziel] + ([danach] if danach is not None and danach.id != ziel_id else [])
         ergebnis = {"aktion": "umgesetzt", "ziel_aktion": aktion, "slot_id": ziel_id if aktion != "neu" or not pruefen else None, "quelle_id": quelle_id,
-                    "quelle_geloescht": danach is None, "tage": tage_von(ziel, ziel_wer), "bis": ziel.end_date.isoformat()}
+                    "quelle_geloescht": danach is None, "tage": tage_von(ziel, ziel_wer), "bis": ziel.end_date.isoformat(),
+                    # seit 1.9.289 (Stufe 6, R5d, Punkt 7): wohin genau die gezogenen Tage gingen (in Arbeitstagen) -- für „<alt> → <neu>“ in der Leiste
+                    "ziel_tage": [t.isoformat() for t in ziel_tage]}
         if pruefen:
             ergebnis.update(pruefung(db, beruehrt, vorher), leer=leer)
             db.rollback()

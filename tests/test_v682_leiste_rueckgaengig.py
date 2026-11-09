@@ -58,13 +58,15 @@ def test_ohne_umkehrung_kein_rueckgaengig():
 
 @nur_mit_node
 def test_umsetzen_in_der_eigenen_und_einer_anderen_zeile():
+    # seit 1.9.289 nennt die Leiste den neuen Zeitraum aus der Antwort (ziel_tage) statt „ab <Tag>“ (test_v689)
+    neu = {"slot_id": 1, "ziel_tage": ["2026-11-11", "2026-11-12"], "umkehrung": UMKEHRUNG}
     eigene = _lauf("await umsetzenZiehen({id:1,zeile:'person',wer:1,von:'2026-11-09',bis:'2026-11-10'},{dataset:{zeile:'person',id:'1'}},2);"
-                   "AUFRUFE.push({band:band()});")
+                   "AUFRUFE.push({band:band()});", antwort=neu)
     assert _post(eigene) == [("/api/planning/slots/1/umsetzen", {"employee_id": 1, "tage": ["2026-11-09", "2026-11-10"], "ziel_tag": "2026-11-11",
                                                                  "ziel_slot_id": 1, "genau": True})]
-    assert eigene[-1]["band"].startswith('<span class="zug-band-text">Tom Monteur · Wasserturm: 09.–10.11. → ab Mi 11.11.</span>')
+    assert eigene[-1]["band"].startswith('<span class="zug-band-text">Tom Monteur · Wasserturm: 09.–10.11. → 11.–12.11.</span>')
     andere = _lauf("await umsetzenZiehen({id:1,zeile:'person',wer:1,von:'2026-11-09',bis:'2026-11-10'},{dataset:{zeile:'person',id:'2'}},0);"
-                   "AUFRUFE.push({band:band()});")
+                   "AUFRUFE.push({band:band()});", antwort={**neu, "ziel_tage": ["2026-11-09", "2026-11-10"]})
     assert _post(andere)[0][1]["auf_employee_id"] == 2
     assert andere[-1]["band"].startswith('<span class="zug-band-text">Wasserturm 09.–10.11.: Tom Monteur → Kai Kolb</span>')
 

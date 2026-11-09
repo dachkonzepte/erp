@@ -14,8 +14,9 @@ from tests.test_v675_stammdaten_breite import _css, _unter
 def test_untermenue_unter_1400_px_oben():
     oben = _unter(1400)
     assert ".layout{grid-template-columns:minmax(0,1fr)}" in oben
-    assert all(r in oben for r in (".side{position:static;display:flex;overflow:auto}", ".side h3{display:none}", ".side button{white-space:nowrap}"))
-    assert ".side{" not in _unter(850)  # nur noch an einer Stelle
+    # seit 1.9.289 (R5d, Punkt 7) bis 851 px in Zeilen (flex-wrap) statt seitlich rollend, erst unter 850 px eine Zeile, die rollt (test_v689)
+    assert all(r in oben for r in (".side{position:static;display:flex;flex-wrap:wrap}", ".side h3{display:none}", ".side button{width:auto;white-space:nowrap}"))
+    assert ".side{flex-wrap:nowrap;overflow:auto}" in _unter(850)
 
 
 def test_unter_850_px_wie_bisher():

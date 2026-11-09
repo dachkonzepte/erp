@@ -863,9 +863,11 @@ async function umsetzenZiehen(war,ziel,startIdx){const s=findSlot(war.id);if(!s|
   const body={[feld]:war.wer,tage,ziel_tag:zielTag,ziel_slot_id:s.id,genau:true};if(auf!==war.wer)body['auf_'+feld]=auf;
   // seit 1.9.282 über zugSenden() (Rückfragen nacheinander, die Antworten gelten zusammen), danach die Leiste mit „Rückgängig“
   const name=war.zeile==='person'?personName(war.wer):geraetName(war.wer),spanne=fmtSpanne(tage[0],tage[tage.length-1]);
-  const text=auf!==war.wer?`${s.project_name} ${spanne}: ${name} → ${war.zeile==='person'?personName(auf):geraetName(auf)}${zielTag!==tage[0]?', ab '+tagText(zielTag):''}`
-    :`${name} · ${s.project_name}: ${spanne} → ab ${tagText(zielTag)}`;
-  return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text,a.umkehrung))}
+  // seit 1.9.289 (R5d, Punkt 7): der neue Zeitraum aus der Antwort (ziel_tage, in Arbeitstagen) statt „ab <Tag>“ -- „10.–11.11. → 11.–12.11.“
+  const text=a=>{const zt=a.ziel_tage||[],neu=zt.length?fmtSpanne(zt[0],zt[zt.length-1]):spanne;
+    return auf!==war.wer?`${s.project_name} ${spanne}${neu!==spanne?' → '+neu:''}: ${name} → ${war.zeile==='person'?personName(auf):geraetName(auf)}`
+      :`${name} · ${s.project_name}: ${spanne} → ${neu}`};
+  return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text(a),a.umkehrung))}
 function zugEnde(){if(!zug)return;zug.b.classList.remove('zieht');zug.b.style.transform='';document.querySelectorAll('#planner .track.ziel').forEach(x=>x.classList.remove('ziel'));zug=null}
 // die Spur unter dem Punkt -- sie füllt ihre Zeile (min-height statt height: eine Zeile mit drei Textzeilen ist höher als ihre Balken)
 function spurAnPunkt(x,y){const el=document.elementFromPoint(x,y);return el?el.closest('#planner .track[data-zeile]'):null}

@@ -1441,3 +1441,16 @@ höchstens zweizeilig und die Tabelle ohne Rollen auch ohne Silbentrennung. Gege
 - `tests/test_v675_stammdaten_breite.py::test_umbruch_nur_email_und_silben`: alt die Telefonnummer als `esc(…)` in der Zelle, neu in `<span class="tel">`.
 - `scripts/klicktest_stammdaten_breite.py`: alt „1280 hell/dunkel: Tabelle rollt nicht (mit Silbentrennung)“, neu „1280 …: Tabelle rollt nicht“ (das Untermenü oben,
   dazu dieselbe Prüfung ohne Silbentrennung).
+
+### Untermenü in Zeilen, Stunden ohne Umbruch (1.9.289, Stufe 6, R5d, Punkt 7)
+
+Auftrag: „„40 h/Woche“ ohne Umbruch; Untermenü der Stammdaten bei 1280 px in zwei Zeilen statt seitlich rollend.“
+
+- `master_data.html`: in `@media(max-width:1400px)` `.side{position:static;display:flex;flex-wrap:wrap}` statt `overflow:auto` -- die Knöpfe (weiter ohne Umbruch in
+  sich, jetzt `width:auto` statt der vollen Breite aus der Leiste links) brechen in eine zweite Zeile um; in `@media(max-width:850px)` neu `.side{flex-wrap:nowrap;overflow:auto}`: auf dem Telefon bleibt es eine Zeile, die im
+  Rahmen rollt (in Zeilen wären es dort vier bis fünf über der Liste).
+- „40 h/Woche“ unter der Funktion steht in `<span class="nw">` mit `.nw{white-space:nowrap}` -- bis 1.9.288 konnte es bei schmaler Spalte zwischen Zahl und „h/Woche“
+  umbrechen.
+- Gemessen (Klicktest, lange Werte): bei 1400 px das Untermenü in einer Zeile, bei 1280 px in zwei, beide ohne seitliches Rollen; bei 412 px eine Zeile, die rollt.
+  Mit `width:100%` (erster Versuch) waren es neun Zeilen.
+- Festlegungen und Prüfung: `modul-kalender-und-outlook-sync.md`, „Umsetzung 1.9.289“ (Nr. 4–6); Gegenproben: `gegenproben-stufe6-r5d.md`, „1.9.289“.

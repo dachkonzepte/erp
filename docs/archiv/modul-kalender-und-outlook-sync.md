@@ -2609,3 +2609,46 @@ Neu: `tests/test_v688_rueckstand_stunden.py` (vier Aufträge -- Soll, Rest mit F
 Planstunden bleiben; die Liste zeigt `stunden`). `scripts/klicktest_plantafel_rueckgaengig.py` ergänzt: „Nicht eingeplant“ und „Aufträge“ zeigen für
 „Kaminverwahrung Schulz“ „Soll 6,00 h · ohne Termin“. Die feste Zahl Abfragen prüft weiter `tests/test_v564_plantafel_leistung.py`. Gegenproben: Archiv
 `gegenproben-stufe6-r5d.md`, „1.9.288“. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.289 (Punkt 7): Leiste mit dem neuen Zeitraum, „40 h/Woche“ ohne Umbruch, Untermenü der Stammdaten in Zeilen
+
+- Leiste: nach dem Ziehen einer Person bzw. eines Geräts in „Personen“ und „Geräte“ (`umsetzenZiehen()`) stand bis 1.9.288 „<Name> · <Projekt>: <alt> → ab
+  <erster neuer Tag>“ bzw. in eine andere Zeile „…: <Name> → <Name>, ab <Tag>“. Jetzt der neue Zeitraum: „Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. →
+  11.–12.11.“, in eine andere Zeile „<Projekt> <alt> → <neu>: <Name> → <Name>“, ohne „→ <neu>“, wenn die Tage bleiben.
+- Den neuen Zeitraum rechnet der Server: `app/tag_aktionen.py::umsetzen()` liefert `ziel_tage` (die Tage, auf die die gezogenen gingen, in Arbeitstagen nach
+  `verschiebung()`, seit 1.9.277) -- auch beim Prüfen. Die Seite nimmt den ersten und letzten davon (`fmtSpanne()`), sie rechnet keine Arbeitstage nach (Do–Fr um
+  einen Tag weiter heißt „13.–16.11.“, Fr und der nächste Mo -- in Kalendertagen hätte die Seite „13.–14.11.“ gezeigt).
+- Stammdaten: „40 h/Woche“ steht in `<span class="nw">` mit `white-space:nowrap`; das Untermenü unter 1400 px (seit 1.9.278 oben, eine Zeile, die seitlich rollte)
+  bricht jetzt in Zeilen um (`flex-wrap:wrap`, ein Knopf in sich nie) -- bei 1400 px passt es in eine Zeile, bei 1280 px zwei; unter 850 px wieder eine Zeile, die
+  im Rahmen rollt (`flex-wrap:nowrap;overflow:auto`), sonst stünden auf dem Telefon vier bis fünf Zeilen Menü über der Liste. Die Knöpfe sind dort so breit wie ihr
+  Text (`width:auto`): mit `width:100%` aus der Leiste links nahm beim ersten Versuch jeder Knopf eine ganze Zeile (neun Zeilen, vom Klicktest gefunden) -- in einer
+  Zeile ohne Umbruch waren sie bis 1.9.288 von selbst auf ihre Textbreite geschrumpft. Einzelheiten: `stammdaten-und-sidebar.md`,
+  „Untermenü in Zeilen, Stunden ohne Umbruch (1.9.289)“.
+
+#### Festlegungen 1.9.289 (Bitte bestätigen)
+
+1. Nach dem Ziehen einer Person oder eines Geräts nennt die Leiste den alten und den neuen Zeitraum („10.–11.11. → 11.–12.11.“) statt „→ ab <Tag>“.
+2. Den neuen Zeitraum liefert der Server (`ziel_tage`, in Arbeitstagen); die Seite rechnet ihn nicht nach.
+3. In eine andere Zeile gezogen: „<Projekt> <alt> → <neu>: <Name> → <Name>“; bleiben die Tage, ohne „→ <neu>“.
+4. „40 h/Woche“ (Spalte Funktion der Mitarbeiter) bricht nie um, auch in einer eng gezwungenen Spalte.
+5. Unter 1400 px steht das Untermenü der Stammdaten in Zeilen über der Karte, ohne seitliches Rollen (bei 1280 px zwei Zeilen), jeder Knopf so breit wie sein
+   Text -- ersetzt 1.9.278 Nr. 1 („eine Zeile, rollt waagrecht“).
+6. Unter 850 px bleibt das Untermenü eine Zeile, die im Rahmen rollt.
+
+#### Tests und Prüfung 1.9.289
+
+Neu: `tests/test_v689_leiste_zeitraum_und_stammdaten.py` (`ziel_tage` in Arbeitstagen, beim Prüfen und über die API; der Text der Leiste in vier Fällen aus der
+Antwort; die Regeln des Untermenüs unter 1400 und 850 px samt Knopfbreite; „h/Woche“ in `.nw`). `scripts/klicktest_stammdaten_breite.py` ergänzt: bei 1400 und 1280 px rollt das
+Untermenü nicht seitlich, bei 1280 px zwei Zeilen; „h/Woche“ einzeilig bei 1280 px und mit eng gezwungener Spalte Funktion (40 px); bei 412 px eine Zeile, die rollt.
+Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.289“.
+**Angepasste Erwartungen** (Regel 28):
+- `tests/test_v682_leiste_rueckgaengig.py::test_umsetzen_in_der_eigenen_und_einer_anderen_zeile`: alt Antwort ohne `ziel_tage`, Leiste „Tom Monteur · Wasserturm:
+  09.–10.11. → ab Mi 11.11.“; neu Antwort mit `ziel_tage` 11.–12.11., Leiste „… 09.–10.11. → 11.–12.11.“ (in die andere Zeile unverändert).
+- `tests/test_v678_stammdaten_untermenue_oben.py::test_untermenue_unter_1400_px_oben`: alt `.side{position:static;display:flex;overflow:auto}` und keine Regel
+  `.side{` unter 850 px, `.side button{white-space:nowrap}`; neu `.side{position:static;display:flex;flex-wrap:wrap}`, `.side button{width:auto;white-space:nowrap}`
+  und unter 850 px `.side{flex-wrap:nowrap;overflow:auto}`.
+- `tests/test_v675_stammdaten_breite.py::test_stunden_unter_der_funktion`: alt „… h/Woche“ ohne Hülle, neu in `<span class="nw">` (nur der Aufbau).
+- `tests/test_v663_leerer_tag.py::test_dialog_und_ziehen_nehmen_die_rueckfrage`: alt `a=>bandZeigen(text,a.umkehrung)`, neu `a=>bandZeigen(text(a),a.umkehrung)`
+  (der Text der Leiste aus der Antwort; nur der Aufbau, die Rückfrage geht weiter über `zugSenden()`) -- gefunden im vollen Lauf vor dem Festhalten.
+- `scripts/klicktest_plantafel_rueckgaengig.py`: alt „Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. → ab Mi 11.11.“ und „Pritsche HS-DK 202 · Am Wasserturm 4:
+  09.–10.11. → ab Di 10.11.“; neu „… → 11.–12.11.“ und „… → 10.–11.11.“.

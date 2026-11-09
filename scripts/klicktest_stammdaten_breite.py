@@ -11,6 +11,8 @@ Materialkatalog); Anna (Admin) und Bert (Büro – Auftrag).
                Silbentrennung, die E-Mail bis zu sechs Zeilen)
     Untermenü  links bei 1440 px, oben bei 1400 und 1280 px (seit 1.9.278)
     Telefon    die Telefonnummer einzeilig bei 1440 und 1280 px (seit 1.9.278)
+    Menü oben  seit 1.9.289 bei 1400 und 1280 px in Zeilen ohne seitliches Rollen (höchstens zwei), bei 412 px eine Zeile, die im Rahmen rollt
+    Stunden    „40 h/Woche“ ohne Umbruch (seit 1.9.289), auch mit eng gezwungener Spalte
     Spalten    Mitarbeiter (Nr. und Geburtstag darunter) · Funktion (Gruppe und Stunden darunter) · Kontakt · Vergütung (nur ab Büro – Finanzen) ·
                Kosten-Zuordnung · Kennzeichen (Sachbearbeiter, Plantafel bzw. Bauleitung) · Status · Bearbeiten
     Bilder     stammdaten_mitarbeiter_{1440|1280|412}_{hell|dunkel}.png (Vorgabe: Inaktive ausgeblendet)
@@ -43,6 +45,9 @@ return {rollt:t.scrollWidth>w.clientWidth,tabelle:t.scrollWidth,rahmen:w.clientW
 # seit 1.9.278: liegt das Untermenü links neben der Karte oder darüber?
 UNTERMENUE = """(()=>{const s=document.querySelector('aside.side').getBoundingClientRect(),c=document.querySelector('section.card').getBoundingClientRect();
 return s.right<=c.left?'links':s.bottom<=c.top?'oben':'?'})()"""
+# seit 1.9.289: das Untermenü oben -- rollt es seitlich, in wie vielen Zeilen stehen die Knöpfe?
+MENUE = """(()=>{const s=document.querySelector('aside.side');
+return {rollt:s.scrollWidth>s.clientWidth+1,zeilen:new Set([...s.querySelectorAll('button')].map(b=>Math.round(b.getBoundingClientRect().top))).size}})()"""
 # Zeilen je Telefonnummer und je E-Mail (verschiedene Oberkanten der Zeilen)
 ZEILEN = """(sel=>[...document.querySelectorAll('#content '+sel)].map(e=>new Set([...e.getClientRects()].map(r=>Math.round(r.top))).size))"""
 OHNE_TRENNUNG = ("(()=>{const s=document.createElement('style');s.id='ohneTrennung';s.textContent='td.trennbar{hyphens:manual!important}';"
@@ -179,6 +184,9 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1400, 900)
     await laden(tab, p, 8, "light", "1400")
     p.pruefe("1400: Untermenü oben", await tab.js(UNTERMENUE), "oben")
+    m = await tab.js(MENUE)
+    print(f"    1400: Untermenü in {m['zeilen']} Zeilen")
+    p.pruefe("1400: Untermenü rollt nicht seitlich (seit 1.9.289)", m["rollt"], False)
 
     # 1280 px: das Untermenü oben (seit 1.9.278)
     await tab.fenster(1280, 900)
@@ -188,6 +196,11 @@ async def pruefen(tab, seed, p):
         r = await tab.js(ROLLEN)
         print(f"    1280 {name}: Tabelle {r['tabelle']} px im Rahmen {r['rahmen']} px, mindestens {r['mindest']} px")
         p.pruefe(f"1280 {name}: Untermenü oben", await tab.js(UNTERMENUE), "oben")
+        m = await tab.js(MENUE)
+        print(f"    1280 {name}: Untermenü in {m['zeilen']} Zeilen")
+        p.pruefe(f"1280 {name}: Untermenü rollt nicht seitlich (seit 1.9.289)", m["rollt"], False)
+        p.pruefe(f"1280 {name}: Untermenü in zwei Zeilen (seit 1.9.289)", m["zeilen"], 2)
+        p.pruefe(f"1280 {name}: „h/Woche“ einzeilig (seit 1.9.289)", set(await tab.js(f"({ZEILEN})('.nw')")), {1})
         p.pruefe(f"1280 {name}: Tabelle rollt nicht", r["rollt"], False)
         p.pruefe(f"1280 {name}: Status und Bearbeiten ganz zu sehen", r["letzte_ganz"], True)
         p.pruefe(f"1280 {name}: Telefonnummern einzeilig", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
@@ -205,6 +218,11 @@ async def pruefen(tab, seed, p):
                  "document.head.appendChild(s);return true})()")
     p.pruefe("eng (Kontakt 60 px): Telefonnummern einzeilig", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
     await tab.js("document.getElementById('eng').remove()")
+    # seit 1.9.289: die Spalte Funktion eng gezwungen -- „40 h/Woche“ bleibt in einer Zeile
+    await tab.js("(()=>{const s=document.createElement('style');s.id='eng';s.textContent='#content tbody td:nth-child(2){width:40px;max-width:40px}';"
+                 "document.head.appendChild(s);return true})()")
+    p.pruefe("eng (Funktion 40 px): „h/Woche“ einzeilig", set(await tab.js(f"({ZEILEN})('.nw')")), {1})
+    await tab.js("document.getElementById('eng').remove()")
 
     # 412 px: keine Ansicht läuft über
     await tab.fenster(412, 900, mobil=True)
@@ -212,6 +230,8 @@ async def pruefen(tab, seed, p):
         name = "hell" if thema == "light" else "dunkel"
         await laden(tab, p, n, thema, f"412 {name}")
         p.pruefe(f"412 {name}: Telefonnummern einzeilig (seit 1.9.278)", set(await tab.js(f"({ZEILEN})('.tel')")), {1})
+        m = await tab.js(MENUE)
+        p.pruefe(f"412 {name}: Untermenü eine Zeile, rollt im Rahmen (seit 1.9.289)", (m["zeilen"], m["rollt"]), (1, True))
         await tab.bild(f"stammdaten_mitarbeiter_412_{name}")
     for ansicht in ANSICHTEN:
         await tab.js(f"(()=>{{showView({json.dumps(ansicht)});return true}})()")

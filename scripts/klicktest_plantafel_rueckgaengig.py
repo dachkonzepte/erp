@@ -77,7 +77,7 @@ async def personen(tab, p, breite: int, thema: str, vorher: str) -> None:
     await _ansicht(tab, "employees")
     await _ziehen(tab, "Lia Lang", "Sturmschaden", 1)
     await _warte_stand(tab, PERSON_TAGE + "('Lia Lang','Sturmschaden Gartenstraße 2')==='alle'&&" + STURM + f".start_date==={MI!r}")
-    p.pruefe(f"Personen {breite} {thema}: Leiste", await tab.js(BAND), ["Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. → ab Mi 11.11.", "Rückgängig"])
+    p.pruefe(f"Personen {breite} {thema}: Leiste", await tab.js(BAND), ["Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. → 11.–12.11.", "Rückgängig"])
     await tab.bild(f"leiste_personen_{breite}_{thema}")
     await rueckgaengig(tab, p, f"Personen {breite} {thema}", vorher)
 
@@ -135,7 +135,7 @@ async def pruefen(tab, seed, p):
     await _ziehen(tab, "Pritsche HS-DK 202", "Am Wasserturm", 1)
     await _warte_stand(tab, "JSON.stringify(" + GERAET_TAGE + "('Pritsche HS-DK 202','Am Wasserturm 4'))!==" + repr('"alle"') + "&&" + GERAET_TAGE
                        + f"('Pritsche HS-DK 202','Am Wasserturm 4')[0]==={DI!r}")
-    p.pruefe("Geräte: Leiste", await tab.js(BAND), ["Pritsche HS-DK 202 · Am Wasserturm 4: 09.–10.11. → ab Di 10.11.", "Rückgängig"])
+    p.pruefe("Geräte: Leiste", await tab.js(BAND), ["Pritsche HS-DK 202 · Am Wasserturm 4: 09.–10.11. → 10.–11.11.", "Rückgängig"])
     await rueckgaengig(tab, p, "Geräte", vorher)
     await _ziehen(tab, "Pritsche HS-DK 202", "Am Wasserturm", 1)
     await _warte_stand(tab, GERAET_TAGE + f"('Pritsche HS-DK 202','Am Wasserturm 4')[0]==={DI!r}")

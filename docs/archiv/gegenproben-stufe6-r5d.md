@@ -89,3 +89,22 @@ byte-genau zurück, kein Marker geblieben.
 
 10 Gegenproben (8 gegen Tests, 2 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Nr. 2 hatte beim Bauen noch keine eigene
 Gegenprobe; `288_4a` und `288_4b` sind nachgezogen, für `288_4b` zuerst der Test um eine laufende Zeit mit Stunden ergänzt.
+
+## 1.9.289 (Punkt 7): Leiste mit dem neuen Zeitraum, „40 h/Woche“ ohne Umbruch, Untermenü in Zeilen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – alter und neuer Zeitraum statt „→ ab <Tag>“ | wieder „→ ab <Tag>“ in der eigenen Zeile (`289_1a`, `289_1b`) | 2 rot: v689::test_kein_ab_mehr_in_der_leiste, test_leiste_mit_dem_neuen_zeitraum_vom_server; Klicktest rueckgaengig: „Personen 1440 hell: Leiste“, „Geräte: Leiste“, „Personen 1280 dunkel: Leiste“ |
+| Nr. 2 – der Server liefert `ziel_tage` | `ziel_tage` leer (`289_2a`, `289_2d`) | 1 rot: v689::test_umsetzen_nennt_die_zieltage_in_arbeitstagen; Klicktest: dieselben drei Prüfungen der Leiste |
+| Nr. 2 – der Zeitraum geht bis zum letzten Zieltag | nur der erste Zieltag (`289_2b`) | 2 rot: v689::test_kein_ab_mehr_in_der_leiste, test_leiste_mit_dem_neuen_zeitraum_vom_server |
+| Nr. 2 – die Seite rechnet nicht nach | die Seite rechnet in Kalendertagen ab dem Zieltag (`289_2c`) | 2 rot: v689::test_kein_ab_mehr_in_der_leiste, test_leiste_mit_dem_neuen_zeitraum_vom_server (Do–Fr +1: „13.–14.11.“ statt „13.–16.11.“) |
+| Nr. 3 – andere Zeile: „→ <neu>“ nur, wenn er sich ändert | immer „→ <neu>“ (`289_3a`, `289_3c`) | 1 rot: v689::test_leiste_mit_dem_neuen_zeitraum_vom_server; Klicktest: „Personen …“ („Sturmschaden … 11.11. → 11.11.: Ole Offen → Tom Monteur“) |
+| Nr. 3 – andere Zeile, anderer Tag: der neue Zeitraum steht da | nie „→ <neu>“ (`289_3b`) | 1 rot: v689::test_leiste_mit_dem_neuen_zeitraum_vom_server |
+| Nr. 4 – „40 h/Woche“ bricht nicht um | `.nw{}` ohne `nowrap` (`289_4a`, `289_4c`) | 1 rot: v689::test_stunden_je_woche_ohne_umbruch; Klicktest stammdaten_breite: „1280 hell/dunkel: „h/Woche“ einzeilig“, „eng (Funktion 40 px): „h/Woche“ einzeilig“ |
+| Nr. 4 – in einer eigenen Hülle | ohne `<span class="nw">` (`289_4b`, `289_4d`) | 1 rot: v689::test_stunden_je_woche_ohne_umbruch; Klicktest: dieselben drei Prüfungen |
+| Nr. 5 – unter 1400 px in Zeilen, ohne seitliches Rollen | wieder `overflow:auto` ohne Umbruch (`289_5a`, `289_5b`) | 2 rot: v678::test_untermenue_unter_1400_px_oben, v689::test_untermenue_in_zeilen_unter_1400_und_rollend_unter_850; Klicktest: „1280 hell/dunkel: Untermenü rollt nicht seitlich“, „… in zwei Zeilen“ |
+| Nr. 5 – jeder Knopf so breit wie sein Text | ohne `width:auto` (volle Breite, `289_5c`, `289_5d`) | 2 rot: v678::test_untermenue_unter_1400_px_oben, v689::test_untermenue_in_zeilen_unter_1400_und_rollend_unter_850; Klicktest: „1280 hell/dunkel: Untermenü in zwei Zeilen“ (neun) |
+| Nr. 6 – unter 850 px eine Zeile, die rollt | ohne die Regel unter 850 px (`289_6a`, `289_6b`) | 1 rot: v689::test_untermenue_in_zeilen_unter_1400_und_rollend_unter_850; Klicktest: „412 hell/dunkel: Untermenü eine Zeile, rollt im Rahmen“ |
+
+19 Gegenproben (11 gegen Tests, 8 gegen die Klicktests), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen: der erste Versuch ohne
+`width:auto` ergab neun Zeilen Untermenü -- der neue Klicktest fand es; daraus Nr. 5 „jeder Knopf so breit wie sein Text“ mit eigener Gegenprobe.
