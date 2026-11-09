@@ -48,3 +48,13 @@ unverändert).
 | Nr. 3 – weiter nur dieser Tag, eine Karte öffnet ihren Einsatz | keine eigene Gegenprobe: unverändert seit 1.9.282 (Gegenproben dort); der Klicktest prüft „nur Sa“ in derselben Zeile wie Nr. 1 | -- |
 
 6 Gegenproben (4 gegen Tests, 2 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben.
+
+## 1.9.286 (Punkt 4): „Ganze Kolonne“ nennt auch Geräte
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Geräte, die schon woanders sind, stehen in der Anzeige | ohne die Geräte (`286_1a`, `286_1b`) | 3 rot: v686::test_personen_und_geraete, test_nur_ein_geraet, test_frei (nur ein Gerät woanders: dann „frei“); Klicktest auftraege_ziehen: „Kolonne: Anzeige …“ |
+| Nr. 2 – erst die Personen, dann die Geräte | Geräte vor den Personen (`286_2a`) | 1 rot: v686::test_personen_und_geraete |
+| Nr. 2 – das Gerät mit dem Kurznamen wie am Chip | der volle Name statt `geraetName()` (`286_2b`, `286_2c`) | 2 rot: v686::test_personen_und_geraete, test_frei; Klicktest: „Kolonne: Anzeige …“ |
+
+5 Gegenproben (3 gegen Tests, 2 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben.

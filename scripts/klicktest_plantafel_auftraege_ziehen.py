@@ -9,8 +9,8 @@ Maus, 1440 px hell:
     Woanders    Ole aus der Liste auf die Garage Mi: „Schon woanders: Sturmschaden …“ (Bild), Loslassen -> Rückfrage, Abbrechen -> nichts gespeichert; Ole aus seiner
                 Zelle beim Sturmschaden auf die Garage Mi: „Frei“, umgesetzt ohne Rückfrage, Rückgängig -> wieder beim Sturmschaden
     Antrag      Nele aus der Liste auf den Wasserturm Fr: „Antrag offen – plant ohne Rückfrage“ (Bild), gespeichert ohne Rückfrage, Punkt am Chip
-    Kolonne     Kolonne Süd aus der Liste auf Kaminverwahrung Mo (kein Einsatz): „Ganze Kolonne – Kai, Nele schon woanders: Rückfrage für alle“ (Bild), eine Rückfrage
-                für alle, „Trotzdem planen“ -> neuer vorläufiger Einsatz mit Kai, Lia, Nele und HS-DK 204
+    Kolonne     Kolonne Süd aus der Liste auf Kaminverwahrung Mo (kein Einsatz): „Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: Rückfrage für alle“
+                (seit 1.9.286 mit dem Gerät; Bild), eine Rückfrage für alle, „Trotzdem planen“ -> neuer vorläufiger Einsatz mit Kai, Lia, Nele und HS-DK 204
     Liste       Lia aus der Zelle zurück auf die Liste -> für Mo herausgenommen
     Escape      mitten im Ziehen bricht ab, nichts gespeichert
 Finger (Touch-Emulation), 1280 px dunkel: die Liste offen (seit 1.9.283), der Knopf „Zum Einplanen einklappen“; Chips greifbar (Höhe ≥ 40 px bei grobem Zeiger), antippen -> „Einsatz öffnen“, Nele aus der Zelle auf die Liste,
@@ -213,7 +213,7 @@ async def pruefen(tab, seed, p):
     # --- Ganze Kolonne: Kolonne Süd auf Kaminverwahrung Mo (ohne Einsatz)
     los = await maus_ziehen(tab, p, "Kolonne", liste("kolonne", "Kolonne Süd"), ziel(KAMIN, MO))
     p.pruefe("Kolonne: Anzeige", await tab.js(anzeige(KAMIN, MO)),
-             ["zug-woanders zug-ziel", "Ganze Kolonne – Kai, Nele schon woanders: Rückfrage für alle"])
+             ["zug-woanders zug-ziel", "Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: Rückfrage für alle"])  # seit 1.9.286 auch das Gerät
     await tab.bild("ziehen_ganze_kolonne")
     if los:
         await maus_los(tab, los)

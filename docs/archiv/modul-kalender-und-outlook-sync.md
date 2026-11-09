@@ -2537,3 +2537,21 @@ Sa. Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.285“.
 **Angepasste Erwartungen** (Regel 28): `tests/test_v682_leiste_rueckgaengig.py::test_klick_in_einen_freien_tag_in_auftraege` -- alt `openCreate(…,null,{bis:…})`
 und der Hinweis „… plant den Auftrag an diesem Tag.“, neu `openCreate(auftrag,…,kolonneDesAuftrags(auftrag),{bis:…})` und „… an diesem Tag (mit seiner Kolonne,
 wenn er genau eine hat).“ (Festlegung 1.9.282 Nr. 4 geändert).
+
+### Umsetzung 1.9.286 (Punkt 4): „Ganze Kolonne“ nennt auch Geräte
+
+- `zugAnzeige()` für eine Kolonne: wer schon woanders ist, sind jetzt die Mitglieder (`team.employees`, Vorname) und danach die Geräte der Kolonne
+  (`team.resources`, `geraetName()`: der Kurzname, ohne ihn der Name), je über `schonWoanders()` an dem Tag (ein anderer Auftrag). Bis 1.9.285 nur die Mitglieder --
+  ein doppeltes Gerät meldete erst die Rückfrage des Servers.
+
+#### Festlegungen 1.9.286 (Bitte bestätigen)
+
+1. „Ganze Kolonne“ nennt vor dem Loslassen auch die Geräte der Kolonne, die an dem Tag schon woanders stehen.
+2. Erst die Personen (Vorname), dann die Geräte (Kurzname wie am Chip, ohne Kurzname der Name).
+
+#### Tests und Prüfung 1.9.286
+
+Neu: `tests/test_v686_ganze_kolonne_geraete.py` (in node mit dem Code der Seite: Person und Gerät, nur ein Gerät ohne Kurzname, nur das Gerät, frei).
+Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.286“.
+**Angepasste Erwartungen** (Regel 28): `scripts/klicktest_plantafel_auftraege_ziehen.py`, „Kolonne: Anzeige“ -- alt „Ganze Kolonne – Kai, Nele schon woanders: …“,
+neu „Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: …“ (die Pritsche der Kolonne Süd steht am Mo bei der Garage).

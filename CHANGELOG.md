@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.286 – Plantafel: „Ganze Kolonne“ nennt auch Geräte
+
+Zieht man eine Kolonne aus „Zum Einplanen“, nennt die Zelle vor dem Loslassen jetzt auch die Geräte der Kolonne, die an dem Tag schon woanders stehen (Frage 4 zu R5c) -- „Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: Rückfrage für alle“; bis 1.9.285 sagte das beim Gerät erst die Rückfrage. Erst die Personen (Vorname), dann die Geräte (Kurzname wie am Chip).
+
+Neu `tests/test_v686_ganze_kolonne_geraete.py`; angepasst `klicktest_plantafel_auftraege_ziehen.py` (der Text der Anzeige). Keine Migration.
+
 ## 1.9.285 – Plantafel: Klick in einen freien Tag schlägt die Kolonne vor
 
 In „Aufträge“ öffnet ein Klick in einen freien Tag den Dialog für diesen Auftrag und Tag jetzt mit der Kolonne, die der Auftrag an anderen Tagen hat -- wenn es genau eine ist (Frage 3 zu R5c, statt 1.9.282 Nr. 4); hat er keine oder mehrere, bleibt der Dialog ohne Kolonne. Einsätze ohne Kolonne zählen dabei nicht. Am Wasserturm schlägt ein Klick auf den freien Samstag also die Kolonne Nord vor.
