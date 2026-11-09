@@ -15,7 +15,8 @@ SEITE = ROOT / "app/templates/planning.html"
 
 def test_finger_32_px_mit_groesserem_treffbereich():
     seite = SEITE.read_text(encoding="utf-8")
-    assert ("@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;padding:3px 7px;position:relative}"
+    # seit 1.9.287 seitlich 6 px wie mit der Maus (bis 1.9.286 7 px -- bei 1280 px war „HS-DK 202“ gekürzt)
+    assert ("@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;padding:3px 6px;position:relative}"
             ".ansicht-auftraege .chip[data-art]::before{content:'';position:absolute;inset:-5px -3px}.ansicht-auftraege .a-einsatz{row-gap:8px}}") in seite
     assert "min-height:40px" not in seite.split("/* seit 1.9.281 (Stufe 6, R5c, Punkt 3)")[1].split("</style>")[0]
 

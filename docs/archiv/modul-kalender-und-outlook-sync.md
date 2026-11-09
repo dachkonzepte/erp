@@ -2555,3 +2555,33 @@ Neu: `tests/test_v686_ganze_kolonne_geraete.py` (in node mit dem Code der Seite:
 Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.286“.
 **Angepasste Erwartungen** (Regel 28): `scripts/klicktest_plantafel_auftraege_ziehen.py`, „Kolonne: Anzeige“ -- alt „Ganze Kolonne – Kai, Nele schon woanders: …“,
 neu „Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: …“ (die Pritsche der Kolonne Süd steht am Mo bei der Garage).
+
+### Umsetzung 1.9.287 (Punkt 5): die Anzeige schwebt über der Zelle
+
+- `.zug-anzeige`: `position:absolute`, oberhalb der Zelle (`bottom:calc(100% + 2px)`), so breit wie sie (`left/right:2px`), wächst nach oben, `z-index:5`, mit
+  Hintergrund je Zustand und Schatten, ohne Rand, `pointer-events:none` -- die Zeile wird nicht höher, die Chips des Ziels bleiben zu sehen. Bis 1.9.286 stand sie
+  im Fluss der Zelle (`margin-top`): die Zeile wuchs beim Ziehen, alles darunter rutschte weg; mit dem Finger rutschte dabei das Ziel unter dem Finger weg.
+- `zugZielZeigen()` setzt sie vorn in die Zelle (`prepend`): hinten angehängt war die letzte Karte nicht mehr `:last-child`, ihr `margin-bottom:4px` machte die
+  Zeile trotz absoluter Anzeige 4 px höher (beim Bauen gemessen: 77 -> 81 px).
+- Die Kopie des gezogenen Chips steht rechts neben dem Zeiger, auf seiner Höhe (`left = x + 16`, `top = y − Höhe/2`); bis 1.9.286 über dem Zeiger -- sie verdeckte
+  dann den oberen Teil der Anzeige.
+- Mit dem Finger seitlich 6 px Innenabstand wie mit der Maus (1.9.284: 7 px): im Bild mit dem Finger bei 1280 px war „HS-DK 202“ wieder gekürzt. Ein Chip mit ⚠
+  braucht 16 px mehr und darf bei 1280 px kürzen; der volle Name steht im title.
+
+#### Festlegungen 1.9.287 (Bitte bestätigen)
+
+1. Die Anzeige vor dem Loslassen schwebt oberhalb der Zelle, so breit wie sie, und wächst nach oben; die Zeile wird beim Ziehen nicht höher, die Chips des Ziels
+   bleiben zu sehen.
+2. Die Anzeige fängt keine Zeigerereignisse ab; sie steht vorn in der Zelle.
+3. Die Kopie des gezogenen Chips steht rechts neben dem Zeiger, auf seiner Höhe (statt darüber, 1.9.281 Nr. 7).
+4. Mit dem Finger seitlich 6 px Innenabstand wie mit der Maus (statt 7 px, 1.9.284 Nr. 1); ein Chip mit ⚠ darf bei 1280 px kürzen (Name im title).
+
+#### Tests und Prüfung 1.9.287
+
+Neu: `tests/test_v687_anzeige_schwebt.py` (Regel der Anzeige, vorn in der Zelle, Kopie neben dem Zeiger, Finger seitlich wie die Maus).
+`scripts/klicktest_plantafel_auftraege_ziehen.py` ergänzt: die Zeile bleibt beim Ziehen gleich hoch (Woanders, Kolonne, mit dem Finger, mit der Maus dunkel), die
+Anzeige oberhalb der Zelle und ohne Zeigerereignisse (an ihrer Mitte findet die Seite nie das Ziel), kein Name ohne Warnung gekürzt (Finger, 1280 px); Bilder mit dem Finger hell (1280 px) und mit der Maus dunkel (1440 px).
+Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.287“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v684_chips_finger.py::test_finger_32_px_mit_groesserem_treffbereich` -- alt `padding:3px 7px`, neu `padding:3px 6px`.
+`scripts/klicktest_plantafel_auftraege_ziehen.py`, „Frei: nichts markiert, der Chip über dem Zeiger“ -- alt die Unterkante der Kopie über dem Zeiger, neu „… der Chip
+neben dem Zeiger“: links mindestens 12 px rechts vom Zeiger, der Zeiger zwischen Ober- und Unterkante.

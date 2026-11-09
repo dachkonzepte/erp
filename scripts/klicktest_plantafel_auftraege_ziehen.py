@@ -15,6 +15,8 @@ Maus, 1440 px hell:
     Escape      mitten im Ziehen bricht ab, nichts gespeichert
 Finger (Touch-Emulation), 1280 px dunkel: die Liste offen (seit 1.9.283), der Knopf „Zum Einplanen einklappen“; Chips greifbar (Höhe ≥ 40 px bei grobem Zeiger), antippen -> „Einsatz öffnen“, Nele aus der Zelle auf die Liste,
 Lia aus der Liste auf Kaminverwahrung Mo mit Anzeige vor dem Loslassen (Bild) und „Rückgängig“.
+Seit 1.9.287: die Anzeige schwebt über der Zelle (unten angesetzt), die Zeile wird beim Ziehen nicht höher (Woanders, Kolonne); Bilder dazu mit dem Finger
+hell (1280 px) und mit der Maus dunkel (1440 px).
 Keine JS-Fehler.
 
 AUFRUF (aus dem Projektordner):
@@ -65,6 +67,25 @@ def anzeige(name: str, tag: str) -> str:
     """was die Zelle vor dem Loslassen zeigt: [Klassen zug-…, Text]"""
     return (f"(t=>t?[[...t.classList].filter(k=>k.startsWith('zug-')).sort().join(' '),t.querySelector('.zug-anzeige')?.textContent||null]:null)"
             f"({td(name, tag)})")
+
+
+def mass(name: str) -> str:
+    """seit 1.9.287: Höhe der Zeile und Abstand zur nächsten Zeile (unabhängig vom Rollen) -- die Anzeige darf die Zeile nicht höher machen"""
+    return (f"(z=>{{const b=z.getBoundingClientRect(),n=z.nextElementSibling;return [Math.round(b.height),n?Math.round(n.getBoundingClientRect().top-b.top):null]}})"
+            f"([...document.querySelectorAll('#planner tr.a-zeile')].find(r=>r.querySelector('.a-name a').textContent.trim()==={json.dumps(name)}))")
+
+
+def ueber_der_zelle(name: str, tag: str) -> str:
+    """seit 1.9.287: die Anzeige schwebt oberhalb der Zelle, so breit wie sie (position absolute, ihre Unterkante über der Oberkante der Zelle)"""
+    return (f"(t=>{{const e=t.querySelector('.zug-anzeige'),a=e.getBoundingClientRect(),r=t.getBoundingClientRect();"
+            f"return [a.left>=r.left-0.5,a.right<=r.right+0.5,a.bottom<=r.top+0.5,getComputedStyle(e).position]}})({td(name, tag)})")
+
+
+def durch_die_anzeige(name: str, tag: str) -> str:
+    """seit 1.9.287 (Gegenprobe 287_2d blieb zuerst grün): die Anzeige fängt keinen Zeiger ab -- an ihrer Mitte findet die Seite (zielAnPunkt()) die Zelle
+    darüber oder nichts, nie das Ziel, unter dem die Anzeige hängt"""
+    return (f"(t=>{{const a=t.querySelector('.zug-anzeige').getBoundingClientRect(),z=zielAnPunkt((a.left+a.right)/2,(a.top+a.bottom)/2);"
+            f"return !!z&&z.art==='zelle'&&z.td===t}})({td(name, tag)})")
 
 
 def befuellen(db, k):
@@ -158,8 +179,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Frei: keine Anfrage beim Ziehen", await tab.js("window.__dkAnfragen.gestartet"), gestartet)
     p.pruefe("Frei: Anzeige vor dem Loslassen", await tab.js(anzeige(WASSER, DO)), ["zug-frei zug-ziel", "Frei – Do 12.11."])
     p.pruefe("Frei: die Leiste ist beim Ziehen zu", await tab.js(LEISTE), None)
-    p.pruefe("Frei: nichts markiert, der Chip über dem Zeiger", await tab.js(
-        f"[String(getSelection()),(g=>g?Math.round(g.getBoundingClientRect().bottom)<={round(los[1]) if los else 0}:null)(document.querySelector('.zug-geist'))]"), ["", True])
+    # seit 1.9.287 rechts neben dem Zeiger, auf seiner Höhe (bis 1.9.286 über dem Zeiger)
+    p.pruefe("Frei: nichts markiert, der Chip neben dem Zeiger", await tab.js(
+        f"[String(getSelection()),(g=>{{if(!g)return null;const b=g.getBoundingClientRect();return b.left>={(los[0] if los else 0) + 12}&&b.top<={los[1] if los else 0}&&b.bottom>={los[1] if los else 0}}})"
+        f"(document.querySelector('.zug-geist'))]"), ["", True])
     await tab.bild("ziehen_frei")
     if los:
         await maus_los(tab, los)
@@ -177,9 +200,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("Rückgängig: Leiste zu", await tab.js(LEISTE), None)
 
     # --- Schon woanders: Ole aus der Liste auf die Garage Mi -> Rückfrage; aus seiner Zelle -> umgesetzt ohne Rückfrage
+    vorher = await tab.js(mass(GARAGE))
     los = await maus_ziehen(tab, p, "Woanders", liste("person", "Ole Offen"), ziel(GARAGE, MI))
     p.pruefe("Woanders: Anzeige", await tab.js(anzeige(GARAGE, MI)),
              ["zug-woanders zug-ziel", "Schon woanders: Sturmschaden Gartenstraße 2 – Rückfrage „Trotzdem planen“"])
+    # seit 1.9.287 (R5d, Punkt 5): die Anzeige schwebt über der Zelle, die Zeile wird nicht höher, nichts darunter rutscht
+    p.pruefe("Woanders: die Zeile wird nicht höher", await tab.js(mass(GARAGE)), vorher)
+    p.pruefe("Woanders: die Anzeige schwebt über der Zelle", await tab.js(ueber_der_zelle(GARAGE, MI)), [True, True, True, "absolute"])
+    p.pruefe("Woanders: die Anzeige fängt keinen Zeiger ab", await tab.js(durch_die_anzeige(GARAGE, MI)), False)
     await tab.bild("ziehen_schon_woanders")
     if los:
         await maus_los(tab, los)
@@ -211,9 +239,11 @@ async def pruefen(tab, seed, p):
              [["Tom", "Mia", "Ole", "Nele •", "HS-DK 202", "Kran ⚠ (Kran)"]])
 
     # --- Ganze Kolonne: Kolonne Süd auf Kaminverwahrung Mo (ohne Einsatz)
+    vorher = await tab.js(mass(KAMIN))
     los = await maus_ziehen(tab, p, "Kolonne", liste("kolonne", "Kolonne Süd"), ziel(KAMIN, MO))
     p.pruefe("Kolonne: Anzeige", await tab.js(anzeige(KAMIN, MO)),
              ["zug-woanders zug-ziel", "Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: Rückfrage für alle"])  # seit 1.9.286 auch das Gerät
+    p.pruefe("Kolonne: die Zeile wird nicht höher", await tab.js(mass(KAMIN)), vorher)
     await tab.bild("ziehen_ganze_kolonne")
     if los:
         await maus_los(tab, los)
@@ -290,7 +320,46 @@ async def pruefen(tab, seed, p):
     p.pruefe("Finger: Leiste", await tab.js(LEISTE), ["Lia Lang · alle Tage", "Rückgängig"])
     p.pruefe("Finger: Rückgängig", await knopf(tab, "Rückgängig"), True)
     p.pruefe("Finger: rückgängig", await namen(KAMIN, MO), ["Kai", "Nele", "HS-DK 204"])
+    # Bilder (seit 1.9.287): mit dem Finger auch hell, mit der Maus auch dunkel -- vor dem Loslassen, danach zurück an den Start (Liste auf Liste: nichts)
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    p.pruefe("Finger hell: neu geladen", await tab.oeffnen("/planning", "typeof board!=='undefined'&&!!board"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("setView('auftraege')")
+    p.pruefe("Finger hell: Aufträge bereit", await tab.warten(BEREIT), True)
+    await tab.warte_auf_ruhe()
+    # ohne Warnung passt jeder Name; ein Chip mit ⚠ (hier die Pritsche 204, am Mo doppelt) braucht 16 px mehr und darf kürzen -- der Name steht im title
+    p.pruefe("Finger hell: kein Name ohne Warnung gekürzt (seitlich 6 px wie mit der Maus)", await tab.js(
+        "[...document.querySelectorAll('#planner .chip:not(.warn) .chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim())"), [])
+    vorher = await tab.js(mass(GARAGE))
+    pk = await punkte(tab, liste("person", "Ole Offen"), ziel(GARAGE, MI))
+    await finger(tab, pk[0], pk[1], pk[2] - pk[0], pk[3] - pk[1], loslassen=False)
+    await tab.warten(f"(t=>!!t&&t.classList.contains('zug-ziel'))({td(GARAGE, MI)})", 5)  # der letzte Fingerschritt kann nach dem Senden noch laufen
+    p.pruefe("Finger hell: Anzeige schwebt, die Zeile wird nicht höher", [(await tab.js(anzeige(GARAGE, MI)))[0], await tab.js(mass(GARAGE)),
+                                                                       await tab.js(ueber_der_zelle(GARAGE, MI))],
+             ["zug-woanders zug-ziel", vorher, [True, True, True, "absolute"]])
+    await tab.bild("ziehen_finger_1280_hell")
+    await tab.cmd("Input.dispatchTouchEvent", type="touchMove", touchPoints=[{"x": pk[0], "y": pk[1]}])
+    await tab.cmd("Input.dispatchTouchEvent", type="touchEnd", touchPoints=[])
+    await tab.warte_auf_ruhe()
+    p.pruefe("Finger hell: zurück auf die Liste, nichts geändert", await namen(GARAGE, MI), ["Kai", "Nele", "HS-DK 204"])
     await tab.cmd("Emulation.setTouchEmulationEnabled", enabled=False)
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','dark')")
+    p.pruefe("Maus dunkel: neu geladen", await tab.oeffnen("/planning", "typeof board!=='undefined'&&!!board"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("setView('auftraege')")
+    p.pruefe("Maus dunkel: Aufträge bereit", await tab.warten(BEREIT), True)
+    await tab.warte_auf_ruhe()
+    vorher = await tab.js(mass(GARAGE))
+    los = await maus_ziehen(tab, p, "Maus dunkel", liste("person", "Ole Offen"), ziel(GARAGE, MI))
+    p.pruefe("Maus dunkel: Anzeige schwebt, die Zeile wird nicht höher", [(await tab.js(anzeige(GARAGE, MI)))[0], await tab.js(mass(GARAGE))],
+             ["zug-woanders zug-ziel", vorher])
+    await tab.bild("ziehen_schon_woanders_dunkel")
+    await tab.cmd("Input.dispatchKeyEvent", type="keyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27)
+    await tab.cmd("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27)
+    if los:
+        await maus_los(tab, los)
+    p.pruefe("Maus dunkel: abgebrochen, nichts geändert", await namen(GARAGE, MI), ["Kai", "Nele", "HS-DK 204"])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

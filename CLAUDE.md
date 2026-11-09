@@ -1301,7 +1301,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Gerätezeichen weg (Container-Query, `tests/test_v683_auftraege_liste_offen.py`); seit 1.9.284 mit dem Finger 32 px hohe Chips mit unsichtbarem Treffbereich
   (`::before`, 40 px; der Name kürzt in `span.chip-text`, der Chip schneidet nicht ab; `tests/test_v684_chips_finger.py`); seit 1.9.285 schlägt der Klick in
   einen freien Tag die Kolonne vor, wenn der Auftrag an anderen Tagen genau eine hat (`kolonneDesAuftrags()`, `tests/test_v685_kolonne_beim_klick.py`); seit
-  1.9.286 nennt „Ganze Kolonne“ auch Geräte, die schon woanders sind (`tests/test_v686_ganze_kolonne_geraete.py`). Befund R5 und Herleitung:
+  1.9.286 nennt „Ganze Kolonne“ auch Geräte, die schon woanders sind (`tests/test_v686_ganze_kolonne_geraete.py`); seit 1.9.287 schwebt die Anzeige vor dem
+  Loslassen über der Zelle (absolut, vorn in der Zelle -- hinten verlöre die letzte Karte `:last-child`), die Zeile wird nicht höher; die Kopie des Chips rechts
+  neben dem Zeiger (`tests/test_v687_anzeige_schwebt.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

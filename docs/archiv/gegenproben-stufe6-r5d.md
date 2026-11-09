@@ -58,3 +58,18 @@ unverändert).
 | Nr. 2 – das Gerät mit dem Kurznamen wie am Chip | der volle Name statt `geraetName()` (`286_2b`, `286_2c`) | 2 rot: v686::test_personen_und_geraete, test_frei; Klicktest: „Kolonne: Anzeige …“ |
 
 5 Gegenproben (3 gegen Tests, 2 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben.
+
+## 1.9.287 (Punkt 5): die Anzeige schwebt über der Zelle
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Anzeige schwebt, die Zeile wird nicht höher | im Fluss der Zelle (`margin-top:4px` statt `position:absolute`, `287_1a`, `287_1c`) | 1 rot: v687::test_anzeige_schwebt_ueber_der_zelle; Klicktest auftraege_ziehen: 15 rote Prüfungen, u. a. „Woanders: die Zeile wird nicht höher“, „Kolonne: …“, „Finger hell: Anzeige schwebt, die Zeile wird nicht höher“, „Maus dunkel: …“ |
+| Nr. 1 – oberhalb der Zelle, Chips des Ziels zu sehen | `bottom:2px` (über den Chips in der Zelle, `287_1b`, `287_1d`) | 1 rot: v687::test_anzeige_schwebt_ueber_der_zelle; Klicktest: „Woanders: die Anzeige schwebt über der Zelle“, „Finger hell: …“ |
+| Nr. 2 – vorn in der Zelle | `appendChild` statt `prepend` (`287_2a`, `287_2b`) | 1 rot: v687::test_anzeige_vorn_in_der_zelle; Klicktest: „Woanders: die Zeile wird nicht höher“ (die letzte Karte verliert ihren Abstand, +4 px) |
+| Nr. 2 – fängt keine Zeigerereignisse ab | ohne `pointer-events:none` (`287_2c`, `287_2d`) | 1 rot: v687::test_anzeige_schwebt_ueber_der_zelle; Klicktest: zuerst **grün** (88 von 88), nachgezogen „Woanders: die Anzeige fängt keinen Zeiger ab“ (an der Mitte der Anzeige findet `zielAnPunkt()` nie das Ziel), danach rot |
+| Nr. 3 – die Kopie rechts neben dem Zeiger | wieder darüber (`287_3a`, `287_3b`) | 1 rot: v687::test_kopie_neben_dem_zeiger; Klicktest: „Frei: nichts markiert, der Chip neben dem Zeiger“ |
+| Nr. 4 – mit dem Finger seitlich 6 px | wieder 7 px (`287_4a`, `287_4b`) | 1 rot: v687::test_finger_seitlich_wie_die_maus; Klicktest: „Finger hell: kein Name ohne Warnung gekürzt (seitlich 6 px wie mit der Maus)“ |
+| Nr. 4 – ein Chip mit ⚠ darf kürzen | keine eigene Gegenprobe: eine Erlaubnis, keine Prüfung -- der Klicktest nimmt Chips mit Warnung aus der Prüfung „kein Name gekürzt“ aus | -- |
+
+12 Gegenproben (6 gegen Tests, 6 gegen den Klicktest); `287_2d` blieb zuerst grün, nach dem Nachziehen des Klicktests dieselbe Gegenprobe noch einmal: rot. Jede Datei
+byte-genau zurück, kein Marker geblieben.

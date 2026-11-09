@@ -213,16 +213,22 @@
 /* seit 1.9.281 (Stufe 6, R5c, Punkt 3): Ziehen in „Aufträge“ -- Chips mit Maus und Finger, die Zelle zeigt vor dem Loslassen, was passiert */
 .ansicht-auftraege .chip[data-art]{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
 /* seit 1.9.284 (Stufe 6, R5d, Punkt 2): mit dem Finger 32 px hoch (1.9.281: 40 px), der Treffbereich reicht 4 px darüber und darunter und 2 px zur Seite
-   hinaus -- 40 px hoch, ohne die Karte höher zu machen (inset vom Innenrand gemessen, der Rand ist 1 px: -5/-3 px) */
-@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;padding:3px 7px;position:relative}.ansicht-auftraege .chip[data-art]::before{content:'';position:absolute;inset:-5px -3px}.ansicht-auftraege .a-einsatz{row-gap:8px}}  /* 8 px zwischen den Zeilen: die Treffbereiche zweier Zeilen überdecken sich nicht */
+   hinaus -- 40 px hoch, ohne die Karte höher zu machen (inset vom Innenrand gemessen, der Rand ist 1 px: -5/-3 px). Seit 1.9.287 seitlich 6 px wie mit der Maus:
+   mit 7 px war „HS-DK 202“ bei 1280 px gekürzt */
+@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;padding:3px 6px;position:relative}.ansicht-auftraege .chip[data-art]::before{content:'';position:absolute;inset:-5px -3px}.ansicht-auftraege .a-einsatz{row-gap:8px}}  /* 8 px zwischen den Zeilen: die Treffbereiche zweier Zeilen überdecken sich nicht */
 .zug-geist{position:fixed;z-index:60;pointer-events:none;box-shadow:0 6px 16px color-mix(in srgb,var(--ds-stark) 30%,transparent);opacity:.95}
 #planner td.a-tag{position:relative}
 #planner td.zug-ziel{outline:2px dashed var(--ds-aktion);outline-offset:-3px}
 #planner td.zug-frei{background:var(--ds-aktion-hell)}
 #planner td.zug-woanders{outline-color:var(--ds-fehler);background:var(--ds-fehler-hell)}
 #planner td.zug-antrag{outline-color:var(--ds-text-3);background:var(--ds-flaeche-2)}
-.zug-anzeige{margin-top:4px;font-size:11.5px;font-weight:600;line-height:1.3;color:var(--ds-text)}
-td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
+/* seit 1.9.287 (Stufe 6, R5d, Punkt 5): die Anzeige schwebt über der Zelle -- oberhalb, so breit wie die Zelle, sie wächst nach oben: die Zeile wird nicht
+   höher und die Chips der Zelle bleiben zu sehen (bis 1.9.286 stand sie im Fluss der Zelle: die Zeile wuchs beim Ziehen, alles darunter rutschte weg); sie
+   fängt keine Zeigerereignisse ab */
+.zug-anzeige{position:absolute;left:2px;right:2px;bottom:calc(100% + 2px);z-index:5;padding:4px 6px;border-radius:6px;font-size:11.5px;font-weight:600;line-height:1.3;color:var(--ds-text);background:var(--ds-flaeche);box-shadow:0 4px 12px color-mix(in srgb,var(--ds-stark) 22%,transparent);pointer-events:none}
+td.zug-frei .zug-anzeige{background:var(--ds-aktion-hell)}
+td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text);background:var(--ds-fehler-hell)}
+td.zug-antrag .zug-anzeige{background:var(--ds-flaeche-2)}
 #backlog.zug-ziel-liste{outline:2px dashed var(--ds-aktion);outline-offset:4px;border-radius:8px}
 .zug-leiste{position:absolute;z-index:40;display:flex;flex-direction:column;gap:6px;align-items:flex-start;max-width:300px;padding:10px 36px 10px 12px;box-sizing:border-box;background:var(--ds-flaeche);border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-karte);box-shadow:0 8px 24px color-mix(in srgb,var(--ds-stark) 22%,transparent);font-size:13px;color:var(--ds-text)}
 .zug-leiste[hidden]{display:none}
@@ -611,7 +617,7 @@ function zielAnPunkt(x,y){const el=document.elementFromPoint(x,y);if(!el)return 
 function zugZielZeigen(ziel){document.querySelectorAll('#planner td.zug-ziel').forEach(td=>{if(!ziel||td!==ziel.td){td.classList.remove('zug-ziel','zug-frei','zug-woanders','zug-antrag');td.querySelector('.zug-anzeige')?.remove()}});
   document.getElementById('backlog').classList.toggle('zug-ziel-liste',!!(ziel&&ziel.art==='liste'&&azug&&azug.slot));if(!ziel||ziel.art!=='zelle')return;
   const a=zugAnzeige(azug,ziel);ziel.td.classList.remove('zug-frei','zug-woanders','zug-antrag');ziel.td.classList.add('zug-ziel','zug-'+a.klasse);
-  let el=ziel.td.querySelector('.zug-anzeige');if(!el){el=document.createElement('div');el.className='zug-anzeige';ziel.td.appendChild(el)}el.textContent=a.text}
+  let el=ziel.td.querySelector('.zug-anzeige');if(!el){el=document.createElement('div');el.className='zug-anzeige';ziel.td.prepend(el)}el.textContent=a.text}  /* seit 1.9.287 vorn in der Zelle: hinten wäre die letzte Karte nicht mehr :last-child, ihr Abstand nach unten machte die Zeile 4 px höher */
 function zugAbbrechen(){if(!azug)return;azug.geist?.remove();zugZielZeigen(null);azug=null}
 function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout');if(lay.dataset.chipZiehen)return;lay.dataset.chipZiehen='1';
   lay.addEventListener('pointerdown',e=>{chipTipp=false;if(view!=='auftraege'||e.button>0)return;const c=e.target.closest('.chip[data-art]');if(!c||!lay.contains(c))return;
@@ -619,7 +625,7 @@ function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout')
     try{c.setPointerCapture(e.pointerId)}catch(x){}});
   lay.addEventListener('pointermove',e=>{if(!azug)return;if(!azug.aktiv){if(Math.hypot(e.clientX-azug.x0,e.clientY-azug.y0)<6)return;azug.aktiv=true;zugLeisteSchliessen();
       const g=azug.chip.cloneNode(true);g.classList.add('zug-geist');document.body.appendChild(g);azug.geist=g}
-    azug.geist.style.left=(e.clientX+12)+'px';azug.geist.style.top=(e.clientY-azug.geist.offsetHeight-12)+'px';  /* über dem Zeiger: Finger und Anzeige bleiben frei */azug.ziel=zielAnPunkt(e.clientX,e.clientY);zugZielZeigen(azug.ziel)});
+    azug.geist.style.left=(e.clientX+16)+'px';azug.geist.style.top=(e.clientY-azug.geist.offsetHeight/2)+'px';  /* seit 1.9.287 rechts neben dem Zeiger, auf seiner Höhe: die Anzeige über der Zelle bleibt frei (bis 1.9.286 darüber) */azug.ziel=zielAnPunkt(e.clientX,e.clientY);zugZielZeigen(azug.ziel)});
   lay.addEventListener('pointerup',e=>{if(!azug)return;const z=azug,ziel=z.aktiv?zielAnPunkt(e.clientX,e.clientY):null;zugAbbrechen();chipTipp=true;
     if(!z.aktiv){if(z.slot)chipMenue(z);return}if(ziel)zugAusfuehren(z,ziel)});
   lay.addEventListener('pointercancel',()=>zugAbbrechen());
