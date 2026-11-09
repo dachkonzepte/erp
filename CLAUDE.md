@@ -778,7 +778,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -1279,7 +1280,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   seinem Stand, `einsatz_stand()`, Antwort 5) und die Sperren aufsteigend über `_sperren()` -- jede neue Tag-Aktion sperrt nur darüber
   (`tests/test_v669_sperren_und_rueckgaengig.py`, mit PostgreSQL über Kreuz); seit 1.9.270 in „Personen“ und „Geräte“ Ziehen nur dieser Person bzw. dieses
   Geräts (`umsetzenZiehen()` -> Umsetzen mit `genau` im selben Einsatz, in eine andere Zeile mit `auf_employee_id`/`auf_resource_id`; `nurDieseZeile()`; Balken mit
-  `data-von`/`data-bis`), in „Kolonnen“ weiter der ganze Einsatz (`tests/test_v670_ziehen_einzeln.py`, Klicktest `klicktest_plantafel_ziehen.py`). Befund R5 und Herleitung:
+  `data-von`/`data-bis`), in „Kolonnen“ weiter der ganze Einsatz (`tests/test_v670_ziehen_einzeln.py`, Klicktest `klicktest_plantafel_ziehen.py`). **Stufe 6, R5c (ab 1.9.276, Ansicht „Aufträge“):** vorweg ist ein aktiver Tag des
+  Arbeitszeitkalenders (Heiligabend, Silvester) kein Arbeitstag der Planung -- wie ein betriebsfreier Tag, für alle (`tag_aktionen._arbeitstag()` über
+  `arbeitszeitkalender.im_kalender()`; Verlängern, „direkt anschließend“; `tests/test_v676_kalendertage_kein_arbeitstag.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

@@ -2123,7 +2123,7 @@ diesen Tag zieht; 2 Nebenbefund R5b (Abschnitt 9 des Berichts): die vier Antwort
 - Unverändert: Tag setzen, Umsetzen (die Tage wandern um Kalendertage, 1.9.268 Nr. 2) und die Tage im Dialog -- das sind die Wege, auf denen jemand ausdrücklich
   auf einen Tag gezogen wird. Die Tafel hat für Verlängern noch keinen Knopf (R5c).
 
-#### Festlegungen 1.9.272 (Bitte bestätigen)
+#### Festlegungen 1.9.272 (bestätigt am 09.11.2026 -- Nr. 2, zweiter Satz: seit 1.9.276 sind Heiligabend und Silvester keine Arbeitstage)
 
 1. Verlängern nimmt ab einem ihrer Tage jeden **Arbeitstag** bis zum Ende des Einsatzes; Samstag, Sonntag, Feiertag und betriebsfreie Tage nicht (statt 1.9.268
    Nr. 7).
@@ -2161,7 +2161,7 @@ Kategorie). Heute ruft keine Seite diese Liste auf (die Plantafel trägt nur ein
   `CustomerOut`, `OperationalResourceOut`, `PlanningHolidayOut`, `PropertyOut`, `QuoteDocumentMetaOut`, `SettingOptionOut`, `SupplierOut` -- nur Längen und bei
   `SettingOptionOut` die Reihenfolge 0–99999, kein Muster, kein Validator); sie stehen in `BEKANNT`, die Liste darf nur kürzer werden.
 
-#### Festlegungen 1.9.273 (Bitte bestätigen)
+#### Festlegungen 1.9.273 (bestätigt am 09.11.2026)
 
 1. Funktion, Abwesenheit, Konto und Position einer Eingangsrechnung antworten mit dem, was gespeichert ist, ohne die Prüfung des Formulars (wie die Mitarbeiter
    seit 1.9.265); Felder und Reihenfolge bleiben.
@@ -2175,3 +2175,38 @@ Neu: `tests/test_v673_antworten_ohne_pruefung.py` (je Schema ohne Prüfung mit a
 gespeicherter Wert, den das Formular ablehnt -- Funktion mit anderer Gruppe, Abwesenheit „schlechtwetter“ und „unbekannt“ für drei Rollen, Konto mit 16 %,
 Position einer Eingangsrechnung mit 16 % in Liste und Rechnung --, dazu je, dass Speichern weiter ablehnt). Gegenproben: Archiv `gegenproben-stufe6-r5b.md`,
 „1.9.273“. Klicktests der Seiten, die diese Antworten lesen (Abwesenheit, Einstellungen, Rahmen): siehe Bericht. Angepasste Erwartungen: keine.
+
+## Stufe 6, R5c: Ansicht „Aufträge“ (ab 1.9.276)
+
+Auftrag vom 09.11.2026, Start 35034fd (live, Datenbank `b6e4d2a9c731`). Bestätigt: Festlegungen 1.9.272–1.9.275 (Nachrunde R5b). Antworten auf die Fragen der
+Nachrunde: 1 Heiligabend und Silvester beim Verlängern auslassen wie betriebsfreie Tage (Punkt 0a); 2 Weg a -- das Untermenü der Stammdaten unter etwa 1400 px
+oben, bei 1280 px brach die E-Mail über sechs Zeilen und die Telefonnummer um (gegen 1.9.275 Nr. 3, Punkt 0c); 3 beide Zahlen bleiben (Untertitel und neben dem
+Kästchen); 4 nein -- Verschieben zählt Arbeitstage: Mo–Fr einen Tag weiter wird Di–Fr und der nächste Mo, für Umsetzen und für das Ziehen des ganzen Einsatzes in
+„Kolonnen“; freie Tage nur ausdrücklich (Punkt 0b). Maßgeblich: `bildgrundlage/entwurf-stufe6/plantafel-auftraege.html` und `plantafel-auftraege-regeln.html`,
+Befund G (R5c) mit den Antworten aus R5a. Vorweg je eine Version 0a, 0b, 0c; dann je Punkt eine Version: 1 Auftragsliste der Woche (alle offenen, eingeplante
+oben, Rest wie die Akte, feste Zahl Abfragen) und Zeitraum „1 Woche“ (jede Ansicht merkt sich ihren Zeitraum); 2 Ansicht „Aufträge“ (Zellen mit Chips je
+Einsatz, zwei Einsätze zwei Karten untereinander, „niemand“, Liste links mit Wochenleiste, Kurzname am Gerät, Kran mit eigenem Zeichen); 3 Ziehen mit Maus und
+Finger (Tag setzen, Umsetzen, Herausnehmen, Anzeige vor dem Loslassen, Rückfrage bei neuer Warnung, danach „nur <Tag>“ mit „bis … verlängern“ und
+„Rückgängig“); 4 Leiste „Rückgängig“ in „Kolonnen“, „Personen“ und „Geräte“ (Antwort 5 zu R5b), Klick in einen Tag öffnet den Dialog für diesen Tag.
+
+### Umsetzung 1.9.276 (Punkt 0a): Heiligabend und Silvester keine Arbeitstage
+
+- `app/arbeitszeitkalender.py::im_kalender(liste, tag)`: liegt an dem Tag ein aktiver Kalendertag (Datum und Wochentag wie `_datum_passt()`, ohne Gruppe und
+  Sollzeit)?
+- `app/tag_aktionen.py::_arbeitstag()`: ein Tag ist Arbeitstag der Planung, wenn er ein Wochentag der Planungsgrundlagen ist, kein Feiertag oder betriebsfreier
+  Tag (`_combined_holiday_map()`) und -- neu -- kein aktiver Tag des Arbeitszeitkalenders. Eine Funktion für alles, was die Planung in Arbeitstagen zählt:
+  Verlängern (1.9.272), „direkt anschließend“ beim Tag setzen (Antwort 7) und ab 1.9.277 das Verschieben.
+- Für alle: auf der Plantafel gilt der Kalendertag wie ein betriebsfreier Tag für jede Person und jedes Gerät -- im Lohn gilt er weiter nur, wer an dem Tag
+  Sollzeit hat und zur Gruppe gehört (unverändert, `kalendertage_im_zeitraum()`); auch der Hinweis „Freistellung“ der Tafel bleibt, wie er war.
+
+#### Festlegungen 1.9.276 (Bitte bestätigen)
+
+1. Ein aktiver Tag des Arbeitszeitkalenders (Heiligabend, Silvester) ist auf der Plantafel kein Arbeitstag -- wie ein betriebsfreier Tag, für alle Personen und
+   Geräte; Gruppe und Sollzeit spielen dafür keine Rolle (statt 1.9.272 Nr. 2, zweiter Satz).
+2. Das gilt überall, wo die Planung Arbeitstage zählt: Verlängern, „direkt anschließend“ beim Tag setzen, ab 1.9.277 Verschieben.
+3. Ein abgeschalteter (inaktiver) Kalendertag ist wieder ein Arbeitstag.
+
+#### Tests und Prüfung 1.9.276
+
+Neu: `tests/test_v676_kalendertage_kein_arbeitstag.py` (Verlängern 21.–31.12. ohne 24. und 31.12., Gerät ebenso, Tag setzen am 28.12. verlängert den Einsatz bis
+23.12., abgeschaltet wieder Arbeitstag). Gegenproben: Archiv `gegenproben-stufe6-r5c.md`. Angepasste Erwartungen: keine.

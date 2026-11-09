@@ -1312,7 +1312,7 @@ Auftrag vom 09.11.2026 (Nachrunde R5b, Punkte 3 und 4; Herleitung und Punkte 1 u
   von `render()` setzt `sub.textContent=mitarbeiterUntertitel(employees)` -- über alle Mitarbeiter, nicht über die Liste nach Kästchen und Suche (bis 1.9.273
   „N Mitarbeiterstammsätze“). Die Zahl neben dem Kästchen („1 inaktiv“, 1.9.271) bleibt.
 
-#### Festlegungen 1.9.274 (Bitte bestätigen)
+#### Festlegungen 1.9.274 (bestätigt am 09.11.2026)
 
 1. Der Untertitel heißt „N aktiv · M inaktiv“; beide Zahlen stehen immer da, auch „0 inaktiv“.
 2. Gezählt über alle Mitarbeiter -- unabhängig von der Suche und vom Kästchen „Inaktive MA ausblenden“.
@@ -1362,7 +1362,7 @@ Status, Bearbeiten) brauchen allein rund 680 px. Deshalb weniger Spalten, nicht 
   senkrechter Bildlaufleiste); 1280 px Rahmen 687 px, mindestens 681 px mit Silbentrennung -- passt knapp; ohne Silbentrennung (Chrome ohne deutsche
   Trenndaten) rollt sie dort im Rahmen. 412 px: keine Ansicht läuft über.
 
-#### Festlegungen 1.9.275 (Bitte bestätigen)
+#### Festlegungen 1.9.275 (bestätigt am 09.11.2026 -- dazu Frage 2: bei 1280 px brach die E-Mail über sechs Zeilen und die Telefonnummer um, Weg a mit 1.9.278)
 
 1. Bei 412 px läuft keine Ansicht der Stammdaten über; eine Tabelle rollt in ihrem Rahmen (unter 850 px Raster `minmax(0,1fr)`).
 2. Die Mitarbeitertabelle hat acht Spalten (Büro – Auftrag sieben): Nr. und Geburtstag unter dem Namen, Gruppe und Stunden je Woche unter der Funktion,

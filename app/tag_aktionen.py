@@ -72,10 +72,14 @@ def _team(slot: PlanningSlot) -> int | None:
 
 
 def _arbeitstag(db: Session, von: date, bis: date):
-    """Arbeitstag der Planung (Wochentag und kein Feiertag oder betriebsfreier Tag), für die Tage um den Zeitraum."""
+    """Arbeitstag der Planung (Wochentag und kein Feiertag oder betriebsfreier Tag), für die Tage um den Zeitraum. Seit 1.9.276 (R5c, Punkt 0a, Antwort 1
+    der Nachrunde R5b) auch kein Tag des Arbeitszeitkalenders (Heiligabend, Silvester) -- wie ein betriebsfreier Tag, für alle; bis 1.9.275 zählten sie
+    als Arbeitstag (1.9.272 Nr. 2). Gilt für Verlängern, „direkt anschließend“ und das Verschieben in Arbeitstagen."""
+    from .arbeitszeitkalender import aktive, im_kalender
     settings = load_planning_settings(db)
     feiertage = set(_combined_holiday_map(db, von - timedelta(days=MAX_LUECKE + 1), bis + timedelta(days=MAX_LUECKE + 1))[0])
-    return lambda t: _is_workday(t, settings, feiertage)
+    kalender = aktive(db)
+    return lambda t: _is_workday(t, settings, feiertage) and not im_kalender(kalender, t)
 
 
 def anschliessend(vorher: date, nachher: date, arbeitstag) -> bool:
@@ -313,7 +317,6 @@ NICHTS_ZU_VERLAENGERN = "Der Tag ist schon der letzte Tag des Einsatzes."
 # seit 1.9.272: bis zum Ende des Einsatzes nur noch Tage ohne Arbeit (Wochenende, Feiertag, betriebsfrei) -- die zieht man einzeln
 KEIN_ARBEITSTAG_MEHR = "Bis zum Ende des Einsatzes kommt kein Arbeitstag mehr – Wochenende, Feiertage und betriebsfreie Tage bitte einzeln ziehen."
 
-
 def _person_oder_geraet(employee_id: int | None, resource_id: int | None) -> Wer:
     """Umsetzen, Herausnehmen und Verlängern nehmen eine Person oder ein Gerät -- keine Kolonne (ihre Mitglieder haben je ihre Tage)."""
     return wer_aus(employee_id, None, resource_id)
@@ -451,8 +454,9 @@ def verlaengern(db: Session, *, slot_id: int, ab_tag: date, employee_id: int | N
     Einsatzes. Prüft wie Planen (Rückfrage bei neuen Warnungen).
 
     Seit 1.9.272 (Bestätigung R5b, 1.9.268 Nr. 7 geändert): nur Arbeitstage der Planung (_arbeitstag(): Wochentag der Planungsgrundlagen, kein Feiertag,
-    kein betriebsfreier Tag) -- Samstag, Sonntag, Feiertag und betriebsfreie Tage nur, wenn jemand ausdrücklich auf den Tag zieht. Wo sie schon steht,
-    bleibt sie. „bis“ ist der letzte Arbeitstag, der dazukommt (meist das Ende des Einsatzes)."""
+    kein betriebsfreier Tag, seit 1.9.276 auch kein Tag des Arbeitszeitkalenders) -- Samstag, Sonntag, Feiertag, betriebsfreie Tage, Heiligabend und
+    Silvester nur, wenn jemand ausdrücklich auf den Tag zieht. Wo sie schon steht, bleibt sie. „bis“ ist der letzte Arbeitstag, der dazukommt (meist das
+    Ende des Einsatzes)."""
     try:
         wer = _person_oder_geraet(employee_id, resource_id)
         slot = _einsatz(db, slot_id)

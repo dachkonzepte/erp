@@ -78,6 +78,12 @@ def _datum_passt(eintrag: ArbeitszeitKalendertag, tag: date) -> bool:
     return bool(eintrag.aktiv) and (eintrag.monat, eintrag.tag) == (tag.month, tag.day) and (not eintrag.nur_mo_fr or tag.weekday() < 5)
 
 
+def im_kalender(liste: list[ArbeitszeitKalendertag], tag: date) -> bool:
+    """Seit 1.9.276 (Stufe 6, R5c, Punkt 0a): liegt an diesem Tag ein aktiver Kalendertag (Datum und Wochentag, ohne Gruppe und Sollzeit)? Für die
+    Plantafel ist der Tag dann wie ein betriebsfreier Tag kein Arbeitstag (app/tag_aktionen.py::_arbeitstag())."""
+    return any(_datum_passt(e, tag) for e in liste)
+
+
 def gilt(eintrag: ArbeitszeitKalendertag, tag: date, gruppe: str | None) -> bool:
     """Gilt der Kalendertag für eine Person dieser Gruppe an diesem Tag? (Eintritt und Austritt prüft die Sollzeit.)"""
     return _datum_passt(eintrag, tag) and (not eintrag.nur_gewerblich or gruppe == "gewerblich")

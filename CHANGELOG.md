@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.276 – Plantafel: Heiligabend und Silvester sind keine Arbeitstage
+
+Ein aktiver Tag des Arbeitszeitkalenders -- vorbelegt Heiligabend und Silvester -- zählt auf der Plantafel jetzt wie ein betriebsfreier Tag nicht als Arbeitstag, für alle Personen und Geräte (Antwort 1 zur Nachrunde R5b; bis 1.9.275 zählten sie, 1.9.272 Nr. 2). Verlängern lässt sie aus, und „direkt anschließend“ beim Tag setzen springt über sie hinweg: ein Einsatz bis Mittwoch, 23.12., wird mit Montag, 28.12., verlängert. Ein abgeschalteter Kalendertag ist wieder ein Arbeitstag.
+
+Neu `tests/test_v676_kalendertage_kein_arbeitstag.py`. Keine Migration.
+
 ## 1.9.275 – Stammdaten: bei 412 px ohne Überlauf, Mitarbeitertabelle bei 1440 px ohne Rollen
 
 Bei 412 px Breite lief jede Ansicht der Stammdaten über (Nebenbefund 1.9.271): auf schmalen Bildschirmen war die Spalte des Rasters `1fr`, und die Tabelle bestimmte ihre Mindestbreite. Jetzt ist sie `minmax(0,1fr)` -- eine Tabelle rollt in ihrem Rahmen, die Seite bleibt so breit wie das Gerät, in allen neun Ansichten.
