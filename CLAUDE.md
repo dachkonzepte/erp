@@ -1285,7 +1285,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `arbeitszeitkalender.im_kalender()`; Verlängern, „direkt anschließend“; `tests/test_v676_kalendertage_kein_arbeitstag.py`); seit 1.9.277 verschiebt die Tafel in
   Arbeitstagen (`tag_aktionen.verschiebung()`: der erste Tag auf den Zieltag, jeder weitere behält seinen Abstand in Arbeitstagen, Mo–Fr +1 = Di–Fr + Mo; freie Tage nur
   ausdrücklich) -- Umsetzen und das Ziehen des ganzen Einsatzes (`POST /api/planning/slots/{id}/verschieben`, `verschieben()`, `_update_slot(tage_abbild=…)`, fragt
-  bei jeder Warnung, Rückgängig „zurueck“); der Dialog bleibt in Kalendertagen (`tests/test_v677_verschieben_in_arbeitstagen.py`). Befund R5 und Herleitung:
+  bei jeder Warnung, Rückgängig „zurueck“); der Dialog bleibt in Kalendertagen (`tests/test_v677_verschieben_in_arbeitstagen.py`); seit 1.9.279 die
+  Auftragsliste der Woche (`app/auftragsliste.py`, `GET /api/planning/auftragsliste`: alle offenen, eingeplante oben, Stunden wie die Akte, feste Zahl Abfragen) und
+  „1 Woche“, jede Ansicht merkt sich ihren Zeitraum im Browser (`plantafel_zeitraum`; `tests/test_v679_auftragsliste.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

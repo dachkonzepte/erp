@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.279 – Plantafel: Auftragsliste der Woche und Zeitraum „1 Woche“
+
+Für die kommende Ansicht „Aufträge“ liefert der Server die Auftragsliste der Woche (`GET /api/planning/auftragsliste?start&end`): alle offenen Aufträge, die mit Einsatz im Zeitraum oben nach ihrem ersten Tag, darunter die übrigen nach Nummer. Die Stunden rechnet sie wie die Akte -- „Soll …“, solange nichts gebucht ist, dann „Rest …“ (Soll minus gebuchte Baustelle & Werkstatt); ohne Soll „nach Aufwand“, aus einem Wartungsvertrag „Wartungsvertrag“, eine Kranvermietung „Kran mit Bediener“ bzw. „Kran ohne Bediener“. Dazu „vorläufig“, „ab <nächster Einsatz>“, „ohne Termin“ und „pausiert“. Die Zahl der Abfragen bleibt fest, egal wie viele Aufträge und Einsätze es gibt.
+
+Die Plantafel kennt den Zeitraum „1 Woche“, und jede Ansicht merkt sich ihren Zeitraum im Browser („Aufträge“ beginnt mit 1 Woche, die übrigen mit 2 Wochen); die gezeigte Woche bleibt beim Wechsel der Ansicht.
+
+Neu `app/auftragsliste.py`, `tests/test_v679_auftragsliste.py`; angepasst v647 (die Auswahl hat jetzt „1 Woche“) und v447 (die Auswahl „Zeitraum“ in `KLASSEN` als „neu“ eingeordnet). Keine Migration.
+
 ## 1.9.278 – Stammdaten: Untermenü unter 1400 px oben, Telefonnummer ohne Umbruch
 
 Unter 1400 px Fensterbreite steht das Untermenü der Stammdaten (Kunden, Objekte, Mitarbeiter …) jetzt als Zeile über der Karte statt links daneben -- wie bisher erst unter 850 px (Antwort 2 zur Nachrunde R5b, Weg a). Bei 1280 px hat die Mitarbeitertabelle damit 955 statt 687 px: sie passt auch ohne Silbentrennung, jede E-Mail-Adresse steht auf höchstens zwei Zeilen (vorher bis zu sechs). Die Telefonnummer bricht nicht mehr um, auch nicht an ihren Leerzeichen (gegen 1.9.275 Nr. 3 brach sie bei 1280 px um). Ab 1401 px bleibt das Untermenü links.

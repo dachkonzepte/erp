@@ -2256,3 +2256,39 @@ Kalendertagen; API mit Prüfen, 404, Kran mit Kolonne 422, Monteurin 403, def un
   neuen ersten Tag (`auf`) und der Kolonne wie bisher.
 - `tests/test_v399_teil_updates_rest.py::test_plantafel_verschieben_schickt_nur_team_und_zeitraum`: alt PUT mit Kolonne, Beginn, Ende und danach 14.–18.10., neu
   POST `…/verschieben` mit Kolonne und `auf` und danach 14.–20.10. (Mo–Fr auf Mi: Mi–Fr, Mo, Di); Status, Notiz, Stunden bleiben wie bisher.
+
+### Umsetzung 1.9.279 (Punkt 1): Auftragsliste der Woche und „1 Woche“
+
+- `app/auftragsliste.py::auftragsliste(db, start, ende)` (höchstens 63 Tage), `GET /api/planning/auftragsliste?start&end` (ab Büro – Auftrag wie die Tafel): je
+  offenem Auftrag (läuft, pausiert) Nummer, Projekt (Nummer, Name), Kunde, Status, `eingeplant` (ein Einsatz berührt den Zeitraum), `erster_tag` (sein erster Tag im
+  Zeitraum), `naechster_einsatz` (der erste Einsatz nach dem Zeitraum), Soll, gebucht, `stunden` (Text) und `zusatz` (Liste). Reihenfolge: eingeplant oben nach
+  `erster_tag`, dann Nummer; darunter nach Nummer.
+- Stunden (`stunden_zeile()`, Antwort 10, in dieser Reihenfolge): eine Kranvermietung -- ein Einsatz der Art „kranvermietung“ -- „Kran mit Bediener“ (eine Person an
+  einem solchen Einsatz) bzw. „Kran ohne Bediener“; aus einem Wartungsvertrag (`ProjectProfile.source_maintenance_contract_id`) „Wartungsvertrag“; ohne Soll „nach
+  Aufwand“; nichts gebucht „Soll …“; sonst „Rest …“ (Soll minus gebuchte Baustelle & Werkstatt wie die Akte, `app/akte.py`), darüber „… über Soll“.
+- Zusatz: eingeplant und ein Einsatz im Zeitraum vorläufig -> „vorläufig“; nicht eingeplant -> „ab <Tag>“ (nächster Einsatz) oder „ohne Termin“; „pausiert“.
+- Abfragen: Aufträge (mit Projekt, Positionen und Kalkulation über selectinload), gebuchte Stunden je Auftrag, Einsätze im Zeitraum, nächster Einsatz je Auftrag,
+  Kranvermietungen mit Bedienern, Herkunft Wartungsvertrag -- je eine, die offenen Aufträge als Unterabfrage; die Zahl hängt nicht an Aufträgen und Einsätzen.
+- Tafel: „1 Woche“ in der Auswahl; `zeitraumGemerkt(view)`/`zeitraumMerken()` merken den Zeitraum je Ansicht im Browser (`localStorage` `plantafel_zeitraum`, JSON je
+  Ansicht; ohne Speicher die Vorgabe: „Aufträge“ 7, sonst 14 Tage, Antwort 15). Wechselt die Ansicht, gilt ihr Zeitraum; die gezeigte Woche (`periodStart`) bleibt;
+  ändert sich die Zahl der Tage, lädt die Tafel neu, sonst zeichnet sie nur. Die Auftragsliste lädt nur die Ansicht „Aufträge“ (ab 1.9.280).
+
+#### Festlegungen 1.9.279 (Bitte bestätigen)
+
+1. Zeilen: alle offenen Aufträge (läuft, pausiert); mit Einsatz im Zeitraum oben nach ihrem ersten Tag im Zeitraum, dann nach Nummer; darunter die übrigen nach
+   Nummer; abgeschlossene und stornierte nicht.
+2. Stunden wie die Akte: „Soll …“, solange nichts gebucht ist, dann „Rest …“ (Soll minus gebuchte Baustelle & Werkstatt), darüber „… über Soll“; Vorrang
+   Kranvermietung („Kran mit/ohne Bediener“), dann Wartungsvertrag, dann „nach Aufwand“ (ohne Soll).
+3. Zusatz: „vorläufig“, wenn ein Einsatz im Zeitraum vorläufig ist; ohne Einsatz im Zeitraum „ab <nächster Einsatz>“ oder „ohne Termin“; „pausiert“.
+4. Eine feste Zahl Abfragen; eigener Endpunkt, nur die Ansicht „Aufträge“ lädt ihn; ab Büro – Auftrag; höchstens 63 Tage.
+5. „1 Woche“ in der Auswahl; jede Ansicht merkt sich ihren Zeitraum im Browser („Aufträge“ 1 Woche, sonst 2 Wochen); die gezeigte Woche bleibt beim Wechsel; ein
+   anderer Zeitraum lädt neu.
+
+#### Tests und Prüfung 1.9.279
+
+Neu: `tests/test_v679_auftragsliste.py` (Text der Stunden, Auswahl und Reihenfolge, Stunden wie die Akte mit Fahrzeit und laufender Buchung, vorläufig und pausiert,
+Kran und Wartungsvertrag, feste Zahl Abfragen bei 2 und 10 Aufträgen, API mit 63 Tagen und Monteurin 403; in node mit dem Code der Seite: Vorgaben, Merken je
+Ansicht, unbekannter Wert und ohne Speicher, Laden nur bei anderer Zahl der Tage; die Auswahl am Text). Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.279“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v647_plantafel_tafel.py::test_seitenkopf_mit_einsatz_und_menue`: alt die Auswahl 14/21/28, neu 7/14/21/28. `tests/test_v447_auswahl_altwerte.py`: `KLASSEN` um `('planning.html', 'P2', 'rangeDays')` mit Klasse „neu“ ergänzt
+(der Zeitraum der Ansicht kommt jetzt aus dem Browser, nur Werte der Liste über `zeitraumGemerkt()` -- kein gespeicherter Wert); der Wächter fand die Zuweisung im
+ersten Lauf vor dem Commit.

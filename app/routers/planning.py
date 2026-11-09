@@ -26,6 +26,7 @@ from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, WENN_LEER, BesetzungUngueltig, _load_slot, EinsatzWirdLeer, KranTerminUngueltig, PlanungsWarnung, create_slot, einsatz_pruefen, kran_termin_pruefen, kran_termin_uebernehmen, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, Rueckgaengig, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern, EinsatzVerschieben
+from ..auftragsliste import auftragsliste
 from ..tag_aktionen import RueckgaengigNichtMoeglich, herausnehmen, rueckgaengig, tag_setzen, umsetzen, verlaengern, verschieben
 
 router = APIRouter()
@@ -230,6 +231,16 @@ def get_planning_board(start: date, end: date, db: Session = Depends(get_db, sco
     try:
         # seit 1.9.250 mit dem Betrachter: einen privaten Termin sieht nur sein Besitzer mit Titel
         return {**_redact_board_absences(planning_board(db, start, end, getattr(_role, "id", None)), _role), "rechte": _tafel_rechte(db, _role)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/planning/auftragsliste")
+def get_auftragsliste(start: date, end: date, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.279 (Stufe 6, R5c, Punkt 1): die Auftragsliste der Woche für die Ansicht „Aufträge“ -- alle offenen Aufträge, eingeplante oben, Stunden
+    wie die Akte; eine feste Zahl Abfragen (app/auftragsliste.py). Nur diese Ansicht lädt sie."""
+    try:
+        return {"start": start, "end": end, "auftraege": auftragsliste(db, start, end)}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

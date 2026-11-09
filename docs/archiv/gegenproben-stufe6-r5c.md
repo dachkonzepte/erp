@@ -46,3 +46,26 @@ Tafel prüft v649 in node).
 | Nr. 3 – unter 850 px wie bisher | ohne `overflow-wrap:normal` für die E-Mail (`278_3a`) | 1 rot: v678::test_unter_850_px_wie_bisher |
 
 Alle 5 rot (`278_2b` nach dem Nachziehen des Klicktests).
+
+## 1.9.279 (Punkt 1): Auftragsliste der Woche und „1 Woche“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – eingeplante oben | nur nach Nummer (`279_1a`) | 1 rot: v679::test_alle_offenen_eingeplante_oben |
+| Nr. 1 – nur offene | auch abgeschlossene und stornierte (`279_1b`) | 1 rot: v679::test_alle_offenen_eingeplante_oben |
+| Nr. 1 – nach ihrem ersten Tag im Zeitraum | erster Tag des Einsatzes, auch vor dem Zeitraum (`279_1c`) | 1 rot: v679::test_alle_offenen_eingeplante_oben |
+| Nr. 2 – gebucht = Baustelle & Werkstatt | jede gebuchte Zeitart (`279_2a`) | 1 rot: v679::test_stunden_wie_die_akte |
+| Nr. 2 – „Soll“, solange nichts gebucht ist | immer „Rest“ (`279_2b`) | 2 rot: v679::test_stunden_wie_die_akte, v679::test_stunden_zeile |
+| Nr. 2 – Vorrang der Kranvermietung | Wartungsvertrag vor Kran (`279_2c`) | 1 rot: v679::test_stunden_zeile |
+| Nr. 3 – „vorläufig“, wenn einer vorläufig ist | nur, wenn alle vorläufig sind (`279_3a`) | 1 rot: v679::test_vorlaeufig_und_pausiert |
+| Nr. 3 – „pausiert“ | ohne (`279_3b`) | 1 rot: v679::test_vorlaeufig_und_pausiert |
+| Nr. 3 – „ab <Tag>“ | immer „ohne Termin“ (`279_3c`) | 1 rot: v679::test_alle_offenen_eingeplante_oben |
+| Nr. 4 – feste Zahl Abfragen | Positionen je Auftrag nachgeladen (`279_4a`) | 1 rot: v679::test_feste_zahl_abfragen |
+| Nr. 4 – ab Büro – Auftrag | ohne Rollenprüfung (`279_4b`) | 1 rot: v679::test_api_und_rolle |
+| Nr. 5 – „1 Woche“ | nicht in der Auswahl (`279_5a`) | 1 rot: v679::test_auswahl_mit_einer_woche_und_merken |
+| Nr. 5 – jede Ansicht merkt sich ihren Zeitraum | merkt nichts (`279_5b`) | 1 rot: v679::test_jede_ansicht_merkt_sich_ihren_zeitraum |
+| Nr. 5 – „Aufträge“ 1 Woche, sonst 2 | ohne Vorgabe für „Aufträge“ (`279_5c`) | 2 rot: v679::test_vorgaben_je_ansicht, v679::test_jede_ansicht_merkt_sich_ihren_zeitraum |
+| Nr. 5 – neu laden nur bei anderer Zahl der Tage | lädt immer (`279_5d`) | 1 rot: v679::test_wechsel_laedt_nur_bei_anderer_zahl_der_tage |
+
+Alle 15 im ersten Lauf rot. Ohne Gegenprobe im Browser: die Tafel zeigt in 1.9.279 noch keine Ansicht mit der Liste (ab 1.9.280 im Klicktest
+`plantafel_auftraege`); „die gezeigte Woche bleibt“ (Nr. 5) beschreibt, was bleibt (`periodStart` unberührt).

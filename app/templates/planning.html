@@ -173,7 +173,7 @@
   <span class="zeitraum" id="zeitraum" aria-live="polite"></span>
   <button type="button" class="ds-knopf ds-knopf-symbol" id="weiter" aria-label="Eine Woche weiter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
   <button type="button" class="ds-knopf" id="heute">Heute</button>
-  <select id="rangeDays" aria-label="Zeitraum"><option value="14">2 Wochen</option><option value="21">3 Wochen</option><option value="28">4 Wochen</option></select>
+  <select id="rangeDays" aria-label="Zeitraum"><option value="7">1 Woche</option><option value="14">2 Wochen</option><option value="21">3 Wochen</option><option value="28">4 Wochen</option></select>
   <div class="segment viewtabs" role="group" aria-label="Ansicht">
     <button type="button" data-view="teams" aria-pressed="true">Kolonnen</button><button type="button" data-view="employees" aria-pressed="false">Personen</button><button type="button" data-view="resources" aria-pressed="false">Geräte</button>
   </div>
@@ -310,7 +310,12 @@ function tageAnzahl(){return Number(document.getElementById('rangeDays').value||
 function datumsliste(){const s=iso(periodStart);return Array.from({length:tageAnzahl()},(_,i)=>addDays(s,i))}
 function movePeriod(n){periodStart=monday(new Date(addDays(iso(periodStart),n)+'T12:00:00'));loadBoard()}
 function goToday(){periodStart=monday(berlinTodayDate());loadBoard()}
-function setView(v){view=v;renderBoard()}
+/* seit 1.9.279 (Stufe 6, R5c, Punkt 1, Antwort 15): jede Ansicht merkt sich ihren Zeitraum (im Browser, je Gerät) -- „Aufträge“ beginnt mit 1 Woche, die
+   übrigen mit 2 Wochen; die gezeigte Woche bleibt beim Wechsel gleich. Ohne Speicher gilt die Vorgabe. */
+const ZEITRAUM_SCHLUESSEL='plantafel_zeitraum',ZEITRAUM_VORGABE={auftraege:7},ZEITRAEUME=[7,14,21,28];
+function zeitraumGemerkt(v){let w=null;try{w=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}')[v]}catch(e){}return ZEITRAEUME.includes(w)?w:(ZEITRAUM_VORGABE[v]||14)}
+function zeitraumMerken(v,tage){try{const m=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}');m[v]=tage;localStorage.setItem(ZEITRAUM_SCHLUESSEL,JSON.stringify(m))}catch(e){}}
+function setView(v){const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else renderBoard()}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
 const LABEL_W=168,WE_W=22,MIN_TAG=44,SPUR_H=30,SPUR_OBEN=8;
@@ -633,7 +638,7 @@ aktion('abwesenheitLoeschen',el=>deleteAbsence(Number(el.dataset.id)));
 document.getElementById('zurueck').addEventListener('click',()=>movePeriod(-7));
 document.getElementById('weiter').addEventListener('click',()=>movePeriod(7));
 document.getElementById('heute').addEventListener('click',()=>goToday());
-document.getElementById('rangeDays').addEventListener('change',()=>loadBoard());
+document.getElementById('rangeDays').addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()});
 document.querySelectorAll('.viewtabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.getElementById('filterKnopf').addEventListener('click',()=>{filterAn=!filterAn;renderBoard()});
 document.getElementById('rkKnopf').addEventListener('click',()=>rueckstandZeigen(document.getElementById('tafelLayout').classList.contains('rk-zu')));
@@ -673,6 +678,7 @@ async function startAusAdresse(){const q=new URLSearchParams(location.search),a=
   const z=q.get('zurueck');zurueckZiel=document.getElementById('einsatzDialog').open&&z&&istLokalesZiel(z)?z:''}
 function nachDemDialog(){if(!zurueckZiel)return;const z=zurueckZiel;zurueckZiel='';location.href=sicheresZiel(z)}
 document.getElementById('einsatzDialog').addEventListener('close',nachDemDialog);
+document.getElementById('rangeDays').value=String(zeitraumGemerkt(view));  // seit 1.9.279: der gemerkte Zeitraum der Ansicht
 loadBoard().then(startAusAdresse);
 </script>
 </body></html>

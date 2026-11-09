@@ -278,6 +278,7 @@ KLASSEN = {
     ('planning.html', 'P1', 'x.id===selected'): ('neu', 'Auftrag eines neuen Planungsabschnitts'),
     ('planning.html', 'P2', 'edBezug'): ('neu', 'Kranvermietung im neuen Einsatz: mit Kunde oder an einem Auftrag -- kein gespeicherter Wert (seit 1.9.248)'),
     ('planning.html', 'P2', 'absenceEmployee'): ('neu', 'neue Abwesenheit: vorgewählt ist die eigene Person (seit 1.9.146)'),
+    ('planning.html', 'P2', 'rangeDays'): ('neu', 'Zeitraum der Ansicht, im Browser gemerkt -- kein gespeicherter Wert, nur Werte der Liste über zeitraumGemerkt() (seit 1.9.279)'),
     ('akte.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
     ('akte.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
     ('akte.html', 'P2', 'categoryFilter'): ('neu', 'Filter'),
