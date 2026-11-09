@@ -2142,3 +2142,36 @@ Neu: `tests/test_v672_verlaengern_arbeitstage.py` (über das Wochenende nur Arbe
 Samstag bleibt, Tag setzen auf einen Samstag geht weiter, bis zum Ende nur freie Tage, Gerät, Samstag als Arbeitstag der Planung, Prüfen, API und Rückgängig).
 Die Tests von 1.9.268 und 1.9.269 bleiben unverändert grün (ihre Einsätze liegen Mo–Fr). Gegenproben: Archiv `gegenproben-stufe6-r5b.md`, „1.9.272“. Kein
 Klicktest ruft Verlängern auf (noch kein Knopf). Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.273 (Punkt 2): vier Antwortschemata ohne die Prüfung des Formulars
+
+Nebenbefund R5b (Bericht, Abschnitt 9): wie `EmployeeOut` bis 1.9.264 erbten vier Antwortschemata die Prüfung ihres Eingabeschemas -- `EmployeeFunctionOut`
+(`validate_group`, Grenzen von Name und Reihenfolge), `EmployeeAbsenceOut` (Kategorie nur urlaub … freizeitausgleich, `validate_dates`), `AccountOut`
+(`validate_default_tax_rate`: 19, 7 oder 0) und `IncomingInvoiceItemOut` (`validate_tax_rate`). Steht ein Wert in der Datenbank, den das Formular heute ablehnt,
+antwortet die ganze Liste mit 500. Ob das im Bestand vorkommt, ist nicht geprüft (nichts gegen den Server); mit normalen Daten möglich ist es bei den
+Abwesenheiten: ein Ausfalltag Schlechtwetter hat die Kategorie „schlechtwetter“ (seit 1.9.170), eine aus dem Altbestand übernommene „unbekannt“ -- beide lehnt das
+Muster der Kategorie ab, `GET /api/planning/absences` antwortete Admin und Büro – Finanzen dann mit 500 (Büro – Auftrag bekommt `EmployeeAbsencePlanningOut` ohne
+Kategorie). Heute ruft keine Seite diese Liste auf (die Plantafel trägt nur ein und löscht).
+
+- `app/schemas.py`: die vier Antwortschemata erben nicht mehr vom Eingabeschema, sondern von `_felder_ohne_pruefung(<Eingabe>, …)` -- dieselben Felder in derselben
+  Reihenfolge, ohne Grenzen und Validatoren; `from_attributes` und die eigenen Felder bleiben. `_felder_ohne_pruefung()` steht dafür vor den Funktionen der
+  Mitarbeiter.
+- Beim Speichern unverändert: `EmployeeFunctionCreate`, `EmployeeAbsenceCreate`, `AccountCreate`, `IncomingInvoiceItemIn` prüfen wie bisher (422).
+- Wächter: kein Antwortschema (Name endet auf `Out`, 253 in `app/schemas.py`) hat einen Validator. Grenzen erben noch acht (`CustomerExtraInfoOut`,
+  `CustomerOut`, `OperationalResourceOut`, `PlanningHolidayOut`, `PropertyOut`, `QuoteDocumentMetaOut`, `SettingOptionOut`, `SupplierOut` -- nur Längen und bei
+  `SettingOptionOut` die Reihenfolge 0–99999, kein Muster, kein Validator); sie stehen in `BEKANNT`, die Liste darf nur kürzer werden.
+
+#### Festlegungen 1.9.273 (Bitte bestätigen)
+
+1. Funktion, Abwesenheit, Konto und Position einer Eingangsrechnung antworten mit dem, was gespeichert ist, ohne die Prüfung des Formulars (wie die Mitarbeiter
+   seit 1.9.265); Felder und Reihenfolge bleiben.
+2. Beim Speichern prüft das Formular wie bisher (422).
+3. Kein Antwortschema hat einen Validator; ein neues nimmt `_felder_ohne_pruefung()`. Geerbte Grenzen nur noch bei den acht in `BEKANNT` (darf nur kürzer
+   werden).
+
+#### Tests und Prüfung 1.9.273
+
+Neu: `tests/test_v673_antworten_ohne_pruefung.py` (je Schema ohne Prüfung mit allen Feldern; Wächter Validatoren und geerbte Grenzen; je Endpunkt ein
+gespeicherter Wert, den das Formular ablehnt -- Funktion mit anderer Gruppe, Abwesenheit „schlechtwetter“ und „unbekannt“ für drei Rollen, Konto mit 16 %,
+Position einer Eingangsrechnung mit 16 % in Liste und Rechnung --, dazu je, dass Speichern weiter ablehnt). Gegenproben: Archiv `gegenproben-stufe6-r5b.md`,
+„1.9.273“. Klicktests der Seiten, die diese Antworten lesen (Abwesenheit, Einstellungen, Rahmen): siehe Bericht. Angepasste Erwartungen: keine.

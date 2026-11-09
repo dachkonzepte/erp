@@ -150,3 +150,20 @@ ist in beiden Reihenfolgen dasselbe, nur ohne leeren Zwischenstand.
 
 Alle 7 im ersten Lauf rot. Ohne Gegenprobe im Browser: kein Klicktest ruft Verlängern auf (der Knopf kommt mit R5c). Nr. 2, zweiter Satz (Freistellungen des
 Arbeitszeitkalenders sind Arbeitstage), beschreibt, was bleibt -- nichts daran geändert.
+
+## 1.9.273 (Nachrunde, Punkt 2): vier Antwortschemata ohne die Prüfung des Formulars
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Funktion ohne Prüfung | erbt wieder von `EmployeeFunctionCreate` (`273_1a`) | 4 rot: v673::test_antwort_ohne_pruefung_mit_allen_feldern[EmployeeFunctionOut], v673::test_funktion_mit_anderer_gruppe, v673::test_geerbte_grenzen_nur_bei_den_bekannten, v673::test_kein_antwortschema_hat_einen_validator |
+| Nr. 1 – Abwesenheit ohne Prüfung | erbt wieder von `EmployeeAbsenceCreate` (`273_1b`) | 5 rot: v673::test_abwesenheit_schlechtwetter_und_unbekannt[schlechtwetter], …[unbekannt], v673::test_antwort_ohne_pruefung_mit_allen_feldern[EmployeeAbsenceOut], v673::test_geerbte_grenzen_nur_bei_den_bekannten, v673::test_kein_antwortschema_hat_einen_validator |
+| Nr. 1 – Konto ohne Prüfung | erbt wieder von `AccountCreate` (`273_1c`) | 4 rot: v673::test_antwort_ohne_pruefung_mit_allen_feldern[AccountOut], v673::test_geerbte_grenzen_nur_bei_den_bekannten, v673::test_kein_antwortschema_hat_einen_validator, v673::test_konto_mit_anderem_steuersatz |
+| Nr. 1 – Position einer Eingangsrechnung ohne Prüfung | erbt wieder von `IncomingInvoiceItemIn` (`273_1d`) | 4 rot: v673::test_antwort_ohne_pruefung_mit_allen_feldern[IncomingInvoiceItemOut], v673::test_geerbte_grenzen_nur_bei_den_bekannten, v673::test_kein_antwortschema_hat_einen_validator, v673::test_position_einer_eingangsrechnung_mit_anderem_steuersatz |
+| Nr. 2 – Speichern prüft weiter (Funktion) | `validate_group` lässt alles durch (`273_2a`) | 1 rot: v673::test_funktion_mit_anderer_gruppe |
+| Nr. 2 – Speichern prüft weiter (Konto) | `validate_default_tax_rate` lässt alles durch (`273_2b`) | im ersten Lauf GRÜN -- `app/accounts.py::_validate_tax_rate()` prüft den Steuersatz dahinter noch einmal, der Test sah nur die 422. Test nachgezogen (prüft das Eingabeschema selbst), dieselbe Gegenprobe: 1 rot: v673::test_konto_mit_anderem_steuersatz |
+| Nr. 1, 3 – keine Grenzen in der Antwort | `_felder_ohne_pruefung()` übernimmt die Grenzen (`273_3a`) | 7 rot: v673::test_abwesenheit_schlechtwetter_und_unbekannt[schlechtwetter], …[unbekannt], v673::test_antwort_ohne_pruefung_mit_allen_feldern (alle vier), v673::test_geerbte_grenzen_nur_bei_den_bekannten |
+| Nr. 3 – `BEKANNT` darf nur kürzer werden | ein Schema ohne Grenzen in `BEKANNT` (`273_3b`, im Test) | 1 rot: v673::test_geerbte_grenzen_nur_bei_den_bekannten |
+
+Alle 8 rot (273_2b nach dem Nachziehen des Tests). Ohne Gegenprobe im Browser: keine Seite zeigt andere Felder, kein Klicktest legt einen abgelehnten
+Wert an; die Klicktests der Seiten, die diese Antworten lesen, liefen vor dem Commit (Bericht). Nr. 3, erster Satz, ist mit `273_1a`–`273_1d` belegt (jede macht
+auch den Wächter rot).

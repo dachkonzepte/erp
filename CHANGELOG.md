@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.273 – Antworten ohne die Prüfung des Formulars: Funktion, Abwesenheit, Konto, Position einer Eingangsrechnung
+
+Wie die Mitarbeiterliste seit 1.9.265 antworten jetzt auch die Funktionen der Mitarbeiter, die Abwesenheiten der Plantafel, der Kontenstamm und die Positionen einer Eingangsrechnung mit dem, was gespeichert ist -- ohne die Prüfung des Formulars. Bis 1.9.272 erbten ihre Antwortschemata diese Prüfung: stand ein Wert in der Datenbank, den das Formular heute ablehnt, antwortete die ganze Liste mit 500. Ein Fall war mit normalen Daten möglich: ein Ausfalltag Schlechtwetter (Kategorie „schlechtwetter“, seit 1.9.170) im Zeitraum brachte `GET /api/planning/absences` für Admin und Büro – Finanzen auf 500 (keine Seite ruft diese Liste heute auf). Beim Speichern prüft das Formular wie bisher.
+
+Neu `tests/test_v673_antworten_ohne_pruefung.py`, mit einem Wächter: kein Antwortschema hat einen Validator, geerbte Grenzen nur noch bei acht bekannten (Liste darf nur kürzer werden). Keine Migration.
+
 ## 1.9.272 – Plantafel: Verlängern nimmt nur Arbeitstage
 
 „bis … verlängern“ (`POST /api/planning/slots/{id}/verlaengern`) setzt eine Person oder ein Gerät ab einem ihrer Tage nur noch an die Arbeitstage bis zum Ende des Einsatzes -- Samstag, Sonntag, gesetzliche Feiertage und betriebsfreie Tage nicht mehr (bis 1.9.271 jeder Kalendertag; so bei der Bestätigung von R5b gewünscht, statt 1.9.268 Nr. 7). Arbeitstag heißt dasselbe wie bei „direkt anschließend“: ein Wochentag der Planungsgrundlagen, kein Feiertag, kein betriebsfreier Tag. Auf einen solchen Tag kommt jemand nur, wenn ihn jemand ausdrücklich dorthin zieht (Tag setzen, Umsetzen, Tage im Dialog); wo er schon steht, bleibt er. Bleiben bis zum Ende nur noch freie Tage, lehnt der Server mit einer Meldung ab (422); „bis“ in der Antwort ist der letzte Arbeitstag, der dazukommt. Einen Knopf dafür bekommt die Tafel mit R5c.

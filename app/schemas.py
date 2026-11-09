@@ -957,6 +957,15 @@ class NumberPreviewOut(BaseModel):
     preview: str
 
 
+def _felder_ohne_pruefung(eingabe: type[BaseModel], name: str) -> type[BaseModel]:
+    """Seit 1.9.265 (Stufe 6, R5b, Punkt 0a): die Felder eines Eingabeschemas ohne seine Prüfung -- gleicher Name, Typ und Vorgabe, aber ohne Grenzen
+    (min_length, ge, pattern …) und ohne Validatoren. Für eine Antwort: was gespeichert ist, wird gezeigt, auch wenn das Formular es heute ablehnen würde.
+    Seit 1.9.273 auch für Funktion, Abwesenheit, Konto und Position einer Eingangsrechnung -- kein Antwortschema prüft mehr
+    (tests/test_v673_antworten_ohne_pruefung.py)."""
+    felder = {n: (f.annotation, ... if f.is_required() else f.default) for n, f in eingabe.model_fields.items()}
+    return create_model(name, **felder)
+
+
 class EmployeeFunctionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     employee_group: str = Field(default="gewerblich")
@@ -975,7 +984,9 @@ class EmployeeFunctionUpdate(EmployeeFunctionCreate):
     pass
 
 
-class EmployeeFunctionOut(EmployeeFunctionCreate):
+class EmployeeFunctionOut(_felder_ohne_pruefung(EmployeeFunctionCreate, "_EmployeeFunctionFelder")):
+    """Seit 1.9.273 (Nachrunde R5b, Punkt 2): nicht mehr von EmployeeFunctionCreate abgeleitet -- bis 1.9.272 prüfte die Antwort wie das Formular
+    (validate_group, Grenzen), und eine Funktion mit einer anderen Gruppe brachte die ganze Liste auf 500. Geprüft wird nur beim Speichern."""
     model_config = ConfigDict(from_attributes=True)
     id: int
 
@@ -1023,13 +1034,6 @@ class EmployeeCreate(BaseModel):
 
 class EmployeeUpdate(EmployeeCreate):
     pass
-
-
-def _felder_ohne_pruefung(eingabe: type[BaseModel], name: str) -> type[BaseModel]:
-    """Seit 1.9.265 (Stufe 6, R5b, Punkt 0a): die Felder eines Eingabeschemas ohne seine Prüfung -- gleicher Name, Typ und Vorgabe, aber ohne Grenzen
-    (min_length, ge, pattern …) und ohne Validatoren. Für eine Antwort: was gespeichert ist, wird gezeigt, auch wenn das Formular es heute ablehnen würde."""
-    felder = {n: (f.annotation, ... if f.is_required() else f.default) for n, f in eingabe.model_fields.items()}
-    return create_model(name, **felder)
 
 
 class EmployeeOut(_felder_ohne_pruefung(EmployeeCreate, "_EmployeeFelder")):
@@ -3432,7 +3436,10 @@ class EmployeeAbsenceCreate(BaseModel):
         return self
 
 
-class EmployeeAbsenceOut(EmployeeAbsenceCreate):
+class EmployeeAbsenceOut(_felder_ohne_pruefung(EmployeeAbsenceCreate, "_EmployeeAbsenceFelder")):
+    """Seit 1.9.273 (Nachrunde R5b, Punkt 2): nicht mehr von EmployeeAbsenceCreate abgeleitet -- bis 1.9.272 prüfte die Antwort wie das Formular
+    (Kategorie nur urlaub … freizeitausgleich, validate_dates): ein Ausfalltag Schlechtwetter (Kategorie schlechtwetter, seit 1.9.170) oder eine
+    übernommene Abwesenheit „unbekannt“ brachte GET /api/planning/absences für Admin und Büro – Finanzen auf 500. Geprüft wird nur beim Speichern."""
     model_config = ConfigDict(from_attributes=True)
     id: int | None  # seit 1.9.146 leer: der Antrag wartet noch auf die Entscheidung, eine Abwesenheit gibt es noch nicht
     employee_name: str | None = None
@@ -5557,7 +5564,9 @@ class AccountUpdate(AccountCreate):
     pass
 
 
-class AccountOut(AccountCreate):
+class AccountOut(_felder_ohne_pruefung(AccountCreate, "_AccountFelder")):
+    """Seit 1.9.273 (Nachrunde R5b, Punkt 2): nicht mehr von AccountCreate abgeleitet -- bis 1.9.272 prüfte die Antwort den Steuersatz wie das Formular
+    (validate_default_tax_rate: 19, 7 oder 0); ein anderer gespeicherter Satz brachte den Kontenstamm auf 500. Geprüft wird nur beim Speichern."""
     model_config = ConfigDict(from_attributes=True)
     id: int
     created_at: datetime
@@ -5582,7 +5591,10 @@ class IncomingInvoiceItemIn(BaseModel):
         return v
 
 
-class IncomingInvoiceItemOut(IncomingInvoiceItemIn):
+class IncomingInvoiceItemOut(_felder_ohne_pruefung(IncomingInvoiceItemIn, "_IncomingInvoiceItemFelder")):
+    """Seit 1.9.273 (Nachrunde R5b, Punkt 2): nicht mehr von IncomingInvoiceItemIn abgeleitet -- bis 1.9.272 prüfte die Antwort den Steuersatz wie das
+    Formular (validate_tax_rate: 19, 7 oder 0); eine Position mit einem anderen Satz (etwa 16 % aus dem zweiten Halbjahr 2020) brachte Liste und Rechnung auf
+    500. Geprüft wird nur beim Speichern."""
     model_config = ConfigDict(from_attributes=True)
     id: int
     account_number: str | None = None

@@ -1264,7 +1264,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`personTagUmschalten()`, `tageImZeitraum()`), in „Kolonnen“ je Stück ein Balken mit Lücke am leeren Tag (`stueckItems()`, Vornamen je Stück), in „Personen“ je
   Folge ihrer Tage, Warnung am Stück ihrer Tage (`imStueck()`), „doppelt“ je Tag (`tests/test_v664_plantafel_tage.py`, Klicktest `klicktest_plantafel_tage.py`).
   **Stufe 6, R5b (ab 1.9.265, Tag-Aktionen):** vorweg prüft die Antwort von `GET /api/employees` nicht mehr wie das Formular (`EmployeeOut` aus
-  `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`); ein ganz leerer Einsatz
+  `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`; seit 1.9.273 ebenso Funktion,
+  Abwesenheit, Konto und Position einer Eingangsrechnung -- kein Antwortschema hat einen Validator, ein neues nimmt `_felder_ohne_pruefung()`, geerbte Grenzen
+  nur noch in `BEKANNT` von `tests/test_v673_antworten_ohne_pruefung.py`); ein ganz leerer Einsatz
   („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Tag-Aktionen in `app/tag_aktionen.py`: seit 1.9.267 Tag setzen
   (`tag_setzen()`, `POST /api/planning/tag-setzen`: dazu, verlängert -- auch Fr -> Mo, `anschliessend()` -- oder neu; Ziel nach Antwort 6/8 in `ziel_finden()`;
   die Falle über `_update_slot(alle_tage_mitnehmen=False, dazu=…)`; gefragt nur bei neuen Warnungen, `neue_warnungen()`; `pruefen` schreibt nichts;
