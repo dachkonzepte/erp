@@ -1243,7 +1243,7 @@ variable GK“. Ob das im Bestand so ist, ist nicht geprüft (nichts gegen den S
 Klicktest): mit Ina (Variable GK) inaktiv rechnet `calculate_labor_rate()` 1 Mitarbeiter variable GK und 39.000,00 € variable Mitarbeiterkosten im Jahr, mit
 Ina aktiv 2 und 62.400,00 € -- Anzahl und Mittellohn der direkt Zugeordneten bleiben 2 und 23,50 €/h.
 
-#### Festlegungen 1.9.271 (Bitte bestätigen)
+#### Festlegungen 1.9.271 (bestätigt am 09.11.2026 -- Fragen: 1 Untertitel „N aktiv · M inaktiv“, 2 je Gerät reicht, 3 Überlauf bei 412 px beheben, 4 schaut Tobias selbst nach; umgesetzt in der Nachrunde ab 1.9.272)
 
 1. **Das Kästchen steht zwischen den Kacheln und der Tabelle, Vorgabe angehakt**; daneben „N inaktiv“ -- gezählt über alle Mitarbeiter, auch während der Suche.
 2. **Mit Haken fehlt ein Inaktiver auch in der Suche** (anders als die Hauptadressen bei den Objekten, die eine Suche immer zeigt); die Zahl daneben sagt, dass

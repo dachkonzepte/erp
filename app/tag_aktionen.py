@@ -23,7 +23,9 @@ Umsetzen, Herausnehmen, Verlängern (Punkt 2, seit 1.9.268) -- für eine Person 
                    nicht (er ist danach frei), eine neue Warnung am Ziel schon
     Herausnehmen   für Tage oder alle; am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; wird er ganz leer, die Rückfrage „Der Einsatz hat dann niemanden
                    mehr.“ (Antwort 3, wenn_leer); fragt sonst nie
-    Verlängern     ab einem ihrer Tage bis zum letzten Tag des Einsatzes; prüft wie Planen"""
+    Verlängern     ab einem ihrer Tage jeder Arbeitstag bis zum letzten Tag des Einsatzes; prüft wie Planen. Seit 1.9.272 nur Arbeitstage der Planung
+                   (wie „direkt anschließend“): Samstag, Sonntag, Feiertage und betriebsfreie Tage nur, wenn jemand ausdrücklich auf den Tag zieht
+                   (Tag setzen, Umsetzen) -- bis 1.9.271 jeder Kalendertag"""
 
 from __future__ import annotations
 
@@ -308,6 +310,8 @@ def tag_setzen(db: Session, *, order_id: int, tag: date, employee_id: int | None
 
 TAGE_ODER_ALLE = "Bitte die Tage nennen oder „alle“, nicht beides."
 NICHTS_ZU_VERLAENGERN = "Der Tag ist schon der letzte Tag des Einsatzes."
+# seit 1.9.272: bis zum Ende des Einsatzes nur noch Tage ohne Arbeit (Wochenende, Feiertag, betriebsfrei) -- die zieht man einzeln
+KEIN_ARBEITSTAG_MEHR = "Bis zum Ende des Einsatzes kommt kein Arbeitstag mehr – Wochenende, Feiertage und betriebsfreie Tage bitte einzeln ziehen."
 
 
 def _person_oder_geraet(employee_id: int | None, resource_id: int | None) -> Wer:
@@ -443,21 +447,29 @@ def herausnehmen(db: Session, *, slot_id: int, employee_id: int | None = None, r
 
 def verlaengern(db: Session, *, slot_id: int, ab_tag: date, employee_id: int | None = None, resource_id: int | None = None,
                 trotzdem_planen: bool = False, pruefen: bool = False) -> dict:
-    """„bis <letzter Tag des Einsatzes> verlängern“ (Punkt 2): die Person bzw. das Gerät steht an ab_tag und danach an jedem Tag bis zum Ende des Einsatzes.
-    Prüft wie Planen (Rückfrage bei neuen Warnungen)."""
+    """„bis <letzter Tag des Einsatzes> verlängern“ (Punkt 2): die Person bzw. das Gerät steht an ab_tag und danach an jedem Arbeitstag bis zum Ende des
+    Einsatzes. Prüft wie Planen (Rückfrage bei neuen Warnungen).
+
+    Seit 1.9.272 (Bestätigung R5b, 1.9.268 Nr. 7 geändert): nur Arbeitstage der Planung (_arbeitstag(): Wochentag der Planungsgrundlagen, kein Feiertag,
+    kein betriebsfreier Tag) -- Samstag, Sonntag, Feiertag und betriebsfreie Tage nur, wenn jemand ausdrücklich auf den Tag zieht. Wo sie schon steht,
+    bleibt sie. „bis“ ist der letzte Arbeitstag, der dazukommt (meist das Ende des Einsatzes)."""
     try:
         wer = _person_oder_geraet(employee_id, resource_id)
         slot = _einsatz(db, slot_id)
         _sperren(db, [slot.preparation_id])
         slot = _load_slot(db, slot_id, frisch=True)
         _an_den_tagen(slot, wer, [ab_tag])
-        neue_tage = [ab_tag + timedelta(days=n) for n in range(1, (slot.end_date - ab_tag).days + 1)]
-        if not neue_tage:
+        danach_kalender = [ab_tag + timedelta(days=n) for n in range(1, (slot.end_date - ab_tag).days + 1)]
+        if not danach_kalender:
             raise BesetzungUngueltig(NICHTS_ZU_VERLAENGERN)
+        arbeitstag = _arbeitstag(db, ab_tag, slot.end_date)
+        neue_tage = [t for t in danach_kalender if arbeitstag(t)]
+        if not neue_tage:
+            raise BesetzungUngueltig(KEIN_ARBEITSTAG_MEHR)
         vorher = _warnungen(db, _einsaetze(db, slot.preparation_id))
         vorher_zeilen = _zeilen_tage(slot)
         danach = _update_slot(db, slot.id, dazu=[{_feld(wer): wer.id, "tage": neue_tage}], trotzdem_planen=True, _offen=True)
-        ergebnis = {"aktion": "verlaengert", "slot_id": danach.id, "tage": tage_von(danach, wer), "bis": danach.end_date.isoformat()}
+        ergebnis = {"aktion": "verlaengert", "slot_id": danach.id, "tage": tage_von(danach, wer), "bis": neue_tage[-1].isoformat()}
         if pruefen:
             ergebnis.update(pruefung(db, [danach], vorher))
             db.rollback()

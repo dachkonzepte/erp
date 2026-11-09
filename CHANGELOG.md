@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.272 – Plantafel: Verlängern nimmt nur Arbeitstage
+
+„bis … verlängern“ (`POST /api/planning/slots/{id}/verlaengern`) setzt eine Person oder ein Gerät ab einem ihrer Tage nur noch an die Arbeitstage bis zum Ende des Einsatzes -- Samstag, Sonntag, gesetzliche Feiertage und betriebsfreie Tage nicht mehr (bis 1.9.271 jeder Kalendertag; so bei der Bestätigung von R5b gewünscht, statt 1.9.268 Nr. 7). Arbeitstag heißt dasselbe wie bei „direkt anschließend“: ein Wochentag der Planungsgrundlagen, kein Feiertag, kein betriebsfreier Tag. Auf einen solchen Tag kommt jemand nur, wenn ihn jemand ausdrücklich dorthin zieht (Tag setzen, Umsetzen, Tage im Dialog); wo er schon steht, bleibt er. Bleiben bis zum Ende nur noch freie Tage, lehnt der Server mit einer Meldung ab (422); „bis“ in der Antwort ist der letzte Arbeitstag, der dazukommt. Einen Knopf dafür bekommt die Tafel mit R5c.
+
+Neu `tests/test_v672_verlaengern_arbeitstage.py`. Keine Migration.
+
 ## 1.9.271 – Stammdaten: „Inaktive MA ausblenden“ in der Liste der Mitarbeiter
 
 Über der Liste der Mitarbeiter -- unter den Kacheln -- steht jetzt das Kästchen „Inaktive MA ausblenden“, vorgabemäßig angehakt, daneben die Zahl der inaktiven Mitarbeiter („1 inaktiv“). Mit Haken fehlen inaktive Mitarbeiter in der Liste, auch in der Suche; ohne Haken stehen sie grau mit „Inaktiv“ in der Spalte Status. Die Wahl merkt sich der Browser, je Gerät. Es ändert sich nur die Anzeige der Liste: die Kacheln zählen wie bisher nur aktive Mitarbeiter, Daten und Rechte bleiben, beim Umschalten geht keine Anfrage an den Server.

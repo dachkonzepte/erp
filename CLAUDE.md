@@ -778,7 +778,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b: `docs/archiv/gegenproben-stufe6-r5b.md`; der Version 1.9.271: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“.
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Version 1.9.271: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position
@@ -1270,7 +1270,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   die Falle über `_update_slot(alle_tage_mitnehmen=False, dazu=…)`; gefragt nur bei neuen Warnungen, `neue_warnungen()`; `pruefen` schreibt nichts;
   `tests/test_v667_tag_setzen.py`); seit 1.9.268 Umsetzen, Herausnehmen, Verlängern (`umsetzen()`, `herausnehmen()`, `verlaengern()`,
   `POST /api/planning/slots/{id}/umsetzen | herausnehmen | verlaengern`, Person oder Gerät: erst setzen, dann herausnehmen, eine Transaktion; Rückfrage
-  „niemand mehr“ über `wenn_leer`; eine Warnung mit weniger Tagen ist nicht neu; `tests/test_v668_umsetzen_herausnehmen.py`); seit 1.9.269 Rückgängig
+  „niemand mehr“ über `wenn_leer`; eine Warnung mit weniger Tagen ist nicht neu; `tests/test_v668_umsetzen_herausnehmen.py`; Verlängern seit 1.9.272 nur an Arbeitstagen der Planung --
+  Sa, So, Feiertag und betriebsfreier Tag nur ausdrücklich gezogen, `tests/test_v672_verlaengern_arbeitstage.py`); seit 1.9.269 Rückgängig
   (`umkehrung` in jeder Antwort, `POST /api/planning/rueckgaengig` mit Schritten weg | dazu | loeschen, eine Transaktion; ein eben angelegter Einsatz nur mit
   seinem Stand, `einsatz_stand()`, Antwort 5) und die Sperren aufsteigend über `_sperren()` -- jede neue Tag-Aktion sperrt nur darüber
   (`tests/test_v669_sperren_und_rueckgaengig.py`, mit PostgreSQL über Kreuz); seit 1.9.270 in „Personen“ und „Geräte“ Ziehen nur dieser Person bzw. dieses

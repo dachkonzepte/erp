@@ -1867,7 +1867,7 @@ ganze Liste auf 500. Büro – Auftrag (`EmployeeRosterOut`) und die Monteurin (
   `EmployeeAbsenceOut` (`validate_dates`), `AccountOut` (`validate_default_tax_rate`), `IncomingInvoiceItemOut` (`validate_tax_rate`). Ob gespeicherte Werte sie
   verletzen können, ist nicht geprüft.
 
-#### Festlegungen 1.9.265 (Bitte bestätigen)
+#### Festlegungen 1.9.265 (bestätigt am 09.11.2026)
 
 1. Die Antwort mit dem Mitarbeiter (`EmployeeOut`) prüft nicht wie das Formular: keine Validatoren, keine Grenzen; sie hat jedes Feld des Formulars und zeigt, was
    gespeichert ist.
@@ -1889,7 +1889,7 @@ Einsatz mit „niemand“ meldet keine Kapazität. `app/planning.py::_conflicts(
 Dialogs -- alle rechnen über `_conflicts()`. Ein Einsatz mit nur einem Gerät (keine Person, also keine Kapazität) meldet weiter. Die Rechnung im Dialog
 („niemand eingeplant = 0,00 h“) bleibt.
 
-#### Festlegungen 1.9.266 (Bitte bestätigen)
+#### Festlegungen 1.9.266 (bestätigt am 09.11.2026)
 
 1. Ein ganz leerer Einsatz („niemand“: keine Person, kein Gerät) meldet keine Kapazität -- auf der Tafel, im Zähler, beim Speichern und in der Prüfung des Dialogs.
    Ersetzt 1.9.263 Nr. 2, zweiter Teil.
@@ -1936,7 +1936,7 @@ trotzdem_planen, pruefen} -- ab Büro – Auftrag wie die Tafel, `def`, Sitzung 
 - Nebenbei: hält ein Test die Ausnahme einer abgelehnten Aktion fest (`pytest.raises`), hält ihr Traceback die verworfenen Objekte -- SQLAlchemy warnte beim
   nächsten Flush („Identity map already had an identity …“). Im Server verwirft der Router die Ausnahme; der Test gibt sie frei (`del fehler`).
 
-#### Festlegungen 1.9.267 (Bitte bestätigen)
+#### Festlegungen 1.9.267 (bestätigt am 09.11.2026)
 
 1. `POST /api/planning/tag-setzen`: genau eine Person, Kolonne oder ein Gerät, ein Tag, ein Auftrag (sonst 422); `pruefen` schreibt nichts.
 2. Frei: hat der Auftrag an dem Tag einen Einsatz, kommt sie dazu -- Person oder Gerät in den ohne Kolonne, sonst den frühesten; eine Kolonne nur in den derselben
@@ -1987,7 +1987,7 @@ Speichern, beim Umsetzen dazu `quelle`). In `app/tag_aktionen.py`:
   beim Herausnehmen und Umsetzen hätte eine kürzere Warnung als neu gefragt (Fund beim Schreiben der Gegenproben dieser Version).
 - Prüfen (`pruefen`) wie bei Tag setzen, dazu `leer` (Umsetzen: der Einsatz, aus dem sie kommt; Herausnehmen: dieser).
 
-#### Festlegungen 1.9.268 (Bitte bestätigen)
+#### Festlegungen 1.9.268 (bestätigt am 09.11.2026 -- außer Nr. 7: Verlängern nimmt seit 1.9.272 nur Arbeitstage)
 
 1. Umsetzen: eine Person oder ein Gerät (keine Kolonne) für Tage, an denen sie am Einsatz steht (sonst 422), auf einen Tag an einem Auftrag (leer = derselbe)
    oder eine Karte; erst setzen nach den Regeln von Tag setzen, dann herausnehmen, in einer Transaktion.
@@ -1998,7 +1998,8 @@ Speichern, beim Umsetzen dazu `quelle`). In `app/tag_aktionen.py`:
    mit.
 6. Herausnehmen: Tage oder alle (genau eins, sonst 422), nur ihre Tage; am Rand kürzt der Einsatz, in der Mitte bleibt eine Lücke; ganz leer: Rückfrage; fragt
    sonst nie.
-7. Verlängern: ab einem ihrer Tage jeder Kalendertag bis zum Ende des Einsatzes; ab dem letzten Tag 422; prüft wie Planen.
+7. Verlängern: ab einem ihrer Tage jeder Kalendertag bis zum Ende des Einsatzes; ab dem letzten Tag 422; prüft wie Planen. *Geändert mit 1.9.272: nur
+   Arbeitstage (Festlegungen 1.9.272 Nr. 1–5).*
 8. Antworten: der Einsatz am Ziel, beim Umsetzen auch der, aus dem sie kam (wenn es ihn noch gibt); ihre Tage und der letzte Tag; geprüft dazu „leer“; Prüfen
    schreibt nichts.
 9. Beide Arbeitsvorbereitungen aufsteigend gesperrt -- der Beweis unter PostgreSQL mit Punkt 3 (1.9.269).
@@ -2037,7 +2038,7 @@ Planen; API; Prüfen schreibt nichts). `tests/test_v373_zugehoerigkeit_struktur.
 - Kein Rückgängig, wenn die Aktion einen Einsatz gelöscht hat (Löschen in der Rückfrage) oder nichts geändert hat. Eine Arbeitsvorbereitung, die beim Anlegen
   entstand, bleibt nach Rückgängig stehen -- wie nach dem Löschen eines Einsatzes im Dialog.
 
-#### Festlegungen 1.9.269 (Bitte bestätigen)
+#### Festlegungen 1.9.269 (bestätigt am 09.11.2026)
 
 1. Jede Tag-Aktion sperrt die Arbeitsvorbereitungen, die sie berührt, aufsteigend nach ID -- zwei Aktionen über Kreuz warten aufeinander (unter PostgreSQL belegt).
 2. Rolle: ab Büro – Auftrag wie die Tafel; die Monteurin 403.
@@ -2074,7 +2075,7 @@ Angepasste Erwartungen: keine.
   bis 1.9.269 den ganzen Einsatz. In „Kolonnen“ gilt sie weiter. Kein Test und kein Klicktest zog bisher in diesen Ansichten (`test_v649` prüft `verschieben()`
   und bleibt).
 
-#### Festlegungen 1.9.270 (Bitte bestätigen)
+#### Festlegungen 1.9.270 (bestätigt am 09.11.2026)
 
 1. In „Personen“ und „Geräte“ verschiebt Ziehen nur diese Person bzw. dieses Gerät: ihre Tage dieses Balkens um gleich viele Tage, im selben Einsatz (verlängert mit
    der Falle, am Rand gekürzt -- auch weit weg, dann mit Lücke); steht sie allein, wandert der Einsatz mit.
@@ -2099,3 +2100,45 @@ Angepasste Erwartungen: keine.
 Vorweg: die Mitarbeiterliste prüft nicht mehr wie das Formular; „niemand“ meldet keine Kapazität. Die Tag-Aktionen stehen auf dem Server -- Tag setzen (dazu,
 verlängert, neu), Umsetzen, Herausnehmen, Verlängern, je mit Prüfen ohne Schreiben und Rückgängig, unter Sperren in fester Reihenfolge. Die Tafel nutzt davon bisher
 das Umsetzen beim Ziehen in „Personen“ und „Geräte“. Die Ansicht „Aufträge“ mit Liste, Chips, „nur <Tag>“, „bis … verlängern“ und „Rückgängig“ kommt mit R5c.
+
+## Stufe 6, R5b Nachrunde (ab 1.9.272)
+
+Auftrag vom 09.11.2026, Start 1fc155e (live, Datenbank `b6e4d2a9c731`). Bestätigt: Festlegungen 1.9.265–1.9.270 außer 1.9.268 Nr. 7 (siehe Punkt 1) und
+1.9.271 Nr. 1–6. Antworten auf die Fragen aus R5b: 1 ja, nur neue Warnungen fragen; 2 ja, eine Kolonne auf der Karte eines Einsatzes ohne Kolonne bekommt einen
+eigenen; 3 ja, weit weg in der eigenen Zeile bleibt es derselbe Einsatz mit Lücke; 4 nein -- Verlängern nimmt nur Arbeitstage (Punkt 1); 5 ja: nach jedem Zug in
+„Kolonnen“, „Personen“ und „Geräte“ eine schmale Leiste über der Tafel mit dem Zug und „Rückgängig“, bis zur nächsten Aktion -- kommt mit R5c, jetzt nicht
+gebaut. Antworten auf die Fragen zu 1.9.271: 1 Untertitel „N aktiv · M inaktiv“ (Punkt 3); 2 je Gerät reicht; 3 ja (Punkt 4); 4 schaut Tobias selbst nach.
+Kleine Runde, je Punkt eine Version: 1 Verlängern nimmt nur Arbeitstage -- Samstag, Sonntag, Feiertag und betriebsfreie Tage nur, wenn jemand ausdrücklich auf
+diesen Tag zieht; 2 Nebenbefund R5b (Abschnitt 9 des Berichts): die vier Antwortschemata wie in 1.9.265; 3 Mitarbeiter: Untertitel „N aktiv · M inaktiv“;
+4 Stammdaten bei 412 px ohne Überlauf, die Mitarbeitertabelle bei 1440 px ohne Rollen. Punkte 3 und 4: Archiv „Stammdaten und Sidebar“.
+
+### Umsetzung 1.9.272 (Punkt 1): Verlängern nur Arbeitstage
+
+- `app/tag_aktionen.py::verlaengern()`: von den Kalendertagen nach `ab_tag` bis zum Ende des Einsatzes nur die, für die `_arbeitstag()` gilt -- dieselbe Prüfung
+  wie „direkt anschließend“ (Antwort 7): `_is_workday()` mit den Wochentagen der Planungsgrundlagen und `_combined_holiday_map()` (gesetzliche Feiertage des
+  Bundeslands, wenn eingeschaltet, und die eingetragenen Feier- und betriebsfreien Tage). Sie kommen über `dazu` hinzu wie bisher -- wo sie schon steht, auch an
+  einem freien Tag, bleibt sie. Der Zeitraum des Einsatzes ändert sich nicht.
+- Kein Kalendertag mehr nach `ab_tag`: 422 wie bisher (`NICHTS_ZU_VERLAENGERN`); nur freie Tage: 422 `KEIN_ARBEITSTAG_MEHR`.
+- „bis“ in der Antwort ist der letzte Arbeitstag, der dazukommt (bis 1.9.271 das Ende des Einsatzes -- mit einem freien letzten Tag wären beide verschieden).
+- Unverändert: Tag setzen, Umsetzen (die Tage wandern um Kalendertage, 1.9.268 Nr. 2) und die Tage im Dialog -- das sind die Wege, auf denen jemand ausdrücklich
+  auf einen Tag gezogen wird. Die Tafel hat für Verlängern noch keinen Knopf (R5c).
+
+#### Festlegungen 1.9.272 (Bitte bestätigen)
+
+1. Verlängern nimmt ab einem ihrer Tage jeden **Arbeitstag** bis zum Ende des Einsatzes; Samstag, Sonntag, Feiertag und betriebsfreie Tage nicht (statt 1.9.268
+   Nr. 7).
+2. Arbeitstag wie bei „direkt anschließend“ (`_arbeitstag()`): ein Wochentag der Planungsgrundlagen (ist dort der Samstag ein Arbeitstag, zählt er), kein
+   gesetzlicher Feiertag, kein eingetragener Feier- oder betriebsfreier Tag. Freistellungen des Arbeitszeitkalenders (Heiligabend, Silvester) sind dort
+   Arbeitstage -- die Tafel zeigt an ihnen weiter den Hinweis.
+3. Auf einen freien Tag kommt sie nur ausdrücklich: Tag setzen, Umsetzen und die Tage im Dialog bleiben, wie sie sind; wo sie schon an einem freien Tag steht,
+   bleibt sie dort.
+4. Bleiben bis zum Ende nur freie Tage: 422 „Bis zum Ende des Einsatzes kommt kein Arbeitstag mehr – Wochenende, Feiertage und betriebsfreie Tage bitte einzeln
+   ziehen.“; ab dem letzten Tag wie bisher.
+5. „bis“ in der Antwort ist der letzte Arbeitstag, der dazukommt; der Zeitraum des Einsatzes bleibt.
+
+#### Tests und Prüfung 1.9.272
+
+Neu: `tests/test_v672_verlaengern_arbeitstage.py` (über das Wochenende nur Arbeitstage, gesetzlicher Feiertag und betriebsfreier Tag, ausdrücklich gezogener
+Samstag bleibt, Tag setzen auf einen Samstag geht weiter, bis zum Ende nur freie Tage, Gerät, Samstag als Arbeitstag der Planung, Prüfen, API und Rückgängig).
+Die Tests von 1.9.268 und 1.9.269 bleiben unverändert grün (ihre Einsätze liegen Mo–Fr). Gegenproben: Archiv `gegenproben-stufe6-r5b.md`, „1.9.272“. Kein
+Klicktest ruft Verlängern auf (noch kein Knopf). Angepasste Erwartungen: keine.

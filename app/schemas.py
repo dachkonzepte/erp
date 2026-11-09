@@ -3350,7 +3350,8 @@ class Rueckgaengig(BaseModel):
 
 
 class TagVerlaengern(BaseModel):
-    """Seit 1.9.268: POST /api/planning/slots/{id}/verlaengern -- eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes."""
+    """Seit 1.9.268: POST /api/planning/slots/{id}/verlaengern -- eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes
+    (seit 1.9.272 nur an Arbeitstagen, app/tag_aktionen.py::verlaengern())."""
     employee_id: int | None = None
     resource_id: int | None = None
     ab_tag: date

@@ -135,3 +135,18 @@ ist in beiden Reihenfolgen dasselbe, nur ohne leeren Zwischenstand.
 | Nr. 4 – im Browser | immer einzeln (`270_4b`, Klicktest Bedienen) | rot: plantafel_bedienen -- „Maus“, „Escape“, „Finger“, „Rückfrage beim Ziehen in die Zeile Nord“ |
 | Nr. 6 – ein Balken trägt sein Stück | ohne `data-von`/`data-bis` (`270_6a`) | 1 rot: v670::test_balken_traegt_sein_stueck_und_pointerup_waehlt |
 | Nr. 6 – im Browser | ohne (`270_6b`, Klicktest Ziehen) | rot: plantafel_ziehen -- 14 Prüfungen in „Personen“ und „Geräte“ (ohne Stück kein Ziehen einer einzelnen Person), dann das Zeitlimit der Gegenprobe (Regel 24) |
+
+## 1.9.272 (Nachrunde, Punkt 1): Verlängern nur Arbeitstage
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur Arbeitstage | jeder Kalendertag wie bis 1.9.271 (`272_1a`) | 7 rot: v672::test_ausdruecklich_gezogener_samstag_bleibt, v672::test_bis_zum_ende_nur_noch_freie_tage, v672::test_feiertag_und_betriebsfreier_tag, v672::test_geraet_ebenso, v672::test_pruefen_api_und_rueckgaengig, v672::test_samstag_als_arbeitstag_der_planung, v672::test_ueber_das_wochenende_nur_arbeitstage |
+| Nr. 2 – kein Feiertag, kein betriebsfreier Tag | ohne Feiertage (`272_2a`) | 1 rot: v672::test_feiertag_und_betriebsfreier_tag |
+| Nr. 2 – die Wochentage der Planungsgrundlagen | fest Montag bis Freitag (`272_2b`) | 1 rot: v672::test_samstag_als_arbeitstag_der_planung |
+| Nr. 3 – wo sie schon steht, bleibt sie | ihre freien Tage heraus (`272_3a`) | 1 rot: v672::test_ausdruecklich_gezogener_samstag_bleibt |
+| Nr. 3 – ausdrücklich gezogen geht weiter | Tag setzen lehnt einen freien Tag ab (`272_3b`) | 1 rot: v672::test_tag_setzen_auf_einen_samstag_bleibt_moeglich |
+| Nr. 4 – eigene Meldung bei nur freien Tagen | die alte Meldung (`272_4a`) | 1 rot: v672::test_bis_zum_ende_nur_noch_freie_tage |
+| Nr. 5 – „bis“ ist der letzte Arbeitstag | das Ende des Einsatzes (`272_5a`) | 2 rot: v672::test_ausdruecklich_gezogener_samstag_bleibt, v672::test_feiertag_und_betriebsfreier_tag |
+
+Alle 7 im ersten Lauf rot. Ohne Gegenprobe im Browser: kein Klicktest ruft Verlängern auf (der Knopf kommt mit R5c). Nr. 2, zweiter Satz (Freistellungen des
+Arbeitszeitkalenders sind Arbeitstage), beschreibt, was bleibt -- nichts daran geändert.
