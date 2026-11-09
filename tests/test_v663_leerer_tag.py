@@ -209,7 +209,9 @@ def test_seite_fragt_und_schickt_die_wahl():
 def test_dialog_und_ziehen_nehmen_die_rueckfrage():
     seite = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
     assert "if(leerFrage(e,async wahl=>{const a=await speichern('tafel',()=>api(url,{method:methode,headers:{'Content-Type':'application/json'},body:JSON.stringify({...w,wenn_leer:wahl})}))" in seite
-    assert "&&!leerFrage(err,wahl=>senden(false,wahl))" in seite and "...(wahl?{wenn_leer:wahl}:{})" in seite
+    # seit 1.9.282 geht das Ziehen in „Personen“ und „Geräte“ über zugSenden() -- die Rückfrage „niemand mehr“ kommt zu den übrigen Antworten dazu
+    assert "!leerFrage(err,wahl=>versuch({...opt,wenn_leer:wahl}))" in seite
+    assert "return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text,a.umkehrung))}" in seite
     assert '<button type="button" class="ds-knopf" id="leerLoeschen" data-klick="leerWahl" data-wahl="loeschen">Löschen</button>' in seite
     assert "textContent=p.leer?'Der Einsatz hat dann niemanden mehr – beim Speichern: löschen oder behalten.':''" in seite  # der Dialog sagt es vorher
 

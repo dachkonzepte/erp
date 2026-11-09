@@ -16,10 +16,13 @@ from tests.vorlagen_js import TEMPLATES
 
 SLOTS = [{"id": 1, "team_id": 7, "art": "baustelle", "start_date": "2026-11-03", "end_date": "2026-11-05", "duration_days": 3},
          {"id": 2, "team_id": None, "art": "kranvermietung", "start_date": "2026-11-04", "end_date": "2026-11-05", "duration_days": 2}]
-VORBEREITUNG = (f"var board = {{slots: {json.dumps(SLOTS)}}}; var view = 'teams'; async function loadBoard() {{}} "
+# seit 1.9.282 gehen die Züge über zugSenden() und zeigen danach die Leiste über der Tafel (bandZeigen) -- dafür Kolonnen und esc()
+VORBEREITUNG = (f"var board = {{slots: {json.dumps(SLOTS)}, teams: [], employees: [], resources: []}}; var view = 'teams'; async function loadBoard() {{}} "
+                "function esc(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',\"'\":'&#39;','\"':'&quot;'}[c]))} "
                 "var geo = {spalten: Array.from({length: 14}, (_, i) => ({d: addDays('2026-11-02', i), x: i * 60, w: 60}))}; const KONFLIKT_ART = {}; "
                 "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; } ")
-FUNKTIONEN = ["verschieben", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt"]
+FUNKTIONEN = ["verschieben", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt",
+              "fmtSpanne", "zugSenden", "bandZeigen", "leerFrage"]
 
 
 def _ziel(zeile, ident=""):

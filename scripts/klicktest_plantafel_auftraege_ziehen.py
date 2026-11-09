@@ -164,6 +164,7 @@ async def pruefen(tab, seed, p):
     if los:
         await maus_los(tab, los)
     p.pruefe("Frei: Kai am Wasserturm Do", await namen(WASSER, DO), ["Tom", "Mia", "Ole", "Kai", "HS-DK 202"])
+    p.pruefe("Frei: keine Leiste über der Tafel (in „Aufträge“ steht sie am Chip, seit 1.9.282)", await tab.js("(b=>!!b&&b.hidden)(document.getElementById('zugBand'))"), True)
     p.pruefe("Frei: Anzeige weg", await tab.js("document.querySelectorAll('#planner .zug-anzeige, #planner td.zug-ziel').length"), 0)
     p.pruefe("nur Do mit verlängern", await tab.js(LEISTE), ["Kai Kolb · nur Do 12.11.", "Fr 13.11.: frei", "bis Fr 13.11. verlängern", "Rückgängig"])
     await tab.bild("nur_tag_verlaengern")

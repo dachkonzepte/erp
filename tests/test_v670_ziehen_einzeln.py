@@ -109,11 +109,13 @@ def test_api(welt):
 
 SLOTS = [{"id": 1, "team_id": 7, "art": "baustelle", "start_date": "2026-11-02", "end_date": "2026-11-06", "duration_days": 5,
           "employees": [{"id": 5, "tage": ["2026-11-05", "2026-11-06"]}, {"id": 6, "tage": None}], "resources": [{"id": 3, "tage": None}]}]
-VORBEREITUNG = (f"var board = {{slots: {json.dumps(SLOTS)}}}; var view = 'employees'; async function loadBoard() {{}} "
+# seit 1.9.282 geht der Zug über zugSenden() und zeigt danach die Leiste über der Tafel (bandZeigen) -- dafür Namen, Wochentage und esc()
+VORBEREITUNG = (f"var board = {{slots: {json.dumps(SLOTS)}, employees: [], resources: []}}; var view = 'employees'; async function loadBoard() {{}} "
+                "const WOCHENTAGE=['So','Mo','Di','Mi','Do','Fr','Sa']; function esc(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',\"'\":'&#39;','\"':'&quot;'}[c]))} "
                 "var geo = {spalten: Array.from({length: 14}, (_, i) => ({d: addDays('2026-11-02', i), x: i * 60, w: 60}))}; const KONFLIKT_ART = {}; "
                 "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; } ")
 FUNKTIONEN = ["umsetzenZiehen", "nurDieseZeile", "findSlot", "iso", "addDays", "einsatzTage", "personTageIn", "geraetTageIn", "einsatzHinweise", "konfliktZeile",
-              "konfliktFrage", "leerFrage", "fmt"]
+              "konfliktFrage", "leerFrage", "fmt", "fmtSpanne", "zugSenden", "bandZeigen", "personName", "geraetName", "geraetInfo", "tagText", "wochentag"]
 
 
 def _zug(zeile, wer, von, bis):

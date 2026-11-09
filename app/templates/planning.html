@@ -221,6 +221,14 @@ td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
 .zug-leiste[hidden]{display:none}
 .zug-leiste .klein{font-size:12px;color:var(--ds-text-2)}
 .zug-leiste .zug-zu{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;background:transparent;color:var(--ds-text-2);font-size:18px;cursor:pointer;border-radius:6px}
+/* seit 1.9.282 (Stufe 6, R5c, Punkt 4): nach einem Zug in „Kolonnen“, „Personen“ und „Geräte“ eine schmale Leiste über der Tafel mit „Rückgängig“ */
+.zug-band{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:6px 8px 6px 14px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);font-size:13.5px}
+.zug-band[hidden]{display:none}
+.zug-band .zug-band-text{flex:1 1 auto;min-width:0}
+.zug-band .ds-knopf{flex:none}
+@media (pointer:fine){.zug-band{padding:4px 6px 4px 14px}.zug-band .ds-knopf{height:32px;min-height:32px;padding:0 12px}}  /* mit der Maus schmal, mit dem Finger bleibt der Knopf 40 px */
+#planner td.a-tag{cursor:copy}
+#planner td.a-tag .a-einsatz{cursor:pointer}
 </style>
 </head>
 <body class="ds-seite">
@@ -247,6 +255,7 @@ td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
 </div>
 <div class="ds-status" id="status" role="status"></div>
 <div class="hinweiskarte" id="einsatzHinweis" role="status"></div>
+<div class="zug-band" id="zugBand" role="status" hidden></div>
 <div class="tafel-layout" id="tafelLayout">
   <aside class="karte rueckstand" aria-labelledby="rkTitel">
     <div class="rk-kopf"><h2 id="rkTitel">Nicht eingeplant</h2><span class="count" id="backlogCount">0</span>
@@ -268,7 +277,7 @@ td.zug-woanders .zug-anzeige{color:var(--ds-fehler-text)}
     </div>
   </section>
 </div>
-<p class="fuss"><span id="fussTafel">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</span><span id="fussAuftraege" hidden>Eine Karte ist ein Einsatz an diesem Tag, Klick öffnet ihn. Personen, Kolonnen und Geräte ziehen (Maus und Finger): aus der Liste kommen sie für diesen Tag dazu, aus einer Zelle werden sie für diesen Tag umgesetzt; zurück auf die Liste ziehen oder antippen nimmt heraus. Zwei Einsätze am selben Tag stehen untereinander.</span></p>
+<p class="fuss"><span id="fussTafel">Ein Balken ist ein Einsatz mit seiner Besetzung. Klick öffnet ihn, Ziehen verschiebt ihn (Maus und Finger), Klick in eine freie Zelle plant für diese Zeile und diesen Tag. Zwei Einsätze am selben Tag stehen untereinander.</span><span id="fussAuftraege" hidden>Eine Karte ist ein Einsatz an diesem Tag, Klick öffnet ihn. Personen, Kolonnen und Geräte ziehen (Maus und Finger): aus der Liste kommen sie für diesen Tag dazu, aus einer Zelle werden sie für diesen Tag umgesetzt; zurück auf die Liste ziehen oder antippen nimmt heraus. Klick in einen freien Teil eines Tags plant den Auftrag an diesem Tag. Zwei Einsätze am selben Tag stehen untereinander.</span></p>
 </main>
 </div>
 </div>
@@ -379,14 +388,14 @@ function istWochenende(s){const w=new Date(s+'T12:00:00').getDay();return w===0|
 function kalenderwoche(s){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+3-((d.getDay()+6)%7));const j=new Date(d.getFullYear(),0,4,12);return 1+Math.round(((d-j)/86400000-3+((j.getDay()+6)%7))/7)}
 function tageAnzahl(){return Number(document.getElementById('rangeDays').value||14)}
 function datumsliste(){const s=iso(periodStart);return Array.from({length:tageAnzahl()},(_,i)=>addDays(s,i))}
-function movePeriod(n){periodStart=monday(new Date(addDays(iso(periodStart),n)+'T12:00:00'));loadBoard()}
+function movePeriod(n){bandSchliessen();periodStart=monday(new Date(addDays(iso(periodStart),n)+'T12:00:00'));loadBoard()}
 function goToday(){periodStart=monday(berlinTodayDate());loadBoard()}
 /* seit 1.9.279 (Stufe 6, R5c, Punkt 1, Antwort 15): jede Ansicht merkt sich ihren Zeitraum (im Browser, je Gerät) -- „Aufträge“ beginnt mit 1 Woche, die
    übrigen mit 2 Wochen; die gezeigte Woche bleibt beim Wechsel gleich. Ohne Speicher gilt die Vorgabe. */
 const ZEITRAUM_SCHLUESSEL='plantafel_zeitraum',ZEITRAUM_VORGABE={auftraege:7},ZEITRAEUME=[7,14,21,28];
 function zeitraumGemerkt(v){let w=null;try{w=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}')[v]}catch(e){}return ZEITRAEUME.includes(w)?w:(ZEITRAUM_VORGABE[v]||14)}
 function zeitraumMerken(v,tage){try{const m=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}');m[v]=tage;localStorage.setItem(ZEITRAUM_SCHLUESSEL,JSON.stringify(m))}catch(e){}}
-function setView(v){const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
+function setView(v){bandSchliessen();const vorher=tageAnzahl();view=v;document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
 const LABEL_W=168,WE_W=22,MIN_TAG=44,SPUR_H=30,SPUR_OBEN=8;
@@ -598,6 +607,9 @@ function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout')
   lay.addEventListener('pointerup',e=>{if(!azug)return;const z=azug,ziel=z.aktiv?zielAnPunkt(e.clientX,e.clientY):null;zugAbbrechen();chipTipp=true;
     if(!z.aktiv){if(z.slot)chipMenue(z);return}if(ziel)zugAusfuehren(z,ziel)});
   lay.addEventListener('pointercancel',()=>zugAbbrechen());
+  // seit 1.9.282: Klick in einen freien Teil eines Tags öffnet den Dialog für diesen Auftrag und Tag (ohne Kolonne, nur dieser Tag); eine Karte öffnet ihren Einsatz
+  document.getElementById('planner').addEventListener('click',e=>{if(view!=='auftraege'||e.target.closest('.a-einsatz'))return;const td=e.target.closest('td.a-tag');if(!td)return;
+    openCreate(Number(td.dataset.auftrag),td.dataset.date,null,{bis:td.dataset.date})});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&azug){chipTipp=true;zugAbbrechen()}})}
 async function zugAusfuehren(z,ziel){
   if(ziel.art==='liste'){if(z.slot)await herausnehmenTag(z,{tage:[z.tag]});return}
@@ -653,6 +665,21 @@ aktion('chipEinsatz',()=>{const z=leisteZug;zugLeisteSchliessen();if(z)openEdit(
 aktion('zugVerlaengern',()=>zugVerlaengern());
 aktion('zugZurueck',()=>zugZurueck());
 aktion('zugLeisteZu',()=>{letzterZug=null;zugLeisteSchliessen()});
+/* --- seit 1.9.282 (Stufe 6, R5c, Punkt 4, Antwort 5 zu R5b): nach einem Zug in „Kolonnen“, „Personen“ und „Geräte“ eine schmale Leiste über der Tafel mit dem
+   Zug und „Rückgängig“ (die Umkehrung aus der Antwort) -- bis zur nächsten Aktion: dem nächsten Klick außerhalb der Leiste, einer anderen Ansicht, einem anderen
+   Zeitraum. In „Aufträge“ steht die Leiste am Chip (1.9.281). */
+let bandUmkehrung=null;
+function bandZeigen(text,umkehrung){const b=document.getElementById('zugBand');bandUmkehrung=umkehrung||null;
+  b.innerHTML=`<span class="zug-band-text">${esc(text)}</span>`+(bandUmkehrung?'<button type="button" class="ds-knopf" data-klick="bandZurueck">Rückgängig</button>':'');b.hidden=false}
+function bandSchliessen(){const b=document.getElementById('zugBand');if(!b||b.hidden)return;b.hidden=true;b.innerHTML='';bandUmkehrung=null}
+async function bandZurueck(){const u=bandUmkehrung;if(!u)return;bandSchliessen();
+  try{await speichern('tafel',()=>api(u.pfad,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(u.body)}));await loadBoard()}
+  catch(err){document.getElementById('status').textContent='Fehler: '+err.message}}
+aktion('bandZurueck',()=>bandZurueck());
+// beim nächsten Klick, nicht schon beim Drücken: verschwände die Leiste beim Greifen eines Balkens, rückte die Tafel mitten im Ziehen nach oben und das
+// Ziel unter dem Zeiger wäre eine andere Zeile (klicktest_plantafel_ziehen); nach einem Zug kommt der Klick erst nach dem Loslassen
+document.addEventListener('click',e=>{if(!e.target.closest||!e.target.closest('#zugBand'))bandSchliessen()},true);
+function personName(id){return (board.employees.find(e=>e.id===id)||{}).name||''}
 // merken=false (seit 1.9.257): nur zeigen, nichts im Browser merken -- der Start unter 1440 px
 // seit 1.9.281: der Knopf heißt wie die Liste -- in „Aufträge“ „Zum Einplanen aufklappen“
 function rkKnopfBeschriften(){const k=document.getElementById('rkKnopf');k.setAttribute('aria-label',(view==='auftraege'?'Zum Einplanen':'Nicht eingeplant')+(k.getAttribute('aria-expanded')==='true'?' einklappen':' aufklappen'))}
@@ -796,8 +823,9 @@ function tagAnX(x){const s=geo.spalten;for(let i=s.length-1;i>=0;i--)if(x>=s[i].
 async function verschieben(id,ziel,startIdx){const s=findSlot(id);if(!s)return;const auf=addDays(geo.spalten[0].d,startIdx);
   const body={auf};if(ziel&&s.art!=='kranvermietung'){if(ziel.dataset.zeile==='kolonne')body.team_id=Number(ziel.dataset.id);else if(ziel.dataset.zeile==='ohne')body.team_id=null}
   if('team_id' in body&&body.team_id===s.team_id)delete body.team_id;if(auf===s.start_date&&!('team_id' in body))return;
-  const senden=async trotzdem=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{})});const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}/verschieben`,{method:'POST',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a.einsatz);await loadBoard()};
-  try{await senden(false)}catch(err){/* seit 1.9.143: Warnungen fragen zurück */if(!konfliktFrage(err,()=>senden(true)))document.getElementById('status').textContent='Fehler: '+err.message}}
+  // seit 1.9.282 über zugSenden() (Warnungen fragen zurück, seit 1.9.143), danach die Leiste mit „Rückgängig“
+  const vorher=fmtSpanne(s.start_date,s.end_date),kolonne='team_id' in body?(body.team_id==null?'ohne Kolonne':((board.teams.find(t=>t.id===body.team_id)||{}).name||'')):'';
+  return zugSenden(`/api/planning/slots/${s.id}/verschieben`,body,a=>bandZeigen(`${s.project_name}: ${vorher} → ${fmtSpanne(a.start_date||s.start_date,a.end_date||s.end_date)}${kolonne?' · '+kolonne:''}`,a.umkehrung))}
 // seit 1.9.270: zieht der Balken nur diese Person bzw. dieses Gerät? In „Personen“ und „Geräte“ ja, in „Kolonnen“ nie (auch nicht in den Gerätezeilen)
 function nurDieseZeile(spur){return (view==='employees'&&spur.dataset.zeile==='person')||(view==='resources'&&spur.dataset.zeile==='geraet')}
 function geraetTageIn(s,rid){const r=s.resources.find(x=>x.id===rid);return !r?[]:r.tage?r.tage.slice():einsatzTage(s)}
@@ -808,9 +836,11 @@ async function umsetzenZiehen(war,ziel,startIdx){const s=findSlot(war.id);if(!s|
   const tage=(war.zeile==='person'?personTageIn(s,war.wer):geraetTageIn(s,war.wer)).filter(d=>d>=war.von&&d<=war.bis);if(!tage.length)return;
   const zielTag=addDays(geo.spalten[0].d,startIdx);if(zielTag===tage[0]&&auf===war.wer)return;
   const body={[feld]:war.wer,tage,ziel_tag:zielTag,ziel_slot_id:s.id,genau:true};if(auf!==war.wer)body['auf_'+feld]=auf;
-  const senden=async(trotzdem,wahl)=>{const b=JSON.stringify({...body,...(trotzdem?{trotzdem_planen:true}:{}),...(wahl?{wenn_leer:wahl}:{})});
-    const a=await speichern('tafel',()=>api(`/api/planning/slots/${s.id}/umsetzen`,{method:'POST',headers:{'Content-Type':'application/json'},body:b}));einsatzHinweise(a.einsatz);await loadBoard()};
-  try{await senden(false)}catch(err){if(!konfliktFrage(err,()=>senden(true))&&!leerFrage(err,wahl=>senden(false,wahl)))document.getElementById('status').textContent='Fehler: '+err.message}}
+  // seit 1.9.282 über zugSenden() (Rückfragen nacheinander, die Antworten gelten zusammen), danach die Leiste mit „Rückgängig“
+  const name=war.zeile==='person'?personName(war.wer):geraetName(war.wer),spanne=fmtSpanne(tage[0],tage[tage.length-1]);
+  const text=auf!==war.wer?`${s.project_name} ${spanne}: ${name} → ${war.zeile==='person'?personName(auf):geraetName(auf)}${zielTag!==tage[0]?', ab '+tagText(zielTag):''}`
+    :`${name} · ${s.project_name}: ${spanne} → ab ${tagText(zielTag)}`;
+  return zugSenden(`/api/planning/slots/${s.id}/umsetzen`,body,a=>bandZeigen(text,a.umkehrung))}
 function zugEnde(){if(!zug)return;zug.b.classList.remove('zieht');zug.b.style.transform='';document.querySelectorAll('#planner .track.ziel').forEach(x=>x.classList.remove('ziel'));zug=null}
 // die Spur unter dem Punkt -- sie füllt ihre Zeile (min-height statt height: eine Zeile mit drei Textzeilen ist höher als ihre Balken)
 function spurAnPunkt(x,y){const el=document.elementFromPoint(x,y);return el?el.closest('#planner .track[data-zeile]'):null}

@@ -140,3 +140,25 @@ Nr. 9 „bestehende Geräte ohne Kurznamen“ (nach `280_9a` belegt die Migratio
 40 Gegenproben (23 gegen Tests, 17 gegen den Klicktest), alle rot -- `281_5a` und `281_6a` erst nach dem nachgezogenen Test (Regel 24); jede Datei byte-genau
 zurück, kein Marker geblieben. Ohne eigene Gegenprobe: Nr. 1 „sonst entscheidet der Server“ (die Entscheidung dazu/verlängert/neu prüft v667 seit 1.9.267), Nr. 6
 „bis zur nächsten Aktion“ (die Leiste schließt beim nächsten Ziehen, belegt durch „Frei: die Leiste ist beim Ziehen zu“).
+
+## 1.9.282 (Punkt 4): Leiste „Rückgängig“ über der Tafel, Klick in einen freien Tag
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Zug in Worten (Verschieben: alter → neuer Zeitraum) | ohne den alten Zeitraum (`282_1a`, `282_1f`) | 2 rot: v682::test_verschieben_zeigt_die_leiste, ::test_ohne_umkehrung_kein_rueckgaengig; Klicktest rueckgaengig: „Kolonnen: Leiste“ |
+| Nr. 1 – „Rückgängig“ mit der Umkehrung der Antwort | Umkehrung nie gemerkt (`282_1b`, `282_1g`) | 2 rot: v682::test_verschieben_zeigt_die_leiste, ::test_rueckgaengig_schickt_die_umkehrung_und_schliesst; Klicktest rueckgaengig: 11 Prüfungen (Kolonnen, Personen, Geräte, JS-Fehler) |
+| Nr. 1 – andere Zeile „Name → Name“ | immer wie die eigene Zeile (`282_1c`) | 1 rot: v682::test_umsetzen_in_der_eigenen_und_einer_anderen_zeile |
+| Nr. 1 – Rückgängig einmal | die Leiste bleibt nach „Rückgängig“ (`282_1d`) | 1 rot: v682::test_rueckgaengig_schickt_die_umkehrung_und_schliesst |
+| Nr. 1 – nur mit Umkehrung | Knopf auch ohne (`282_1e`) | 1 rot: v682::test_ohne_umkehrung_kein_rueckgaengig |
+| Nr. 2 – der nächste Klick außerhalb schließt | kein Schließen beim Klick (`282_2a`, `282_2d`) | 1 rot: v682::test_leiste_schliesst_mit_der_naechsten_aktion; Klicktest rueckgaengig: „Personen: ein Klick auf die Seite schließt die Leiste“ u. a. |
+| Nr. 2 – beim Klick, nicht schon beim Drücken | Schließen bei `pointerdown` (`282_2f`, `282_2g`) | 1 rot: v682::test_leiste_schliesst_mit_der_naechsten_aktion; Klicktest plantafel_ziehen: der zweite Zug in „Personen“ und „Geräte“ landet in der falschen Zeile (1440 und 1280 px, hell und dunkel) -- so im ersten Lauf vor dem Commit, als die Leiste noch beim Drücken schloss |
+| Nr. 2 – eine andere Ansicht schließt | `setView()` ohne (`282_2b`, `282_2e`) | 1 rot: v682::test_leiste_schliesst_mit_der_naechsten_aktion; Klicktest rueckgaengig: „Geräte: eine andere Ansicht schließt die Leiste“ |
+| Nr. 2 – ein anderer Zeitraum schließt | `movePeriod()` ohne (`282_2c`) | 1 rot: v682::test_leiste_schliesst_mit_der_naechsten_aktion |
+| Nr. 3 – Rückfragen gelten zusammen (auch beim Ziehen in „Personen“) | „niemand mehr“ vergisst „Trotzdem planen“ (`282_3a`) | im ersten Lauf GRÜN (der Test fragte nur „niemand mehr“ zuerst); Test nachgezogen (umgekehrte Reihenfolge), dieselbe Gegenprobe: 1 rot: v682::test_ziehen_in_personen_fragt_nacheinander |
+| Nr. 4 – Klick in einen freien Tag: nur dieser Tag | ohne `bis` (`282_4a`, `282_4c`) | 1 rot: v682::test_klick_in_einen_freien_tag_in_auftraege; Klicktest: im ersten Lauf GRÜN (der Tag gehörte zu einem eingeplanten Auftrag, dort schlägt der Dialog ohnehin nur den Tag vor); Klicktest mit einem nicht eingeplanten Auftrag nachgezogen, dieselbe Gegenprobe: „Aufträge: für diesen Auftrag, nur diesen Tag, ohne Kolonne“ |
+| Nr. 4 – eine Karte öffnet ihren Einsatz | Klick auf die Karte öffnet auch den Dialog für einen neuen (`282_4b`, `282_4d`) | 1 rot: v682::test_klick_in_einen_freien_tag_in_auftraege; Klicktest rueckgaengig: „Aufträge: eine Karte öffnet ihren Einsatz“ |
+| Nr. 5 – in „Aufträge“ keine Leiste über der Tafel | auch dort (`282_5a`) | Klicktest auftraege_ziehen: „Frei: keine Leiste über der Tafel“ |
+
+20 Gegenproben (12 gegen Tests, 8 gegen Klicktests), alle rot -- `282_3a` und `282_4c` erst nach dem nachgezogenen Test bzw. Klicktest (Regel 24). Weil die
+Leiste danach beim Klick statt beim Drücken schließt (der erste Lauf vor dem Commit fand das Rücken der Tafel), alle 20 noch einmal auf dem endgültigen Stand,
+dazu `282_2f`/`282_2g` für genau diese Aussage; jede Datei byte-genau zurück, kein Marker geblieben.

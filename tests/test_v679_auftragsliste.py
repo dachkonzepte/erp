@@ -165,7 +165,8 @@ def _seite(speicher: dict | None, ablauf: str, *, wirft: bool = False) -> list:
         " setItem(k, v){ if (WIRFT) throw new Error('kein Speicher'); SPEICHER[k] = String(v); }};"
         "function loadBoard(){ GELADEN++; } function renderBoard(){ GEZEICHNET++; } var view = 'teams'; var AUFRUFE = AUFRUFE || [];"
         + _vorgaben() + "document.getElementById('rangeDays').value = '14';")
-    return im_browser("planning.html", ["zeitraumGemerkt", "zeitraumMerken", "setView", "tageAnzahl"], vorbereitung, ablauf)
+    # seit 1.9.282 schließt setView() die Leiste „Rückgängig“ über der Tafel (bandSchliessen)
+    return im_browser("planning.html", ["zeitraumGemerkt", "zeitraumMerken", "setView", "tageAnzahl", "bandSchliessen"], vorbereitung, ablauf)
 
 
 @nur_mit_node

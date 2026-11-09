@@ -157,8 +157,10 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     neu = {"status": "fest", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}  # seit 1.9.235 (bis dahin „bestaetigt“)
     assert client.put(tafel["url"], json=neu).status_code == 200
     aufrufe = im_browser(
-        "planning.html", ["findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt", "verschieben"],  # seit 1.9.249 verschieben() statt dropSlot()
+        "planning.html", ["findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt", "verschieben",  # seit 1.9.249 verschieben() statt dropSlot()
+                          "fmtSpanne", "zugSenden", "bandZeigen", "leerFrage"],  # seit 1.9.282 über zugSenden(), danach die Leiste über der Tafel
         f"var board = {js(beim_laden)}; var view = 'teams'; "
+        "function esc(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',\"'\":'&#39;','\"':'&quot;'}[c]))} "
         # seit 1.9.247 die Geometrie der neuen Tafel (Spalten mit Lage und Breite) statt fester 120 px je Tag
         "var geo = {spalten: Array.from({length: 14}, (_, i) => ({d: addDays('2026-10-12', i), x: i * 120, w: 120}))}; const KONFLIKT_ART = {}; "
         "var periodStart = new Date('2026-10-12T12:00:00'); async function loadBoard() {} "

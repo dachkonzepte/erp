@@ -2396,3 +2396,44 @@ Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.281“.
 `tests/test_v460_ecken_der_karten.py`: `zug-leiste` als Karte (Aufklappfläche, Ecke der Karte) eingeordnet -- ein neuer Eintrag.
 **Angepasste Erwartungen** (Regel 28): `tests/test_v680_ansicht_auftraege.py::test_reiter_legende_und_laden_nur_in_auftraege`: alt `aktion('auftragKarte',el=>openEdit(…))`
 und `renderBacklog();renderFilter();return`, neu mit `chipTipp` und `chipZiehenEinrichten();zugNachZeigen();` (nur der Aufbau, die Aussagen bleiben).
+
+### Umsetzung 1.9.282 (Punkt 4): Leiste „Rückgängig“ über der Tafel, Klick in einen freien Tag
+
+- `<div class="zug-band" id="zugBand" role="status" hidden>` über dem Layout der Tafel. `bandZeigen(text, umkehrung)` nach dem Erfolg eines Zugs: `verschieben()`
+  („<Projekt>: <alter Zeitraum> → <neuer Zeitraum>“, wechselt die Kolonne „· <Kolonne>“ bzw. „· ohne Kolonne“) und `umsetzenZiehen()` (eigene Zeile „<Name> · <Projekt>:
+  <Tage> → ab <Tag>“, andere Zeile „<Projekt> <Tage>: <Name> → <Name>“, dazu „, ab <Tag>“, wenn sich der Tag ändert). „Rückgängig“ nur mit Umkehrung in der Antwort
+  (`bandZurueck()`: `POST` der Umkehrung, danach neu laden, einmal).
+- Bis zur nächsten Aktion: ein Klick außerhalb der Leiste (`click` mit Capture), `setView()` und `movePeriod()` schließen sie (`bandSchliessen()`). Nicht schon
+  `pointerdown`: dann verschwände die Leiste beim Greifen des nächsten Balkens, die Tafel rückte mitten im Ziehen um ihre Höhe nach oben und das Ziel unter dem
+  Zeiger wäre eine andere Zeile -- so im ersten Lauf vor dem Commit, gefunden von `klicktest_plantafel_ziehen` (zweiter Zug in „Personen“ und „Geräte“ landete
+  in der falschen Zeile). Nach einem Zug kommt der Klick erst nach dem Loslassen. In „Aufträge“ gibt es die Leiste nicht (dort die Leiste am Chip, 1.9.281).
+- Beide Züge gehen über `zugSenden(url, body, fertig)` (1.9.281): Warnungen und „niemand mehr“ fragen nacheinander, die Antworten gelten zusammen. Bis 1.9.281 hatte
+  `umsetzenZiehen()` (seit 1.9.270) eine eigene Schleife, in der nach „Behalten“/„Löschen“ eine Warnung mit 409 nur im Fehlertext des Dialogs landete.
+- „Aufträge“: ein Klick auf `#planner` in einer Zelle `td.a-tag`, nicht auf einer Karte, öffnet `openCreate(Auftrag, Tag, null, {bis: Tag})` -- der Dialog für diesen
+  Auftrag, nur dieser Tag, ohne Kolonne; Mauszeiger „copy“ über dem Tag, „pointer“ über der Karte; der Hinweis unter der Tafel nennt es.
+- Die Leiste ist eine Karte (Ecke der Karte, v460 „zug-band“); mit der Maus (`pointer:fine`) ist ihr Knopf 32 px hoch, mit dem Finger bleibt er 40 px.
+
+#### Festlegungen 1.9.282 (Bitte bestätigen)
+
+1. Nach einem Zug in „Kolonnen“, „Personen“ und „Geräte“ eine schmale Leiste über der Tafel mit dem Zug in Worten (Auftrag, Zeitraum bzw. Tage, Person oder Gerät,
+   bei einer anderen Zeile „Name → Name“, bei einer anderen Kolonne ihr Name) und „Rückgängig“ -- nur mit Umkehrung in der Antwort, einmal.
+2. Die Leiste bleibt bis zur nächsten Aktion: der nächste Klick außerhalb der Leiste (Maus oder Finger), eine andere Ansicht, ein anderer Zeitraum.
+3. Beide Züge fragen wie in „Aufträge“: mehrere Rückfragen nacheinander, die Antworten gelten zusammen.
+4. In „Aufträge“ öffnet ein Klick in einen freien Teil eines Tags den Dialog für diesen Auftrag und diesen Tag, ohne Kolonne; eine Karte öffnet ihren Einsatz.
+5. In „Aufträge“ keine Leiste über der Tafel -- dort steht sie am Chip.
+
+#### Tests und Prüfung 1.9.282
+
+Neu: `tests/test_v682_leiste_rueckgaengig.py` (in node mit dem Code der Seite: Leiste nach dem Verschieben mit Kolonne, ohne Umkehrung ohne „Rückgängig“, Umsetzen in der
+eigenen und in einer anderen Zeile, „Rückgängig“ schickt die Umkehrung einmal und schließt, Rückfragen nacheinander beim Ziehen in „Personen“; Aufbau: Leiste, Schließen
+mit der nächsten Aktion, Klick in einen freien Tag), Klicktest `scripts/klicktest_plantafel_rueckgaengig.py` (Daten wie `klicktest_plantafel_ziehen.py`: „Kolonnen“,
+„Personen“ eigene und andere Zeile mit Rückfrage, Schließen durch einen Klick auf die Seite und durch eine andere Ansicht, „Geräte“, „Aufträge“ freier Tag eines nicht eingeplanten Auftrags und Karte;
+Bilder 1440 px hell und 1280 px dunkel); `klicktest_plantafel_auftraege_ziehen.py` prüft dazu, dass in „Aufträge“ keine Leiste über der Tafel erscheint.
+Gegenproben: Archiv `gegenproben-stufe6-r5c.md`, „1.9.282“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v649_plantafel_bedienen.py::test_ziehen_je_zielzeile` und `tests/test_v670_ziehen_einzeln.py::test_seite_schickt_umsetzen` -- alt liefen `verschieben()`
+bzw. `umsetzenZiehen()` in node mit ihrer eigenen Sende-Schleife, neu brauchen sie `zugSenden()`, `bandZeigen()` und deren Helfer (Funktionsliste und Tafel der Attrappe ergänzt); die
+geprüften Anfragen sind unverändert. Ebenso `tests/test_v399_teil_updates_rest.py::test_plantafel_verschieben_schickt_nur_team_und_zeitraum` (Funktionsliste) und
+`tests/test_v679_auftragsliste.py::_seite` (`setView()` schließt die Leiste: `bandSchliessen` in der Funktionsliste) -- die geprüften Anfragen bzw. Zahlen unverändert.
+`tests/test_v663_leerer_tag.py::test_dialog_und_ziehen_nehmen_die_rueckfrage`: alt `&&!leerFrage(err,wahl=>senden(false,wahl))` und `...(wahl?{wenn_leer:wahl}:{})` (die
+eigene Schleife von `umsetzenZiehen()`), neu `!leerFrage(err,wahl=>versuch({...opt,wenn_leer:wahl}))` in `zugSenden()` und der Aufruf aus `umsetzenZiehen()`.
+`tests/test_v460_ecken_der_karten.py`: `zug-band` als Karte (Hinweiskasten) eingeordnet -- ein neuer Eintrag.
