@@ -2487,3 +2487,30 @@ und der Knopf `rueckstandZeigen(…contains('rk-zu'))`, neu mit `zeichnen=true` 
 nichts). `tests/test_v679_auftragsliste.py::_seite` -- die node-Attrappe bekommt `rueckstandZeigen()` und `rueckstandStartZu()` als Platzhalter (`setView()` ruft
 sie seit 1.9.283); die geprüften Zahlen unverändert. `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger“ (1280 px): alt „Liste eingeklappt, Knopf
 „Zum Einplanen aufklappen““ und ein Klick zum Aufklappen, neu „Liste offen, Knopf „Zum Einplanen einklappen““ ohne Klick.
+
+### Umsetzung 1.9.284 (Punkt 2): Chips mit dem Finger 32 px, der Treffbereich größer
+
+- `@media (pointer:coarse)`: `.ansicht-auftraege .chip[data-art]` 32 px hoch (bis 1.9.283 40 px, 1.9.281 Nr. 7), `position:relative`; `::before` unsichtbar mit
+  `inset:-5px -3px` -- vom Innenrand gemessen (der Rand ist 1 px), also 4 px über und unter der Außenkante und 2 px zur Seite: 40 px hoch zum Greifen. Gemessen im
+  Klicktest: mit `inset:-4px -2px` reichte er nur 3 px über den Chip (2 px darunter; bei 3 px lag dort schon die Karte).
+- Zwischen zwei Chip-Zeilen einer Karte mit dem Finger `row-gap:8px` (sonst 4 px): bei 4 px überdeckte der Treffbereich der unteren Zeile den der oberen, der
+  später gezeichnete läge obenauf. Zur Seite 4 px Abstand und je 2 px -- die Bereiche berühren sich.
+- Der Chip schneidet nicht mehr ab (ohne `overflow:hidden` und `text-overflow`, sonst schnitte er auch sein `::before` ab); der Name steht in
+  `<span class="chip-text">` und kürzt dort mit „…“ (`min-width:0`). Der Klicktest der Ansicht misst gekürzte Namen deshalb am Textteil.
+
+#### Festlegungen 1.9.284 (Bitte bestätigen)
+
+1. Mit dem Finger sind die Chips 32 px hoch (statt 40 px, 1.9.281 Nr. 7); der Treffbereich reicht 4 px darüber und darunter und 2 px zur Seite hinaus
+   (40 px), ohne die Karte höher zu machen.
+2. Zwischen zwei Chip-Zeilen einer Karte mit dem Finger 8 px Abstand -- die Treffbereiche überdecken sich nicht.
+3. Der Name kürzt in einem eigenen Teil des Chips („…“), der Chip selbst schneidet nicht ab.
+
+#### Tests und Prüfung 1.9.284
+
+Neu: `tests/test_v684_chips_finger.py` (Regel mit dem Finger, der Chip schneidet nicht ab, Textteil im Chip -- in node mit dem Code der Seite).
+`scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger“: grober Zeiger, Chip 32 px hoch, 3 px darüber und darunter trifft noch den Chip, 7 px darüber nicht.
+Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.284“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v681_ziehen_auftraege.py::test_chips_mit_dem_finger_greifbar_ohne_textauswahl` -- alt `min-height:40px;padding:4px 10px`,
+neu `min-height:32px;` (Festlegung 1.9.281 Nr. 7 geändert). `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger“ -- alt „Chips greifbar (≥ 40 px bei
+grobem Zeiger)“, neu die Höhe 32 px und der Treffbereich (oben). `scripts/klicktest_plantafel_auftraege.py`, `PLATZ` -- alt gekürzte Chips am `.chip`, neu am
+`.chip-text` (nur der Aufbau).

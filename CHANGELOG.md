@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.284 – Plantafel: Chips mit dem Finger 32 px, der Treffbereich größer
+
+Mit dem Finger (grober Zeiger) sind die Chips in „Aufträge“ jetzt 32 statt 40 px hoch (Frage 2 zu R5c, statt 1.9.281 Nr. 7); ein unsichtbarer Treffbereich reicht 4 px über und unter den Chip und 2 px zur Seite -- 40 px zum Greifen, ohne dass die Karten höher werden. Zwischen zwei Chip-Zeilen einer Karte stehen mit dem Finger 8 px, damit sich die Treffbereiche nicht überdecken. Der Name kürzt dafür in einem eigenen Teil des Chips; der Chip selbst schneidet nicht mehr ab.
+
+Neu `tests/test_v684_chips_finger.py`; angepasst v681 (Höhe mit dem Finger) und die Klicktests der Ansicht (Messung am Textteil, Treffbereich mit dem Finger). Keine Migration.
+
 ## 1.9.283 – Plantafel: „Zum Einplanen“ in „Aufträge“ immer offen, schmalere Tagesspalten
 
 In „Aufträge“ startet die Liste „Zum Einplanen“ jetzt immer offen -- auch unter 1440 px, wo „Nicht eingeplant“ in den übrigen Ansichten eingeklappt startet (1.9.257); zurück in diesen Ansichten gilt wieder deren Zustand, und Auf- und Zuklappen in „Aufträge“ merkt sich nichts. Damit bei 1280 px mit offener Liste nichts seitlich rollt (bis 1.9.282 verlangte die Tabelle mindestens 832 px bei 721 px Platz, der Freitag war abgeschnitten), sind die Tage mindestens 84 statt 110 px breit und unter 1400 px Fensterbreite die Namensspalte 200 statt 230 px; bei 1280 px sind die Tage 94 px breit. Ist eine Karte zu schmal für Gerätezeichen und Kurzname, fällt nur das Gerätezeichen weg -- „HS-DK 202“ bleibt lesbar, der Kran behält sein Zeichen. Bei 1440 px bleibt alles wie bisher (Tage 120 px).

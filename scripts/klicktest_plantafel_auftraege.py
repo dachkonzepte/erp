@@ -47,7 +47,7 @@ ZELLE = ("((name,tag)=>{const z=[...document.querySelectorAll('#planner tr.a-zei
          ",k.classList.contains('niemand')?k.textContent.trim():null])})")
 # seit 1.9.283: rollt die Tafel seitlich? Welche Chips sind gekürzt (Text breiter als der Chip)? Ist die Liste offen?
 PLATZ = ("(()=>{const p=document.getElementById('planner');return [p.scrollWidth>p.clientWidth,"
-         "[...p.querySelectorAll('.chip')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim()),"
+         "[...p.querySelectorAll('.chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim()),"  # seit 1.9.284 kürzt der Text in .chip-text
          "!document.getElementById('tafelLayout').classList.contains('rk-zu')]})()")
 LEISTE = ("((art,name)=>{const c=[...document.querySelectorAll('#backlog .ze-zeile .chip')].find(x=>x.dataset.art===art&&x.textContent.trim()===name);"
           "return c?[...c.closest('.ze-zeile').querySelectorAll('.wl i')].map(i=>i.className||'frei'):null})")

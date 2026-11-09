@@ -22,3 +22,17 @@ lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mindestens ein Te
 Nr. 2 zweiter Satz (zugeklappt bleibt sie bis zum nächsten Wechsel -- belegt durch v683::test_in_auftraege_zugeklappt_bleibt_zu_bis_zum_naechsten_wechsel und den
 Klicktest „beim nächsten Wechsel wieder offen“), Nr. 4 Innenabstände von Zelle und Karte (zusammen mit dem Chip gemessen, kein gekürzter Chip), Nr. 5 (2–4 Wochen
 unverändert).
+
+## 1.9.284 (Punkt 2): Chips mit dem Finger 32 px, der Treffbereich größer
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – mit dem Finger 32 px hoch | wieder 40 px (`284_1a`, `284_1c`) | 1 rot: v684::test_finger_32_px_mit_groesserem_treffbereich; Klicktest auftraege_ziehen: „Finger: Chip 32 px hoch, 3 px darüber und darunter …“ |
+| Nr. 1 – der Treffbereich reicht darüber hinaus | ohne `::before` (`284_1b`, `284_1d`) | 1 rot: v684::test_finger_32_px_mit_groesserem_treffbereich; Klicktest: „Finger: Chip 32 px hoch, 3 px darüber und darunter …“ |
+| Nr. 1 – 4 px ab der Außenkante | `inset:-4px -2px` (vom Innenrand: nur 3 px, `284_1e`) | Klicktest: „Finger: Chip 32 px hoch, 3 px darüber und darunter …“ (3 px darunter nicht mehr) |
+| Nr. 2 – 8 px zwischen den Zeilen | wieder 4 px (`284_2a`, `284_2b`) | 1 rot: v684::test_finger_32_px_mit_groesserem_treffbereich; Klicktest: „Finger: …“ (3 px darunter trifft den Chip der nächsten Zeile) |
+| Nr. 3 – der Chip schneidet nicht ab | `overflow:hidden` am Chip (`284_3a`, `284_3c`) | 1 rot: v684::test_der_text_kuerzt_nicht_der_chip; Klicktest: „Finger: …“ (der Treffbereich abgeschnitten) |
+| Nr. 3 – der Name kürzt in seinem eigenen Teil | ohne `span.chip-text` (`284_3b`) | 1 rot: v684::test_chip_mit_eigenem_textteil |
+
+10 Gegenproben (5 gegen Tests, 5 gegen den Klicktest), alle im ersten Lauf rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen gemessen: mit
+`inset:-4px -2px` reichte der Treffbereich nur 3 px über und 2 px unter den Chip -- `inset` zählt vom Innenrand, der Rand ist 1 px; deshalb `-5px -3px`.

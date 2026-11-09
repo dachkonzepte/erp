@@ -179,7 +179,9 @@
 .a-einsatz.schmal{min-height:34px;padding:0;border-radius:5px}
 .a-einsatz.zu{opacity:.55}
 .a-einsatz:focus-visible,.chip:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:1px}
-.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:26px;padding:2px 6px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:6px;background:var(--ds-flaeche);color:var(--ds-text);font:600 12px var(--ds-schrift-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:26px;padding:2px 6px;box-sizing:border-box;border:1px solid var(--ds-linie-stark);border-radius:6px;background:var(--ds-flaeche);color:var(--ds-text);font:600 12px var(--ds-schrift-text);white-space:nowrap}
+/* seit 1.9.284: der Text kürzt in seinem eigenen Teil -- der Chip schneidet nicht ab, sein Treffbereich darf über ihn hinausreichen (Finger) */
+.chip .chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .chip svg{flex:none}
 /* seit 1.9.283 (Stufe 6, R5d, Punkt 1): ist die Karte schmaler als ein Gerät mit Zeichen und Kurzname (bei 1280 px mit offener Liste), fällt nur das
    Gerätezeichen weg -- der Kurzname bleibt lesbar; das Kranzeichen bleibt immer */
@@ -210,7 +212,9 @@
 .ansicht-auftraege .legende-auftraege{display:flex}
 /* seit 1.9.281 (Stufe 6, R5c, Punkt 3): Ziehen in „Aufträge“ -- Chips mit Maus und Finger, die Zelle zeigt vor dem Loslassen, was passiert */
 .ansicht-auftraege .chip[data-art]{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
-@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:40px;padding:4px 10px}}
+/* seit 1.9.284 (Stufe 6, R5d, Punkt 2): mit dem Finger 32 px hoch (1.9.281: 40 px), der Treffbereich reicht 4 px darüber und darunter und 2 px zur Seite
+   hinaus -- 40 px hoch, ohne die Karte höher zu machen (inset vom Innenrand gemessen, der Rand ist 1 px: -5/-3 px) */
+@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;padding:3px 7px;position:relative}.ansicht-auftraege .chip[data-art]::before{content:'';position:absolute;inset:-5px -3px}.ansicht-auftraege .a-einsatz{row-gap:8px}}  /* 8 px zwischen den Zeilen: die Treffbereiche zweier Zeilen überdecken sich nicht */
 .zug-geist{position:fixed;z-index:60;pointer-events:none;box-shadow:0 6px 16px color-mix(in srgb,var(--ds-stark) 30%,transparent);opacity:.95}
 #planner td.a-tag{position:relative}
 #planner td.zug-ziel{outline:2px dashed var(--ds-aktion);outline-offset:-3px}
@@ -536,7 +540,7 @@ function aufGeschlossen(s){return s.order_status==='abgeschlossen'||s.order_stat
 // was am Einsatz diese Person bzw. dieses Gerät an diesem Tag betrifft
 function konflikteAm(s,feld,id,d){const ks=(s.conflicts||[]).filter(c=>c[feld]===id&&imStueck(c,[d,d]));return {warn:ks.some(c=>c.stufe==='warnung'),hint:ks.some(c=>c.stufe!=='warnung'),text:ks.map(c=>(c.stufe==='warnung'?'⚠ ':'· ')+(KONFLIKT_ART[c.type]||'')+c.label).join('\n')}}
 function chipHtml(c){const zeichen=c.art==='geraet'?(c.kran?KRANZEICHEN:GERAETZEICHEN):'';const punkt=c.hint&&!c.warn?'<span class="hinweis-punkt" aria-hidden="true"></span>':'';
-  return `<span class="chip${c.warn?' warn':''}" data-art="${esc(c.art)}" data-id="${c.id}"${c.slot?` data-slot="${esc(c.slot)}" data-tag="${esc(c.tag)}"`:''} title="${esc(c.titel)}">${zeichen}${punkt}${esc(chipName(c.name))}${c.warn?WARNZEICHEN:''}</span>`}
+  return `<span class="chip${c.warn?' warn':''}" data-art="${esc(c.art)}" data-id="${c.id}"${c.slot?` data-slot="${esc(c.slot)}" data-tag="${esc(c.tag)}"`:''} title="${esc(c.titel)}">${zeichen}${punkt}<span class="chip-text">${esc(chipName(c.name))}</span>${c.warn?WARNZEICHEN:''}</span>`}
 function personenAm(s,d){return s.employees.filter(e=>personTageIn(s,e.id).includes(d))}
 function geraeteAm(s,d){return s.resources.filter(r=>geraetTageIn(s,r.id).includes(d))}
 function karteHtml(s,d){const leute=personenAm(s,d),geraete=geraeteAm(s,d),titel=einsatzTitel(s);

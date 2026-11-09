@@ -1298,7 +1298,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   ein Klick in einen freien Tag den Dialog für Auftrag und Tag (`tests/test_v682_leiste_rueckgaengig.py`, Klicktest `klicktest_plantafel_rueckgaengig.py`).
   **Stufe 6, R5d (ab 1.9.283, Nachrunde):** in „Aufträge“ startet „Zum Einplanen“ immer offen (zurück gilt der gemerkte Zustand, dort merkt der Knopf nichts),
   die Tage mindestens 84 px, unter 1400 px die Namensspalte 200 px -- bei 1280 px mit offener Liste rollt nichts; ist die Karte zu schmal, fällt das
-  Gerätezeichen weg (Container-Query, `tests/test_v683_auftraege_liste_offen.py`). Befund R5 und Herleitung:
+  Gerätezeichen weg (Container-Query, `tests/test_v683_auftraege_liste_offen.py`); seit 1.9.284 mit dem Finger 32 px hohe Chips mit unsichtbarem Treffbereich
+  (`::before`, 40 px; der Name kürzt in `span.chip-text`, der Chip schneidet nicht ab; `tests/test_v684_chips_finger.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

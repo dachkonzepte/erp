@@ -165,7 +165,8 @@ def test_rueckfragen_nacheinander_gelten_zusammen():
 def test_chips_mit_dem_finger_greifbar_ohne_textauswahl():
     seite = SEITE.read_text(encoding="utf-8")
     assert ".ansicht-auftraege .chip[data-art]{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}" in seite
-    assert "@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:40px;padding:4px 10px}}" in seite
+    # seit 1.9.284 (R5d, Punkt 2): mit dem Finger 32 px hoch und ein größerer Treffbereich (bis 1.9.283 40 px hohe Chips, test_v684)
+    assert "@media (pointer:coarse){.ansicht-auftraege .chip[data-art]{min-height:32px;" in seite
     # Pointer Events am Layout (Maus und Finger), Escape bricht ab, Antippen öffnet das Menü statt des Einsatzes
     for teil in ("lay.addEventListener('pointerdown',", "lay.addEventListener('pointermove',", "lay.addEventListener('pointerup',",
                  "lay.addEventListener('pointercancel',()=>zugAbbrechen());", "if(e.key==='Escape'&&azug){chipTipp=true;zugAbbrechen()}",

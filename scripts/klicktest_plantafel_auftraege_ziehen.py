@@ -259,10 +259,12 @@ async def pruefen(tab, seed, p):
         [False, "Zum Einplanen einklappen"])
     p.pruefe("Finger: Liste offen", await tab.warten("!document.getElementById('tafelLayout').classList.contains('rk-zu')&&!!document.querySelector('#backlog .chip')"), True)
     await tab.warte_auf_ruhe()
+    # seit 1.9.284 (R5d, Punkt 2): mit dem Finger 32 px hoch (bis 1.9.283 40 px), der Treffbereich reicht 4 px darüber und darunter hinaus
     grob = await tab.js("matchMedia('(pointer:coarse)').matches")
-    hoehe = await tab.js(f"Math.round({chip(WASSER, FR, 'person', 'Nele')}.getBoundingClientRect().height)")
-    p.pruefe("Finger: Chips greifbar (≥ 40 px bei grobem Zeiger)", (not grob) or hoehe >= 40, True)
-    print(f"   Zeiger grob: {grob}, Höhe eines Chips: {hoehe} px")
+    p.pruefe("Finger: grober Zeiger", grob, True)
+    p.pruefe("Finger: Chip 32 px hoch, 3 px darüber und darunter trifft noch den Chip", await tab.js(
+        f"(c=>{{const r=c.getBoundingClientRect(),x=r.left+r.width/2,an=y=>{{const e=document.elementFromPoint(x,y);return !!e&&e.closest('.chip')===c}};"
+        f"return [Math.round(r.height),an(r.top-3),an(r.bottom+3),an(r.top-7)]}})({chip(WASSER, FR, 'person', 'Nele')})"), [32, True, True, False])
     pk = await punkte(tab, chip(WASSER, FR, "person", "Nele"), chip(WASSER, FR, "person", "Nele"))
     await finger(tab, pk[0], pk[1])
     await tab.warte_auf_ruhe()
