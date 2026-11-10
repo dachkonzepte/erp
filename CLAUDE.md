@@ -1417,7 +1417,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   (Auswahlliste „Gerätetypen“, Migration `c990522c34ff`; die Historie zeigt „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“ -- gespeichert bleiben die alten Namen,
   übersetzt in `app/verlauf_namen.py::ANGEZEIGTE_ARTEN`; `tests/test_v701_geraet_statt_ressource.py`); seit 1.9.302 „Inaktive ausblenden“ über der Liste wie bei den
   Mitarbeitern (eigener Schlüssel `erp_betriebsmittel_inaktive`), ohne Haken ein inaktives Gerät ohne Betriebsmittel als „nur Plantafel · inaktiv“, das Anlegen mit ihm
-  übernimmt seinen Status (`tests/test_v702_betriebsmittel_inaktive.py`)) --
+  übernimmt seinen Status (`tests/test_v702_betriebsmittel_inaktive.py`); seit 1.9.303 findet die Suche auch „nur Plantafel“ (Gruppe „Betriebsmittel“, Ziel „Betriebsmittel
+  anlegen“, `tests/test_v703_suche_nur_plantafel.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

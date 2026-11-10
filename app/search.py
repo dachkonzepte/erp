@@ -603,10 +603,28 @@ def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int,
             OperationalResource.kurzname.ilike(pattern),  # seit 1.9.298 (Geräte-Runde, N5): der Kurzname auf der Plantafel
         ))
     )
-    return _count_and_fetch(db, stmt, OperationalAsset.id.desc(), limit, options=(selectinload(OperationalAsset.resource),))
+    anzahl, treffer = _count_and_fetch(db, stmt, OperationalAsset.id.desc(), limit, options=(selectinload(OperationalAsset.resource),))
+    # seit 1.9.303 (Nachrunde der Geräte-Runde, Punkt 3): dazu die Plantafel-Geräte ohne Betriebsmittel („nur Plantafel“, auch inaktive) -- in derselben
+    # Gruppe hinter den Betriebsmitteln, Ziel „Betriebsmittel anlegen“ mit dem Gerät; dieselben Felder wie oben
+    frei = select(OperationalResource).where(
+        ~select(OperationalAsset.id).where(OperationalAsset.resource_id == OperationalResource.id).exists(),
+        or_(
+            OperationalResource.name.ilike(pattern),
+            OperationalResource.resource_type.ilike(pattern),
+            OperationalResource.manufacturer.ilike(pattern),
+            OperationalResource.model.ilike(pattern),
+            OperationalResource.identifier.ilike(pattern),
+            OperationalResource.kurzname.ilike(pattern),
+        ),
+    )
+    anzahl_frei, geraete = _count_and_fetch(db, frei, OperationalResource.name, max(limit - len(treffer), 0))
+    return anzahl + anzahl_frei, [*treffer, *geraete]
 
 
-def _operational_asset_row(a: OperationalAsset) -> dict:
+def _operational_asset_row(a: OperationalAsset | OperationalResource) -> dict:
+    if isinstance(a, OperationalResource):  # seit 1.9.303: ein Plantafel-Gerät ohne Betriebsmittel
+        sub = " · ".join(x for x in ["nur Plantafel" if a.active else "nur Plantafel · inaktiv", a.resource_type, a.manufacturer, a.model, a.identifier] if x)
+        return {"id": a.id, "title": a.name, "subtitle": sub, "url": f"/master-data/assets/new?ressource={a.id}"}
     name, asset_type, manufacturer, model, identifier, _resource_number = resolve_asset_identity(a)
     sub = " · ".join(x for x in [asset_type, manufacturer, model, identifier] if x)
     return {"id": a.id, "title": name or f"Betriebsmittel #{a.id}", "subtitle": sub or None, "url": f"/betriebsmittel/{a.id}"}

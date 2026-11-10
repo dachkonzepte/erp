@@ -174,3 +174,17 @@ Klicktest liest diese Texte; die Klicktests der berührten Seiten laufen vor dem
 | Nr. 7 – Status wie das Gerät | ohne die Übernahme des Status (`302_7b`, `302_7d`) | 1 rot: v702::test_anlegen_nimmt_auch_ein_inaktives_freies_geraet; Klicktest: „Rüttler: Haken, Auswahl mit „(inaktiv)“, Status Inaktiv“, „Rüttler: verknüpft, beide inaktiv“ und die Bilder (das Gerät wurde aktiv, „3 inaktiv“ wurde „2“) |
 
 18 Gegenproben (9 gegen Tests, 9 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben.
+
+## 1.9.303 (Punkt 3): die Suche findet „nur Plantafel“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Suche findet Geräte ohne Betriebsmittel, hinter den Betriebsmitteln | nur die Betriebsmittel zurückgegeben (`303_1a`, `303_1b`) | 3 rot: v703::test_findet_nur_plantafel_mit_ziel_anlegen, test_dieselben_felder_wie_bei_den_betriebsmitteln, test_grenze_je_gruppe_zaehlt_beide; Klicktest: „Suche: das Betriebsmittel und das Gerät …“, „Suche -> Anlegen …“ (3 Prüfungen) |
+| Nr. 2 – Ziel „Betriebsmittel anlegen“ mit dem Gerät | Ziel die Seite eines Betriebsmittels (`303_2a`, `303_2b`) | 3 rot: dieselben; Klicktest: dieselben 3 Prüfungen |
+| Nr. 3 – Untertitel „nur Plantafel“ bzw. „nur Plantafel · inaktiv“ | ohne „· inaktiv“ (`303_3a`, `303_3b`) | 1 rot: v703::test_findet_nur_plantafel_mit_ziel_anlegen; Klicktest: „Suche: das Betriebsmittel und das Gerät „nur Plantafel · inaktiv““ |
+| Nr. 4 – dieselben Felder wie bei den Betriebsmitteln | ohne Kennzeichen und Kurzname (`303_4a`) | 2 rot: v703::test_dieselben_felder_wie_bei_den_betriebsmitteln, test_findet_nur_plantafel_mit_ziel_anlegen |
+| Nr. 5 – ein Gerät mit Betriebsmittel nur einmal | auch Geräte mit Betriebsmittel (`303_5a`) | 1 rot: v703::test_geraet_mit_betriebsmittel_nur_einmal |
+| Nr. 6 – die Grenze je Gruppe für beide zusammen, die Zahl zählt beide | die Grenze für die Geräte allein (`303_6a`) | 1 rot: v703::test_grenze_je_gruppe_zaehlt_beide |
+
+9 Gegenproben (6 gegen Tests, 3 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Nr. 4–6 nur gegen Tests: der Klicktest
+hat keine Daten, an denen Felder, Doppelte oder die Grenze sichtbar würden.

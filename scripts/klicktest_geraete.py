@@ -20,6 +20,8 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
                 (der Kran nach dem Entfernen des Hakens, ein inaktiver Rüttler über die Schnittstelle), daneben „3 inaktiv“; ohne Haken stehen sie grau da, die
                 Reste als „nur Plantafel · inaktiv“; die Wahl bleibt nach dem Neuladen, die Mitarbeiterliste bleibt angehakt; „Betriebsmittel anlegen“ am
                 Rüttler: verknüpft, „(inaktiv)“ in der Auswahl, Status Inaktiv -> gespeichert bleiben Gerät und Plantafel-Gerät inaktiv
+    Suche       (seit 1.9.303) die Seite „Suche“ findet zu „Autokran“ das Betriebsmittel und den Rest des Krans als „nur Plantafel · inaktiv“; der Klick
+                führt ins Anlegen mit dem Gerät (Haken, verknüpft, Status Inaktiv)
     Bilder      Gerät mit und ohne Haken, neues planbares Gerät anlegen (vor dem Speichern), Liste mit und ohne Haken bei „Inaktive ausblenden“ -- bei 1440,
                 1280 und 412 px, hell und dunkel; bei 412 px läuft nichts über
 
@@ -281,6 +283,20 @@ async def pruefen(tab, seed, p):
     neu = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
     p.pruefe("Rüttler: verknüpft, beide inaktiv (nicht still wieder aktiv)", [neu["einplanbar"], neu["resource_id"], neu["active"],
                                                                               (await api(tab, f"/api/resources/{ruettler}"))["active"]], [True, ruettler, False, False])
+
+    # --- seit 1.9.303 (Nachrunde, Punkt 3): die Suche findet auch „nur Plantafel“ -- hier den Rest des Krans (inaktiv), Ziel „Betriebsmittel anlegen“
+    p.pruefe("Suche „Autokran“ geladen", await tab.oeffnen("/suche?q=Autokran", "document.querySelectorAll('a.result-hit').length>0"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Suche: das Betriebsmittel und das Gerät „nur Plantafel · inaktiv“", await tab.js(
+        "[...document.querySelectorAll('a.result-hit')].map(a=>[a.querySelector('.ttl').textContent,a.querySelector('.sub')?.textContent||'',a.getAttribute('href')])"),
+             [["Autokran", "Kran · Liebherr", f"/betriebsmittel/{seed['k']}"],
+              ["Autokran", "nur Plantafel · inaktiv · Kran · Liebherr", f"/master-data/assets/new?ressource={seed['rk']}"]])
+    await tab.js("[...document.querySelectorAll('a.result-hit')].find(a=>a.getAttribute('href').includes('ressource=')).click()")
+    p.pruefe("Suche -> Anlegen mit dem Gerät", await tab.warten(f"location.search==='?ressource={seed['rk']}'&&{FORM_BEREIT}&&"
+                                                                "document.getElementById('assetName').value==='Autokran'", 15), True)
+    p.pruefe("Suche -> Anlegen: Haken, verknüpft, Status Inaktiv", await tab.js(
+        "[document.getElementById('assetEinplanbar').checked,document.getElementById('assetVerknuepfen').value,document.getElementById('assetActiveSelect').value]"),
+             [True, str(seed["rk"]), "0"])
 
     # --- Büro – Auftrag: Postfach zu sehen, kein Link
     await tab.anmelden(seed["bea"])

@@ -1733,3 +1733,27 @@ in den Testdaten, dazu ein inaktiver Rüttler über die Schnittstelle; angehakt 
 Rüttler (verknüpft, „(inaktiv)“, Status Inaktiv, gespeichert beide inaktiv); Bilder „liste_ohne_haken“. Angepasst im Klicktest: „Liste: Untertitel …“ bisher
 „5 inventarisierte Betriebsmittel · 1 nur Plantafel“, jetzt „6 …“ (das neue inaktive Betriebsmittel zählt mit); der Klick auf „Betriebsmittel anlegen“ am
 Hubsteiger sucht seine Zeile (es gibt jetzt mehrere solche Links). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.302“.
+
+### Umsetzung 1.9.303 (Punkt 3): die Suche findet „nur Plantafel“
+
+- `app/search.py::_search_operational_assets()`: nach den Betriebsmitteln dieselbe Suche über die Plantafel-Geräte ohne Betriebsmittel (`NOT EXISTS` auf
+  `operational_assets.resource_id`), aktive und inaktive, in denselben Feldern (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen, Kurzname). Eine Gruppe
+  „Betriebsmittel“: erst die Betriebsmittel, dann die Geräte (nach Namen), zusammen höchstens die Grenze je Gruppe; die Gesamtzahl zählt beide. Keine neue
+  Quelle -- die Liste der Quellen (`EXPECTED_OFFICE_SEARCH_KEYS`) bleibt, bei ausgeschaltetem Modul gibt es die Gruppe weiter nicht.
+- Zeile (`_operational_asset_row()`): Titel die Bezeichnung, Untertitel „nur Plantafel“ bzw. „nur Plantafel · inaktiv“, dann Typ, Hersteller, Modell,
+  Kennzeichen; Ziel `/master-data/assets/new?ressource=<id>` (wie „Betriebsmittel anlegen“ in der Liste, auch für ein inaktives seit 1.9.302).
+
+#### Festlegungen 1.9.303 (Bitte bestätigen)
+
+1. Die Suche findet Plantafel-Geräte ohne Betriebsmittel, aktive und inaktive, in der Gruppe „Betriebsmittel“ hinter den Betriebsmitteln.
+2. Der Treffer führt in „Betriebsmittel anlegen“ mit dem Gerät.
+3. Untertitel „nur Plantafel“ bzw. „nur Plantafel · inaktiv“, dann Typ, Hersteller, Modell, Kennzeichen.
+4. Gesucht wird in denselben Feldern wie bei den Betriebsmitteln.
+5. Ein Gerät mit Betriebsmittel steht nur einmal da (als Betriebsmittel).
+6. Die Grenze je Gruppe gilt für beide zusammen, die Gesamtzahl zählt beide.
+
+#### Tests und Prüfung 1.9.303
+
+Neu: `tests/test_v703_suche_nur_plantafel.py` (Treffer und Ziel, inaktiv im Untertitel, die Felder, nur einmal, Grenze und Zahl, Modul aus). Klicktest
+`klicktest_geraete.py`: Seite „Suche“ mit „Autokran“ -- das Betriebsmittel und der Rest des Krans als „nur Plantafel · inaktiv“; der Klick führt ins Anlegen mit
+dem Gerät (Haken, verknüpft, Status Inaktiv). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.303“.

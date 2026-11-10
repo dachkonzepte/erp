@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.303 – Suche: Plantafel-Geräte ohne Betriebsmittel
+
+Die Büro-Suche findet jetzt auch ein Plantafel-Gerät ohne Betriebsmittel (Frage 3 der Geräte-Runde), aktiv oder inaktiv: in der Gruppe „Betriebsmittel“ hinter den Betriebsmitteln, Untertitel „nur Plantafel“ bzw. „nur Plantafel · inaktiv“, der Klick führt in „Betriebsmittel anlegen“ mit diesem Gerät. Gesucht wird in denselben Feldern wie bei den Betriebsmitteln (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen, Kurzname); ein Gerät mit Betriebsmittel steht weiter nur einmal da. Bis 1.9.302 fand die Suche ein solches Gerät nicht.
+
+Neu `tests/test_v703_suche_nur_plantafel.py`; `klicktest_geraete.py` sucht auf der Seite „Suche“ und folgt dem Treffer. Keine Migration.
+
 ## 1.9.302 – Betriebsmittel: „Inaktive ausblenden“, „nur Plantafel · inaktiv“
 
 Über der Liste unter Stammdaten -> Betriebsmittel steht wie bei den Mitarbeitern das Kästchen „Inaktive ausblenden“ (Frage 2 der Geräte-Runde): Vorgabe angehakt, daneben „N inaktiv“, gezählt über alle; die Wahl merkt sich der Browser für diese Liste (eigener Schlüssel, unabhängig von den Mitarbeitern). Ohne Haken stehen inaktive Betriebsmittel grau in der Liste und ein inaktives Plantafel-Gerät ohne Betriebsmittel -- der Rest vom Entfernen des Hakens an einem noch benutzten Gerät, bis 1.9.301 nirgends zu sehen -- als „nur Plantafel · inaktiv“ mit „Betriebsmittel anlegen“. Das Anlegen nimmt jetzt auch ein inaktives freies Gerät: verknüpft, in der Auswahl „(inaktiv)“, der Status wie das Gerät -- es wird nicht still wieder aktiv. Bis 1.9.301 standen inaktive Betriebsmittel immer in der Liste.
