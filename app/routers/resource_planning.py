@@ -11,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalResource, OutlookSeriesOccurrence, PlanningSlotResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalAsset, OperationalResource, OutlookSeriesOccurrence, PlanningSlotResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..operational_assets import ressource_in_gebrauch
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
@@ -177,9 +178,11 @@ def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session
 def delete_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
-    used=db.scalar(select(TeamResource).where(TeamResource.resource_id==resource_id)) or db.scalar(select(WorkPreparationTeamResource).where(WorkPreparationTeamResource.resource_id==resource_id)) \
-        or db.scalar(select(CalendarEvent).where(CalendarEvent.resource_id==resource_id)) or db.scalar(select(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.resource_id==resource_id)) \
-        or db.scalar(select(PlanningSlotResource.id).where(PlanningSlotResource.resource_id==resource_id))  # seit 1.9.161: Kran-Kalender; seit 1.9.234: Gerät am Einsatz
+    # seit 1.9.299 (Geräte-Runde, N1): gehört das Gerät zu einem Betriebsmittel, nicht löschen -- bis 1.9.298 scheiterte das unter PostgreSQL am Fremdschlüssel (500)
+    if db.scalar(select(OperationalAsset.id).where(OperationalAsset.resource_id==resource_id).limit(1)) is not None:
+        raise HTTPException(status_code=409,detail="Das Gerät gehört zu einem Betriebsmittel. Bitte dort ändern -- ohne den Haken „Auf der Plantafel einplanbar“ "
+                                                   "wird es gelöscht oder, wenn es noch eingeplant ist, deaktiviert.")
+    used=ressource_in_gebrauch(db,resource_id)  # seit 1.9.161: Kran-Kalender; seit 1.9.234: Gerät am Einsatz; seit 1.9.299 eine Stelle (app/operational_assets.py)
     if used:
         x.active=False; db.commit(); return {"deleted":False,"deactivated":True}
     db.delete(x); db.commit(); return {"deleted":True}

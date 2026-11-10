@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .models import (
     AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
-    Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
+    Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, OperationalAssetInspection, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
@@ -32,7 +32,7 @@ TYPE_LABELS = {
     Customer: "Kunde", Property: "Objekt", Project: "Projekt", ProjectDocument: "Projektdatei",
     Quote: "Angebot", QuoteItem: "Angebotsposition", QuoteItemCalculation: "Positionskalkulation",
     QuoteItemMaterialCalculation: "Materialkalkulation", QuoteDocumentMeta: "Angebotskopf",
-    QuoteSection: "LV-Titel", Order: "Auftrag", OrderRevision: "Auftragsrevision", OrderSection: "Auftrags-LV-Titel", OrderItem: "Auftragsposition", WorkPreparation: "Arbeitsvorbereitung", WorkPreparationEmployee: "AV-Mitarbeiter", WorkPreparationTask: "AV-Aufgabe", WorkPreparationMaterial: "AV-Material", WorkPreparationTeamAssignment:"AV-Team", WorkPreparationDeliveryNote:"AV-Lieferschein", WorkPreparationMaterialDeliveryNote:"Material-Lieferschein-Zuordnung", PlanningSlot:"Plantafel-Einsatz", PlanningSettings:"Plantafel-Einstellung", PlanningRegionSettings:"Plantafel-Region", PlanningHoliday:"Feiertag / betriebsfreier Tag", EmployeeAbsence:"Mitarbeiter-Abwesenheit", EmployeeAbsenceRequest:"Abwesenheitsantrag", PlanningSlotCapacity:"Plantafel-Kapazität", PlanningSlotEmployee:"Plantafel-Besetzung", PlanningSlotResource:"Plantafel-Gerät", TimeEntry:"Zeitbuchung", TimeEntryGroup:"Gruppen-Zeitbuchung", TimeEntryGroupMember:"Gruppenbuchungs-Mitglied", TimeTrackingSettings:"Zeiterfassungs-Einstellung", EmployeePayrollSettings:"DATEV-Mitarbeitereinstellung", EmployeeTargetHours:"Eigene Sollzeit", LohnartZuordnung:"Zuordnung DATEV-Export", ArbeitszeitKalendertag:"Arbeitszeitkalender", TimeBackofficeAdvancedSettings:"Zeiterfassungs-Backoffice-Einstellung", WorkTimeModel:"Arbeitszeitmodell", WorkTimeBreakRule:"Arbeitszeitmodell-Pausenregel", EmployeeWorkTimeModel:"Mitarbeiter-Arbeitszeitmodell", Supplier:"Lieferant", OperationalResource:"Ressource", Team:"Kolonne / Team", Employee: "Mitarbeiter", EmployeeFunction: "Mitarbeiterfunktion",
+    QuoteSection: "LV-Titel", Order: "Auftrag", OrderRevision: "Auftragsrevision", OrderSection: "Auftrags-LV-Titel", OrderItem: "Auftragsposition", WorkPreparation: "Arbeitsvorbereitung", WorkPreparationEmployee: "AV-Mitarbeiter", WorkPreparationTask: "AV-Aufgabe", WorkPreparationMaterial: "AV-Material", WorkPreparationTeamAssignment:"AV-Team", WorkPreparationDeliveryNote:"AV-Lieferschein", WorkPreparationMaterialDeliveryNote:"Material-Lieferschein-Zuordnung", PlanningSlot:"Plantafel-Einsatz", PlanningSettings:"Plantafel-Einstellung", PlanningRegionSettings:"Plantafel-Region", PlanningHoliday:"Feiertag / betriebsfreier Tag", EmployeeAbsence:"Mitarbeiter-Abwesenheit", EmployeeAbsenceRequest:"Abwesenheitsantrag", PlanningSlotCapacity:"Plantafel-Kapazität", PlanningSlotEmployee:"Plantafel-Besetzung", PlanningSlotResource:"Plantafel-Gerät", TimeEntry:"Zeitbuchung", TimeEntryGroup:"Gruppen-Zeitbuchung", TimeEntryGroupMember:"Gruppenbuchungs-Mitglied", TimeTrackingSettings:"Zeiterfassungs-Einstellung", EmployeePayrollSettings:"DATEV-Mitarbeitereinstellung", EmployeeTargetHours:"Eigene Sollzeit", LohnartZuordnung:"Zuordnung DATEV-Export", ArbeitszeitKalendertag:"Arbeitszeitkalender", TimeBackofficeAdvancedSettings:"Zeiterfassungs-Backoffice-Einstellung", WorkTimeModel:"Arbeitszeitmodell", WorkTimeBreakRule:"Arbeitszeitmodell-Pausenregel", EmployeeWorkTimeModel:"Mitarbeiter-Arbeitszeitmodell", Supplier:"Lieferant", OperationalResource:"Ressource", OperationalAsset:"Betriebsmittel", OperationalAssetInspection:"Prüffrist", Team:"Kolonne / Team", Employee: "Mitarbeiter", EmployeeFunction: "Mitarbeiterfunktion",
     GeneralSettings: "Unternehmenseinstellung", CalculationSettings: "Kalkulationsgrundlage",
     LaborRateSettings: "Verrechnungssatz-Grundlage", LaborRateOverheadSettings: "Gemeinkosten-Grundlage",
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
@@ -63,6 +63,8 @@ EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRol
 
 AUDITED_TYPES = (
     Customer, CustomerProfile, CustomerExtraInfo, CustomerDocument, Property, Inquiry, Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, Team, TeamEmployee, TeamResource,
+    # seit 1.9.299 (Geräte-Runde, N2): das Betriebsmittel und seine Prüffristen -- bis 1.9.298 stand nur die Ressource in der Historie
+    OperationalAsset, OperationalAssetInspection,
     Quote, QuoteItem, QuoteItemCalculation, QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection,
     QuoteItemLayout, QuoteEmployeeAssignment, Order, OrderRevision, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeeFunction,
     GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings, NumberSequence, SettingOptionGroup, SettingOption,
@@ -127,6 +129,11 @@ def _privat(obj) -> bool:
     return isinstance(obj, CalendarEvent) and bool(obj.is_private)
 
 FIELD_LABELS = {
+    # seit 1.9.299: Betriebsmittel und Prüffristen
+    "asset_number":"Betriebsmittelnummer","asset_type":"Typ","product_url":"Produktlink","usage_notes":"Bedienungshinweise","acquisition_date":"Anschaffungsdatum",
+    "acquisition_cost":"Anschaffungskosten","cost_notes":"Kosten-Notizen","selectable_in_reports":"Im Einsatzbericht auswählbar","asset_id":"Betriebsmittel",
+    "inspection_type":"Art der Prüfung","last_inspection_date":"Letzte Prüfung","inspector":"Prüfer","document_filename":"Dokument (Ablage)",
+    "document_original_name":"Dokument",
     "name":"Bezeichnung / Name","status":"Status","art":"Art des Einsatzes","planning_slot_id":"Einsatz der Plantafel","description":"Beschreibung","category":"Kategorie",
     "customer_id":"Kunde","property_id":"Objekt","project_number":"Projektnummer","title":"Titel",
     "original_filename":"Dateiname","document_date":"Dokumentdatum","quote_number":"Angebotsnummer","order_number":"Auftragsnummer","order_date":"Auftragsdatum","execution_start":"Ausführungsbeginn","execution_end":"Geplantes Ende","project_manager_employee_id":"Projektleiter / Vorarbeiter",
@@ -737,6 +744,13 @@ def _entity_label(obj):
         from .contacts import contact_display_name
         return contact_display_name(obj) or f"Kontakt #{obj.id}"
     if isinstance(obj, OperationalResource): return f"{obj.resource_number or ''} {obj.name}".strip()
+    if isinstance(obj, OperationalAsset):  # seit 1.9.299: der Name wie auf der Seite des Geräts (mit Plantafel der des Plantafel-Geräts)
+        from .operational_assets import resolve_asset_identity  # lokal: nur hier gebraucht
+        return f"{obj.asset_number or ''} {resolve_asset_identity(obj)[0] or 'Betriebsmittel'}".strip()[:255]
+    if isinstance(obj, OperationalAssetInspection):
+        from .operational_assets import resolve_asset_identity
+        geraet = obj.asset if obj.asset is not None else None
+        return f"{obj.inspection_type} · {(resolve_asset_identity(geraet)[0] if geraet is not None else None) or 'Betriebsmittel'}"[:255]
     if isinstance(obj, Team): return f"{obj.team_number or ''} {obj.name}".strip()
     if isinstance(obj, QuoteItem): return f"{obj.gaeb_oz or obj.position_number or ''} {obj.short_text}".strip()[:255]
     if isinstance(obj, Employee): return f"{obj.employee_number or ''} {obj.first_name} {obj.last_name}".strip()

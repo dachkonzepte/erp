@@ -1412,7 +1412,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   „Plantafel“ (Kurzname, Postfach nur lesen, Link nur Admin), kein „Ressource“ auf der Seite (`tests/test_v697_ein_formular.py`, Klicktest
   `klicktest_geraete.py`); seit 1.9.298 legt „+ Hinzufügen“ mit Haken auch das Plantafel-Gerät an, ein aktives ohne Betriebsmittel steht in der Liste als
   „nur Plantafel“ mit „Betriebsmittel anlegen“ (`/master-data/assets/new?ressource=<id>`), die Suche findet den Kurznamen; bei ausgeschaltetem Modul bleibt
-  „Fuhrpark & Maschinen“ (`tests/test_v698_liste_und_anlegen.py`)) --
+  „Fuhrpark & Maschinen“ (`tests/test_v698_liste_und_anlegen.py`); seit 1.9.299 Betriebsmittel und Prüffristen in der Änderungshistorie, eine Ressource mit
+  Betriebsmittel nicht löschbar (409), gleichzeitiges Verknüpfen mit Meldung statt 500 (`tests/test_v699_historie_und_meldungen.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

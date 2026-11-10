@@ -1620,3 +1620,33 @@ Neu: `tests/test_v698_liste_und_anlegen.py` (Suche über den Kurznamen; Aufbau v
 ein Plantafel-Gerät über die Schnittstelle der Ressourcen (der Umweg), Liste mit „Plantafel“ und „nur Plantafel“, Untertitel, „Betriebsmittel anlegen“ -> mit
 Haken und verknüpft gespeichert, „+ Hinzufügen“ ohne freies Gerät ohne Auswahl, mit Haken und Kurzname gespeichert, Suche „MB 17“; Bilder „anlegen“ (vor dem
 Speichern, mit einem freien Gerät in der Auswahl) und „Liste“ bei 1440, 1280 und 412 px, hell und dunkel. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.298“.
+
+### Umsetzung 1.9.299 (Punkt 4): Änderungshistorie, N1, N6
+
+- N2: `app/audit.py` -- `OperationalAsset` und `OperationalAssetInspection` in `AUDITED_TYPES`, Namen „Betriebsmittel“ und „Prüffrist“, Feldnamen für die bisher
+  unbenannten Spalten (Betriebsmittelnummer, Typ, Produktlink, Bedienungshinweise, Anschaffungsdatum, Anschaffungskosten, Kosten-Notizen, Im Einsatzbericht
+  auswählbar, Betriebsmittel, Art der Prüfung, Letzte Prüfung, Prüfer, Dokument); die Bezeichnung in der Historie wie auf der Seite des Geräts
+  (Betriebsmittelnummer und Name, mit Plantafel der des Plantafel-Geräts), bei der Prüffrist „<Art> · <Gerät>“. Der Name eines Werts mit Fremdschlüssel
+  (`resource_id`, `asset_id`) kommt wie überall aus `app/verlauf_namen.py`.
+- Beim Bauen gefunden: `geraet_speichern()` legte ein neues Betriebsmittel gleich in die Sitzung -- das Anlegen des Plantafel-Geräts (`flush()` für die
+  Nummer) schrieb es dabei ohne Nummer und Plantafel-Gerät, die Historie hieß nur „Betriebsmittel“. Seit 1.9.299 kommt es erst am Ende in die Sitzung.
+- N1: `DELETE /api/resources/{id}` -- hängt ein Betriebsmittel daran, 409 „Das Gerät gehört zu einem Betriebsmittel …“ vor jeder anderen Prüfung; die übrigen
+  Verwendungen über `ressource_in_gebrauch()` (seit 1.9.296 eine Stelle). Bis 1.9.298 löschte der Endpunkt eine sonst unbenutzte Ressource mit Betriebsmittel:
+  unter PostgreSQL 500 am Fremdschlüssel, unter SQLite ein Betriebsmittel mit Verweis ins Leere. Kein Knopf der Oberfläche ruft ihn auf.
+- N6: `create_asset()`/`update_asset()` -- scheitert Flush oder Commit an `uq_operational_asset_resource` (zwei gleichzeitige Verknüpfungen; die Prüfung im Code
+  lässt beide durch), dieselbe Meldung wie die Prüfung (422) statt 500 (`_doppelt_verknuepft()`); alles andere wie bisher.
+
+#### Festlegungen 1.9.299 (Bitte bestätigen)
+
+1. Betriebsmittel und Prüffristen stehen in der Änderungshistorie („Betriebsmittel“, „Prüffrist“), jedes Feld mit Namen; die Bezeichnung wie auf der Seite des
+   Geräts (Nummer und Name).
+2. Ein neues Betriebsmittel steht gleich mit Nummer und Namen in der Historie.
+3. `DELETE /api/resources/{id}` an einem Gerät mit Betriebsmittel: 409 mit Meldung, nichts gelöscht.
+4. Zwei gleichzeitige Verknüpfungen desselben Plantafel-Geräts: die zweite bekommt die Meldung (422) statt 500.
+
+#### Tests und Prüfung 1.9.299
+
+Neu: `tests/test_v699_historie_und_meldungen.py` (über die echten Router: Historie für Betriebsmittel, Teil-Update und Prüffrist mit Bezeichnung; 409 beim Löschen,
+ohne Betriebsmittel wie bisher; zweite Verknüpfung an der Prüfung vorbei -> 422 mit Meldung, nur ein Betriebsmittel). Die Wächter
+`tests/test_v436_fehlerrunde_vor_stufe_2.py` und `tests/test_v438_nachrunde.py` prüfen die Namen der neuen Arten und Felder mit. Klicktests: keine Oberfläche
+neu. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.299“.

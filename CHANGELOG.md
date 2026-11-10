@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.299 – Betriebsmittel: Änderungshistorie, Meldungen statt 500
+
+Betriebsmittel und Prüffristen stehen jetzt in der Änderungshistorie („Betriebsmittel“, „Prüffrist“, jedes Feld mit Namen) -- bis 1.9.298 nur das Plantafel-Gerät (N2). Ein neues Betriebsmittel steht dort gleich mit Nummer und Namen: es kommt erst am Ende in die Sitzung, ein Zwischen-Flush schrieb es sonst ohne beides. Eine Ressource, die zu einem Betriebsmittel gehört, lässt sich über `DELETE /api/resources/{id}` nicht mehr löschen: 409 mit Meldung, bis 1.9.298 scheiterte das unter PostgreSQL mit 500 am Fremdschlüssel (N1). Verknüpfen zwei Anfragen gleichzeitig dasselbe Plantafel-Gerät, bekommt die zweite die Meldung „bereits einem anderen Betriebsmittel zugeordnet“ statt 500 (N6) (Punkt 4).
+
+Neu `tests/test_v699_historie_und_meldungen.py`. Keine Migration.
+
 ## 1.9.298 – Betriebsmittel: Liste und Anlegen, Kurzname in der Suche
 
 „+ Hinzufügen“ unter Stammdaten -> Betriebsmittel legt mit dem Haken „Auf der Plantafel einplanbar“ jetzt auch ein planbares Gerät an (Abschnitt „Plantafel“ mit Kurzname, Typ als Pflicht) -- bis 1.9.297 ließ sich mit eingeschaltetem Modul kein neues Plantafel-Gerät anlegen (N3). Ein freies Plantafel-Gerät lässt sich dort verknüpfen. In der Liste trägt ein Gerät mit Plantafel „Plantafel“ (statt „Ressourcenbezug“); ein aktives Plantafel-Gerät ohne Betriebsmittel (nur über Umwege möglich) steht als „nur Plantafel“ mit „Betriebsmittel anlegen“ und zählt im Untertitel mit -- ein inaktives nicht, das ist ein Rest vom Entfernen des Hakens. Die Büro-Suche findet ein Gerät über seinen Kurznamen (N5). Bei ausgeschaltetem Modul bleibt „Fuhrpark & Maschinen“ mit dem bisherigen Formular (Punkt 3, Antwort 5).

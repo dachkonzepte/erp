@@ -103,3 +103,18 @@ betroffenen Klicktests fand die Erwartung „Leiter · Eigenständig“ in klick
 geblieben. Vor dem Festhalten fand der volle Lauf zwei Wächter rot (v414: `Number()` auf der Auswahl „verknüpfen“; v447: Typ und Auswahl über `.value`
 gesetzt statt über `auswahlOptionen()`) -- jetzt sucht das Formular das Gerät über den Text seiner ID, baut beide Auswahlen über `auswahlOptionen()` neu und
 blendet die Auswahl „verknüpfen“ nur aus (sie steht immer im Markup).
+
+## 1.9.299 (Punkt 4): Änderungshistorie, N1, N6
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Betriebsmittel in der Historie | das Betriebsmittel nicht in `AUDITED_TYPES` (`299_1a`) | 1 rot: v699::test_betriebsmittel_und_pruefung_in_der_historie (keine Einträge „Betriebsmittel“) |
+| Nr. 1 – Prüffristen in der Historie | die Prüffrist nicht in `AUDITED_TYPES` (`299_1b`) | 1 rot: v699::test_betriebsmittel_und_pruefung_in_der_historie (keine Einträge „Prüffrist“) |
+| Nr. 1 – die Bezeichnung wie auf der Seite des Geräts | ohne Nummer (`299_1c`) | 1 rot: v699::test_betriebsmittel_und_pruefung_in_der_historie („Pritsche HS-DK 202“ statt „BM-7 Pritsche HS-DK 202“) |
+| Nr. 2 – ein neues Betriebsmittel gleich mit Nummer und Namen | das Betriebsmittel gleich zu Beginn in der Sitzung, wie bis 1.9.298 (`299_2a`) | 1 rot: v699::test_betriebsmittel_und_pruefung_in_der_historie (ein Eintrag nur „Betriebsmittel“) |
+| Nr. 3 – Löschen eines Plantafel-Geräts mit Betriebsmittel: 409 | ohne die Prüfung (`299_3a`) | 1 rot: v699::test_ressource_mit_betriebsmittel_nicht_loeschen (200 statt 409) |
+| Nr. 4 – gleichzeitige Verknüpfung: Meldung statt 500 | ohne die Umwandlung des IntegrityError (`299_4a`) | 1 rot: v699::test_gleichzeitige_verknuepfung_meldung_statt_500 (IntegrityError statt 422) |
+
+6 Gegenproben, alle gegen Tests, alle rot -- je die rote Zeile angesehen, jede scheitert an ihrer eigenen Prüfung; jede Datei byte-genau zurück, kein Marker
+geblieben. Klicktests: keine -- kein Klicktest liest die Änderungshistorie eines Betriebsmittels, und die beiden 500er sind über die Seiten nicht zu erreichen
+(die Liste bietet kein Löschen eines Plantafel-Geräts mit Betriebsmittel, die Gleichzeitigkeit braucht zwei Anfragen im selben Augenblick).

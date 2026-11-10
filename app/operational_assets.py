@@ -52,6 +52,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import event, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
@@ -399,9 +400,9 @@ def geraet_speichern(db: Session, asset: OperationalAsset | None, werte: dict) -
     Identität wandert ins Betriebsmittel, die Ressource wird gelöscht, wenn nichts an ihr hängt und sie kein Postfach hat, sonst deaktiviert -- steht sie noch
     auf künftigen Einsätzen, erst nach Rückfrage (KuenftigeEinsaetze, trotzdem_entfernen). Ohne einplanbar zählt resource_id wie bis 1.9.295 (gesetzt =
     verknüpfen, null = entfernen). ressource (dict): Felder nur der Ressource -- der Kurzname."""
-    if asset is None:
-        asset = OperationalAsset(active=True, selectable_in_reports=False)
-        db.add(asset)
+    neu = asset is None
+    if neu:
+        asset = OperationalAsset(active=True, selectable_in_reports=False)  # in die Sitzung erst am Ende (seit 1.9.299: Historie mit Nummer und Name)
     ressource = db.get(OperationalResource, asset.resource_id) if asset.resource_id is not None else None
     if "einplanbar" in werte:
         ziel = bool(werte["einplanbar"])
@@ -475,8 +476,17 @@ def geraet_speichern(db: Session, asset: OperationalAsset | None, werte: dict) -
     asset.active = status
     if ressource is not None:
         ressource.active = status  # ein Status für beides (Antwort 3)
+    if neu:
+        db.add(asset)
     db.flush()
     return asset
+
+
+def _doppelt_verknuepft(exc: Exception) -> None:
+    """Seit 1.9.299 (Geräte-Runde, N6): verknüpfen zwei Anfragen gleichzeitig dasselbe Plantafel-Gerät, lässt die Prüfung im Code beide durch, die
+    Bedingung uq_operational_asset_resource hält -- beim Flush oder Commit des zweiten. Statt 500 dieselbe Meldung wie die Prüfung (422)."""
+    if isinstance(exc, IntegrityError) and ("uq_operational_asset_resource" in str(exc.orig) or "operational_assets.resource_id" in str(exc.orig)):
+        raise ValueError("Dieses Plantafel-Gerät ist bereits einem anderen Betriebsmittel zugeordnet.") from exc
 
 
 def create_asset(db: Session, payload: dict) -> dict:
@@ -484,10 +494,11 @@ def create_asset(db: Session, payload: dict) -> dict:
     wenn der Aufrufer die Sitzung weiter benutzt)."""
     try:
         asset = geraet_speichern(db, None, payload)
-    except Exception:
+        db.commit()
+    except Exception as exc:
         db.rollback()
+        _doppelt_verknuepft(exc)
         raise
-    db.commit()
     lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
@@ -499,10 +510,11 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
         return None
     try:
         geraet_speichern(db, asset, payload)
-    except Exception:
+        db.commit()
+    except Exception as exc:
         db.rollback()
+        _doppelt_verknuepft(exc)
         raise
-    db.commit()
     lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
