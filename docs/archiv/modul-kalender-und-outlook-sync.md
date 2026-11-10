@@ -2690,7 +2690,7 @@ Nr. 4 zweiter Satz (Punkt 2). Je Punkt eine Version:
   die Tafel rollt 13 px (mindestens 230 + 10 × 56 + 4 × 26 = 894 px bei 881 px Platz); 3 und 4 Wochen rollen bei 1440 und 1280 px auch eingeklappt (mindestens
   56 px je Tag, unverändert) -- als Frage im Bericht.
 
-#### Festlegungen 1.9.290 (Bitte bestätigen)
+#### Festlegungen 1.9.290 (bestätigt am 10.11.2026)
 
 1. In „Aufträge“ startet „Zum Einplanen“ mit 1 Woche immer offen, mit 2–4 Wochen wie „Nicht eingeplant“ in den übrigen Ansichten: gemerkt „zu“ bzw. „offen“
    gilt bei jeder Breite, sonst unter 1440 px zu -- ersetzt 1.9.283 Nr. 1 („immer offen“) und Nr. 5.
@@ -2727,7 +2727,7 @@ Archiv `gegenproben-stufe6-r5e.md`, „1.9.290“.
   (2 Wochen mit offener Liste, 3 und 4 Wochen -- dort rollt die Tafel ohnehin) bleibt der Kran gekürzt: Kranzeichen und „Kr“ brauchen 45 px, die Karte hat 40
   (der Name steht im title) -- als Frage im Bericht.
 
-#### Festlegungen 1.9.291 (Bitte bestätigen)
+#### Festlegungen 1.9.291 (bestätigt am 10.11.2026)
 
 1. ⚠ bzw. der Punkt eines Hinweises sitzt als Abzeichen an der oberen rechten Ecke des Chips (12 px, 5 px über die Ecke hinaus), außerhalb des Namens; der Chip
    mit Warnung behält seinen roten Rand -- ersetzt 1.9.287 Nr. 4 zweiter Satz („ein Chip mit ⚠ darf bei 1280 px kürzen“).
@@ -2762,7 +2762,7 @@ und 1280 px, mit dem Finger bei 1280 px (dunkel, hell) und 1440 px; Bilder „Au
 - Bei 94 px steht die kurze Fassung auf drei Zeilen („Schon / woanders · / Rückfrage“), die lange stand auf bis zu sechs.
 - Klicktest: dazu „Uwe Urlaub“ ohne Kolonne, die ganze Woche abwesend (`EmployeeAbsence`) -- vorher gab es in den Testdaten niemanden, der abwesend ist.
 
-#### Festlegungen 1.9.292 (Bitte bestätigen)
+#### Festlegungen 1.9.292 (bestätigt am 10.11.2026)
 
 1. Ist der Tag schmaler als 110 px, zeigt die Anzeige vor dem Loslassen die kurze Fassung: „Schon woanders · Rückfrage“ (Person oder Gerät), „Abwesend ·
    Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“; ab 110 px die lange wie bisher.
@@ -2777,3 +2777,32 @@ bei 1440 px der Tag mindestens 110 px und „Abwesend – Rückfrage …“ (Uwe
 „Schon woanders · Rückfrage“ (Bild dunkel), loslassen -> die Rückfrage nennt Ole, P-2026-0151 und „Sturmschaden Gartenstraße 2“, Abbrechen -> nichts gespeichert;
 „Abwesend · Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“ (je zurück auf die Liste: nichts); mit dem Finger hell die kurze Fassung (Bild). Gegenproben:
 Archiv `gegenproben-stufe6-r5e.md`, „1.9.292“.
+
+## Geräte-Runde: Vorweg zur Plantafel (ab 1.9.293)
+
+Auftrag vom 10.11.2026, Start 3ec14c1 (live, Datenbank `c3e9f1a7b285`). Bestätigt: Festlegungen 1.9.290–1.9.292. Antworten auf die Fragen zu R5e, gebaut als
+Vorweg der Geräte-Runde (die Runde selbst: `modul-betriebsmittel-und-betriebskosten.md`, „Geräte-Runde“), je eine Version:
+V1 ab 2 Wochen die Namensspalte 200 px, damit bei 1440 px nichts rollt; 3 und 4 Wochen dürfen rollen.
+V2 bei 56 px je Tag am Kran nur das Kranzeichen.
+V3 die kurze Anzeige passt -- nichts zu bauen, keine Version.
+V4 in schmalen Chips hießen beide Pritschen „HS“: endet der Kurzname eines Geräts auf eine Zahl, zeigt der schmale Chip die Zahl („202“), sonst die ersten zwei
+   Buchstaben.
+
+### Umsetzung 1.9.293 (V1): Namensspalte ab 2 Wochen 200 px
+
+- `auftraegeHtml()`: `nameW` ist 200 px unter 1400 px Fensterbreite (1.9.283) und jetzt auch ab 2 Wochen (`eng`, schon für die 56 px je Tag da), sonst 230 px.
+- Gemessen (1.9.290): bei 1440 px mit offener Liste 881 px Platz; 2 Wochen brauchten mit 230 px mindestens 894 px (rollte 13 px), mit 200 px 864 px -- rollt
+  nicht, die Tage 57–58 px. 3 und 4 Wochen rollen weiter (mindestens 56 px je Tag, unverändert).
+
+#### Festlegungen 1.9.293 (Bitte bestätigen)
+
+1. In „Aufträge“ ist die Namensspalte ab 2 Wochen 200 px (wie unter 1400 px Fensterbreite); mit 1 Woche ab 1400 px weiter 230 px -- bei 1440 px mit offener
+   Liste rollt 2 Wochen nicht mehr.
+2. 3 und 4 Wochen dürfen rollen (mindestens 56 px je Tag, unverändert).
+
+#### Tests und Prüfung 1.9.293
+
+Neu: `tests/test_v693_namensspalte_ab_zwei_wochen.py` (die Zeile der Seite in node, acht Fälle aus Fensterbreite und Zeitraum). `scripts/klicktest_plantafel_auftraege.py`
+ergänzt: bei 1440 px mit 1 Woche 230 px, mit 2 Wochen 200 px und die Tafel rollt nicht. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.293“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v683_auftraege_liste_offen.py::test_spalten_und_chips` -- alt `const nameW=window.innerWidth<1400?200:230;`, neu
+`const nameW=window.innerWidth<1400||eng?200:230;`.

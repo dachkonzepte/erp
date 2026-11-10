@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.293 – Plantafel: Namensspalte in „Aufträge“ ab 2 Wochen 200 px
+
+In „Aufträge“ ist die Namensspalte ab 2 Wochen jetzt 200 statt 230 px breit, wie schon unter 1400 px Fensterbreite. Damit rollt die Tafel bei 1440 px mit offener Liste „Zum Einplanen“ und 2 Wochen nicht mehr (200 + 10 × 56 + 4 × 26 = 864 px bei 881 px Platz; bis 1.9.292 rollte sie 13 px). Mit 1 Woche bleibt sie ab 1400 px 230 px; 3 und 4 Wochen dürfen rollen (Geräte-Runde, Vorweg V1).
+
+Neu `tests/test_v693_namensspalte_ab_zwei_wochen.py`, ergänzt `klicktest_plantafel_auftraege.py`, angepasst `tests/test_v683_auftraege_liste_offen.py` (die Zeile der Namensspalte). Keine Migration.
+
 ## 1.9.292 – Plantafel: kurze Anzeige vor dem Loslassen bei schmalen Tagen
 
 Ist ein Tag in „Aufträge“ schmaler als 110 px (1280 px mit offener Liste, ab 2 Wochen), zeigt die Anzeige beim Ziehen jetzt die kurze Fassung: „Schon woanders · Rückfrage“, „Antrag offen“, „Abwesend · Rückfrage“, „Ganze Kolonne · Rückfrage“. Wer wo schon steht, nennt dann die Rückfrage beim Loslassen (je Person bzw. Gerät „gleichzeitig in <Nummer> · <Auftrag>“, wie bisher). „Frei – <Tag>“ und „Ganze Kolonne – <Tag>“ bleiben, bei 1440 px (Tage 120 px) bleibt alles wie bisher. Bis 1.9.291 stand bei 94 px die lange Fassung auf bis zu sechs Zeilen und verdeckte die Zeile darüber; die kurze braucht drei (Punkt 3).

@@ -59,7 +59,7 @@ def test_wechsel_zwischen_den_uebrigen_ansichten_aendert_die_liste_nicht():
 
 def test_spalten_und_chips():
     seite = SEITE.read_text(encoding="utf-8")
-    assert "const nameW=window.innerWidth<1400?200:230;" in seite
+    assert "const nameW=window.innerWidth<1400||eng?200:230;" in seite  # seit 1.9.293 auch ab 2 Wochen 200 px (test_v693)
     assert '<col class="a-name-spalte" style="width:${nameW}px">' in seite
     assert 'style="min-width:${nameW+arbeit*(eng?56:84)+we*26}px"' in seite
     assert "@container (max-width:92px){.a-einsatz .geraetzeichen{display:none}}" in seite

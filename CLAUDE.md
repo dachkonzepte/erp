@@ -779,7 +779,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
     „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
-  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Geräte-Runde (ab 1.9.293): `docs/archiv/gegenproben-geraete.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -1312,7 +1312,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `tests/test_v690_auftraege_liste_nach_zeitraum.py`); seit 1.9.291 sitzen ⚠ und der Punkt eines Hinweises als Abzeichen an der Ecke des Chips (`span.abzeichen`,
   absolut, nimmt dem Namen keinen Platz; kein Chip gekürzt bei 1440 und 1280 px, Maus und Finger; `tests/test_v691_abzeichen_an_der_ecke.py`); seit 1.9.292 ist
   die Anzeige vor dem Loslassen unter 110 px Tagesbreite kurz („Schon woanders · Rückfrage“ …, `zugAnzeige(z, ziel, kurz)`, `SCHMALER_TAG`), den Auftrag nennt
-  dann die Rückfrage (`tests/test_v692_kurze_anzeige.py`). Befund R5 und Herleitung:
+  dann die Rückfrage (`tests/test_v692_kurze_anzeige.py`).
+  **Geräte-Runde, Vorweg (ab 1.9.293):** in „Aufträge“ ab 2 Wochen die Namensspalte 200 px -- bei 1440 px mit offener Liste rollt 2 Wochen nicht, 3 und 4
+  Wochen dürfen rollen (`tests/test_v693_namensspalte_ab_zwei_wochen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

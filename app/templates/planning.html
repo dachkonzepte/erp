@@ -579,7 +579,9 @@ function auftraegeHtml(){const dates=datumsliste(),liste=auftragsliste?auftragsl
   const arbeit=dates.filter(d=>!istWochenende(d)).length,we=dates.length-arbeit,eng=tageAnzahl()>7;
   // seit 1.9.283 (Punkt 1): unter 1400 px Fensterbreite die Namensspalte 200 statt 230 px, die Tage mindestens 84 statt 110 px (1 Woche) -- bei 1280 px mit
   // offener Liste rollt nichts seitlich (bis 1.9.282 mindestens 832 px bei 721 px Platz, der Freitag war abgeschnitten)
-  const nameW=window.innerWidth<1400?200:230;
+  // seit 1.9.293 (Geräte-Runde, Vorweg V1): ab 2 Wochen ebenfalls 200 px -- bei 1440 px mit offener Liste rollt 2 Wochen dann nicht mehr (200 + 10 × 56 + 4 × 26
+  // = 864 px bei 881 px Platz; mit 230 px rollte sie 13 px); 3 und 4 Wochen dürfen rollen
+  const nameW=window.innerWidth<1400||eng?200:230;
   const cols=`<colgroup><col class="a-name-spalte" style="width:${nameW}px">${dates.map(d=>`<col${istWochenende(d)?' class="we"':''}>`).join('')}</colgroup>`;
   const kopf=`<thead><tr><th class="a-name" scope="col">Auftrag</th>${dates.map(d=>{const f=feiertagAm(d),w=istWochenende(d);return `<th scope="col" class="${w?'we':f?'ft':''}${d===heute?' heute':''}" title="${esc([fmtJahr(d),f?f.name:''].filter(Boolean).join(' · '))}">${w?esc(wochentag(d).slice(0,1)):`<b>${esc(wochentag(d))}</b>${esc(fmt(d))}`}</th>`}).join('')}</tr></thead>`;
   const abschnitt=txt=>`<tr class="a-abschnitt"><td colspan="${dates.length+1}">${esc(txt)}</td></tr>`;

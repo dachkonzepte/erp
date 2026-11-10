@@ -1469,3 +1469,41 @@ vorher. Rekursiver Schlüssel-Scan auf der Antwort bestätigt: keine personenbez
 (kein `employee_id`/`employee_name`/`first_name`/`last_name`), unter der Anonymitäts-Untergrenze
 weder `average_days` noch `total_days` für Krankheit. 19 neue Tests
 (`tests/test_v291_produktivstunden_ist_werte.py`), volle Suite: 1668 Tests grün.
+
+## Geräte-Runde (ab 1.9.293)
+
+### Befund „Betriebsmittel und Ressource“ (10.11.2026, nur gelesen)
+
+Ein Gerät sind zwei Datensätze: die Ressource (`operational_resources` -- Plantafel, Kolonnen, AV, Termine im Postfach) und das Betriebsmittel
+(`operational_assets` -- Inventar, Prüffristen, Kosten, Einsatzbericht), verbunden 0..1 zu 0..1 (`resource_id` eindeutig). Mit eingeschaltetem Modul zeigt die
+Stammdaten-Liste nur Betriebsmittel; die Felder der Ressource (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen, Kurzname) erreichte man nur über den Link
+„Ressourcen-Stammdaten bearbeiten →“ auf der Betriebsmittelseite, und ein neues planbares Gerät war über die Oberfläche nicht anlegbar (der Haken wählte nur
+eine vorhandene Ressource). Doppelt: Nummer (Ressourcennummer eindeutig, Betriebsmittelnummer nicht), Notizen, Status. Nebenbefunde: N1 `DELETE
+/api/resources/{id}` prüfte das Betriebsmittel nicht (unter PostgreSQL 500); N2 Betriebsmittel nicht in der Änderungshistorie; N3 keine neue Ressource
+anlegbar; N4 das Ressourcen-Formular führte in die Liste statt zurück; N5 die Suche fand weder Ressourcen ohne Betriebsmittel noch den Kurznamen; N6 zwei
+gleichzeitige Verknüpfungen derselben Ressource -> 500 statt Meldung. Die Tabellen bleiben getrennt (siehe oben, „Eigene Inventarschicht“).
+
+Bestand (vom Betreiber lesend geprüft): Modul an; 5 Ressourcen, alle mit Betriebsmittel; keine Ressource ohne Betriebsmittel; keine Notizen an Ressourcen;
+Status überall gleich; Betriebsmittelnummer nur bei einem Gerät ohne Plantafel.
+
+Antworten (Betreiber, 10.11.2026):
+1. Eine sichtbare Nummer, die Betriebsmittelnummer; die Ressourcennummer bleibt intern und wird beim Anlegen automatisch vergeben.
+2. Ein Feld „Notizen“.
+3. Ein Schalter „Status“ für beides.
+4. Haken entfernen: nirgends benutzt -> Ressource löschen, sonst deaktivieren; künftige Einsätze nennt vorher eine Rückfrage.
+5. Keine Migration; eine Ressource ohne Betriebsmittel (nur über Umwege möglich) steht in der Liste als „nur Plantafel“ mit „Betriebsmittel anlegen“.
+6. Postfach im Gerät nur lesen, mit Link in die Einstellungen (Admin).
+
+### Auftrag der Geräte-Runde
+
+Start 3ec14c1, ab 1.9.293, keine Schemaänderung. Vorweg V1–V4 zur Plantafel (`modul-kalender-und-outlook-sync.md`, „Geräte-Runde: Vorweg“), dann je Punkt eine
+Version:
+1 Ein Speicherweg in einer Transaktion: `PUT /api/operational-assets/{id}` als Teil-Update mit einem Teil „ressource“; Anlegen mit Haken legt beides an; Haken
+  setzen/entfernen lässt die Werte wandern (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen).
+2 Ein Formular je Gerät: der Haken heißt „Auf der Plantafel einplanbar“; das Wort „Ressource“ verschwindet aus der Oberfläche; Bezeichnung, Typ, Hersteller,
+  Modell, Kennzeichen immer oben; mit Haken ein Abschnitt „Plantafel“ mit Kurzname und Postfach (nur lesen); keine Auswahlliste, außer es gibt eine freie
+  Ressource („vorhandenes Plantafel-Gerät verknüpfen“). Nach dem Speichern zurück zum Gerät.
+3 Liste und Anlegen: „+ Hinzufügen“ legt auch ein planbares Gerät an; „nur Plantafel“ wie Antwort 5; die Suche findet den Kurznamen (N5); bei ausgeschaltetem
+  Modul bleibt das Ressourcen-Formular.
+4 Betriebsmittel und Prüffristen in die Änderungshistorie (N2); dazu N1 (Löschen einer Ressource mit Betriebsmittel: 409 mit Meldung statt 500) und N6
+  (Meldung statt 500).

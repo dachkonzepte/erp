@@ -189,6 +189,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kran mit eigenem Zeichen in der Liste", await tab.js("!!document.querySelector('#backlog .chip[data-art=geraet] .kranzeichen')"), True)
     p.pruefe("nichts ragt über das Fenster", await tab.ueberlauf(), [])
     p.pruefe("1440 hell: rollt nicht, kein Chip gekürzt, Liste offen", await tab.js(PLATZ), [False, [], True])
+    p.pruefe("1440 hell, 1 Woche: Namensspalte 230 px", await tab.js("Math.round(document.querySelector('#planner thead th.a-name').getBoundingClientRect().width)"), 230)
     p.pruefe("1440 hell: Abzeichen an der Ecke (⚠ zweimal am Kran, Punkt an Nele)", [await tab.js(ABZEICHEN_ZAHL), await tab.js(ABZEICHEN)], [[2, 1], []])
     await tab.bild("auftraege_1440_hell")
     # der Filter „Warnungen · Hinweise“: nur Aufträge mit einem Einsatz mit Warnung oder Hinweis
@@ -213,6 +214,10 @@ async def pruefen(tab, seed, p):
              ["To", "Tom Monteur"])
     p.pruefe("2 Wochen gemerkt für Aufträge", await tab.js("JSON.parse(localStorage.getItem('plantafel_zeitraum')).auftraege"), 14)
     p.pruefe("1440 px, 2 Wochen: Liste offen", await tab.js(LISTE_ZU), False)  # seit 1.9.290: ab 1440 px offen, auch mit 2 Wochen
+    # seit 1.9.293 (Vorweg V1): ab 2 Wochen die Namensspalte 200 px -- bei 1440 px mit offener Liste rollt 2 Wochen nicht mehr (bis 1.9.292 13 px)
+    p.pruefe("1440 px, 2 Wochen: Namensspalte 200 px, rollt nicht", await tab.js(
+        "[Math.round(document.querySelector('#planner thead th.a-name').getBoundingClientRect().width),(p=>p.scrollWidth>p.clientWidth)(document.getElementById('planner'))]"),
+        [200, False])
     await tab.js("(()=>{const s=document.getElementById('rangeDays');s.value='7';s.dispatchEvent(new Event('change'));return true})()")
     await tab.warten("tageAnzahl()===7&&auftragsliste&&auftragsliste.end==='2026-11-15'")
     await tab.warte_auf_ruhe()
