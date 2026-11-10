@@ -215,7 +215,6 @@ BEKANNT = {
     "PUT /api/maintenance-settings": _VOLLES_FORMULAR,
     "PUT /api/materials/{material_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-asset-inspections/{inspection_id}": _VOLLES_FORMULAR,
-    "PUT /api/operational-assets/{asset_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-assets/{asset_id}/recurring-cost": _LEEREN_GEWOLLT,
     "PUT /api/orders/{order_id}/sections/{section_id}": _VOLLES_FORMULAR,
     "PUT /api/payment-terms/{term_id}": _VOLLES_FORMULAR,

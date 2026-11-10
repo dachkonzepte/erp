@@ -5354,6 +5354,10 @@ class OperationalAssetOut(BaseModel):
     cost_notes: str | None = None
     active: bool
     selectable_in_reports: bool
+    # seit 1.9.296: auf der Plantafel einplanbar (mit Plantafel-Gerät), dessen Kurzname und Postfach (nur lesen)
+    einplanbar: bool = False
+    kurzname: str | None = None
+    outlook_mailbox: str | None = None
     is_due: bool
     is_overdue: bool
     next_due_date: date | None = None
@@ -5394,8 +5398,17 @@ class OperationalAssetListOut(BaseModel):
     next_due_date: date | None = None
 
 
+class GeraetRessourceTeil(PartialUpdate):
+    """Seit 1.9.296 (Geräte-Runde, Punkt 1): die Felder nur des Plantafel-Geräts (der Ressource) im Speicherweg des Betriebsmittels -- der Kurzname
+    (leer = die Bezeichnung). Das Postfach pflegt weiter nur der Admin in den Einstellungen."""
+    kurzname: str | None = Field(default=None, max_length=30)
+
+
 class OperationalAssetCreate(BaseModel):
     resource_id: int | None = None
+    # seit 1.9.296: einplanbar=True legt (ohne resource_id) zum Gerät das Plantafel-Gerät an -- eine Transaktion (app/operational_assets.py::geraet_speichern())
+    einplanbar: bool | None = None
+    ressource: GeraetRessourceTeil | None = None
     asset_number: str | None = Field(default=None, max_length=50)
     name: str | None = Field(default=None, max_length=255)
     asset_type: str | None = Field(default=None, max_length=50)
@@ -5429,8 +5442,35 @@ class OperationalAssetCreate(BaseModel):
         return self
 
 
-class OperationalAssetUpdate(OperationalAssetCreate):
-    pass
+class OperationalAssetUpdate(PartialUpdate):
+    """Seit 1.9.296 (Geräte-Runde, Punkt 1) ein Teil-Update (Regel 22): nur die gesendeten Felder -- bis 1.9.295 das volle Formular (ein Altfall in
+    BEKANNT). einplanbar setzt oder entfernt den Haken „Auf der Plantafel einplanbar“ (die Identität wandert mit), resource_id verknüpft ein freies
+    vorhandenes Plantafel-Gerät, ressource ändert dessen Felder (Kurzname), trotzdem_entfernen bestätigt das Entfernen trotz künftiger Einsätze."""
+    NOT_NULL = frozenset({"active", "selectable_in_reports", "einplanbar", "trotzdem_entfernen"})
+    resource_id: int | None = None
+    einplanbar: bool | None = None
+    ressource: GeraetRessourceTeil | None = None
+    trotzdem_entfernen: bool | None = None
+    asset_number: str | None = Field(default=None, max_length=50)
+    name: str | None = Field(default=None, max_length=255)
+    asset_type: str | None = Field(default=None, max_length=50)
+    manufacturer: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+    identifier: str | None = Field(default=None, max_length=120)
+    notes: str | None = None
+    article_number: str | None = Field(default=None, max_length=100)
+    product_url: str | None = Field(default=None, max_length=500)
+    usage_notes: str | None = None
+    acquisition_date: date | None = None
+    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # wie im Browser (tests/test_v424_zahlgrenzen.py)
+    cost_notes: str | None = None
+    active: bool | None = None
+    selectable_in_reports: bool | None = None
+
+    @field_validator("product_url")
+    @classmethod
+    def _validate_product_url(cls, value: str | None) -> str | None:
+        return OperationalAssetCreate._validate_product_url(value)
 
 
 class OperationalAssetRecurringCostUpdate(BaseModel):

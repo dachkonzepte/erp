@@ -37,3 +37,32 @@ Der Test hieß zuerst „…_unter_46_px_…“ (umbenannt, die beiden Test-Gege
 | Nr. 3 – mit 1 Woche der volle Name | die Zahl auch mit 1 Woche (`295_3a`, `295_3b`) | 1 rot: v695::test_schmaler_chip (1 Woche); Klicktest: „Wasserturm Mo“, „Wasserturm Fr mit Kai und Kran“, „Garage vorläufig“, „Wartung Do“, „Kranvermietung Fr“, „Wochenleiste Kran“, „Wochenleiste HS-DK 202“ |
 
 8 Gegenproben (5 gegen Tests, 3 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben.
+
+## 1.9.296 (Punkt 1): ein Speicherweg in einer Transaktion
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Teil-Update | der PUT übernimmt das ganze Schema (`model_dump()`, `296_1a`) | 13 rot: v696 (u. a. test_teil_update_laesst_ungesendete_felder_stehen, test_ein_status_fuer_beides_und_kurzname, test_aufbau) |
+| Nr. 2 – Anlegen mit `einplanbar` legt beides an | `einplanbar` überhört (`296_2a`) | 13 rot: v696 (u. a. test_anlegen_mit_haken_legt_beides_an, test_haken_setzen_…, test_haken_entfernen_…) |
+| Nr. 2 – eine Transaktion | ein eigener Commit nach dem Anlegen des Plantafel-Geräts (`296_2b`) | 1 rot: v696::test_aufbau (`geraet_speichern()` committet nicht). Am Verhalten nicht zu sehen: jede Prüfung läuft vor dem ersten Schreiben -- deshalb am Aufbau geprüft |
+| Nr. 3 – Ressourcennummer „R-<id>“ | keine Nummer (`296_3a`) | 2 rot: v696::test_anlegen_mit_haken_legt_beides_an, test_ressourcennummer_mit_zusatz_wenn_vergeben |
+| Nr. 3 – vergeben: mit Zusatz | kein Zusatz (`296_3b`) | 1 rot: v696::test_ressourcennummer_mit_zusatz_wenn_vergeben |
+| Nr. 4 – Identität mit Plantafel in der Ressource | immer ins Betriebsmittel (`296_4a`) | 2 rot: v696::test_anlegen_mit_haken_legt_beides_an, test_identitaet_mit_haken_in_der_ressource_ohne_im_betriebsmittel |
+| Nr. 5 – Haken setzen: die Spalten des Betriebsmittels werden leer | sie bleiben (`296_5a`) | 1 rot: v696::test_haken_setzen_laesst_die_werte_wandern |
+| Nr. 5 – die Werte des Geräts wandern | nur die gesendeten (`296_5b`) | 2 rot: v696::test_haken_setzen_laesst_die_werte_wandern, test_haken_setzen_ohne_typ_legt_nichts_an |
+| Nr. 6 – verknüpfen übernimmt das vorhandene Gerät | die gesendeten Werte gelten (`296_6a`) | 1 rot: v696::test_freies_vorhandenes_geraet_verknuepfen |
+| Nr. 7 – Haken entfernen: die Werte wandern | nichts wandert (`296_7a`) | 7 rot: v696::test_haken_entfernen_benutzt_deaktiviert_ohne_rueckfrage (alle Fälle) u. a. |
+| Nr. 7 – nirgends benutzt: gelöscht | nie gelöscht (`296_7b`) | 1 rot: v696::test_haken_entfernen_nirgends_benutzt_loescht_die_ressource |
+| Nr. 7 – mit Postfach: deaktiviert | das Postfach zählt nicht (`296_7c`) | 1 rot: v696::test_haken_entfernen_benutzt_deaktiviert_ohne_rueckfrage[postfach] |
+| Nr. 7 – künftige Einsätze: Rückfrage | keine Rückfrage (`296_7d`) | 1 rot: v696::test_haken_entfernen_mit_kuenftigem_einsatz_fragt_zurueck |
+| Nr. 7 – stornierte Aufträge zählen nicht | sie zählen (`296_7e`) | 1 rot: v696::…[stornierter_einsatz] |
+| Nr. 7 – nur Tage ab heute | auch vergangene Tage des Geräts (`296_7f`) | 1 rot: v696::…[nur_vergangene_tage] |
+| Nr. 8 – ein Status für beides | die Ressource bleibt (`296_8a`) | 1 rot: v696::test_ein_status_fuer_beides_und_kurzname |
+| Nr. 9 – Kurzname über `ressource` | überhört (`296_9a`) | 3 rot: v696::test_anlegen_mit_haken_legt_beides_an, test_ein_status_…, test_haken_setzen_… |
+| Nr. 10 – Typ Pflicht, keine stille Vorgabe | still „Maschine“ (`296_10a`) | 2 rot: v696::test_anlegen_mit_haken_ohne_typ_oder_name_legt_nichts_an[Typ], test_haken_setzen_ohne_typ_legt_nichts_an |
+| Nr. 11 – kein „Ressource“ in den Meldungen | die alte Meldung (`296_11a`) | 1 rot: v696::test_freies_vorhandenes_geraet_verknuepfen |
+
+20 Gegenproben, alle gegen Tests, alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Klicktests: keine -- die Seite speichert schon über den neuen
+Weg, ihr Aufbau wird mit 1.9.297 ersetzt; das Speichern über die Seite prüft ab dort `klicktest_geraete.py` (Gegenproben dort).
+Beim Bauen gefunden: ein abgelehntes Anlegen ließ im Test das Betriebsmittel in der geteilten Sitzung hängen -- `create_asset()`/`update_asset()` rollen
+seither bei jedem Fehler zurück; der Test legte zuerst einen Einsatz an einem stornierten Auftrag an, das lehnt die Plantafel zu Recht ab (Test berichtigt).

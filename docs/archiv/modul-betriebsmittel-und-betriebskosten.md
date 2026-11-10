@@ -1507,3 +1507,49 @@ Version:
   Modul bleibt das Ressourcen-Formular.
 4 Betriebsmittel und Prüffristen in die Änderungshistorie (N2); dazu N1 (Löschen einer Ressource mit Betriebsmittel: 409 mit Meldung statt 500) und N6
   (Meldung statt 500).
+
+### Umsetzung 1.9.296 (Punkt 1): ein Speicherweg in einer Transaktion
+
+- `app/operational_assets.py::geraet_speichern(db, asset|None, werte)` -- legt an oder ändert, nur die gesendeten Felder, committet nicht (der Aufrufer:
+  `create_asset()`/`update_asset()`, beide mit `rollback()` bei jedem Fehler -- im Test teilt sich der Client die Sitzung, ein abgelehntes Anlegen ließ das
+  Betriebsmittel sonst in ihr hängen). Die Tabellen bleiben getrennt.
+- Haken: `einplanbar` (neu). True ohne Plantafel-Gerät: eine neue Ressource mit der Identität des Geräts (gesendet, sonst die bisherige), Typ Pflicht (kein
+  stiller Vorgabetyp), die eigenen Spalten des Betriebsmittels werden leer; mit `resource_id` ein freies vorhandenes verknüpfen -- dann gilt dessen Identität
+  (wie bis 1.9.295, die gesendete wird dabei nicht übernommen). False an einem Gerät mit Plantafel: die Identität wandert ins Betriebsmittel, die Ressource wird
+  gelöscht, wenn nichts an ihr hängt (`ressource_in_gebrauch()`: Kolonne, AV, Einsatz, Termin, Serie) und sie kein Postfach hat, sonst deaktiviert (das
+  Postfach bleibt in den Einstellungen). Stehen künftige Einsätze an (`kuenftige_einsaetze()`: an den Tagen des Geräts ab heute, ohne abgeschlossene und
+  stornierte Aufträge), 409 mit `rueckfrage` (`kuenftige_einsaetze`, Liste der Einsätze), nichts gespeichert; mit `trotzdem_entfernen` noch einmal. Ohne
+  `einplanbar` zählt `resource_id` wie bisher (gesetzt = verknüpfen, null = entfernen) -- das alte Anlegen-Formular bleibt bis 1.9.298 gültig.
+- Identität: gesendet gilt, mit Plantafel in die Ressource (Bezeichnung und Typ dort Pflicht), sonst ins Betriebsmittel. Status: ein Schalter für beides
+  (Antwort 3; ein Verknüpfen gleicht den Status des Plantafel-Geräts an). Notizen: die des Betriebsmittels (Antwort 2), die der Ressource liest niemand mehr.
+  Kurzname: Teil `ressource` (`GeraetRessourceTeil`, PartialUpdate).
+- Ressourcennummer (Antwort 1): intern, beim Anlegen „R-<id>“, ist sie vergeben mit Zusatz („R-2-2“) -- kein Nummernkreis, sie erscheint nirgends.
+- Antwort: `OperationalAssetOut` mit `einplanbar`, `kurzname`, `outlook_mailbox` (nur Büro; die Monteurin bekommt weiter `OperationalAssetFieldOut`).
+- Meldung „bereits einem anderen Betriebsmittel zugeordnet“ ohne das Wort „Ressource“.
+- Die Betriebsmittelseite speichert über den neuen Weg (Haken als `einplanbar`, Identität immer gefüllt, Rückfrage per `confirm()`); ihr Aufbau folgt mit
+  1.9.297.
+
+#### Festlegungen 1.9.296 (Bitte bestätigen)
+
+1. `PUT /api/operational-assets/{id}` ist ein Teil-Update: nur die gesendeten Felder.
+2. Gerät und Plantafel-Gerät werden in einer Transaktion gespeichert; Anlegen mit `einplanbar` legt beides an, scheitert etwas, ist nichts gespeichert.
+3. Die Ressourcennummer vergibt der Server beim Anlegen („R-<id>“, vergeben: mit Zusatz); sie ist intern.
+4. Bezeichnung, Typ, Hersteller, Modell, Kennzeichen stehen genau einmal: mit Plantafel in der Ressource, sonst im Betriebsmittel.
+5. Haken setzen: ein neues Plantafel-Gerät mit den Werten des Geräts (sie wandern), die Spalten des Betriebsmittels werden leer.
+6. Ein freies vorhandenes Plantafel-Gerät verknüpfen übernimmt dessen Werte (die gesendeten nicht).
+7. Haken entfernen: die Werte wandern ins Betriebsmittel; das Plantafel-Gerät wird gelöscht, wenn nichts an ihm hängt und es kein Postfach hat, sonst
+   deaktiviert; stehen künftige Einsätze an (an seinen Tagen ab heute, ohne abgeschlossene und stornierte Aufträge), erst nach Rückfrage (409).
+8. Ein Status für beides.
+9. Der Kurzname kommt über den Teil `ressource`.
+10. Ein Gerät auf der Plantafel braucht einen Typ (422, keine stille Vorgabe).
+11. Meldungen des Speicherwegs nennen kein „Ressource“.
+
+#### Tests und Prüfung 1.9.296
+
+Neu: `tests/test_v696_ein_speicherweg.py` (über den echten Router: Anlegen mit und ohne Haken, ohne Typ oder Bezeichnung nichts angelegt, Nummer mit Zusatz,
+Teil-Update, Identität mit und ohne Haken, Status und Kurzname, Haken setzen, verknüpfen, Haken entfernen -- gelöscht, deaktiviert in fünf Fällen (Kolonne,
+Postfach, vergangener Einsatz, stornierter Auftrag, nur vergangene Tage), Rückfrage bei künftigem Einsatz; `geraet_speichern()` committet nicht).
+Klicktests: die Speicherung über die Seite prüft `klicktest_geraete.py` ab 1.9.297 (der heutige Aufbau wird ersetzt). Gegenproben: Archiv
+`gegenproben-geraete.md`, „1.9.296“.
+**Angepasste Erwartungen** (Regel 28): `tests/test_v329_update_handler_struktur.py` -- `BEKANNT` ohne `PUT /api/operational-assets/{asset_id}` (56 statt 57
+Einträge; die Liste darf nur kürzer werden).

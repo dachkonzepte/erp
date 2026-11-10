@@ -749,7 +749,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
     `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 57 Altfälle (seit 1.9.280, bis 1.9.279 58, bis 1.9.166 59, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 56 Altfälle (seit 1.9.296, bis 1.9.295 57, bis 1.9.279 58, bis 1.9.166 59, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -1405,7 +1405,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Standardverweigerung, Objekt-Filterung, Dateiablage je Objekt, Büro-Suche) --
   `docs/archiv/rechtekonzept.md` (siehe auch "Rechtekonzept (kurz)" unten)
 - **Betriebsmittelverwaltung & Betriebskosten-Übersicht** (Modul `betriebsmittel`/
-  `betriebskosten`, Verrechnungssatz-Kreislauf, Produktivstunden-Rechner) --
+  `betriebskosten`, Verrechnungssatz-Kreislauf, Produktivstunden-Rechner; Geräte-Runde ab 1.9.293: ein Gerät, ein Speicherweg in einer Transaktion
+  (`app/operational_assets.py::geraet_speichern()`, `PUT /api/operational-assets/{id}` als Teil-Update mit `einplanbar` und Teil `ressource`, die Identität
+  wandert mit dem Haken, Ressourcennummer intern „R-<id>“, Haken entfernen löscht oder deaktiviert das Plantafel-Gerät, künftige Einsätze mit Rückfrage;
+  `tests/test_v696_ein_speicherweg.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder
@@ -2356,7 +2359,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **57 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.280 die Geräte, seit 1.9.167 die Lohnstammdaten, seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+- **56 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.296 das Betriebsmittel, seit 1.9.280 die Geräte, seit 1.9.167 die Lohnstammdaten, seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
   Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, der
   Einsatzbericht seit 1.9.66, Regel 22;
   darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.

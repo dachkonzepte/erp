@@ -59,8 +59,9 @@ from .berlin_time import berlin_today
 from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import (
-    Checklist, OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
-    OperationalResource, RecurringCost, ServiceReportAsset,
+    CalendarEvent, Checklist, OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
+    OperationalResource, OutlookSeriesOccurrence, PlanningSlot, PlanningSlotResource, RecurringCost, ServiceReportAsset, TeamResource,
+    WorkPreparationTeamResource,
 )
 from .operational_asset_documents import delete_document_file
 from .recurring_costs import normalize_to_annual
@@ -245,6 +246,10 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "cost_notes": asset.cost_notes,
         "active": asset.active,
         "selectable_in_reports": asset.selectable_in_reports,
+        # seit 1.9.296 (Geräte-Runde): einplanbar = mit Plantafel-Gerät; Kurzname und Postfach (nur lesen) aus ihm
+        "einplanbar": asset.resource_id is not None,
+        "kurzname": asset.resource.kurzname if asset.resource is not None else None,
+        "outlook_mailbox": asset.resource.outlook_mailbox if asset.resource is not None else None,
         "is_due": is_due,
         "is_overdue": is_overdue,
         "next_due_date": next_due_date,
@@ -319,59 +324,184 @@ def _validate_resource_not_taken(db: Session, resource_id: int | None, *, exclud
     if exclude_asset_id is not None:
         query = query.where(OperationalAsset.id != exclude_asset_id)
     if db.scalar(query.limit(1)) is not None:
-        raise ValueError("Diese Ressource ist bereits einem anderen Betriebsmittel zugeordnet.")
+        raise ValueError("Dieses Plantafel-Gerät ist bereits einem anderen Betriebsmittel zugeordnet.")  # seit 1.9.296 ohne das Wort „Ressource“
+
+
+# --- seit 1.9.296 (Geräte-Runde, Punkt 1): ein Gerät, ein Speicherweg -------------------------------------------------------------------------
+# Ein Gerät sind weiter zwei Zeilen (Betriebsmittel und, wenn es auf der Plantafel einplanbar ist, die Ressource -- nie zusammenlegen, siehe
+# OperationalAsset). Gespeichert wird beides in EINER Transaktion über geraet_speichern(): Anlegen und Ändern übernehmen nur die gesendeten Felder
+# (Teil-Update, Regel 22). Die Identität (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen) steht genau einmal: mit Plantafel in der Ressource, sonst
+# im Betriebsmittel; setzt oder entfernt man den Haken, wandert sie mit. Der Status gilt für beides (Antwort 3), die Notizen sind die des
+# Betriebsmittels (Antwort 2), die Ressourcennummer vergibt der Server (Antwort 1).
+IDENTITAET = {"name": "name", "asset_type": "resource_type", "manufacturer": "manufacturer", "model": "model", "identifier": "identifier"}
+EIGENE_FELDER = ("asset_number", "notes", "article_number", "product_url", "usage_notes", "acquisition_date", "acquisition_cost", "cost_notes",
+                 "selectable_in_reports")
+
+
+class KuenftigeEinsaetze(Exception):
+    """Seit 1.9.296 (Antwort 4): den Haken an einem Gerät entfernen, das noch eingeplant ist -- erst nach Rückfrage (trotzdem_entfernen)."""
+
+    def __init__(self, einsaetze: list[dict]):
+        self.einsaetze = einsaetze
+        liste = "; ".join(f"{e['projekt']} {e['zeitraum']}" for e in einsaetze)
+        super().__init__(f"Das Gerät ist noch eingeplant: {liste}. Ohne den Haken steht es dort nicht mehr auf der Plantafel.")
+
+
+def ressource_in_gebrauch(db: Session, resource_id: int) -> bool:
+    """Seit 1.9.296: hängt etwas außer dem Betriebsmittel an der Ressource (Kolonne, AV, Einsatz, Termin im Postfach)? Dieselben Prüfungen wie
+    DELETE /api/resources/{id} -- dann wird sie deaktiviert statt gelöscht."""
+    return any(db.scalar(select(m.id).where(m.resource_id == resource_id).limit(1)) is not None
+               for m in (TeamResource, WorkPreparationTeamResource, PlanningSlotResource, CalendarEvent, OutlookSeriesOccurrence))
+
+
+def kuenftige_einsaetze(db: Session, resource_id: int) -> list[dict]:
+    """Seit 1.9.296: Einsätze, an denen das Gerät heute oder später steht (an seinen Tagen, 1.9.234) -- ohne abgeschlossene und stornierte Aufträge
+    (die zählen auf der Tafel nicht, 1.9.151)."""
+    from .planning import _tage_der_zeile  # lokal: planning importiert die Geräte-Logik nicht, aber vieles andere
+    heute = berlin_today()
+    out = []
+    for slot, zeile in db.execute(
+            select(PlanningSlot, PlanningSlotResource).join(PlanningSlotResource, PlanningSlotResource.slot_id == PlanningSlot.id)
+            .where(PlanningSlotResource.resource_id == resource_id, PlanningSlot.end_date >= heute)
+            .order_by(PlanningSlot.start_date, PlanningSlot.id)):
+        order = slot.preparation.order if slot.preparation is not None else None
+        if order is not None and order.status in ("abgeschlossen", "storniert"):
+            continue
+        tage = sorted(t for t in _tage_der_zeile(slot, zeile) if t >= heute)
+        if not tage:
+            continue
+        projekt = order.project if order is not None else None
+        out.append({"id": slot.id, "projekt": (projekt.name if projekt is not None else None) or (order.order_number if order is not None else "Einsatz"),
+                    "von": tage[0].isoformat(), "bis": tage[-1].isoformat(),
+                    "zeitraum": tage[0].strftime("%d.%m.") + ("" if tage[0] == tage[-1] else "–" + tage[-1].strftime("%d.%m."))})
+    return out
+
+
+def _ressourcennummer(db: Session, ressource: OperationalResource) -> None:
+    """Seit 1.9.296 (Antwort 1): die Ressourcennummer ist intern und wird beim Anlegen vergeben -- „R-<id>“, ist sie (von Hand) schon vergeben, mit Zusatz."""
+    basis = f"R-{ressource.id}"
+    nummer, n = basis, 1
+    while db.scalar(select(OperationalResource.id).where(OperationalResource.resource_number == nummer, OperationalResource.id != ressource.id)) is not None:
+        n += 1
+        nummer = f"{basis}-{n}"
+    ressource.resource_number = nummer
+
+
+def _kurzname(werte: dict) -> str | None:
+    return ((werte.get("ressource") or {}).get("kurzname") or "").strip() or None
+
+
+def geraet_speichern(db: Session, asset: OperationalAsset | None, werte: dict) -> OperationalAsset:
+    """Seit 1.9.296: legt ein Gerät an (asset None) oder ändert es -- nur die gesendeten Felder, alles in der Transaktion des Aufrufers (committet nicht).
+
+    einplanbar (bool): True = das Gerät steht auf der Plantafel -- hat es noch keine Ressource, wird eine angelegt (mit der Identität des Geräts, die
+    Ressourcennummer vergibt der Server) oder, mit resource_id, eine freie vorhandene verknüpft (dann gilt deren Identität); False = Haken entfernen: die
+    Identität wandert ins Betriebsmittel, die Ressource wird gelöscht, wenn nichts an ihr hängt und sie kein Postfach hat, sonst deaktiviert -- steht sie noch
+    auf künftigen Einsätzen, erst nach Rückfrage (KuenftigeEinsaetze, trotzdem_entfernen). Ohne einplanbar zählt resource_id wie bis 1.9.295 (gesetzt =
+    verknüpfen, null = entfernen). ressource (dict): Felder nur der Ressource -- der Kurzname."""
+    if asset is None:
+        asset = OperationalAsset(active=True, selectable_in_reports=False)
+        db.add(asset)
+    ressource = db.get(OperationalResource, asset.resource_id) if asset.resource_id is not None else None
+    if "einplanbar" in werte:
+        ziel = bool(werte["einplanbar"])
+    elif "resource_id" in werte:
+        ziel = werte["resource_id"] is not None
+    else:
+        ziel = ressource is not None
+    verknuepfen = werte.get("resource_id") if ziel else None
+    neu_verknuepft = verknuepfen is not None and (ressource is None or ressource.id != verknuepfen)
+    status = bool(werte["active"]) if "active" in werte else asset.active
+    if neu_verknuepft:
+        andere = db.get(OperationalResource, verknuepfen)
+        if andere is None:
+            raise ValueError("Dieses Plantafel-Gerät wurde nicht gefunden.")
+        _validate_resource_not_taken(db, verknuepfen, exclude_asset_id=asset.id)
+        # verknüpfen übernimmt die Identität des vorhandenen Geräts (wie bis 1.9.295); die eigenen Spalten bleiben leer
+        for feld in IDENTITAET:
+            setattr(asset, feld, None)
+        asset.resource, ressource = andere, andere
+        ressource.active = status
+    elif ziel and ressource is None:
+        # Haken setzen ohne vorhandenes Gerät: eine neue Ressource mit der Identität des Geräts (gesendet, sonst die bisherige)
+        ident = {feld: (werte[feld] if feld in werte else getattr(asset, feld)) for feld in IDENTITAET}
+        name = (ident["name"] or "").strip()
+        if not name:
+            raise ValueError("Bezeichnung ist erforderlich.")
+        if not ident["asset_type"]:
+            raise ValueError("Ein Gerät auf der Plantafel braucht einen Typ.")
+        ressource = OperationalResource(name=name, resource_type=ident["asset_type"], manufacturer=ident["manufacturer"], model=ident["model"],
+                                        identifier=ident["identifier"], active=status)
+        db.add(ressource)
+        db.flush()
+        _ressourcennummer(db, ressource)
+        for feld in IDENTITAET:
+            setattr(asset, feld, None)
+        asset.resource = ressource
+    elif not ziel and ressource is not None:
+        # Haken entfernen: die Identität wandert ins Betriebsmittel, die Ressource geht (Antwort 4)
+        einsaetze = kuenftige_einsaetze(db, ressource.id)
+        if einsaetze and not werte.get("trotzdem_entfernen"):
+            raise KuenftigeEinsaetze(einsaetze)
+        for feld, spalte in IDENTITAET.items():
+            setattr(asset, feld, getattr(ressource, spalte))
+        asset.resource = None
+        db.flush()
+        if ressource_in_gebrauch(db, ressource.id) or ressource.outlook_mailbox:
+            ressource.active = False  # das Postfach bleibt in den Einstellungen; deaktiviert gleicht es nichts mehr ab
+        else:
+            db.delete(ressource)
+        ressource = None
+    if ressource is not None and "kurzname" in (werte.get("ressource") or {}):
+        ressource.kurzname = _kurzname(werte)
+
+    # Identität: gesendet gilt -- mit Plantafel in der Ressource, sonst im Betriebsmittel (beim Verknüpfen eines vorhandenen Geräts nicht, s. o.)
+    if not neu_verknuepft:
+        for feld, spalte in IDENTITAET.items():
+            if feld not in werte:
+                continue
+            wert = werte[feld].strip() if isinstance(werte[feld], str) else werte[feld]
+            if ressource is not None:
+                if not wert and feld in ("name", "asset_type"):
+                    raise ValueError("Bezeichnung ist erforderlich." if feld == "name" else "Ein Gerät auf der Plantafel braucht einen Typ.")
+                setattr(ressource, spalte, wert or None)
+            else:
+                setattr(asset, feld, wert or None)
+    if ressource is None and not (asset.name and asset.name.strip()):
+        raise ValueError("Bezeichnung ist erforderlich, wenn das Gerät nicht auf der Plantafel einplanbar ist.")
+    for feld in EIGENE_FELDER:
+        if feld in werte:
+            setattr(asset, feld, bool(werte[feld]) if feld == "selectable_in_reports" else werte[feld])
+    asset.active = status
+    if ressource is not None:
+        ressource.active = status  # ein Status für beides (Antwort 3)
+    db.flush()
+    return asset
 
 
 def create_asset(db: Session, payload: dict) -> dict:
-    resource_id = payload.get("resource_id")
-    if resource_id is not None and db.get(OperationalResource, resource_id) is None:
-        raise ValueError(f"Ressource #{resource_id} wurde nicht gefunden.")
-    _validate_resource_not_taken(db, resource_id)
-
-    own_fields = {"name", "asset_type", "manufacturer", "model", "identifier"}
-    asset = OperationalAsset(
-        resource_id=resource_id,
-        asset_number=payload.get("asset_number"),
-        notes=payload.get("notes"),
-        article_number=payload.get("article_number"),
-        product_url=payload.get("product_url"),
-        usage_notes=payload.get("usage_notes"),
-        acquisition_date=payload.get("acquisition_date"),
-        acquisition_cost=payload.get("acquisition_cost"),
-        cost_notes=payload.get("cost_notes"),
-        active=payload.get("active", True),
-        selectable_in_reports=payload.get("selectable_in_reports", False),
-        **{k: (None if resource_id is not None else payload.get(k)) for k in own_fields},
-    )
-    db.add(asset)
+    """Seit 1.9.296 über geraet_speichern() -- eine Transaktion für Gerät und Plantafel-Gerät; scheitert sie, ist nichts gespeichert (rollback, auch
+    wenn der Aufrufer die Sitzung weiter benutzt)."""
+    try:
+        asset = geraet_speichern(db, None, payload)
+    except Exception:
+        db.rollback()
+        raise
     db.commit()
     lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
 
 def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
+    """Seit 1.9.296 ein Teil-Update über geraet_speichern() (bis 1.9.295 setzte ein fehlendes Feld den Vorgabewert)."""
     asset = db.get(OperationalAsset, asset_id)
     if asset is None:
         return None
-    resource_id = payload.get("resource_id")
-    if resource_id is not None and db.get(OperationalResource, resource_id) is None:
-        raise ValueError(f"Ressource #{resource_id} wurde nicht gefunden.")
-    _validate_resource_not_taken(db, resource_id, exclude_asset_id=asset_id)
-
-    own_fields = ("name", "asset_type", "manufacturer", "model", "identifier")
-    asset.resource_id = resource_id
-    for field in own_fields:
-        setattr(asset, field, None if resource_id is not None else payload.get(field))
-    asset.asset_number = payload.get("asset_number")
-    asset.notes = payload.get("notes")
-    asset.article_number = payload.get("article_number")
-    asset.product_url = payload.get("product_url")
-    asset.usage_notes = payload.get("usage_notes")
-    asset.acquisition_date = payload.get("acquisition_date")
-    asset.acquisition_cost = payload.get("acquisition_cost")
-    asset.cost_notes = payload.get("cost_notes")
-    asset.active = payload.get("active", True)
-    asset.selectable_in_reports = payload.get("selectable_in_reports", False)
+    try:
+        geraet_speichern(db, asset, payload)
+    except Exception:
+        db.rollback()
+        raise
     db.commit()
     lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)

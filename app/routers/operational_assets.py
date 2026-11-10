@@ -31,7 +31,7 @@ in operational_asset.html deaktiviert, serverseitig ausschließlich über den ne
 Endpunkt erreichbar."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
@@ -42,7 +42,7 @@ from ..operational_asset_documents import (
     ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document, save_document,
 )
 from ..operational_assets import (
-    MODULE_KEY, LinkedRecurringCostHasDataError, asset_qr_target_url,
+    MODULE_KEY, KuenftigeEinsaetze, LinkedRecurringCostHasDataError, asset_qr_target_url,
     check_due_asset_inspections_and_create_reminders, create_asset, create_asset_document, create_inspection,
     delete_asset, delete_asset_document, delete_inspection, get_asset, get_asset_field,
     load_operational_asset_settings, list_assets, list_due_assets, list_selectable_assets,
@@ -155,20 +155,29 @@ def get_operational_asset_qr_code(asset_id: int, request: Request, db: Session =
     return Response(content=png, media_type="image/png")
 
 
+def _rueckfrage_einsaetze(exc: KuenftigeEinsaetze) -> JSONResponse:
+    """Seit 1.9.296 (Antwort 4): 409 mit der Rückfrage -- das Gerät steht noch auf künftigen Einsätzen; nichts gespeichert, mit trotzdem_entfernen noch einmal."""
+    return JSONResponse(status_code=409, content={"detail": str(exc), "rueckfrage": {"art": "kuenftige_einsaetze", "text": str(exc), "einsaetze": exc.einsaetze}})
+
+
 @router.post("/api/operational-assets", response_model=OperationalAssetOut)
 def post_operational_asset(payload: OperationalAssetCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.296: einplanbar=True legt Gerät und Plantafel-Gerät in einer Transaktion an; nur die gesendeten Felder (die übrigen: Vorgabe)."""
     _require_module_enabled(db)
     try:
-        return create_asset(db, payload.model_dump())
+        return create_asset(db, payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.put("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut)
 def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.296 ein Teil-Update in einer Transaktion für Gerät und Plantafel-Gerät (app/operational_assets.py::geraet_speichern())."""
     _require_module_enabled(db)
     try:
-        result = update_asset(db, asset_id, payload.model_dump())
+        result = update_asset(db, asset_id, payload.model_dump(exclude_unset=True))
+    except KuenftigeEinsaetze as exc:
+        return _rueckfrage_einsaetze(exc)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if result is None:

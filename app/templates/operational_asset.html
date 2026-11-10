@@ -175,7 +175,8 @@ tr:last-child td{border-bottom:none}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// seit 1.9.296 mit Status und Rückfrage am Fehler (409 „noch eingeplant“ beim Entfernen des Hakens)
+async function api(u,o){const r=await fetch(u,o);if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));const f=Error(d.detail||r.statusText);f.status=r.status;f.rueckfrage=d.rueckfrage||null;throw f}return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const assetId={{ asset_id }};
@@ -233,10 +234,11 @@ function fillEditor(){
   document.getElementById('editHasResource').checked=!!asset.resource_id;
   document.getElementById('editResource').innerHTML=resourceOptionsHtml(asset.resource_id);
   document.getElementById('editType').innerHTML=typeOptionsHtml(asset.asset_type);
-  document.getElementById('editName').value=asset.resource_id?'':(asset.name||'');
-  document.getElementById('editManufacturer').value=asset.resource_id?'':(asset.manufacturer||'');
-  document.getElementById('editModel').value=asset.resource_id?'':(asset.model||'');
-  document.getElementById('editIdentifier').value=asset.resource_id?'':(asset.identifier||'');
+  // seit 1.9.296 immer die Werte des Geräts (mit Haken die der Ressource): nimmt man den Haken ab, wandern sie ins Betriebsmittel
+  document.getElementById('editName').value=asset.name||'';
+  document.getElementById('editManufacturer').value=asset.manufacturer||'';
+  document.getElementById('editModel').value=asset.model||'';
+  document.getElementById('editIdentifier').value=asset.identifier||'';
   document.getElementById('editAssetNumber').value=asset.asset_number||'';
   document.getElementById('editActive').value=asset.active?'1':'0';
   document.getElementById('editSelectableInReports').value=asset.selectable_in_reports?'1':'0';
@@ -290,14 +292,15 @@ async function saveAsset(){
     for(const id of ['editorStatus','costStatus']){const s=document.getElementById(id);s.className='status err';s.textContent=e.message}
     return;
   }
+  // seit 1.9.296 über den neuen Speicherweg (Teil-Update): einplanbar setzt bzw. entfernt den Haken, resource_id nur beim Verknüpfen eines anderen
+  // Plantafel-Geräts, die Identität nur ohne Haken (entfernt man ihn, wandert sie mit: die Felder zeigen dann die bisherigen Werte)
   const payload={
-    resource_id:hasResource?Number(resourceId):null,
+    einplanbar:hasResource,
+    ...(hasResource&&Number(resourceId)!==asset.resource_id?{resource_id:Number(resourceId)}:{}),
+    ...(hasResource?{}:{name,asset_type:document.getElementById('editType').value||null,
+      manufacturer:document.getElementById('editManufacturer').value.trim()||null,model:document.getElementById('editModel').value.trim()||null,
+      identifier:document.getElementById('editIdentifier').value.trim()||null}),
     asset_number:document.getElementById('editAssetNumber').value.trim()||null,
-    name:hasResource?null:name,
-    asset_type:hasResource?null:(document.getElementById('editType').value||null),
-    manufacturer:hasResource?null:(document.getElementById('editManufacturer').value.trim()||null),
-    model:hasResource?null:(document.getElementById('editModel').value.trim()||null),
-    identifier:hasResource?null:(document.getElementById('editIdentifier').value.trim()||null),
     notes:document.getElementById('editNotes').value.trim()||null,
     usage_notes:document.getElementById('editUsageNotes').value.trim()||null,
     article_number:document.getElementById('editArticleNumber').value.trim()||null,
@@ -311,10 +314,16 @@ async function saveAsset(){
   const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
   // Seit 1.8.95 über den Baustein (_speichern.html, Bereich 'betriebsmittel'): jede Antwort trägt das ganze Betriebsmittel und wird
   // nur übernommen, wenn sie nicht veraltet ist -- mit laufenden Kosten zeichnet erst deren Antwort (saveRecurringCost).
-  const body=JSON.stringify(payload);
   try{
-    await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),
-                    {anwenden:d=>{asset=d;if(!canManageRecurringCost)render()}});
+    try{
+      await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),
+                      {anwenden:d=>{asset=d;if(!canManageRecurringCost)render()}});
+    }catch(e){
+      // seit 1.9.296 (Antwort 4): steht das Gerät noch auf künftigen Einsätzen, fragt der Server zurück -- nichts gespeichert
+      if(!(e.status===409&&e.rueckfrage&&e.rueckfrage.art==='kuenftige_einsaetze'&&confirm(e.rueckfrage.text+'\n\nTrotzdem entfernen?')))throw e;
+      await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,trotzdem_entfernen:true})}),
+                      {anwenden:d=>{asset=d;if(!canManageRecurringCost)render()}});
+    }
     if(canManageRecurringCost){
       await saveRecurringCost(recurringCost,false);
     }

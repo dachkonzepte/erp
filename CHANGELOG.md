@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.296 – Betriebsmittel: ein Speicherweg für Gerät und Plantafel-Gerät
+
+Ein Gerät sind weiter zwei Datensätze -- das Betriebsmittel und, wenn es auf der Plantafel einplanbar ist, die Ressource --, gespeichert werden sie jetzt auf einem Weg in einer Transaktion (`app/operational_assets.py::geraet_speichern()`). `PUT /api/operational-assets/{id}` ist ein Teil-Update (bis 1.9.295 das volle Formular, ein Altfall weniger in der Liste der Update-Handler) mit dem neuen Schalter `einplanbar` und einem Teil `ressource` (Kurzname). Anlegen mit `einplanbar` legt Gerät und Plantafel-Gerät zusammen an; die Ressourcennummer vergibt der Server („R-<id>“). Bezeichnung, Typ, Hersteller, Modell und Kennzeichen stehen genau einmal: mit Plantafel in der Ressource, sonst im Betriebsmittel -- setzt man den Haken, wandern sie in ein neues Plantafel-Gerät, nimmt man ihn ab, ins Betriebsmittel; das Plantafel-Gerät wird dann gelöscht, wenn nichts daran hängt, sonst deaktiviert, und steht es noch auf künftigen Einsätzen, fragt der Server vorher zurück (409). Ein Status gilt für beides (Punkt 1, Antworten 1–4).
+
+Die Betriebsmittelseite speichert schon über den neuen Weg (der Aufbau des Formulars folgt mit 1.9.297). Neu `tests/test_v696_ein_speicherweg.py`, angepasst `tests/test_v329_update_handler_struktur.py` (der PUT steht nicht mehr in `BEKANNT`). Keine Migration.
+
 ## 1.9.295 – Plantafel: schmaler Geräte-Chip mit der Zahl am Ende des Kurznamens
 
 Ab 2 Wochen zeigen die Chips in „Aufträge“ nur zwei Zeichen -- bis 1.9.294 hießen damit beide Pritschen „HS“. Endet der Kurzname eines Geräts (ohne Kurzname sein Name) auf eine Zahl, zeigt der schmale Chip jetzt die Zahl („HS-DK 202“ -> „202“), sonst wie bisher die ersten zwei Zeichen („Kr“); Personen bleiben bei zwei Zeichen, mit 1 Woche steht der volle Name. Der volle Name steht im title (Geräte-Runde, Vorweg V4).
