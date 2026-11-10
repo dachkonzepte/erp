@@ -220,6 +220,10 @@ async def pruefen(tab, seed, p):
         f"(()=>{{const c=document.querySelector('#planner td[data-date=\"{MO}\"] .chip[data-art=person]');return [c.textContent.trim(),c.title]}})()"),
              ["To", "Tom Monteur"])
     p.pruefe("2 Wochen gemerkt für Aufträge", await tab.js("JSON.parse(localStorage.getItem('plantafel_zeitraum')).auftraege"), 14)
+    # seit 1.9.295 (Vorweg V4): der schmale Chip eines Geräts zeigt die Zahl am Ende des Kurznamens (bis 1.9.294 hießen beide Pritschen „HS“), sonst zwei Zeichen
+    p.pruefe("2 Wochen: Geräte „202“, „204“, der Kran „Kr“, Personen zwei Zeichen", await tab.js(
+        "[[...new Set([...document.querySelectorAll('#planner .chip[data-art=geraet] .chip-text')].map(t=>t.textContent))].sort(),"
+        "[...new Set([...document.querySelectorAll('#planner .chip[data-art=person] .chip-text')].map(t=>t.textContent.length))]]"), [["202", "204", "Kr"], [2]])
     p.pruefe("1440 px, 2 Wochen: Liste offen", await tab.js(LISTE_ZU), False)  # seit 1.9.290: ab 1440 px offen, auch mit 2 Wochen
     # seit 1.9.293 (Vorweg V1): ab 2 Wochen die Namensspalte 200 px -- bei 1440 px mit offener Liste rollt 2 Wochen nicht mehr (bis 1.9.292 13 px)
     p.pruefe("1440 px, 2 Wochen: Namensspalte 200 px, rollt nicht", await tab.js(

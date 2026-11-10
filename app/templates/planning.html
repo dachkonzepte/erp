@@ -556,15 +556,16 @@ const GERAETZEICHEN='<svg class="geraetzeichen" width="13" height="13" viewBox="
 const KRANZEICHEN='<svg class="kranzeichen" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h2l12 4H7"/><path d="M17 8v5"/><path d="M15.5 13h3v3h-3z"/><path d="M3 21h7"/></svg>';
 function geraetInfo(id){return board.resources.find(r=>r.id===id)||{}}
 function geraetName(id,fallback){const g=geraetInfo(id);return g.kurzname||g.name||fallback||''}
-// ab 2 Wochen schmaler: zwei Zeichen, der volle Name im title
-function chipName(n){return tageAnzahl()>7?String(n).slice(0,2):n}
+// ab 2 Wochen schmaler: zwei Zeichen, der volle Name im title. Seit 1.9.295 (Geräte-Runde, Vorweg V4) bei einem Gerät, dessen Kurzname (sonst Name) auf eine
+// Zahl endet, die Zahl („HS-DK 202“ -> „202“) -- zwei Pritschen hießen sonst beide „HS“
+function chipName(n,art){if(tageAnzahl()<=7)return n;const s=String(n);if(art==='geraet'){const m=/(\d+)\s*$/.exec(s);if(m)return m[1]}return s.slice(0,2)}
 function aufGeschlossen(s){return s.order_status==='abgeschlossen'||s.order_status==='storniert'}
 // was am Einsatz diese Person bzw. dieses Gerät an diesem Tag betrifft
 function konflikteAm(s,feld,id,d){const ks=(s.conflicts||[]).filter(c=>c[feld]===id&&imStueck(c,[d,d]));return {warn:ks.some(c=>c.stufe==='warnung'),hint:ks.some(c=>c.stufe!=='warnung'),text:ks.map(c=>(c.stufe==='warnung'?'⚠ ':'· ')+(KONFLIKT_ART[c.type]||'')+c.label).join('\n')}}
 // seit 1.9.291: ⚠ bzw. der Punkt als Abzeichen an der Ecke, hinter dem Namen im Markup (nimmt ihm keinen Platz; bis 1.9.290 im Fluss des Chips)
 function chipHtml(c){const zeichen=c.art==='geraet'?(c.kran?KRANZEICHEN:GERAETZEICHEN):'';
   const abzeichen=c.warn?`<span class="abzeichen warn" aria-hidden="true">${WARNZEICHEN}</span>`:c.hint?'<span class="abzeichen" aria-hidden="true"><span class="hinweis-punkt"></span></span>':'';
-  return `<span class="chip${c.warn?' warn':''}" data-art="${esc(c.art)}" data-id="${c.id}"${c.slot?` data-slot="${esc(c.slot)}" data-tag="${esc(c.tag)}"`:''} title="${esc(c.titel)}">${zeichen}<span class="chip-text">${esc(chipName(c.name))}</span>${abzeichen}</span>`}
+  return `<span class="chip${c.warn?' warn':''}" data-art="${esc(c.art)}" data-id="${c.id}"${c.slot?` data-slot="${esc(c.slot)}" data-tag="${esc(c.tag)}"`:''} title="${esc(c.titel)}">${zeichen}<span class="chip-text">${esc(chipName(c.name,c.art))}</span>${abzeichen}</span>`}
 function personenAm(s,d){return s.employees.filter(e=>personTageIn(s,e.id).includes(d))}
 function geraeteAm(s,d){return s.resources.filter(r=>geraetTageIn(s,r.id).includes(d))}
 function karteHtml(s,d){const leute=personenAm(s,d),geraete=geraeteAm(s,d),titel=einsatzTitel(s);

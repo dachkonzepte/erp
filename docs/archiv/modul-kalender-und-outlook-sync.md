@@ -2826,3 +2826,23 @@ ergänzt: bei 1440 px mit 1 Woche 230 px, mit 2 Wochen 200 px und die Tafel roll
 Neu: `tests/test_v694_kran_nur_zeichen.py` (die Regel, die Karte als Container, kein Ausblenden des Kranzeichens). `scripts/klicktest_plantafel_auftraege.py`
 ergänzt: bei 1280 px mit 3 Wochen 56 px je Tag, kein Chip gekürzt, der Kran nur mit Zeichen; ebenso bei 1440 px mit 2 Wochen (58 px); bei 1280 px mit 2 Wochen
 (61 px) der Kran mit „Kr“. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.294“.
+
+### Umsetzung 1.9.295 (V4): schmaler Geräte-Chip mit der Zahl am Ende des Kurznamens
+
+- `chipName(n, art)` (bis 1.9.294 `chipName(n)`): mit 1 Woche der volle Name; ab 2 Wochen bei einem Gerät die Zahl am Ende des Namens (`/(\d+)\s*$/`), sonst die
+  ersten zwei Zeichen. `chipHtml()` gibt die Art des Chips mit. Der Name ist der des Chips: der Kurzname, ohne ihn die Bezeichnung (`geraetName()`, 1.9.280).
+- Gilt überall, wo die Ansicht Chips zeichnet -- in den Karten und in der Liste „Zum Einplanen“ (dieselbe Funktion). Personen und Kolonnen bleiben bei zwei Zeichen.
+- Zwei Geräte mit derselben Endzahl („HS-DK 202“, „XY 202“) sähen gleich aus; der volle Name steht im title (Vorweg V4, als Hinweis im Befund).
+
+#### Festlegungen 1.9.295 (Bitte bestätigen)
+
+1. Ab 2 Wochen zeigt der schmale Chip eines Geräts die Zahl am Ende seines Kurznamens (ohne Kurzname: der Bezeichnung), sonst wie bisher die ersten zwei Zeichen;
+   der volle Name im title.
+2. Nur Geräte: Personen und Kolonnen bleiben bei zwei Zeichen.
+3. Mit 1 Woche unverändert der volle Kurzname.
+
+#### Tests und Prüfung 1.9.295
+
+Neu: `tests/test_v695_geraet_endzahl.py` (in node mit dem Code der Seite: elf Fälle aus Name, Art und Zeitraum; der Chip mit der Zahl und dem Namen im title).
+`scripts/klicktest_plantafel_auftraege.py` ergänzt: bei 1440 px mit 2 Wochen die Geräte „202“, „204“, „Kr“, Personen zwei Zeichen. Gegenproben: Archiv
+`gegenproben-geraete.md`, „1.9.295“.
