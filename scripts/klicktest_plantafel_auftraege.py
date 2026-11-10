@@ -16,7 +16,9 @@ Bediener“; der Kran ist am Fr doppelt); offen ohne Einsatz: Dachfenster Krüge
                 oder Hinweis
     Platz       (seit 1.9.283) bei 1440 und 1280 px rollt die Tafel nicht, kein Chip ist gekürzt, „Zum Einplanen“ offen; bei 1280 px der Freitag zu sehen, das
                 Kranzeichen da, die Gerätezeichen weg; „Kolonnen“ zu, „Aufträge“ offen, Zuklappen dort merkt nichts, der nächste Wechsel öffnet wieder
-    Bilder      „Aufträge“ bei 1440 und 1280 px, hell und dunkel
+    Zeitraum    (seit 1.9.290) mit 2–4 Wochen startet „Zum Einplanen“ unter 1440 px eingeklappt, mit 1 Woche offen -- beim Wechsel in die Ansicht und bei jedem
+                anderen Zeitraum dort, nichts gemerkt; bei 1440 px mit 2 Wochen offen; bei 1280 px mit 2 Wochen rollt die Tafel nicht
+    Bilder      „Aufträge“ bei 1440 und 1280 px, hell und dunkel; 2 Wochen bei 1280 px, hell und dunkel
     keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -49,6 +51,9 @@ ZELLE = ("((name,tag)=>{const z=[...document.querySelectorAll('#planner tr.a-zei
 PLATZ = ("(()=>{const p=document.getElementById('planner');return [p.scrollWidth>p.clientWidth,"
          "[...p.querySelectorAll('.chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim()),"  # seit 1.9.284 kürzt der Text in .chip-text
          "!document.getElementById('tafelLayout').classList.contains('rk-zu')]})()")
+# seit 1.9.290: Zeitraum in „Aufträge“ wechseln wie mit der Auswahl (change) und warten, bis die Tafel neu gezeichnet ist
+ZEITRAUM_SETZEN = "(t=>{const s=document.getElementById('rangeDays');s.value=String(t);s.dispatchEvent(new Event('change'));return true})"
+LISTE_ZU = "document.getElementById('tafelLayout').classList.contains('rk-zu')"
 LEISTE = ("((art,name)=>{const c=[...document.querySelectorAll('#backlog .ze-zeile .chip')].find(x=>x.dataset.art===art&&x.textContent.trim()===name);"
           "return c?[...c.closest('.ze-zeile').querySelectorAll('.wl i')].map(i=>i.className||'frei'):null})")
 
@@ -198,6 +203,7 @@ async def pruefen(tab, seed, p):
         f"(()=>{{const c=document.querySelector('#planner td[data-date=\"{MO}\"] .chip[data-art=person]');return [c.textContent.trim(),c.title]}})()"),
              ["To", "Tom Monteur"])
     p.pruefe("2 Wochen gemerkt für Aufträge", await tab.js("JSON.parse(localStorage.getItem('plantafel_zeitraum')).auftraege"), 14)
+    p.pruefe("1440 px, 2 Wochen: Liste offen", await tab.js(LISTE_ZU), False)  # seit 1.9.290: ab 1440 px offen, auch mit 2 Wochen
     await tab.js("(()=>{const s=document.getElementById('rangeDays');s.value='7';s.dispatchEvent(new Event('change'));return true})()")
     await tab.warten("tageAnzahl()===7&&auftragsliste&&auftragsliste.end==='2026-11-15'")
     await tab.warte_auf_ruhe()
@@ -243,6 +249,38 @@ async def pruefen(tab, seed, p):
     await tab.warten(BEREIT)
     await tab.warte_auf_ruhe()
     p.pruefe("1280 Aufträge: beim nächsten Wechsel wieder offen", await tab.js("document.getElementById('tafelLayout').classList.contains('rk-zu')"), False)
+
+    # seit 1.9.290 (R5e, Punkt 1): mit 2–4 Wochen startet die Liste unter 1440 px eingeklappt (wie die übrigen Ansichten), mit 1 Woche offen -- beim Wechsel
+    # des Zeitraums und beim Wechsel in die Ansicht; nichts gemerkt
+    await tab.js(f"({ZEITRAUM_SETZEN})(14)")
+    await tab.warten("tageAnzahl()===14&&auftragsliste&&auftragsliste.end==='2026-11-22'&&!!document.querySelector('#planner tr.a-zeile')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280 dunkel, 2 Wochen: Liste zu, rollt nicht", (await tab.js(PLATZ))[0::2], [False, False])
+    p.pruefe("1280, 2 Wochen: nichts gemerkt", await tab.js("localStorage.getItem('plantafel_rueckstand')"), None)
+    p.pruefe("1280, 2 Wochen: nichts ragt über das Fenster", await tab.ueberlauf(), [])
+    await tab.bild("auftraege_2wochen_1280_dunkel")
+    await tab.js("setView('teams')")
+    await tab.warten("view==='teams'&&!!document.querySelector('#planner .planner-row')")
+    await tab.js("setView('auftraege')")
+    await tab.warten(BEREIT + "&&tageAnzahl()===14")
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280, 2 Wochen: beim Wechsel in die Ansicht zu", await tab.js(LISTE_ZU), True)
+    await tab.js(f"({ZEITRAUM_SETZEN})(7)")
+    await tab.warten("tageAnzahl()===7&&auftragsliste&&auftragsliste.end==='2026-11-15'&&!!document.querySelector('#planner tr.a-zeile')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280, zurück auf 1 Woche: Liste offen, rollt nicht", await tab.js(PLATZ), [False, [], True])
+    await tab.js("document.getElementById('rkKnopf').click()")
+    p.pruefe("1280, 1 Woche von Hand zu", await tab.js(LISTE_ZU), True)
+    await tab.js(f"({ZEITRAUM_SETZEN})(21)")
+    await tab.warten("tageAnzahl()===21&&auftragsliste&&auftragsliste.end==='2026-11-29'&&!!document.querySelector('#planner tr.a-zeile')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("1280, 3 Wochen: Liste zu, nichts gemerkt", await tab.js(f"[{LISTE_ZU},localStorage.getItem('plantafel_rueckstand')]"), [True, None])
+    await tab.js(f"({ZEITRAUM_SETZEN})(14)")
+    await tab.warten("tageAnzahl()===14&&auftragsliste&&auftragsliste.end==='2026-11-22'")
+    await tab.warte_auf_ruhe()
+    await laden(tab, p, 5, "light", "1280 hell, 2 Wochen")
+    p.pruefe("1280 hell, 2 Wochen: Liste zu, rollt nicht", [await tab.js("tageAnzahl()"), (await tab.js(PLATZ))[0::2]], [14, [False, False]])
+    await tab.bild("auftraege_2wochen_1280_hell")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

@@ -779,7 +779,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
     „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
-  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -1306,7 +1306,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   neben dem Zeiger (`tests/test_v687_anzeige_schwebt.py`); seit 1.9.288 zeigt „Nicht eingeplant“ die Stunden wie „Aufträge“ und die Akte (`rueckstand()` mit
   `stunden` über `app/auftragsliste.py::stunden_zeile()`, gemeinsame Abfragen `gebuchte_stunden()`, `aus_wartungsvertrag()`; `tests/test_v688_rueckstand_stunden.py`);
   seit 1.9.289 nennt die Leiste nach dem Ziehen einer Person oder eines Geräts alten und neuen Zeitraum („10.–11.11. → 11.–12.11.“ statt „→ ab …“), den neuen vom
-  Server (`ziel_tage` in der Antwort von `umsetzen()`, in Arbeitstagen; `tests/test_v689_leiste_zeitraum_und_stammdaten.py`). Befund R5 und Herleitung:
+  Server (`ziel_tage` in der Antwort von `umsetzen()`, in Arbeitstagen; `tests/test_v689_leiste_zeitraum_und_stammdaten.py`).
+  **Stufe 6, R5e (ab 1.9.290):** in „Aufträge“ startet „Zum Einplanen“ mit 1 Woche offen, mit 2–4 Wochen wie die übrigen Ansichten (gemerkt, sonst unter 1440 px
+  zu) -- beim Wechsel in die Ansicht und bei jedem anderen Zeitraum dort, ohne zu merken (`auftraegeListeOffen()`, `zeitraumGewechselt()`;
+  `tests/test_v690_auftraege_liste_nach_zeitraum.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

@@ -31,8 +31,9 @@ def _lauf(gemerkt: str | None, breite: int, ablauf: str) -> list:
         "document.getElementById('rkKnopf').querySelector = () => ({setAttribute(){}});"
         "const zu = () => KLASSEN.has('rk-zu');"
         "if (rueckstandStartZu(window.innerWidth)) rueckstandZeigen(false, false);")
-    return im_browser("planning.html", ["setView", "rueckstandZeigen", "rueckstandStartZu", "rkKnopfBeschriften", "zeitraumGemerkt", "tageAnzahl"],
-                      vorbereitung, ablauf)
+    # seit 1.9.290 ruft setView() auftraegeListeOffen() (test_v690): ohne gemerkten Zeitraum ist es 1 Woche -- die Fälle hier unverändert
+    return im_browser("planning.html", ["setView", "rueckstandZeigen", "rueckstandStartZu", "rkKnopfBeschriften", "zeitraumGemerkt", "tageAnzahl",
+                                        "auftraegeListeOffen"], vorbereitung, ablauf)
 
 
 @nur_mit_node

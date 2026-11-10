@@ -2465,7 +2465,7 @@ Nr. 4 (Punkt 3). Je Punkt eine Version:
   „HS-DK 202“ ohne Zeichen (74 px) in die Karte (75 px); gemessen kein gekürzter Chip bei 1440 und 1280 px.
 - 2–4 Wochen bei 1280 px mit offener Liste: die Tabelle rollt weiter in ihrem Rahmen (2 Wochen mindestens 200 + 10 × 56 + 4 × 26 = 864 px).
 
-#### Festlegungen 1.9.283 (Bitte bestätigen)
+#### Festlegungen 1.9.283 (bestätigt am 10.11.2026, außer Nr. 5: mit 2–4 Wochen startet die Liste unter 1440 px eingeklappt -- seit 1.9.290)
 
 1. In „Aufträge“ startet „Zum Einplanen“ immer offen; zurück in den übrigen Ansichten gilt wieder deren Zustand (gemerkt, sonst unter 1440 px zu).
 2. Auf- und Zuklappen in „Aufträge“ merkt sich nichts; zugeklappt bleibt die Liste bis zum nächsten Wechsel in die Ansicht.
@@ -2498,7 +2498,7 @@ sie seit 1.9.283); die geprüften Zahlen unverändert. `scripts/klicktest_planta
 - Der Chip schneidet nicht mehr ab (ohne `overflow:hidden` und `text-overflow`, sonst schnitte er auch sein `::before` ab); der Name steht in
   `<span class="chip-text">` und kürzt dort mit „…“ (`min-width:0`). Der Klicktest der Ansicht misst gekürzte Namen deshalb am Textteil.
 
-#### Festlegungen 1.9.284 (Bitte bestätigen)
+#### Festlegungen 1.9.284 (bestätigt am 10.11.2026)
 
 1. Mit dem Finger sind die Chips 32 px hoch (statt 40 px, 1.9.281 Nr. 7); der Treffbereich reicht 4 px darüber und darunter und 2 px zur Seite hinaus
    (40 px), ohne die Karte höher zu machen.
@@ -2522,7 +2522,7 @@ grobem Zeiger)“, neu die Höhe 32 px und der Treffbereich (oben). `scripts/kli
 - Der Klick in einen freien Teil eines Tags (1.9.282) ruft `openCreate(Auftrag, Tag, kolonneDesAuftrags(Auftrag), {bis: Tag})`; der Dialog schlägt dann wie beim
   Anlegen aus einer Kolonnenzeile deren Mitglieder vor. Der Hinweis unter der Tafel nennt es.
 
-#### Festlegungen 1.9.285 (Bitte bestätigen)
+#### Festlegungen 1.9.285 (bestätigt am 10.11.2026)
 
 1. Klick in einen freien Tag: hat der Auftrag an anderen Tagen (seine Einsätze im geladenen Zeitraum) genau eine Kolonne, schlägt der Dialog sie vor; keine oder
    mehrere -- ohne Kolonne (statt 1.9.282 Nr. 4).
@@ -2544,7 +2544,7 @@ wenn er genau eine hat).“ (Festlegung 1.9.282 Nr. 4 geändert).
   (`team.resources`, `geraetName()`: der Kurzname, ohne ihn der Name), je über `schonWoanders()` an dem Tag (ein anderer Auftrag). Bis 1.9.285 nur die Mitglieder --
   ein doppeltes Gerät meldete erst die Rückfrage des Servers.
 
-#### Festlegungen 1.9.286 (Bitte bestätigen)
+#### Festlegungen 1.9.286 (bestätigt am 10.11.2026)
 
 1. „Ganze Kolonne“ nennt vor dem Loslassen auch die Geräte der Kolonne, die an dem Tag schon woanders stehen.
 2. Erst die Personen (Vorname), dann die Geräte (Kurzname wie am Chip, ohne Kurzname der Name).
@@ -2568,7 +2568,7 @@ neu „Ganze Kolonne – Kai, Nele, HS-DK 204 schon woanders: …“ (die Pritsc
 - Mit dem Finger seitlich 6 px Innenabstand wie mit der Maus (1.9.284: 7 px): im Bild mit dem Finger bei 1280 px war „HS-DK 202“ wieder gekürzt. Ein Chip mit ⚠
   braucht 16 px mehr und darf bei 1280 px kürzen; der volle Name steht im title.
 
-#### Festlegungen 1.9.287 (Bitte bestätigen)
+#### Festlegungen 1.9.287 (bestätigt am 10.11.2026, außer Nr. 4 zweiter Satz: kein Chip mit Kurzname wird gekürzt, ⚠ als Abzeichen an der Ecke -- seit 1.9.291)
 
 1. Die Anzeige vor dem Loslassen schwebt oberhalb der Zelle, so breit wie sie, und wächst nach oben; die Zeile wird beim Ziehen nicht höher, die Chips des Ziels
    bleiben zu sehen.
@@ -2597,7 +2597,7 @@ neben dem Zeiger“: links mindestens 12 px rechts vom Zeiger, der Zeiger zwisch
   mehr, fest. Die Liste zeigt `stunden` statt „Soll <planned_hours> h“; `planned_hours` bleibt in der Antwort (Dialog, Kapazität).
 - Der Klicktest „Rückgängig“ legt „Kaminverwahrung Schulz“ jetzt mit 6 h Soll an -- derselbe Auftrag zeigt in beiden Testdaten dieselben Stunden.
 
-#### Festlegungen 1.9.288 (Bitte bestätigen)
+#### Festlegungen 1.9.288 (bestätigt am 10.11.2026)
 
 1. „Nicht eingeplant“ zeigt die Stunden mit derselben Zeile wie „Aufträge“ und die Akte („Soll …“, „Rest …“, „… über Soll“, „nach Aufwand“, „Wartungsvertrag“).
 2. Gebucht zählt wie die Akte nur Baustelle & Werkstatt (keine Fahrzeit, keine laufende Zeit).
@@ -2625,7 +2625,7 @@ Planstunden bleiben; die Liste zeigt `stunden`). `scripts/klicktest_plantafel_ru
   Zeile ohne Umbruch waren sie bis 1.9.288 von selbst auf ihre Textbreite geschrumpft. Einzelheiten: `stammdaten-und-sidebar.md`,
   „Untermenü in Zeilen, Stunden ohne Umbruch (1.9.289)“.
 
-#### Festlegungen 1.9.289 (Bitte bestätigen)
+#### Festlegungen 1.9.289 (bestätigt am 10.11.2026)
 
 1. Nach dem Ziehen einer Person oder eines Geräts nennt die Leiste den alten und den neuen Zeitraum („10.–11.11. → 11.–12.11.“) statt „→ ab <Tag>“.
 2. Den neuen Zeitraum liefert der Server (`ziel_tage`, in Arbeitstagen); die Seite rechnet ihn nicht nach.
@@ -2652,3 +2652,62 @@ Gegenproben: Archiv `gegenproben-stufe6-r5d.md`, „1.9.289“.
   (der Text der Leiste aus der Antwort; nur der Aufbau, die Rückfrage geht weiter über `zugSenden()`) -- gefunden im vollen Lauf vor dem Festhalten.
 - `scripts/klicktest_plantafel_rueckgaengig.py`: alt „Lia Lang · Sturmschaden Gartenstraße 2: 10.–11.11. → ab Mi 11.11.“ und „Pritsche HS-DK 202 · Am Wasserturm 4:
   09.–10.11. → ab Di 10.11.“; neu „… → 11.–12.11.“ und „… → 10.–11.11.“.
+
+## Stufe 6, R5e (ab 1.9.290)
+
+Auftrag vom 10.11.2026, Start 256bf96 (live, Datenbank `c3e9f1a7b285`). Bestätigt: Festlegungen 1.9.283–1.9.289, außer 1.9.283 Nr. 5 (Punkt 1) und 1.9.287
+Nr. 4 zweiter Satz (Punkt 2). Je Punkt eine Version:
+1 „Aufträge“ mit 2–4 Wochen: unter 1440 px startet „Zum Einplanen“ eingeklappt (wie die übrigen Ansichten); mit 1 Woche bleibt es immer offen.
+2 Chip mit Warnung oder Hinweis: das Zeichen sitzt als kleines Abzeichen an der Ecke und nimmt dem Namen keinen Platz (bis 1.9.290 „HS-D… ⚠“ bei 1280 px mit
+  dem Finger, die Pritschen waren so nicht zu unterscheiden). Kein Chip mit Kurzname wird gekürzt (1440 und 1280 px, Maus und Finger).
+3 Anzeige vor dem Loslassen bei schmalen Tagen (unter 110 px) kurz: „Schon woanders · Rückfrage“, „Antrag offen“, „Abwesend · Rückfrage“, „Ganze Kolonne ·
+  Rückfrage“; der Auftrag steht dann in der Rückfrage.
+
+### Umsetzung 1.9.290 (Punkt 1): „Zum Einplanen“ startet nach dem Zeitraum
+
+- `auftraegeListeOffen(tage)`: mit 1 Woche offen, sonst `!rueckstandStartZu(innerWidth)` -- dieselbe Regel wie „Nicht eingeplant“ in den übrigen Ansichten
+  (gemerkt „zu“/„offen“ gilt bei jeder Breite, sonst unter 1440 px zu, 1.9.257). Gemerkt wird nur in den übrigen Ansichten (der Knopf, 1.9.247); in „Aufträge“
+  merkt weder der Start noch der Knopf etwas (1.9.283 Nr. 2).
+- `setView()`: beim Wechsel nach „Aufträge“ mit dem gemerkten Zeitraum der Ansicht (`zeitraumGemerkt('auftraege')`, 1.9.279); bis 1.9.289 immer
+  `rueckstandZeigen(true, false, false)`.
+- `zeitraumGewechselt()` (bis 1.9.289 ein namenloser Pfeil am `change` der Auswahl): merkt den Zeitraum der Ansicht wie bisher und startet in „Aufträge“ die Liste
+  neu -- auch, wenn sie dort von Hand auf- oder zugeklappt war. Sonst stünde die Liste nach „1 Woche → 2 Wochen“ bei 1280 px weiter offen und die Tafel rollte
+  (der übliche Weg: die Ansicht öffnet mit 1 Woche, dann wird der Zeitraum gewählt). In den übrigen Ansichten ändert ein anderer Zeitraum die Liste nicht.
+- Gemessen (Testdaten des Klicktests, Liste offen bzw. zu, `scrollWidth − clientWidth` der Tafel):
+
+  | Fenster | Zeitraum | Liste offen: Platz, Tag, rollt | Liste zu: Platz, Tag, rollt |
+  |---|---|---|---|
+  | 1440 px | 1 Woche | 881 px, 120 px, nein | 1077 px, 159 px, nein |
+  | 1440 px | 2 Wochen | 881 px, 56 px, 13 px | 1077 px, 74 px, nein |
+  | 1440 px | 3 Wochen | 881 px, 56 px, 345 px | 1077 px, 56 px, 149 px |
+  | 1440 px | 4 Wochen | 881 px, 56 px, 677 px | 1077 px, 56 px, 481 px |
+  | 1280 px | 1 Woche | 721 px, 94 px, nein | 917 px, 133 px, nein |
+  | 1280 px | 2 Wochen | 721 px, 56 px, 143 px | 917 px, 61 px, nein |
+  | 1280 px | 3 Wochen | 721 px, 56 px, 475 px | 917 px, 56 px, 279 px |
+  | 1280 px | 4 Wochen | 721 px, 56 px, 807 px | 917 px, 56 px, 611 px |
+
+  Mit der Regel startet die Liste bei 1280 px mit 2 Wochen zu -- die Tafel rollt nicht mehr. Offen bleiben: bei genau 1440 px mit 2 Wochen ist die Liste offen und
+  die Tafel rollt 13 px (mindestens 230 + 10 × 56 + 4 × 26 = 894 px bei 881 px Platz); 3 und 4 Wochen rollen bei 1440 und 1280 px auch eingeklappt (mindestens
+  56 px je Tag, unverändert) -- als Frage im Bericht.
+
+#### Festlegungen 1.9.290 (Bitte bestätigen)
+
+1. In „Aufträge“ startet „Zum Einplanen“ mit 1 Woche immer offen, mit 2–4 Wochen wie „Nicht eingeplant“ in den übrigen Ansichten: gemerkt „zu“ bzw. „offen“
+   gilt bei jeder Breite, sonst unter 1440 px zu -- ersetzt 1.9.283 Nr. 1 („immer offen“) und Nr. 5.
+2. Der Start gilt beim Wechsel in „Aufträge“ (mit dem gemerkten Zeitraum der Ansicht) und bei jedem anderen Zeitraum dort -- auch wenn die Liste vorher von Hand
+   auf- oder zugeklappt war (ergänzt 1.9.283 Nr. 2: von Hand zugeklappt bleibt sie bis zum nächsten Wechsel in die Ansicht oder des Zeitraums).
+3. Der Start merkt nichts; in den übrigen Ansichten ändert ein anderer Zeitraum die Liste nicht.
+
+#### Tests und Prüfung 1.9.290
+
+Neu: `tests/test_v690_auftraege_liste_nach_zeitraum.py` (in node mit dem Code der Seite: Wechsel nach „Aufträge“ mit 1–4 Wochen, bei 1280 und 1440 px, mit und
+ohne Gemerktes -- neun Fälle; ein anderer Zeitraum startet die Liste neu, auch nach Auf- oder Zuklappen von Hand; in den übrigen Ansichten nicht; nichts gemerkt).
+`scripts/klicktest_plantafel_auftraege.py` ergänzt: bei 1440 px mit 2 Wochen offen; bei 1280 px mit 2 Wochen zu, die Tafel rollt nicht, nichts gemerkt; beim
+Wechsel in die Ansicht mit 2 Wochen zu; zurück auf 1 Woche offen; von Hand zu, dann 3 Wochen: zu; Bilder „2 Wochen bei 1280 px“ hell und dunkel. Gegenproben:
+Archiv `gegenproben-stufe6-r5e.md`, „1.9.290“.
+**Angepasste Erwartungen** (Regel 28):
+- `tests/test_v683_auftraege_liste_offen.py::_lauf`: die node-Attrappe bekommt `auftraegeListeOffen()` dazu (`setView()` ruft sie seit 1.9.290); die geprüften
+  Fälle unverändert (ohne gemerkten Zeitraum ist es 1 Woche) -- nur der Aufbau.
+- `tests/test_v679_auftragsliste.py::_seite`: `auftraegeListeOffen()` als Platzhalter (nur der Aufbau); `test_auswahl_mit_einer_woche_und_merken`: alt
+  `addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()})`, neu `addEventListener('change',zeitraumGewechselt)` und
+  `function zeitraumGewechselt(){zeitraumMerken(view,tageAnzahl());…loadBoard()}` (merkt den Zeitraum und lädt weiter, dazu der Neustart der Liste).

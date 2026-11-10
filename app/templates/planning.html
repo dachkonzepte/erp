@@ -408,9 +408,14 @@ function goToday(){periodStart=monday(berlinTodayDate());loadBoard()}
 const ZEITRAUM_SCHLUESSEL='plantafel_zeitraum',ZEITRAUM_VORGABE={auftraege:7},ZEITRAEUME=[7,14,21,28];
 function zeitraumGemerkt(v){let w=null;try{w=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}')[v]}catch(e){}return ZEITRAEUME.includes(w)?w:(ZEITRAUM_VORGABE[v]||14)}
 function zeitraumMerken(v,tage){try{const m=JSON.parse(localStorage.getItem(ZEITRAUM_SCHLUESSEL)||'{}');m[v]=tage;localStorage.setItem(ZEITRAUM_SCHLUESSEL,JSON.stringify(m))}catch(e){}}
+/* seit 1.9.290 (Stufe 6, R5e, Punkt 1): wie „Zum Einplanen“ in „Aufträge“ startet -- mit 1 Woche immer offen (1.9.283), mit 2–4 Wochen wie „Nicht eingeplant“
+   in den übrigen Ansichten (gemerkt, sonst unter 1440 px zu: rueckstandStartZu()); gilt beim Wechsel in die Ansicht und bei jedem anderen Zeitraum dort, merkt
+   nichts. Bis 1.9.289 immer offen -- bei 1280 px rollten 2–4 Wochen in ihrem Rahmen. */
+function auftraegeListeOffen(tage){return tage===7||!rueckstandStartZu(window.innerWidth)}
 function setView(v){bandSchliessen();const vorher=tageAnzahl(),warAuftraege=view==='auftraege';view=v;
-  // seit 1.9.283 (Punkt 1): in „Aufträge“ startet „Zum Einplanen“ immer offen; zurück in den übrigen Ansichten gilt wieder der gemerkte Zustand (unter 1440 px zu)
-  if(v==='auftraege'&&!warAuftraege)rueckstandZeigen(true,false,false);else if(v!=='auftraege'&&warAuftraege)rueckstandZeigen(!rueckstandStartZu(window.innerWidth),false,false);
+  // seit 1.9.283 (Punkt 1): in „Aufträge“ startet „Zum Einplanen“ offen (seit 1.9.290 nur mit 1 Woche, sonst wie die übrigen Ansichten); zurück in den übrigen
+  // Ansichten gilt wieder der gemerkte Zustand (unter 1440 px zu)
+  if(v==='auftraege'&&!warAuftraege)rueckstandZeigen(auftraegeListeOffen(zeitraumGemerkt(v)),false,false);else if(v!=='auftraege'&&warAuftraege)rueckstandZeigen(!rueckstandStartZu(window.innerWidth),false,false);
   document.getElementById('rangeDays').value=String(zeitraumGemerkt(v));if(tageAnzahl()!==vorher)loadBoard();else{renderBoard();if(v==='auftraege'&&board&&!(auftragsliste&&auftragsliste.start===board.start_date&&auftragsliste.end===board.end_date))ladeAuftragsliste().catch(e=>{document.getElementById('status').textContent='Fehler: '+e.message})}}
 
 /* --- Geometrie: wo ein Tag steht. 14 Tage passen auf 1440 px (Sa/So schmal); mehr Tage rollen in der Tafel. -------------------------- */
@@ -923,7 +928,9 @@ aktion('abwesenheitLoeschen',el=>deleteAbsence(Number(el.dataset.id)));
 document.getElementById('zurueck').addEventListener('click',()=>movePeriod(-7));
 document.getElementById('weiter').addEventListener('click',()=>movePeriod(7));
 document.getElementById('heute').addEventListener('click',()=>goToday());
-document.getElementById('rangeDays').addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()});
+// seit 1.9.290: ein anderer Zeitraum in „Aufträge“ startet die Liste neu (auftraegeListeOffen()) -- auch, wenn sie dort von Hand auf- oder zugeklappt war
+function zeitraumGewechselt(){zeitraumMerken(view,tageAnzahl());if(view==='auftraege')rueckstandZeigen(auftraegeListeOffen(tageAnzahl()),false,false);loadBoard()}
+document.getElementById('rangeDays').addEventListener('change',zeitraumGewechselt);
 document.querySelectorAll('.viewtabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.getElementById('filterKnopf').addEventListener('click',()=>{filterAn=!filterAn;renderBoard()});
 // seit 1.9.283: in „Aufträge“ merkt Auf- und Zuklappen nichts (dort startet die Liste immer offen)

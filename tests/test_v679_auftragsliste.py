@@ -165,7 +165,7 @@ def _seite(speicher: dict | None, ablauf: str, *, wirft: bool = False) -> list:
         " setItem(k, v){ if (WIRFT) throw new Error('kein Speicher'); SPEICHER[k] = String(v); }};"
         "function loadBoard(){ GELADEN++; } function renderBoard(){ GEZEICHNET++; } var view = 'teams'; var AUFRUFE = AUFRUFE || [];"
         # seit 1.9.283 öffnet setView() in „Aufträge“ die Liste „Zum Einplanen“ (test_v683) -- hier nur, dass es sie gibt
-        "function rueckstandZeigen(){} function rueckstandStartZu(){ return false; }"
+        "function rueckstandZeigen(){} function rueckstandStartZu(){ return false; } function auftraegeListeOffen(){ return true; }"  # seit 1.9.290 (test_v690)
         + _vorgaben() + "document.getElementById('rangeDays').value = '14';")
     # seit 1.9.282 schließt setView() die Leiste „Rückgängig“ über der Tafel (bandSchliessen)
     return im_browser("planning.html", ["zeitraumGemerkt", "zeitraumMerken", "setView", "tageAnzahl", "bandSchliessen"], vorbereitung, ablauf)
@@ -197,5 +197,7 @@ def test_auswahl_mit_einer_woche_und_merken():
     from tests.test_v671_inaktive_mitarbeiter_ausblenden import ROOT
     text = (ROOT / "app/templates/planning.html").read_text(encoding="utf-8")
     assert '<select id="rangeDays" aria-label="Zeitraum"><option value="7">1 Woche</option><option value="14">2 Wochen</option>' in text
-    assert "document.getElementById('rangeDays').addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()});" in text
+    # seit 1.9.290 als eigene Funktion (in „Aufträge“ startet ein anderer Zeitraum die Liste neu, test_v690)
+    assert "document.getElementById('rangeDays').addEventListener('change',zeitraumGewechselt);" in text
+    assert "function zeitraumGewechselt(){zeitraumMerken(view,tageAnzahl());" in text and "loadBoard()}" in text
     assert "document.getElementById('rangeDays').value=String(zeitraumGemerkt(view));" in text  # vor dem ersten Laden
