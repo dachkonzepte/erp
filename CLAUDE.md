@@ -1310,8 +1310,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   **Stufe 6, R5e (ab 1.9.290):** in „Aufträge“ startet „Zum Einplanen“ mit 1 Woche offen, mit 2–4 Wochen wie die übrigen Ansichten (gemerkt, sonst unter 1440 px
   zu) -- beim Wechsel in die Ansicht und bei jedem anderen Zeitraum dort, ohne zu merken (`auftraegeListeOffen()`, `zeitraumGewechselt()`;
   `tests/test_v690_auftraege_liste_nach_zeitraum.py`); seit 1.9.291 sitzen ⚠ und der Punkt eines Hinweises als Abzeichen an der Ecke des Chips (`span.abzeichen`,
-  absolut, nimmt dem Namen keinen Platz; kein Chip gekürzt bei 1440 und 1280 px, Maus und Finger; `tests/test_v691_abzeichen_an_der_ecke.py`). Befund R5 und
-  Herleitung:
+  absolut, nimmt dem Namen keinen Platz; kein Chip gekürzt bei 1440 und 1280 px, Maus und Finger; `tests/test_v691_abzeichen_an_der_ecke.py`); seit 1.9.292 ist
+  die Anzeige vor dem Loslassen unter 110 px Tagesbreite kurz („Schon woanders · Rückfrage“ …, `zugAnzeige(z, ziel, kurz)`, `SCHMALER_TAG`), den Auftrag nennt
+  dann die Rückfrage (`tests/test_v692_kurze_anzeige.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

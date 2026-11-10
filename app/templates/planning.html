@@ -614,23 +614,29 @@ function slotVon(id){return board.slots.find(s=>s.id===id)}
 // steht die Person bzw. das Gerät an diesem Tag schon an einem anderen Einsatz (nicht dem, aus dem sie kommt; nicht an diesem Auftrag)? Dann fragt der Server
 // beim Loslassen zurück (Person bzw. Gerät doppelt ist eine neue Warnung) -- aus der eigenen Zelle umgesetzt ohne einen weiteren Einsatz nicht
 function schonWoanders(art,id,tag,auftrag,ausSlot){return board.slots.filter(s=>!aufGeschlossen(s)&&s.id!==ausSlot&&s.order_id!==auftrag&&(art==='person'?personTageIn(s,id):geraetTageIn(s,id)).includes(tag))}
-function zugAnzeige(z,ziel){const tag=ziel.tag;
+/* seit 1.9.292 (Stufe 6, R5e, Punkt 3): ist der Tag schmaler als 110 px (1280 px mit offener Liste, ab 2 Wochen), steht in der Anzeige die kurze Fassung --
+   „Schon woanders · Rückfrage“, „Antrag offen“, „Abwesend · Rückfrage“, „Ganze Kolonne · Rückfrage“, ohne Auftrag und Namen; die nennt dann die Rückfrage beim
+   Loslassen (je Person bzw. Gerät „gleichzeitig in <Nummer> · <Auftrag>“). „Frei – <Tag>“ und „Ganze Kolonne – <Tag>“ bleiben. Bis 1.9.291 immer die lange
+   Fassung: bei 94 px bis zu sechs Zeilen, sie verdeckte die Zeile darüber */
+const SCHMALER_TAG=110;
+function zugAnzeige(z,ziel,kurz=false){const tag=ziel.tag;
   // seit 1.9.286 (R5d, Punkt 4) auch die Geräte der Kolonne (Kurzname) -- bis 1.9.285 nannte die Anzeige nur Personen, ein doppeltes Gerät erst die Rückfrage
   if(z.art==='kolonne'){const t=board.teams.find(x=>x.id===z.id);
     const woanders=[...(t?t.employees:[]).filter(e=>schonWoanders('person',e.id,tag,ziel.auftrag,null).length).map(e=>e.vorname||e.name),
       ...(t?t.resources||[]:[]).filter(r=>schonWoanders('geraet',r.id,tag,ziel.auftrag,null).length).map(r=>geraetName(r.id,r.name))];
-    return woanders.length?{klasse:'woanders',text:'Ganze Kolonne – '+woanders.join(', ')+' schon woanders: Rückfrage für alle'}:{klasse:'frei',text:'Ganze Kolonne – '+tagText(tag)}}
+    return woanders.length?{klasse:'woanders',text:kurz?'Ganze Kolonne · Rückfrage':'Ganze Kolonne – '+woanders.join(', ')+' schon woanders: Rückfrage für alle'}:{klasse:'frei',text:'Ganze Kolonne – '+tagText(tag)}}
   const woanders=schonWoanders(z.art,z.id,tag,ziel.auftrag,z.slot);
-  if(z.art==='person'){const [k]=personZustand(z.id,tag);if(k==='abwesend')return {klasse:'woanders',text:'Abwesend – Rückfrage „Trotzdem planen“'};
-    if(woanders.length)return {klasse:'woanders',text:'Schon woanders: '+woanders.map(s=>s.project_name).join(', ')+' – Rückfrage „Trotzdem planen“'};
-    if(k==='beantragt')return {klasse:'antrag',text:'Antrag offen – plant ohne Rückfrage'}}
-  else if(woanders.length)return {klasse:'woanders',text:'Schon woanders: '+woanders.map(s=>s.project_name).join(', ')+' – Rückfrage „Trotzdem planen“'};
+  const schon=()=>({klasse:'woanders',text:kurz?'Schon woanders · Rückfrage':'Schon woanders: '+woanders.map(s=>s.project_name).join(', ')+' – Rückfrage „Trotzdem planen“'});
+  if(z.art==='person'){const [k]=personZustand(z.id,tag);if(k==='abwesend')return {klasse:'woanders',text:kurz?'Abwesend · Rückfrage':'Abwesend – Rückfrage „Trotzdem planen“'};
+    if(woanders.length)return schon();
+    if(k==='beantragt')return {klasse:'antrag',text:kurz?'Antrag offen':'Antrag offen – plant ohne Rückfrage'}}
+  else if(woanders.length)return schon();
   return {klasse:'frei',text:'Frei – '+tagText(tag)}}
 function zielAnPunkt(x,y){const el=document.elementFromPoint(x,y);if(!el)return null;if(el.closest('#backlog'))return {art:'liste'};const td=el.closest('#planner td.a-tag');if(!td)return null;
   const karte=el.closest('.a-einsatz');return {art:'zelle',td,tag:td.dataset.date,auftrag:Number(td.dataset.auftrag),karte:karte?Number(karte.dataset.id):null}}
 function zugZielZeigen(ziel){document.querySelectorAll('#planner td.zug-ziel').forEach(td=>{if(!ziel||td!==ziel.td){td.classList.remove('zug-ziel','zug-frei','zug-woanders','zug-antrag');td.querySelector('.zug-anzeige')?.remove()}});
   document.getElementById('backlog').classList.toggle('zug-ziel-liste',!!(ziel&&ziel.art==='liste'&&azug&&azug.slot));if(!ziel||ziel.art!=='zelle')return;
-  const a=zugAnzeige(azug,ziel);ziel.td.classList.remove('zug-frei','zug-woanders','zug-antrag');ziel.td.classList.add('zug-ziel','zug-'+a.klasse);
+  const a=zugAnzeige(azug,ziel,ziel.td.getBoundingClientRect().width<SCHMALER_TAG);ziel.td.classList.remove('zug-frei','zug-woanders','zug-antrag');ziel.td.classList.add('zug-ziel','zug-'+a.klasse);
   let el=ziel.td.querySelector('.zug-anzeige');if(!el){el=document.createElement('div');el.className='zug-anzeige';ziel.td.prepend(el)}el.textContent=a.text}  /* seit 1.9.287 vorn in der Zelle: hinten wäre die letzte Karte nicht mehr :last-child, ihr Abstand nach unten machte die Zeile 4 px höher */
 function zugAbbrechen(){if(!azug)return;azug.geist?.remove();zugZielZeigen(null);azug=null}
 function chipZiehenEinrichten(){const lay=document.getElementById('tafelLayout');if(lay.dataset.chipZiehen)return;lay.dataset.chipZiehen='1';

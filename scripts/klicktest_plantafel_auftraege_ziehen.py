@@ -1,5 +1,6 @@
 """Klicktest: Ziehen in der Ansicht „Aufträge“ (1.9.281, Stufe 6, R5c, Punkt 3) -- Testdaten wie klicktest_plantafel_auftraege.py (KW 46, stehende Uhr
-Mi 11.11.2026 10:00), dazu ein offener Antrag von Nele für Fr 13.11. (wie in der Zeichnung entwurf-stufe6/plantafel-auftraege-regeln.html).
+Mi 11.11.2026 10:00), dazu ein offener Antrag von Nele für Fr 13.11. (wie in der Zeichnung entwurf-stufe6/plantafel-auftraege-regeln.html) und (seit 1.9.292)
+Uwe Urlaub ohne Kolonne, die ganze Woche abwesend.
 
 Maus, 1440 px hell:
     Antippen    Kai am Wasserturm Do antippen -> Leiste mit „Für diesen Tag herausnehmen“, „An allen Tagen herausnehmen“, „Einsatz öffnen“; der Einsatz-Dialog
@@ -19,6 +20,9 @@ Seit 1.9.287: die Anzeige schwebt über der Zelle (unten angesetzt), die Zeile w
 hell (1280 px) und mit der Maus dunkel (1440 px).
 Seit 1.9.291: kein Chip gekürzt, auch mit ⚠ (die Pritsche HS-DK 204 ist nach „Kolonne“ am Mo doppelt) -- bei 1440 und 1280 px, mit Maus und Finger; jedes
 Abzeichen an der Ecke seines Chips, außerhalb des Namens; Bilder „Aufträge“ mit dem Finger bei 1280 px, hell und dunkel.
+Seit 1.9.292: bei 1440 px (Tage 120 px) die lange Anzeige, auch „Abwesend – Rückfrage …“ (Uwe auf Kaminverwahrung Di); mit dem Finger bei 1280 px (94 px) die
+kurze -- „Schon woanders · Rückfrage“ (Bild, danach die Rückfrage mit dem Auftrag, Abbrechen), „Abwesend · Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“;
+das Bild mit dem Finger hell zeigt die kurze Anzeige.
 Keine JS-Fehler.
 
 AUFRUF (aus dem Projektordner):
@@ -99,7 +103,15 @@ def befuellen(db, k):
     from app.models import Employee, EmployeeAbsenceRequest
 
     seed = befuellen_auftraege(db, k)
+    from decimal import Decimal
+
+    from app.models import EmployeeAbsence
+
     nele = db.query(Employee).filter_by(first_name="Nele").one()
+    # seit 1.9.292: jemand ohne Kolonne, die ganze Woche abwesend (Anzeige „Abwesend“)
+    uwe = Employee(employee_number="E-7", first_name="Uwe", last_name="Urlaub", employee_group="gewerblich", active=True, hourly_wage=Decimal("22.00"))
+    db.add(uwe); db.flush()
+    db.add(EmployeeAbsence(employee_id=uwe.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 11, 9), end_date=date(2026, 11, 13)))
     db.add(EmployeeAbsenceRequest(employee_id=nele.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 11, 13),
                                   end_date=date(2026, 11, 13), status="pending"))
     db.commit()
@@ -269,6 +281,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kolonne: Leiste", await tab.js(LEISTE), ["Kolonne Süd", "Mo 09.11.", "Rückgängig"])
     await kein_chip_gekuerzt(tab, p, "Maus 1440 hell")
 
+    # --- seit 1.9.292: bei 1440 px (Tage 120 px) die lange Anzeige, auch „Abwesend“ -- Uwe auf Kaminverwahrung Di, dann Escape
+    p.pruefe("1440: Tag nicht schmaler als 110 px", await tab.js(f"Math.round({td(KAMIN, DI)}.getBoundingClientRect().width)>=110"), True)
+    los = await maus_ziehen(tab, p, "Abwesend", liste("person", "Uwe Urlaub"), ziel(KAMIN, DI))
+    p.pruefe("Abwesend: Anzeige", await tab.js(anzeige(KAMIN, DI)), ["zug-woanders zug-ziel", "Abwesend – Rückfrage „Trotzdem planen“"])
+    await tab.cmd("Input.dispatchKeyEvent", type="keyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27)
+    await tab.cmd("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27)
+    if los:
+        await maus_los(tab, los)
+    p.pruefe("Abwesend: nichts gespeichert", await namen(KAMIN, DI), [])
+
     # --- zurück auf die Liste: Lia für Mo herausnehmen
     los = await maus_ziehen(tab, p, "Liste", chip(KAMIN, MO, "person", "Lia"), LISTE_BEREICH)
     p.pruefe("Liste: Ziel markiert", await tab.js("document.getElementById('backlog').classList.contains('zug-ziel-liste')"), True)
@@ -334,6 +356,35 @@ async def pruefen(tab, seed, p):
     p.pruefe("Finger: Leiste", await tab.js(LEISTE), ["Lia Lang · alle Tage", "Rückgängig"])
     p.pruefe("Finger: Rückgängig", await knopf(tab, "Rückgängig"), True)
     p.pruefe("Finger: rückgängig", await namen(KAMIN, MO), ["Kai", "Nele", "HS-DK 204"])
+    # seit 1.9.292 (R5e, Punkt 3): bei 94 px je Tag die kurze Anzeige -- wer wo schon ist, nennt die Rückfrage
+    p.pruefe("Finger: Tag schmaler als 110 px", await tab.js(f"{td(GARAGE, MI)}.getBoundingClientRect().width<110"), True)
+    for anlass, quelle, ziel_, erwartet in (
+            ("Kurz: schon woanders", liste("person", "Ole Offen"), (GARAGE, MI), ["zug-woanders zug-ziel", "Schon woanders · Rückfrage"]),
+            ("Kurz: abwesend", liste("person", "Uwe Urlaub"), (KAMIN, DI), ["zug-woanders zug-ziel", "Abwesend · Rückfrage"]),
+            ("Kurz: Antrag offen", liste("person", "Nele Neu"), (KAMIN, FR), ["zug-antrag zug-ziel", "Antrag offen"]),
+            ("Kurz: ganze Kolonne", liste("kolonne", "Kolonne Süd"), (KAMIN, DI), ["zug-woanders zug-ziel", "Ganze Kolonne · Rückfrage"])):
+        pk = await punkte(tab, quelle, ziel(*ziel_))
+        p.pruefe(f"{anlass}: Quelle und Ziel im Fenster", pk is not None, True)
+        if pk is None:
+            continue
+        await finger(tab, pk[0], pk[1], pk[2] - pk[0], pk[3] - pk[1], loslassen=False)
+        await tab.warten(f"(t=>!!t&&t.classList.contains('zug-ziel'))({td(*ziel_)})", 5)  # der letzte Fingerschritt kann nach dem Senden noch laufen
+        p.pruefe(f"{anlass}: Anzeige", await tab.js(anzeige(*ziel_)), erwartet)
+        if anlass == "Kurz: schon woanders":
+            await tab.bild("ziehen_kurz_1280_dunkel")
+            await tab.cmd("Input.dispatchTouchEvent", type="touchEnd", touchPoints=[])
+            p.pruefe("Kurz: Rückfrage", await tab.warten("document.getElementById('konfliktDialog').open"), True)
+            p.pruefe("Kurz: Rückfrage nennt Ole und den Auftrag, bei dem er schon ist", await tab.js(
+                "(t=>[t.includes('Ole'),t.includes('P-2026-0151'),t.includes('Sturmschaden Gartenstraße 2')])(document.getElementById('konfliktWarnungen').textContent)"),
+                [True, True, True])
+            await tab.js("document.querySelector('#konfliktDialog .dialog-fuss .ds-knopf:not(.ds-knopf-aktion)').click()")
+            await tab.warte_auf_ruhe()
+            p.pruefe("Kurz: abgebrochen, nichts gespeichert", await namen(GARAGE, MI), ["Kai", "Nele", "HS-DK 204"])
+            continue
+        await tab.cmd("Input.dispatchTouchEvent", type="touchMove", touchPoints=[{"x": pk[0], "y": pk[1]}])  # zurück auf die Liste: nichts
+        await tab.cmd("Input.dispatchTouchEvent", type="touchEnd", touchPoints=[])
+        await tab.warte_auf_ruhe()
+    p.pruefe("Kurz: Kaminverwahrung Di und Fr unverändert", [await namen(KAMIN, DI), await namen(KAMIN, FR)], [[], []])
     # Bilder (seit 1.9.287): mit dem Finger auch hell, mit der Maus auch dunkel -- vor dem Loslassen, danach zurück an den Start (Liste auf Liste: nichts)
     await tab.js("localStorage.setItem('erp_theme','light')")
     p.pruefe("Finger hell: neu geladen", await tab.oeffnen("/planning", "typeof board!=='undefined'&&!!board"), True)
@@ -351,6 +402,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Finger hell: Anzeige schwebt, die Zeile wird nicht höher", [(await tab.js(anzeige(GARAGE, MI)))[0], await tab.js(mass(GARAGE)),
                                                                        await tab.js(ueber_der_zelle(GARAGE, MI))],
              ["zug-woanders zug-ziel", vorher, [True, True, True, "absolute"]])
+    p.pruefe("Finger hell: kurze Anzeige (seit 1.9.292)", (await tab.js(anzeige(GARAGE, MI)))[1], "Schon woanders · Rückfrage")
     await tab.bild("ziehen_finger_1280_hell")
     await tab.cmd("Input.dispatchTouchEvent", type="touchMove", touchPoints=[{"x": pk[0], "y": pk[1]}])
     await tab.cmd("Input.dispatchTouchEvent", type="touchEnd", touchPoints=[])

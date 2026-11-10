@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.292 – Plantafel: kurze Anzeige vor dem Loslassen bei schmalen Tagen
+
+Ist ein Tag in „Aufträge“ schmaler als 110 px (1280 px mit offener Liste, ab 2 Wochen), zeigt die Anzeige beim Ziehen jetzt die kurze Fassung: „Schon woanders · Rückfrage“, „Antrag offen“, „Abwesend · Rückfrage“, „Ganze Kolonne · Rückfrage“. Wer wo schon steht, nennt dann die Rückfrage beim Loslassen (je Person bzw. Gerät „gleichzeitig in <Nummer> · <Auftrag>“, wie bisher). „Frei – <Tag>“ und „Ganze Kolonne – <Tag>“ bleiben, bei 1440 px (Tage 120 px) bleibt alles wie bisher. Bis 1.9.291 stand bei 94 px die lange Fassung auf bis zu sechs Zeilen und verdeckte die Zeile darüber; die kurze braucht drei (Punkt 3).
+
+Neu `tests/test_v692_kurze_anzeige.py`, ergänzt `klicktest_plantafel_auftraege_ziehen.py` (lang bei 1440 px, kurz mit dem Finger bei 1280 px, Rückfrage mit dem Auftrag, Bilder hell und dunkel; dazu eine Person ohne Kolonne, die ganze Woche abwesend). Keine Migration.
+
 ## 1.9.291 – Plantafel: Warnung und Hinweis als Abzeichen an der Ecke des Chips
 
 In „Aufträge“ sitzt ⚠ bzw. der graue Punkt eines Hinweises jetzt als kleines Abzeichen an der oberen rechten Ecke des Chips (12 px, 5 px über die Ecke hinaus) und nimmt dem Namen keinen Platz. Bis 1.9.290 stand ⚠ hinter und der Punkt vor dem Namen im Chip -- bei 1280 px mit dem Finger hieß die Pritsche dann „HS-D… ⚠“, zwei Pritschen waren nicht zu unterscheiden. Gemessen ist jetzt kein Chip gekürzt, bei 1440 und 1280 px, mit Maus und Finger, auch mit Warnung -- mit 1 Woche und mit 2 Wochen bei eingeklappter Liste (Punkt 2).

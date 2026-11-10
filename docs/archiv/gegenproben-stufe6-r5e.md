@@ -33,3 +33,20 @@ Aufbau-Test) -- Test nachgezogen, dieselbe Gegenprobe rot.
 
 11 Gegenproben (5 gegen Tests, 6 gegen die Klicktests), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Eine blieb zuerst grün (`291_2e`) --
 Klicktest nachgezogen, dieselbe Gegenprobe rot.
+
+## 1.9.292 (Punkt 3): kurze Anzeige vor dem Loslassen bei schmalen Tagen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – unter 110 px die kurze Fassung | nie kurz (`292_1a`, `292_1d`) | 1 rot: v692::test_kurz_unter_110_px (in node misst niemand eine Breite); Klicktest ziehen: „Kurz: schon woanders/abwesend/Antrag offen/ganze Kolonne: Anzeige“, „Finger hell: kurze Anzeige“ |
+| Nr. 1 – ab 110 px die lange wie bisher | immer kurz (`292_1b`, `292_1e`) | 1 rot: v692::test_kurz_unter_110_px; Klicktest: „Woanders: Anzeige“, „Antrag: Anzeige“, „Kolonne: Anzeige“, „Abwesend: Anzeige“ (1440 px) |
+| Nr. 1 – die Grenze ist 110 px | Grenze 90 px (`292_1c`, `292_1f`) | 1 rot: v692::test_kurz_unter_110_px; Klicktest: bei 94 px lang -- die vier „Kurz: …“ und „Finger hell: kurze Anzeige“ |
+| Nr. 1 – „Schon woanders · Rückfrage“ (Person und Gerät) | lang auch bei schmalen Tagen (`292_2a`, `292_2e`) | 2 rot: v692::test_kurze_fassung (Person, Gerät); Klicktest: „Kurz: schon woanders“, „Finger hell“ |
+| Nr. 1 – „Abwesend · Rückfrage“ | lang (`292_2b`, `292_2f`) | 1 rot: v692::test_kurze_fassung (abwesend); Klicktest: „Kurz: abwesend“ |
+| Nr. 1 – „Antrag offen“ | lang (`292_2c`, `292_2g`) | 1 rot: v692::test_kurze_fassung (Antrag); Klicktest: „Kurz: Antrag offen“ |
+| Nr. 1 – „Ganze Kolonne · Rückfrage“ | lang (`292_2d`, `292_2h`) | 1 rot: v692::test_kurze_fassung (Kolonne); Klicktest: „Kurz: ganze Kolonne“ |
+| Nr. 2 – „Frei – <Tag>“ bleibt | „Frei“ ohne Tag bei schmalen Tagen (`292_3a`, `292_3b`) | 1 rot: v692::test_frei_bleibt (Person); Klicktest: „Finger: Anzeige vor dem Loslassen“ („Frei – Mo 09.11.“ bei 94 px). „Ganze Kolonne – <Tag>“ ohne eigene Gegenprobe: derselbe Zweig ohne kurze Fassung wie bis 1.9.291, Test v692::test_frei_bleibt (Kolonne) |
+| Nr. 3 – die Rückfrage nennt den Auftrag | `konfliktZeile()` ohne „gleichzeitig in …“ (`292_4a`, `292_4b`) | 1 rot: v692::test_rueckfrage_nennt_den_auftrag; Klicktest: „Kurz: Rückfrage nennt Ole und den Auftrag, bei dem er schon ist“ |
+
+18 Gegenproben (9 gegen Tests, 9 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Die Grenze in Pixeln (Nr. 1) prüft nur der
+Klicktest am Verhalten; in node ist sie nur am Aufbau zu sehen.

@@ -2747,3 +2747,33 @@ und 1280 px, mit dem Finger bei 1280 px (dunkel, hell) und 1440 px; Bilder „Au
 - `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger hell“: alt „kein Name ohne Warnung gekürzt“ (nur Chips ohne ⚠), neu „kein Chip gekürzt,
   Abzeichen an der Ecke, HS-DK 204 mit ⚠“ (alle Chips, auch mit Warnung).
 - `scripts/klicktest_plantafel_auftraege.py`, Teil „2 Wochen bei 1280 px“ (seit 1.9.290): alt nur „Liste zu, rollt nicht“, neu dazu „kein Chip gekürzt“.
+
+### Umsetzung 1.9.292 (Punkt 3): kurze Anzeige vor dem Loslassen bei schmalen Tagen
+
+- `zugAnzeige(z, ziel, kurz=false)`: mit `kurz` die kurze Fassung ohne Auftrag und Namen -- „Schon woanders · Rückfrage“ (Person oder Gerät), „Abwesend ·
+  Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“; die Klasse (frei, woanders, antrag) und damit Farbe und Rand der Zelle bleiben dieselben. „Frei –
+  <Tag>“ und „Ganze Kolonne – <Tag>“ haben keine kurze Fassung (bei 94 px zwei Zeilen). Ohne den dritten Parameter wie bis 1.9.291 -- die Tests mit der langen
+  Fassung (v681, v686) unverändert.
+- `zugZielZeigen()`: kurz, wenn die Zelle schmaler als `SCHMALER_TAG` (110 px) ist (`getBoundingClientRect().width` der Zelle). Gemessen (1.9.290): 1 Woche bei
+  1440 px 120 px (lang), bei 1280 px mit offener Liste 94 px (kurz), mit eingeklappter Liste 133 bzw. 159 px (lang); ab 2 Wochen 56–74 px (kurz).
+- Der Auftrag steht in der Rückfrage: beim Loslassen fragt der Server bei einer neuen Warnung zurück (1.9.281), `konfliktZeile()` nennt je Person bzw. Gerät
+  doppelt „gleichzeitig in <Nummer> · <Auftrag>“ (`other_project`, `other_project_name` aus `app/planning.py::_conflicts()`) -- unverändert, jetzt im Klicktest
+  geprüft. Abwesend nennt sie mit Art und Tag, ohne Auftrag.
+- Bei 94 px steht die kurze Fassung auf drei Zeilen („Schon / woanders · / Rückfrage“), die lange stand auf bis zu sechs.
+- Klicktest: dazu „Uwe Urlaub“ ohne Kolonne, die ganze Woche abwesend (`EmployeeAbsence`) -- vorher gab es in den Testdaten niemanden, der abwesend ist.
+
+#### Festlegungen 1.9.292 (Bitte bestätigen)
+
+1. Ist der Tag schmaler als 110 px, zeigt die Anzeige vor dem Loslassen die kurze Fassung: „Schon woanders · Rückfrage“ (Person oder Gerät), „Abwesend ·
+   Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“; ab 110 px die lange wie bisher.
+2. „Frei – <Tag>“ und „Ganze Kolonne – <Tag>“ bleiben auch bei schmalen Tagen.
+3. Wer wo schon steht, nennt dann die Rückfrage beim Loslassen: je Person bzw. Gerät „gleichzeitig in <Nummer> · <Auftrag>“ (wie bisher).
+
+#### Tests und Prüfung 1.9.292
+
+Neu: `tests/test_v692_kurze_anzeige.py` (in node mit dem Code der Seite: die vier kurzen Fassungen samt Klasse, die langen wie bisher, „Frei“ und „Ganze Kolonne –
+<Tag>“ gleich; die Grenze 110 px und der Aufruf in `zugZielZeigen()`; die Rückfrage mit dem Auftrag). `scripts/klicktest_plantafel_auftraege_ziehen.py` ergänzt:
+bei 1440 px der Tag mindestens 110 px und „Abwesend – Rückfrage …“ (Uwe auf Kaminverwahrung Di, Escape); mit dem Finger bei 1280 px der Tag schmaler als 110 px,
+„Schon woanders · Rückfrage“ (Bild dunkel), loslassen -> die Rückfrage nennt Ole, P-2026-0151 und „Sturmschaden Gartenstraße 2“, Abbrechen -> nichts gespeichert;
+„Abwesend · Rückfrage“, „Antrag offen“, „Ganze Kolonne · Rückfrage“ (je zurück auf die Liste: nichts); mit dem Finger hell die kurze Fassung (Bild). Gegenproben:
+Archiv `gegenproben-stufe6-r5e.md`, „1.9.292“.
