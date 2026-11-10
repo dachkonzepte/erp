@@ -1697,3 +1697,39 @@ Neu: `tests/test_v701_geraet_statt_ressource.py` (Vorlagen ohne „Ressource“,
 neuen Texte, Auswahlliste einer neuen Installation, Meldungen über die echte Schnittstelle, Historie über `/api/audit-logs` -- Filter mit der gespeicherten Art,
 angezeigt „Gerät“, ein alter Eintrag mit Klassenname und alter Feldbezeichnung --, Migration auf einem Bestand gegen SQLite und PostgreSQL). Keine bestehende
 Erwartung geändert: `test_v634` und `test_v699` prüfen die gespeicherte Art und bleiben. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.301“.
+
+### Umsetzung 1.9.302 (Punkt 2): „Inaktive ausblenden“
+
+- Liste (`master_data.html`, Betriebsmittel bei eingeschaltetem Modul): über der Tabelle (unter den Fälligkeiten) das Kästchen „Inaktive ausblenden“ wie bei den
+  Mitarbeitern (1.9.271) -- Vorgabe angehakt, daneben „N inaktiv“; die Wahl merkt sich der Browser je Liste (`erp_betriebsmittel_inaktive`, die Mitarbeiter
+  behalten `erp_stammdaten_inaktive`). Die Zeilen kommen aus `betriebsmittelDerListe(assets, resources, ausblenden)`: Betriebsmittel und Plantafel-Geräte ohne
+  Betriebsmittel; angehakt nur aktive, ohne Haken alle, inaktive grau (`tr.inaktiv`). Gezählt über alle, unabhängig von Suche und Kästchen: „N inaktiv“ =
+  inaktive Betriebsmittel + inaktive Geräte ohne Betriebsmittel. Untertitel und Fälligkeiten wie bisher (der Untertitel zählt aktive „nur Plantafel“).
+- Ein inaktives Plantafel-Gerät ohne Betriebsmittel (der Rest vom Entfernen des Hakens an einem noch benutzten Gerät oder einem mit Postfach, 1.9.296) steht ohne
+  Haken als „nur Plantafel · inaktiv“ mit „Betriebsmittel anlegen“ (Frage 2: sichtbar, damit man es wieder verknüpfen oder aufräumen kann). Bis 1.9.301 fehlte es
+  in der Liste ganz; inaktive Betriebsmittel standen dagegen immer da.
+- Anlegen (`master_data_form.html`): `?ressource=<id>` nimmt jedes freie Gerät, auch ein inaktives -- die Auswahl zeigt es „(inaktiv)“ (über `auswahlOptionen()`,
+  gewählt, nicht neu angeboten). Wird ein Gerät gewählt, übernimmt „Status“ den Status des Geräts (ein Schalter für beides, Antwort 3): ein inaktives wird beim
+  Anlegen nicht still wieder aktiv; wer es aktiv will, stellt den Status um.
+- Nicht gebaut: das Wiederverknüpfen auf der Seite des alten Geräts (die Auswahl dort bietet ein inaktives nicht an) und ein Löschen des Rests -- siehe Bericht.
+
+#### Festlegungen 1.9.302 (Bitte bestätigen)
+
+1. Über der Liste der Betriebsmittel das Kästchen „Inaktive ausblenden“, Vorgabe angehakt, daneben „N inaktiv“.
+2. Die Wahl merkt sich der Browser je Liste -- Betriebsmittel und Mitarbeiter unabhängig voneinander.
+3. Ohne Haken stehen inaktive Zeilen grau in der Liste.
+4. Ein inaktives Plantafel-Gerät ohne Betriebsmittel steht ohne Haken als „nur Plantafel · inaktiv“ mit „Betriebsmittel anlegen“.
+5. „N inaktiv“ zählt inaktive Betriebsmittel und inaktive Geräte ohne Betriebsmittel, über alle, unabhängig von der Suche.
+6. Untertitel und Fälligkeiten wie bisher (der Untertitel zählt aktive „nur Plantafel“).
+7. „Betriebsmittel anlegen“ nimmt auch ein inaktives freies Gerät; gewählt übernimmt „Status“ den Status des Geräts.
+
+#### Tests und Prüfung 1.9.302
+
+Neu: `tests/test_v702_betriebsmittel_inaktive.py` (Vorgabe, eigene Wahl je Liste, Merken, ohne Speicher; Zeilen und Zahlen in node; Kästchen über der Tabelle,
+graue Zeilen, „nur Plantafel · inaktiv“, kein Laden beim Umschalten; Anlegen mit inaktivem Gerät). Angepasst: `tests/test_v698_liste_und_anlegen.py::
+test_liste_plantafel_und_nur_plantafel` -- bisher „nur aktive Geräte ohne Betriebsmittel (`const nurPlantafel=…`), Pille „nur Plantafel““, jetzt „über
+`betriebsmittelDerListe()`, Pille „nur Plantafel“ bzw. „nur Plantafel · inaktiv““. `scripts/klicktest_geraete.py`: ein inaktives Betriebsmittel („Kompressor alt“)
+in den Testdaten, dazu ein inaktiver Rüttler über die Schnittstelle; angehakt / ohne Haken / neu geladen / Mitarbeiter unabhängig; „Betriebsmittel anlegen“ am
+Rüttler (verknüpft, „(inaktiv)“, Status Inaktiv, gespeichert beide inaktiv); Bilder „liste_ohne_haken“. Angepasst im Klicktest: „Liste: Untertitel …“ bisher
+„5 inventarisierte Betriebsmittel · 1 nur Plantafel“, jetzt „6 …“ (das neue inaktive Betriebsmittel zählt mit); der Klick auf „Betriebsmittel anlegen“ am
+Hubsteiger sucht seine Zeile (es gibt jetzt mehrere solche Links). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.302“.

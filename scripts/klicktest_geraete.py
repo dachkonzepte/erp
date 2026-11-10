@@ -2,7 +2,7 @@
 
 Testdaten (stehende Uhr Mi 11.11.2026 10:00): Anna (Admin) und Bea (Büro – Auftrag). Geräte mit Plantafel: Pritsche HS-DK 202 (MAN, Kurzname „HS-DK 202“,
 Postfach), Autokran (Kurzname „Kran“, eingeplant Fr 13.–Sa 14.11.). Ohne Plantafel: Leiter Alu 6 m, Mein Anhänger, Rüttelplatte Wacker. Ein freies
-Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege möglich).
+Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege möglich). Inaktiv: Kompressor alt (seit 1.9.302).
 
     Mit Haken   die Angaben oben (aus dem Plantafel-Gerät), der Abschnitt „Plantafel“ mit Kurzname und Postfach (nur lesen, Link in die Einstellungen nur
                 für den Admin), keine Auswahl, nirgends das Wort „Ressource“; Kurzname und Bezeichnung ändern -> im Plantafel-Gerät gespeichert, die Seite
@@ -16,8 +16,12 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
                 Schnittstelle angelegt, „Hubsteiger Genie“) als „nur Plantafel“ mit „Betriebsmittel anlegen“, im Untertitel mitgezählt; nirgends „Ressource“
     Anlegen     „Betriebsmittel anlegen“ öffnet das Formular mit Haken und dem Gerät verknüpft -> gespeichert, auf der Seite des Geräts; „+ Hinzufügen“ mit
                 Haken und Kurzname legt ein neues planbares Gerät an (Minibagger, „MB 17“) -> Seite des Geräts; die Suche findet es über „MB 17“
-    Bilder      Gerät mit und ohne Haken, neues planbares Gerät anlegen (vor dem Speichern), Liste -- bei 1440, 1280 und 412 px, hell und dunkel; bei
-                412 px läuft nichts über
+    Inaktive    (seit 1.9.302) „Inaktive ausblenden“ über der Liste: angehakt (Vorgabe) fehlen der Kompressor (inaktiv) und die Reste ohne Betriebsmittel
+                (der Kran nach dem Entfernen des Hakens, ein inaktiver Rüttler über die Schnittstelle), daneben „3 inaktiv“; ohne Haken stehen sie grau da, die
+                Reste als „nur Plantafel · inaktiv“; die Wahl bleibt nach dem Neuladen, die Mitarbeiterliste bleibt angehakt; „Betriebsmittel anlegen“ am
+                Rüttler: verknüpft, „(inaktiv)“ in der Auswahl, Status Inaktiv -> gespeichert bleiben Gerät und Plantafel-Gerät inaktiv
+    Bilder      Gerät mit und ohne Haken, neues planbares Gerät anlegen (vor dem Speichern), Liste mit und ohne Haken bei „Inaktive ausblenden“ -- bei 1440,
+                1280 und 412 px, hell und dunkel; bei 412 px läuft nichts über
 
 AUFRUF (aus dem Projektordner):
 
@@ -42,6 +46,11 @@ OHNE_WORT = "!document.querySelector('main').innerText.includes('Ressource')"
 GESPEICHERT = "document.getElementById('editorStatus').textContent==='Gespeichert.'"
 FORM_BEREIT = "typeof assetResources!=='undefined'&&!!document.getElementById('assetEinplanbar')"
 LISTE_BEREIT = "!!document.querySelector('#content tbody tr td')"
+KAESTCHEN = "[document.getElementById('bmInaktiveAusblenden').checked,document.getElementById('bmInaktivZahl').textContent]"
+# seit 1.9.302: jede inaktive Zeile in der Farbe des Hinweises (grau), eine aktive nicht
+GRAU = ("(()=>{const grau=getComputedStyle(document.getElementById('bmInaktivZahl')).color;const z=[...document.querySelectorAll('#content tbody tr')];"
+        "return z.filter(r=>r.classList.contains('inaktiv')).every(r=>getComputedStyle(r.cells[2].querySelector('b')).color===grau)"
+        "&&z.filter(r=>!r.classList.contains('inaktiv')).every(r=>getComputedStyle(r.cells[2].querySelector('b')).color!==grau)})()")
 LISTE = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>2).map(r=>[r.cells[2].querySelector('b').textContent,"
          "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].textContent.trim()])")
 GERAETESEITE = "/^\\/betriebsmittel\\/\\d+$/.test(location.pathname)&&" + BEREIT
@@ -74,7 +83,8 @@ def befuellen(db, k):
     leiter = OperationalAsset(name="Leiter Alu 6 m", asset_type="Gerät / Werkzeug", asset_number="BM-12", active=True)
     eigen = OperationalAsset(name="Mein Anhänger", asset_type="Anhänger", active=True)
     platte = OperationalAsset(name="Rüttelplatte Wacker", asset_type="Maschine", manufacturer="Wacker Neuson", asset_number="BM-31", active=True)
-    db.add_all([bm_p, bm_k, leiter, eigen, platte])
+    alt = OperationalAsset(name="Kompressor alt", asset_type="Maschine", asset_number="BM-9", active=False)  # seit 1.9.302: inaktiv
+    db.add_all([bm_p, bm_k, leiter, eigen, platte, alt])
     kunde = Customer(name="Beispielbau GmbH", last_name="Beispielbau GmbH", is_consumer=False)
     db.add(kunde)
     db.flush()
@@ -205,8 +215,8 @@ async def pruefen(tab, seed, p):
              [["Pritsche HS-DK 202 MAN", "Plantafel", "Öffnen"], ["Leiter Alu 6 m", "Plantafel", "Öffnen"], ["Rüttelplatte Wacker", "", "Öffnen"],
               ["Hubsteiger Genie", "nur Plantafel", "Betriebsmittel anlegen"]])
     p.pruefe("Liste: Untertitel zählt „nur Plantafel“, nirgends „Ressource“", [await tab.js("document.getElementById('seitenkopfUntertitel').textContent"),
-                                                                             await tab.js(OHNE_WORT)], ["5 inventarisierte Betriebsmittel · 1 nur Plantafel", True])
-    await tab.js("[...document.querySelectorAll('#content a')].find(a=>a.textContent.trim()==='Betriebsmittel anlegen').click()")
+                                                                             await tab.js(OHNE_WORT)], ["6 inventarisierte Betriebsmittel · 1 nur Plantafel", True])
+    await tab.js("[...document.querySelectorAll('#content tbody tr')].find(r=>r.querySelector('b')?.textContent==='Hubsteiger Genie').querySelector('a').click()")
     p.pruefe("Betriebsmittel anlegen: das Formular mit Haken und dem Gerät", await tab.warten(f"location.search==='?ressource={hub}'&&{FORM_BEREIT}&&"
                                                                                              "document.getElementById('assetName').value==='Hubsteiger Genie'", 15), True)
     p.pruefe("Betriebsmittel anlegen: Haken, Abschnitt, Auswahl sichtbar und verknüpft, Kurzname", await tab.js(
@@ -233,6 +243,44 @@ async def pruefen(tab, seed, p):
              [True, "Minibagger Kubota U17", "Maschine", "Kubota", "MB 17"])
     suche = await tab.js("fetch('/api/search?q='+encodeURIComponent('MB 17')).then(r=>r.json())")
     p.pruefe("Suche über den Kurznamen", [h["title"] for g in suche if g["key"] == "operational_assets" for h in g["hits"]], ["Minibagger Kubota U17"])
+
+    # --- seit 1.9.302 (Nachrunde, Punkt 2): „Inaktive ausblenden“ -- dazu ein inaktiver Rüttler ohne Betriebsmittel (über die Schnittstelle, wie oben)
+    ruettler = await tab.js("fetch('/api/resources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Rüttler alt',"
+                            "resource_type:'Maschine',active:false})}).then(r=>r.json()).then(r=>r.id)")
+    p.pruefe("Inaktive: Liste geladen", await tab.oeffnen("/master-data?n=2#assets", LISTE_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Inaktive: angehakt (Vorgabe), Zahl daneben", await tab.js(KAESTCHEN), [True, "3 inaktiv"])
+    inaktiv = ("Kompressor alt", "Autokran", "Rüttler alt")
+    p.pruefe("Inaktive angehakt: nur das Betriebsmittel Autokran (aktiv, ohne Plantafel)", [z for z in await tab.js(LISTE) if z[0] in inaktiv],
+             [["Autokran", "", "Öffnen"]])
+    await tab.js("document.getElementById('bmInaktiveAusblenden').click()")
+    p.pruefe("Inaktive ohne Haken: drei Zeilen mehr", await tab.warten("document.querySelectorAll('#content tbody tr.inaktiv').length===3", 5), True)
+    p.pruefe("Inaktive ohne Haken: Kompressor, die Reste als „nur Plantafel · inaktiv“", sorted(z for z in await tab.js(LISTE) if z[0] in inaktiv),
+             [["Autokran", "", "Öffnen"], ["Autokran", "nur Plantafel · inaktiv", "Betriebsmittel anlegen"], ["Kompressor alt", "", "Öffnen"],
+              ["Rüttler alt", "nur Plantafel · inaktiv", "Betriebsmittel anlegen"]])
+    p.pruefe("Inaktive ohne Haken: grau, Zahl und Untertitel unverändert", [await tab.js(GRAU), await tab.js(KAESTCHEN),
+                                                                         await tab.js("document.getElementById('seitenkopfUntertitel').textContent")],
+             [True, [False, "3 inaktiv"], "8 inventarisierte Betriebsmittel"])
+    p.pruefe("Inaktive: nach dem Neuladen", await tab.oeffnen("/master-data?n=3#assets", LISTE_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Inaktive: die Wahl bleibt", await tab.js("[document.getElementById('bmInaktiveAusblenden').checked,document.querySelectorAll('#content tbody tr.inaktiv').length]"),
+             [False, 3])
+    p.pruefe("Mitarbeiter geladen", await tab.oeffnen("/master-data?n=4#employees", "!!document.getElementById('inaktiveAusblenden')"), True)
+    p.pruefe("Mitarbeiter: eigene Wahl, weiter angehakt", await tab.js("document.getElementById('inaktiveAusblenden').checked"), True)
+    p.pruefe("Inaktive: Liste wieder geladen", await tab.oeffnen("/master-data?n=5#assets", LISTE_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("[...document.querySelectorAll('#content tbody tr')].find(r=>r.querySelector('b')?.textContent==='Rüttler alt').querySelector('a').click()")
+    p.pruefe("Rüttler: das Anlegen mit dem Gerät", await tab.warten(f"location.search==='?ressource={ruettler}'&&{FORM_BEREIT}&&"
+                                                                   "document.getElementById('assetName').value==='Rüttler alt'", 15), True)
+    p.pruefe("Rüttler: Haken, Auswahl mit „(inaktiv)“, Status Inaktiv", await tab.js(
+        "[document.getElementById('assetEinplanbar').checked,document.getElementById('assetVerknuepfenWrap').hidden,document.getElementById('assetVerknuepfen').value,"
+        "document.getElementById('assetVerknuepfen').selectedOptions[0].textContent,document.getElementById('assetActiveSelect').value]"),
+             [True, False, str(ruettler), "Maschine · Rüttler alt (inaktiv)", "0"])
+    await tab.js("document.getElementById('saveBtn').click()")
+    p.pruefe("Rüttler: gespeichert, auf der Seite des Geräts", await tab.warten(GERAETESEITE, 15), True)
+    neu = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
+    p.pruefe("Rüttler: verknüpft, beide inaktiv (nicht still wieder aktiv)", [neu["einplanbar"], neu["resource_id"], neu["active"],
+                                                                              (await api(tab, f"/api/resources/{ruettler}"))["active"]], [True, ruettler, False, False])
 
     # --- Büro – Auftrag: Postfach zu sehen, kein Link
     await tab.anmelden(seed["bea"])
@@ -272,13 +320,28 @@ async def pruefen(tab, seed, p):
                 p.pruefe(f"anlegen 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild_ganz(f"anlegen_planbar_{breite}_{name}")
             n += 1
+            await tab.js("localStorage.setItem('erp_betriebsmittel_inaktive','ausblenden')")  # seit 1.9.302: angehakt (Vorgabe)
             p.pruefe(f"Liste {breite} {name}: geladen", await tab.oeffnen(f"/master-data?n={n}#assets", LISTE_BEREIT), True)
             await tab.warte_auf_ruhe()
             p.pruefe(f"Liste {breite} {name}: „nur Plantafel“, kein „Ressource“", [[z[1:] for z in await tab.js(LISTE) if z[0] == "Hebebühne JLG"],
                                                                                 await tab.js(OHNE_WORT)], [[["nur Plantafel", "Betriebsmittel anlegen"]], True])
+            p.pruefe(f"Liste {breite} {name}: angehakt, keine inaktive Zeile", [await tab.js(KAESTCHEN),
+                                                                             await tab.js("document.querySelectorAll('#content tbody tr.inaktiv').length")],
+                     [[True, "3 inaktiv"], 0])
             if breite == 412:
                 p.pruefe(f"Liste 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild_ganz(f"liste_{breite}_{name}")
+            # seit 1.9.302: dieselbe Liste ohne Haken bei „Inaktive ausblenden“
+            n += 1
+            await tab.js("localStorage.setItem('erp_betriebsmittel_inaktive','zeigen')")
+            p.pruefe(f"Liste ohne Haken {breite} {name}: geladen", await tab.oeffnen(f"/master-data?n={n}#assets", LISTE_BEREIT), True)
+            await tab.warte_auf_ruhe()
+            p.pruefe(f"Liste ohne Haken {breite} {name}: Kompressor und Kran grau, „nur Plantafel · inaktiv“",
+                     [await tab.js(KAESTCHEN), await tab.js(GRAU), [z[1:] for z in await tab.js(LISTE) if z[0] == "Autokran" and z[1]]],
+                     [[False, "3 inaktiv"], True, [["nur Plantafel · inaktiv", "Betriebsmittel anlegen"]]])
+            if breite == 412:
+                p.pruefe(f"Liste ohne Haken 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.bild_ganz(f"liste_ohne_haken_{breite}_{name}")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

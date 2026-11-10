@@ -158,3 +158,19 @@ Klicktests: keine -- die Änderung betrifft nur einen Test.
 PostgreSQL in einem Wegwerf-Schema mit Bestand. `301_9a` fängt nur der Einzeltest: ein neuer Eintrag speichert die Bezeichnung des Felds beim Schreiben, und die
 alte („Ressourcentyp“) übersetzt `ALTE_FELDNAMEN` beim Lesen -- angezeigt wird in beiden Fällen „Gerätetyp“. Klicktests: keine eigene Gegenprobe -- kein
 Klicktest liest diese Texte; die Klicktests der berührten Seiten laufen vor dem Commit.
+
+## 1.9.302 (Punkt 2): „Inaktive ausblenden“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Kästchen über der Liste, Vorgabe angehakt | Vorgabe „zeigen“ (`302_1a`, `302_1b`) | 2 rot: v702::test_vorgabe_angehakt_und_eigene_wahl_je_liste, test_ohne_speicher_gilt_die_wahl_bis_zum_neuladen; Klicktest: „Inaktive: angehakt (Vorgabe)“, „Inaktive angehakt: …“, „Rüttler: …“ u. a. (9 Prüfungen) |
+| Nr. 2 – eigene Wahl je Liste | der Schlüssel der Mitarbeiter (`302_2a`, `302_2b`) | 2 rot: v702::test_vorgabe_angehakt_und_eigene_wahl_je_liste, test_umschalten_merkt_im_browser_und_zeichnet_neu; Klicktest: „Mitarbeiter: eigene Wahl, weiter angehakt“ und die Bilder „Liste …“ (7 Prüfungen) |
+| Nr. 3 – ohne Haken grau | ohne die Klasse `inaktiv` an den Betriebsmitteln (`302_3a`, `302_3b`) | 1 rot: v702::test_inaktive_zeilen_grau_und_nur_plantafel_inaktiv; Klicktest: „Inaktive ohne Haken: drei Zeilen mehr“, „… grau …“ |
+| Nr. 4 – „nur Plantafel · inaktiv“ | die Pille ohne „· inaktiv“ (`302_4a`, `302_4c`) | 2 rot: v702::test_inaktive_zeilen_grau_und_nur_plantafel_inaktiv, v698::test_liste_plantafel_und_nur_plantafel; Klicktest: „Inaktive ohne Haken: Kompressor, die Reste …“, „Liste ohne Haken …“ (7 Prüfungen) |
+| Nr. 4 – ohne Haken auch das inaktive Gerät ohne Betriebsmittel | „nur Plantafel“ immer nur aktive (`302_4b`, `302_4d`) | 1 rot: v702::test_zeilen_und_zahlen; Klicktest: „Inaktive ohne Haken …“, „Rüttler: …“ (6 Prüfungen) |
+| Nr. 5 – „N inaktiv“ über Betriebsmittel und Geräte ohne Betriebsmittel | nur die Betriebsmittel gezählt (`302_5a`, `302_5b`) | 1 rot: v702::test_zeilen_und_zahlen; Klicktest: „Inaktive: angehakt (Vorgabe), Zahl daneben“ und alle Bilder der Liste (14 Prüfungen) |
+| Nr. 6 – Untertitel wie bisher (aktive „nur Plantafel“) | alle Geräte ohne Betriebsmittel gezählt (`302_6a`, `302_6b`) | 1 rot: v702::test_zeilen_und_zahlen; Klicktest: „Liste: Untertitel …“, „Inaktive ohne Haken: grau, Zahl und Untertitel unverändert“ |
+| Nr. 7 – Anlegen nimmt auch ein inaktives freies Gerät | nur ein aktives (`302_7a`, `302_7c`) | 1 rot: v702::test_anlegen_nimmt_auch_ein_inaktives_freies_geraet; Klicktest: „Rüttler: das Anlegen mit dem Gerät“ u. a. (3 Prüfungen) |
+| Nr. 7 – Status wie das Gerät | ohne die Übernahme des Status (`302_7b`, `302_7d`) | 1 rot: v702::test_anlegen_nimmt_auch_ein_inaktives_freies_geraet; Klicktest: „Rüttler: Haken, Auswahl mit „(inaktiv)“, Status Inaktiv“, „Rüttler: verknüpft, beide inaktiv“ und die Bilder (das Gerät wurde aktiv, „3 inaktiv“ wurde „2“) |
+
+18 Gegenproben (9 gegen Tests, 9 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben.

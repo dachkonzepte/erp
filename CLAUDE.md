@@ -1415,7 +1415,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   „Fuhrpark & Maschinen“ (`tests/test_v698_liste_und_anlegen.py`); seit 1.9.299 Betriebsmittel und Prüffristen in der Änderungshistorie, eine Ressource mit
   Betriebsmittel nicht löschbar (409), gleichzeitiges Verknüpfen mit Meldung statt 500 (`tests/test_v699_historie_und_meldungen.py`); seit 1.9.301 heißt „Ressource“ in der Oberfläche überall „Gerät“
   (Auswahlliste „Gerätetypen“, Migration `c990522c34ff`; die Historie zeigt „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“ -- gespeichert bleiben die alten Namen,
-  übersetzt in `app/verlauf_namen.py::ANGEZEIGTE_ARTEN`; `tests/test_v701_geraet_statt_ressource.py`)) --
+  übersetzt in `app/verlauf_namen.py::ANGEZEIGTE_ARTEN`; `tests/test_v701_geraet_statt_ressource.py`); seit 1.9.302 „Inaktive ausblenden“ über der Liste wie bei den
+  Mitarbeitern (eigener Schlüssel `erp_betriebsmittel_inaktive`), ohne Haken ein inaktives Gerät ohne Betriebsmittel als „nur Plantafel · inaktiv“, das Anlegen mit ihm
+  übernimmt seinen Status (`tests/test_v702_betriebsmittel_inaktive.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

@@ -48,10 +48,13 @@ def test_anlegen_mit_haken_und_verknuepfen():
 def test_liste_plantafel_und_nur_plantafel():
     liste = LISTE.read_text(encoding="utf-8")
     assert """${x.resource_id?' <span class="pill">Plantafel</span>':''}""" in liste and "Ressourcenbezug" not in liste
-    assert "const nurPlantafel=resources.filter(r=>r.active&&!assets.some(a=>a.resource_id===r.id));" in liste
+    # seit 1.9.302 über betriebsmittelDerListe() -- angehakt („Inaktive ausblenden“) nur aktive, ohne Haken auch inaktive (bis 1.9.301 immer nur aktive:
+    # const nurPlantafel=resources.filter(r=>r.active&&…)); die Zeilen selbst prüft tests/test_v702_betriebsmittel_inaktive.py
+    assert "const bm=betriebsmittelDerListe(assets,resources,bmInaktiveVersteckt);" in liste
     # die Zeilen kommen in die Liste, mit der Suche der Liste gefiltert (Nachzug nach der Gegenprobe 298_4a, Regel 24)
-    assert "rows=rows.concat(nurPlantafel.filter(r=>textMatch(r.name,r.resource_type,r.kurzname,r.identifier)).map(r=>" in liste
-    assert '<span class="pill">nur Plantafel</span>' in liste and 'href="/master-data/assets/new?ressource=${r.id}">Betriebsmittel anlegen</a>' in liste
+    assert "rows=rows.concat(bm.nurPlantafel.filter(r=>textMatch(r.name,r.resource_type,r.kurzname,r.identifier)).map(r=>" in liste
+    assert """<span class="pill">nur Plantafel${r.active?'':' · inaktiv'}</span>""" in liste
+    assert 'href="/master-data/assets/new?ressource=${r.id}">Betriebsmittel anlegen</a>' in liste
 
 
 def test_modul_aus_bleibt_das_formular_fuhrpark():
