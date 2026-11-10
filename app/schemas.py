@@ -5438,7 +5438,7 @@ class OperationalAssetCreate(BaseModel):
     @model_validator(mode="after")
     def _name_required_when_unlinked(self):
         if self.resource_id is None and not (self.name and self.name.strip()):
-            raise ValueError("Bezeichnung ist erforderlich, wenn kein Ressourcenbezug gewählt ist.")
+            raise ValueError("Bezeichnung ist erforderlich, wenn kein vorhandenes Plantafel-Gerät verknüpft wird.")
         return self
 
 

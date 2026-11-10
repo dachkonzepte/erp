@@ -1413,7 +1413,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `klicktest_geraete.py`); seit 1.9.298 legt „+ Hinzufügen“ mit Haken auch das Plantafel-Gerät an, ein aktives ohne Betriebsmittel steht in der Liste als
   „nur Plantafel“ mit „Betriebsmittel anlegen“ (`/master-data/assets/new?ressource=<id>`), die Suche findet den Kurznamen; bei ausgeschaltetem Modul bleibt
   „Fuhrpark & Maschinen“ (`tests/test_v698_liste_und_anlegen.py`); seit 1.9.299 Betriebsmittel und Prüffristen in der Änderungshistorie, eine Ressource mit
-  Betriebsmittel nicht löschbar (409), gleichzeitiges Verknüpfen mit Meldung statt 500 (`tests/test_v699_historie_und_meldungen.py`)) --
+  Betriebsmittel nicht löschbar (409), gleichzeitiges Verknüpfen mit Meldung statt 500 (`tests/test_v699_historie_und_meldungen.py`); seit 1.9.301 heißt „Ressource“ in der Oberfläche überall „Gerät“
+  (Auswahlliste „Gerätetypen“, Migration `c990522c34ff`; die Historie zeigt „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“ -- gespeichert bleiben die alten Namen,
+  übersetzt in `app/verlauf_namen.py::ANGEZEIGTE_ARTEN`; `tests/test_v701_geraet_statt_ressource.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

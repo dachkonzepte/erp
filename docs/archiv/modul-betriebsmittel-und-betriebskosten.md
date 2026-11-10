@@ -1650,3 +1650,50 @@ Neu: `tests/test_v699_historie_und_meldungen.py` (über die echten Router: Histo
 ohne Betriebsmittel wie bisher; zweite Verknüpfung an der Prüfung vorbei -> 422 mit Meldung, nur ein Betriebsmittel). Die Wächter
 `tests/test_v436_fehlerrunde_vor_stufe_2.py` und `tests/test_v438_nachrunde.py` prüfen die Namen der neuen Arten und Felder mit. Klicktests: keine Oberfläche
 neu. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.299“.
+
+## Nachrunde der Geräte-Runde (ab 1.9.300)
+
+Bestätigt am 10.11.2026: die Festlegungen 1.9.293–1.9.299. Fünf Punkte, je eine Version: 0 Wackler test_v596 (1.9.300, Archiv „Testablauf“), 1 „Ressource“ heißt
+überall „Gerät“, 2 „Inaktive ausblenden“ in der Liste der Betriebsmittel (Frage 2), 3 die Suche findet „nur Plantafel“ (Frage 3), 4 „Betriebsmittel anlegen“ wie die
+Seite des Geräts. Fragen 4 (gleiche Endzahl) und 5 („R-<id>“): bleibt so.
+
+### Umsetzung 1.9.301 (Punkt 1): „Ressource“ heißt überall „Gerät“
+
+- Einstellungen: die Auswahlliste `resource_types` heißt „Gerätetypen · Fuhrpark & Maschinen“ (`app/option_settings.py`, neue Installation). Die Bezeichnung
+  einer Auswahlliste steht in `setting_option_groups.label` und lässt sich in den Einstellungen nicht ändern; im Bestand stellt die Migration `c990522c34ff` sie
+  um, nur wo noch genau „Ressourcentypen · Fuhrpark & Maschinen“ steht (downgrade zurück, nur wo genau die neue steht). Keine Schemaänderung.
+- Arbeitsvorbereitung: Reiter „Kolonnen / Geräte“; Formular der Kolonne: „Noch keine Geräte angelegt.“
+- Modul aus („Fuhrpark & Maschinen“): Untertitel „N planbare Geräte“, Spalte „Gerät“, Formular „Gerät anlegen“ / „Gerät bearbeiten“ mit „Gerätenummer“ und
+  „Gerätetyp“ (die Nummer heißt dort wie das Gerät -- intern bleibt sie „R-<id>“, Antwort 5).
+- Meldungen (`app/routers/resource_planning.py`, `app/planning.py`, `app/schemas.py`): „Gerät nicht gefunden.“, „Gerät #… wurde nicht gefunden.“,
+  „Gerätenummer ist bereits vergeben.“, ein Konflikt ohne Namen „Gerät #…“, ein Gerät einer Kolonne ohne Datensatz „Gerät“; „Bezeichnung ist erforderlich,
+  wenn kein vorhandenes Plantafel-Gerät verknüpft wird.“
+- Historie: gespeichert bleibt die Art wie bisher (`TYPE_LABELS` in `app/audit.py`: „Ressource“, „Plantafel-Gerät“, „Team-Ressource“, „AV-Team-Ressource“) --
+  an ihr hängen der Filter der Seite (er schickt die gespeicherte Art), der Verlauf der Akte (`app/akte_verlauf.py::ART_JE_TYP`) und die Schwärzung. Angezeigt
+  wird beim Lesen (`app/verlauf_namen.py::art_lesbar()`, `ANGEZEIGTE_ARTEN`) „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“, „Gerät der Kolonne (AV)“ -- für
+  alte und neue Einträge gleich, auch für Einträge von vor 1.8.138 mit dem Klassennamen. Wer die Art umbenennt statt zu übersetzen, teilt die Historie in zwei
+  Arten (der Filter fände die alten nicht mehr) und müsste den Verlauf der Akte mit beiden Namen führen. Felder: „Gerät“, „Gerät (Name)“, „Gerätetyp“,
+  „Gerätetyp (Stand)“, „Gerätenummer“ (`FIELD_LABELS`); ein älterer Eintrag mit gespeicherter Bezeichnung wird über `ALTE_FELDNAMEN` übersetzt.
+- Der Verlauf der Akte nennt ein Gerät am Einsatz damit „Gerät am Einsatz …“ (er nimmt den angezeigten Namen).
+- Übrig mit „Ressource“: Kommentare, Docstrings, die Namen im Code (`OperationalResource`, `resource_id`, Adressen `/api/resources`) und die gespeicherten alten
+  Namen der Historie. `tests/test_v701_geraet_statt_ressource.py` sucht in jeder Vorlage (ohne Kommentare) und in jeder Zeichenkette unter `app/` (ohne
+  Docstrings); erlaubt ist dort nur ein alter Name, den die Historie beim Anzeigen übersetzt.
+
+#### Festlegungen 1.9.301 (Bitte bestätigen)
+
+1. Die Auswahlliste heißt „Gerätetypen · Fuhrpark & Maschinen“ -- nur das Wort ersetzt, der Zusatz bleibt; im Bestand über die Migration `c990522c34ff`, nur wo
+   genau die bisherige Bezeichnung steht.
+2. Arbeitsvorbereitung „Kolonnen / Geräte“, Kolonne „Noch keine Geräte angelegt.“
+3. Modul aus: „N planbare Geräte“, Spalte „Gerät“, „Gerät anlegen“ / „Gerät bearbeiten“, „Gerätenummer“, „Gerätetyp“.
+4. Meldungen: „Gerät nicht gefunden.“, „Gerät #… wurde nicht gefunden.“, „Gerätenummer ist bereits vergeben.“, Konflikt „Gerät #…“, „Bezeichnung ist
+   erforderlich, wenn kein vorhandenes Plantafel-Gerät verknüpft wird.“
+5. Historie: angezeigt „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“, „Gerät der Kolonne (AV)“, für alte und neue Einträge gleich.
+6. Gespeichert bleibt die bisherige Art; übersetzt wird beim Lesen.
+7. Felder der Historie „Gerät“, „Gerät (Name)“, „Gerätetyp“, „Gerätetyp (Stand)“, „Gerätenummer“ -- auch bei älteren Einträgen.
+
+#### Tests und Prüfung 1.9.301
+
+Neu: `tests/test_v701_geraet_statt_ressource.py` (Vorlagen ohne „Ressource“, Zeichenketten unter `app/` ohne „Ressource“ außer den alten Namen der Historie, die
+neuen Texte, Auswahlliste einer neuen Installation, Meldungen über die echte Schnittstelle, Historie über `/api/audit-logs` -- Filter mit der gespeicherten Art,
+angezeigt „Gerät“, ein alter Eintrag mit Klassenname und alter Feldbezeichnung --, Migration auf einem Bestand gegen SQLite und PostgreSQL). Keine bestehende
+Erwartung geändert: `test_v634` und `test_v699` prüfen die gespeicherte Art und bleiben. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.301“.

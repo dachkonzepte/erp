@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.301 – „Ressource“ heißt überall „Gerät“
+
+In der Oberfläche steht nirgends mehr „Ressource“ (Frage 1 der Geräte-Runde): die Auswahlliste in den Einstellungen heißt „Gerätetypen · Fuhrpark & Maschinen“, der Reiter der Arbeitsvorbereitung „Kolonnen / Geräte“, die Kolonne meldet „Noch keine Geräte angelegt.“; bei ausgeschaltetem Modul „N planbare Geräte“, Spalte „Gerät“, „Gerät anlegen“ / „Gerät bearbeiten“, „Gerätenummer“, „Gerätetyp“; die Meldungen des Servers „Gerät nicht gefunden.“ und „Gerätenummer ist bereits vergeben.“. Die Änderungshistorie zeigt „Gerät“, „Gerät am Einsatz“ (bis 1.9.300 „Plantafel-Gerät“), „Gerät der Kolonne“ und „Gerät der Kolonne (AV)“ und die Felder „Gerät“, „Gerätetyp“, „Gerätenummer“ -- für alte und neue Einträge gleich: gespeichert bleibt die bisherige Art, an ihr hängen der Filter der Historie, der Verlauf der Akte und die Schwärzung; übersetzt wird beim Lesen (`app/verlauf_namen.py`).
+
+Die Bezeichnung der Auswahlliste steht in der Datenbank -- die Migration `c990522c34ff` stellt sie um, nur wo noch genau die bisherige steht (keine Schemaänderung). Neu `tests/test_v701_geraet_statt_ressource.py` (Vorlagen und Meldungen ohne „Ressource“, die neuen Texte, Historie über die Schnittstelle, Migration gegen SQLite und PostgreSQL).
+
 ## 1.9.300 – Tests: Wackler test_v596 behoben
 
 `tests/test_v596_reihenfolge.py` startet ein inneres pytest auf Probedateien in `tmp_path` (unter `%TEMP%`). Ohne `--confcutdir` sammelte es sie über jeden Ordner ab `C:\Users` -- auch über `%TEMP%` selbst, dessen Einträge es dabei einzeln ansieht. Löschte ein anderer Test im selben Augenblick dort seinen Ordner (`test_v630_vorprobe_time4`, `erp-vorprobe-…`), brach das Sammeln mit `FileNotFoundError` ab (zweimal im vollen Lauf der Hauptarbeitskopie, Geräte-Runde). Jetzt mit `--confcutdir` auf `tmp_path`: der Baum beginnt beim Ordner der Probedateien, kein Ordner darüber wird gelesen.

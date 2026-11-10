@@ -1781,7 +1781,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 gemeinsam = _tage_der_zeile(a, ra) & _tage_der_zeile(b, rb)
                 if gemeinsam:
                     # seit 1.9.255: welches Gerät -- die Zeile eines Geräts zeigt nur seine Warnungen; seit 1.9.261 an welchen Tagen
-                    issues.append(("resource", ra.resource.name if ra.resource else f"Ressource #{rid}", {"resource_id": rid, "tage": sorted(gemeinsam)}))
+                    issues.append(("resource", ra.resource.name if ra.resource else f"Gerät #{rid}", {"resource_id": rid, "tage": sorted(gemeinsam)}))
             for kind, label, wen in issues:
                 result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name, **wen})
                 result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name, **wen})

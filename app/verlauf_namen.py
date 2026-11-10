@@ -36,16 +36,26 @@ def _art_namen() -> dict[str, str]:
     return {cls.__name__: name for cls, name in TYPE_LABELS.items()}
 
 
+# Seit 1.9.301 (Nachrunde der Geräte-Runde, Punkt 1): „Ressource“ heißt in der Oberfläche überall „Gerät“. Gespeichert bleibt die Art wie bisher
+# (TYPE_LABELS in app/audit.py -- an ihr hängen der Filter der Historie, der Verlauf der Akte und die Schwärzung), angezeigt wird der neue Name, für alte
+# und neue Einträge gleich. Ebenso die Bezeichnung eines Felds, die ein älterer Eintrag gespeichert hat (die neuen Namen stehen in FIELD_LABELS).
+ANGEZEIGTE_ARTEN = {"Ressource": "Gerät", "Plantafel-Gerät": "Gerät am Einsatz", "Team-Ressource": "Gerät der Kolonne",
+                    "AV-Team-Ressource": "Gerät der Kolonne (AV)"}
+ALTE_FELDNAMEN = {"Ressource": "Gerät", "Ressource (Name)": "Gerät (Name)", "Ressourcentyp": "Gerätetyp", "Ressourcentyp (Stand)": "Gerätetyp (Stand)",
+                  "Ressourcennummer": "Gerätenummer"}
+
+
 def art_lesbar(entity_type: str | None) -> str | None:
     if entity_type is None:
         return None
-    return _art_namen().get(entity_type, entity_type)
+    art = _art_namen().get(entity_type, entity_type)
+    return ANGEZEIGTE_ARTEN.get(art, art)
 
 
 def feld_lesbar(field_name: str | None, field_label: str | None = None) -> str | None:
     """Gespeicherte Bezeichnung, wenn sie eine ist (nicht der Feldname selbst), sonst die heutige aus FIELD_LABELS."""
     if field_label and field_label != field_name:
-        return field_label
+        return ALTE_FELDNAMEN.get(field_label, field_label)
     if field_name is None:
         return field_label
     return FIELD_LABELS.get(field_name, field_label or field_name)

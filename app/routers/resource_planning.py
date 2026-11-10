@@ -55,7 +55,7 @@ def _team_dict(db: Session, team: Team):
         "resources": [{
             "resource_id": r.resource_id,
             "resource_name": r.resource.name if r.resource else f"#{r.resource_id}",
-            "resource_type": r.resource.resource_type if r.resource else "Ressource",
+            "resource_type": r.resource.resource_type if r.resource else "Gerät",
             "role": r.role,
         } for r in team.resources],
     }
@@ -94,7 +94,7 @@ def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
     for x in payload.resources:
         if x.resource_id in seen: continue
         r=db.get(OperationalResource,x.resource_id)
-        if r is None: raise HTTPException(status_code=422,detail=f"Ressource #{x.resource_id} wurde nicht gefunden.")
+        if r is None: raise HTTPException(status_code=422,detail=f"Gerät #{x.resource_id} wurde nicht gefunden.")
         db.add(TeamResource(team_id=team.id,resource_id=x.resource_id,role=x.role)); seen.add(x.resource_id)
 
 
@@ -148,14 +148,14 @@ def list_resources(db:Session=Depends(get_db, scope="function"),_role:AppUser=_r
 @router.get("/api/resources/{resource_id}", response_model=OperationalResourceOut)
 def get_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
-    if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
+    if x is None: raise HTTPException(status_code=404,detail="Gerät nicht gefunden.")
     return OperationalResourceOut.model_validate(_resource_dict(x))
 
 
 @router.post("/api/resources", response_model=OperationalResourceOut)
 def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     if payload.resource_number and db.scalar(select(OperationalResource).where(OperationalResource.resource_number==payload.resource_number)):
-        raise HTTPException(status_code=409,detail="Ressourcennummer ist bereits vergeben.")
+        raise HTTPException(status_code=409,detail="Gerätenummer ist bereits vergeben.")
     werte=payload.model_dump(); werte["kurzname"]=(werte.get("kurzname") or "").strip() or None  # seit 1.9.280: leer = der Name
     x=OperationalResource(**werte); db.add(x); db.commit(); db.refresh(x)
     return OperationalResourceOut.model_validate(_resource_dict(x))
@@ -164,11 +164,11 @@ def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db,
 @router.put("/api/resources/{resource_id}", response_model=OperationalResourceOut)
 def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
-    if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
+    if x is None: raise HTTPException(status_code=404,detail="Gerät nicht gefunden.")
     werte=payload.model_dump(exclude_unset=True)  # seit 1.9.280 ein Teil-Update (Regel 22): nur die gesendeten Felder
     if werte.get("resource_number"):
         other=db.scalar(select(OperationalResource).where(OperationalResource.resource_number==werte["resource_number"],OperationalResource.id!=resource_id))
-        if other: raise HTTPException(status_code=409,detail="Ressourcennummer ist bereits vergeben.")
+        if other: raise HTTPException(status_code=409,detail="Gerätenummer ist bereits vergeben.")
     if "kurzname" in werte: werte["kurzname"]=(werte["kurzname"] or "").strip() or None
     for k,v in werte.items(): setattr(x,k,v)
     db.commit(); db.refresh(x); return OperationalResourceOut.model_validate(_resource_dict(x))
@@ -177,7 +177,7 @@ def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session
 @router.delete("/api/resources/{resource_id}")
 def delete_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
-    if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
+    if x is None: raise HTTPException(status_code=404,detail="Gerät nicht gefunden.")
     # seit 1.9.299 (Geräte-Runde, N1): gehört das Gerät zu einem Betriebsmittel, nicht löschen -- bis 1.9.298 scheiterte das unter PostgreSQL am Fremdschlüssel (500)
     if db.scalar(select(OperationalAsset.id).where(OperationalAsset.resource_id==resource_id).limit(1)) is not None:
         raise HTTPException(status_code=409,detail="Das Gerät gehört zu einem Betriebsmittel. Bitte dort ändern -- ohne den Haken „Auf der Plantafel einplanbar“ "

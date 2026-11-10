@@ -132,3 +132,29 @@ ausblenden“ in der Liste der Betriebsmittel, 3 die Suche findet „nur Plantaf
 
 1 Gegenprobe gegen den Test, rot; die Datei byte-genau zurück. Die Gegenprobe ändert den Test selbst (die Behebung steht dort, nicht unter `app/`).
 Klicktests: keine -- die Änderung betrifft nur einen Test.
+
+## 1.9.301 (Punkt 1): „Ressource“ heißt überall „Gerät“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Auswahlliste „Gerätetypen · Fuhrpark & Maschinen“ (neue Installation) | die bisherige Bezeichnung in `app/option_settings.py` (`301_1a`) | 2 rot: v701::test_auswahlliste_heisst_geraetetypen, test_keine_meldung_nennt_ressource |
+| Nr. 1 – im Bestand über die Migration | `upgrade()` tut nichts (`301_2a`) | 2 rot: v701::test_migration_auf_einem_bestand_sqlite, …_postgresql |
+| Nr. 1 – nur wo genau die bisherige Bezeichnung steht | ohne die Bedingung auf die Bezeichnung (`301_2b`) | 2 rot: dieselben (eine andere Bezeichnung wurde umgestellt) |
+| Nr. 2 – „Kolonnen / Geräte“ | der Reiter wie bisher (`301_3a`) | 2 rot: v701::test_keine_vorlage_zeigt_ressource, test_neue_texte_stehen |
+| Nr. 2 – „Noch keine Geräte angelegt.“ | der Text wie bisher (`301_4a`) | 2 rot: dieselben |
+| Nr. 3 – Modul aus: „N planbare Geräte“ | der Untertitel wie bisher (`301_5a`) | 2 rot: dieselben |
+| Nr. 3 – Modul aus: „Gerät anlegen“ / „Gerät bearbeiten“ | der Titel wie bisher (`301_5b`) | 2 rot: dieselben |
+| Nr. 4 – „Gerät nicht gefunden.“ | die Meldung von `GET /api/resources/{id}` wie bisher (`301_6a`) | 2 rot: v701::test_meldungen_nennen_das_geraet, test_keine_meldung_nennt_ressource |
+| Nr. 4 – Konflikt ohne Namen „Gerät #…“ | „Ressource #…“ in `app/planning.py` (`301_6b`) | 1 rot: v701::test_keine_meldung_nennt_ressource |
+| Nr. 5 – angezeigt „Gerät“ | ohne die Übersetzung von „Ressource“ (`301_7a`) | 2 rot: v701::test_angezeigte_arten_und_felder, test_historie_zeigt_geraet_gespeichert_bleibt_ressource |
+| Nr. 5 – „Gerät am Einsatz“ | ohne die Übersetzung von „Plantafel-Gerät“ (`301_7b`) | 1 rot: v701::test_angezeigte_arten_und_felder |
+| Nr. 5 – „Gerät der Kolonne“ | ohne „Team-Ressource“ (`301_7c`) | 2 rot: v701::test_angezeigte_arten_und_felder, test_keine_meldung_nennt_ressource |
+| Nr. 5 – „Gerät der Kolonne (AV)“ | ohne „AV-Team-Ressource“ (`301_7d`) | 2 rot: dieselben |
+| Nr. 6 – gespeichert bleibt die bisherige Art | `TYPE_LABELS` speichert „Gerät“ (`301_8a`) | 3 rot: v699::test_betriebsmittel_und_pruefung_in_der_historie, v701::test_angezeigte_arten_und_felder, test_historie_zeigt_geraet_gespeichert_bleibt_ressource (der Filter mit der gespeicherten Art fand die neuen Einträge nicht mehr) |
+| Nr. 7 – Feld „Gerätetyp“ | `FIELD_LABELS` wie bisher (`301_9a`) | 1 rot: v701::test_angezeigte_arten_und_felder |
+| Nr. 7 – auch bei älteren Einträgen | ohne `ALTE_FELDNAMEN` (`301_9b`) | 2 rot: v701::test_angezeigte_arten_und_felder, test_historie_zeigt_geraet_gespeichert_bleibt_ressource |
+
+16 Gegenproben, alle gegen Tests, alle rot -- je die rote Zeile angesehen; jede Datei byte-genau zurück, kein Marker geblieben. Die Migration auch gegen
+PostgreSQL in einem Wegwerf-Schema mit Bestand. `301_9a` fängt nur der Einzeltest: ein neuer Eintrag speichert die Bezeichnung des Felds beim Schreiben, und die
+alte („Ressourcentyp“) übersetzt `ALTE_FELDNAMEN` beim Lesen -- angezeigt wird in beiden Fällen „Gerätetyp“. Klicktests: keine eigene Gegenprobe -- kein
+Klicktest liest diese Texte; die Klicktests der berührten Seiten laufen vor dem Commit.

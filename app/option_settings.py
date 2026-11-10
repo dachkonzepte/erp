@@ -124,7 +124,7 @@ DEFAULT_OPTION_GROUPS = {
         ],
     },
     "resource_types": {
-        "label": "Ressourcentypen · Fuhrpark & Maschinen",
+        "label": "Gerätetypen · Fuhrpark & Maschinen",  # seit 1.9.301 (bis 1.9.300 „Ressourcentypen“), Bestand: Migration c990522c34ff
         "description": "Zentrale Typen für planbare Fahrzeuge, Maschinen, Anhänger und Geräte.",
         "sort_order": 65,
         "options": [
