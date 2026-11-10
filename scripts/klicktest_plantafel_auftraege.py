@@ -18,6 +18,8 @@ Bediener“; der Kran ist am Fr doppelt); offen ohne Einsatz: Dachfenster Krüge
                 Kranzeichen da, die Gerätezeichen weg; „Kolonnen“ zu, „Aufträge“ offen, Zuklappen dort merkt nichts, der nächste Wechsel öffnet wieder
     Zeitraum    (seit 1.9.290) mit 2–4 Wochen startet „Zum Einplanen“ unter 1440 px eingeklappt, mit 1 Woche offen -- beim Wechsel in die Ansicht und bei jedem
                 anderen Zeitraum dort, nichts gemerkt; bei 1440 px mit 2 Wochen offen; bei 1280 px mit 2 Wochen rollt die Tafel nicht
+    Abzeichen   (seit 1.9.291) ⚠ und der Punkt sitzen als Abzeichen an der oberen rechten Ecke des Chips, außerhalb des Namens; kein Chip gekürzt, auch mit
+                Warnung (1440 und 1280 px, 1 Woche; 1280 px mit 2 Wochen)
     Bilder      „Aufträge“ bei 1440 und 1280 px, hell und dunkel; 2 Wochen bei 1280 px, hell und dunkel
     keine JS-Fehler
 
@@ -51,6 +53,12 @@ ZELLE = ("((name,tag)=>{const z=[...document.querySelectorAll('#planner tr.a-zei
 PLATZ = ("(()=>{const p=document.getElementById('planner');return [p.scrollWidth>p.clientWidth,"
          "[...p.querySelectorAll('.chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim()),"  # seit 1.9.284 kürzt der Text in .chip-text
          "!document.getElementById('tafelLayout').classList.contains('rk-zu')]})()")
+# seit 1.9.291: jedes Abzeichen an der oberen rechten Ecke seines eigenen Chips -- 5 px (±1) über und rechts hinaus --, außerhalb des Namens; Rückgabe die Chips,
+# bei denen nicht (Gegenprobe 291_2e: ohne position:relative am Chip landeten alle Abzeichen an der Ecke der Karte, „über und rechts vom Chip“ reichte nicht)
+ABZEICHEN = ("[...document.querySelectorAll('#planner .chip .abzeichen')].filter(a=>{const c=a.closest('.chip').getBoundingClientRect(),"
+             "t=a.closest('.chip').querySelector('.chip-text').getBoundingClientRect(),b=a.getBoundingClientRect();"
+             "return !(Math.abs(b.right-c.right-5)<=1&&Math.abs(c.top-b.top-5)<=1&&b.left>=t.right-0.5)}).map(a=>a.closest('.chip').textContent.trim())")
+ABZEICHEN_ZAHL = "[document.querySelectorAll('#planner .chip .abzeichen.warn').length,document.querySelectorAll('#planner .chip .abzeichen:not(.warn)').length]"
 # seit 1.9.290: Zeitraum in „Aufträge“ wechseln wie mit der Auswahl (change) und warten, bis die Tafel neu gezeichnet ist
 ZEITRAUM_SETZEN = "(t=>{const s=document.getElementById('rangeDays');s.value=String(t);s.dispatchEvent(new Event('change'));return true})"
 LISTE_ZU = "document.getElementById('tafelLayout').classList.contains('rk-zu')"
@@ -181,6 +189,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kran mit eigenem Zeichen in der Liste", await tab.js("!!document.querySelector('#backlog .chip[data-art=geraet] .kranzeichen')"), True)
     p.pruefe("nichts ragt über das Fenster", await tab.ueberlauf(), [])
     p.pruefe("1440 hell: rollt nicht, kein Chip gekürzt, Liste offen", await tab.js(PLATZ), [False, [], True])
+    p.pruefe("1440 hell: Abzeichen an der Ecke (⚠ zweimal am Kran, Punkt an Nele)", [await tab.js(ABZEICHEN_ZAHL), await tab.js(ABZEICHEN)], [[2, 1], []])
     await tab.bild("auftraege_1440_hell")
     # der Filter „Warnungen · Hinweise“: nur Aufträge mit einem Einsatz mit Warnung oder Hinweis
     await tab.js("document.getElementById('filterKnopf').click()")
@@ -224,6 +233,7 @@ async def pruefen(tab, seed, p):
         p.pruefe(f"1280 {name}: nichts ragt über das Fenster", await tab.ueberlauf(), [])
         # seit 1.9.283 (R5d, Punkt 1): „Zum Einplanen“ offen, die Tafel rollt nicht seitlich (der Freitag ist zu sehen), kein Chip gekürzt
         p.pruefe(f"1280 {name}: Liste offen, rollt nicht, kein Chip gekürzt", await tab.js(PLATZ), [False, [], True])
+        p.pruefe(f"1280 {name}: Abzeichen an der Ecke", [await tab.js(ABZEICHEN_ZAHL), await tab.js(ABZEICHEN)], [[2, 1], []])
         p.pruefe(f"1280 {name}: Freitag zu sehen", await tab.js(
             f"(th=>{{const r=th.getBoundingClientRect(),p=document.getElementById('planner').getBoundingClientRect();return r.right<=p.right+0.5}})"
             f"(document.querySelector('#planner thead th[title^=\"{FR[8:]}.{FR[5:7]}.\"]'))"), True)
@@ -255,7 +265,9 @@ async def pruefen(tab, seed, p):
     await tab.js(f"({ZEITRAUM_SETZEN})(14)")
     await tab.warten("tageAnzahl()===14&&auftragsliste&&auftragsliste.end==='2026-11-22'&&!!document.querySelector('#planner tr.a-zeile')")
     await tab.warte_auf_ruhe()
-    p.pruefe("1280 dunkel, 2 Wochen: Liste zu, rollt nicht", (await tab.js(PLATZ))[0::2], [False, False])
+    # seit 1.9.291 mit dem Abzeichen auch kein Chip gekürzt (bis 1.9.290 „Kr“ am Kran mit ⚠)
+    p.pruefe("1280 dunkel, 2 Wochen: Liste zu, rollt nicht, kein Chip gekürzt", await tab.js(PLATZ), [False, [], False])
+    p.pruefe("1280 dunkel, 2 Wochen: Abzeichen an der Ecke", await tab.js(ABZEICHEN), [])
     p.pruefe("1280, 2 Wochen: nichts gemerkt", await tab.js("localStorage.getItem('plantafel_rueckstand')"), None)
     p.pruefe("1280, 2 Wochen: nichts ragt über das Fenster", await tab.ueberlauf(), [])
     await tab.bild("auftraege_2wochen_1280_dunkel")
@@ -279,7 +291,7 @@ async def pruefen(tab, seed, p):
     await tab.warten("tageAnzahl()===14&&auftragsliste&&auftragsliste.end==='2026-11-22'")
     await tab.warte_auf_ruhe()
     await laden(tab, p, 5, "light", "1280 hell, 2 Wochen")
-    p.pruefe("1280 hell, 2 Wochen: Liste zu, rollt nicht", [await tab.js("tageAnzahl()"), (await tab.js(PLATZ))[0::2]], [14, [False, False]])
+    p.pruefe("1280 hell, 2 Wochen: Liste zu, rollt nicht, kein Chip gekürzt", [await tab.js("tageAnzahl()"), await tab.js(PLATZ)], [14, [False, [], False]])
     await tab.bild("auftraege_2wochen_1280_hell")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 

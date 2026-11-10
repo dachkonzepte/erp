@@ -2711,3 +2711,39 @@ Archiv `gegenproben-stufe6-r5e.md`, „1.9.290“.
 - `tests/test_v679_auftragsliste.py::_seite`: `auftraegeListeOffen()` als Platzhalter (nur der Aufbau); `test_auswahl_mit_einer_woche_und_merken`: alt
   `addEventListener('change',()=>{zeitraumMerken(view,tageAnzahl());loadBoard()})`, neu `addEventListener('change',zeitraumGewechselt)` und
   `function zeitraumGewechselt(){zeitraumMerken(view,tageAnzahl());…loadBoard()}` (merkt den Zeitraum und lädt weiter, dazu der Neustart der Liste).
+
+### Umsetzung 1.9.291 (Punkt 2): Warnung und Hinweis als Abzeichen an der Ecke
+
+- `chipHtml()`: statt ⚠ hinter dem Namen (`${c.warn?WARNZEICHEN:''}`) und dem Punkt davor steht hinter dem Namen ein `span.abzeichen` (mit Warnung zusätzlich
+  `.warn`, darin `WARNZEICHEN`; sonst mit Hinweis darin `span.hinweis-punkt`) -- Warnung vor Hinweis wie bisher (mit beidem nur ⚠). `aria-hidden`: was die
+  Warnung sagt, steht wie bisher im title des Chips. Der Klassenname beginnt bewusst nicht mit „chip“ -- die Zähler der Tests (`class="chip…"`) nähmen ihn sonst als
+  eigenen Chip.
+- CSS: `.chip` ist `position:relative`; `.chip .abzeichen` absolut, 12 × 12 px rund, `top:-5px; right:-5px` -- 5 px über die Ecke hinaus, in den Abstand zum
+  nächsten Chip (4 px) und den Innenabstand der Karte; links reicht es 7 px in den Chip, so weit wie Innenabstand und Rand (6 + 1 px), also nicht in den Namen.
+  Mit Warnung Rand `--ds-fehler` auf `--ds-fehler-hell`, ⚠ 8 px; mit Hinweis Rand `--ds-linie-stark` auf `--ds-flaeche`, der Punkt 6 px. Der rote Rand des
+  Chips mit Warnung bleibt.
+- Gemessen (Klicktests, Testdaten mit „HS-DK 202“, „HS-DK 204“ und dem Kran): kein Chip gekürzt bei 1440 und 1280 px, mit Maus und Finger, auch die Pritsche
+  HS-DK 204 mit ⚠ (bis 1.9.290 „HS-D…“) -- mit 1 Woche (Tage 120 bzw. 94 px) und mit 2 Wochen bei eingeklappter Liste (74 bzw. 61 px). Bei 56 px je Tag
+  (2 Wochen mit offener Liste, 3 und 4 Wochen -- dort rollt die Tafel ohnehin) bleibt der Kran gekürzt: Kranzeichen und „Kr“ brauchen 45 px, die Karte hat 40
+  (der Name steht im title) -- als Frage im Bericht.
+
+#### Festlegungen 1.9.291 (Bitte bestätigen)
+
+1. ⚠ bzw. der Punkt eines Hinweises sitzt als Abzeichen an der oberen rechten Ecke des Chips (12 px, 5 px über die Ecke hinaus), außerhalb des Namens; der Chip
+   mit Warnung behält seinen roten Rand -- ersetzt 1.9.287 Nr. 4 zweiter Satz („ein Chip mit ⚠ darf bei 1280 px kürzen“).
+2. Kein Chip ist gekürzt bei 1440 und 1280 px, mit Maus und Finger, auch mit Warnung -- mit 1 Woche und mit 2 Wochen bei eingeklappter Liste.
+
+#### Tests und Prüfung 1.9.291
+
+Neu: `tests/test_v691_abzeichen_an_der_ecke.py` (in node mit dem Code der Seite: Abzeichen mit Warnung bzw. Hinweis hinter dem Namen, kein Zeichen mehr im Fluss,
+Warnung vor Hinweis, ohne beides keins; die Regeln für Lage und Größe). `tests/test_v460_ecken_der_karten.py`: `abzeichen` unter „Kennzeichen“ in
+`NICHT_KARTEN` (eine neue umrandete Fläche wird dort eingeordnet -- im vollen Lauf vor dem Festhalten gefunden). `scripts/klicktest_plantafel_auftraege.py`
+ergänzt: bei 1440 und 1280 px die Abzeichen (⚠ zweimal am Kran, Punkt an Nele) an der Ecke ihres eigenen Chips -- 5 px (±1) über und rechts hinaus --, außerhalb
+des Namens; mit 2 Wochen bei 1280 px kein Chip gekürzt (bis 1.9.290 „Kr“).
+`scripts/klicktest_plantafel_auftraege_ziehen.py` ergänzt: kein Chip gekürzt, Abzeichen an der Ecke, HS-DK 204 mit ⚠ -- mit der Maus bei 1440 px (hell, dunkel)
+und 1280 px, mit dem Finger bei 1280 px (dunkel, hell) und 1440 px; Bilder „Aufträge“ mit dem Finger bei 1280 px, hell und dunkel. Gegenproben: Archiv
+`gegenproben-stufe6-r5e.md`, „1.9.291“.
+**Angepasste Erwartungen** (Regel 28):
+- `scripts/klicktest_plantafel_auftraege_ziehen.py`, Teil „Finger hell“: alt „kein Name ohne Warnung gekürzt“ (nur Chips ohne ⚠), neu „kein Chip gekürzt,
+  Abzeichen an der Ecke, HS-DK 204 mit ⚠“ (alle Chips, auch mit Warnung).
+- `scripts/klicktest_plantafel_auftraege.py`, Teil „2 Wochen bei 1280 px“ (seit 1.9.290): alt nur „Liste zu, rollt nicht“, neu dazu „kein Chip gekürzt“.

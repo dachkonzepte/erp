@@ -19,3 +19,17 @@ lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mindestens ein Te
 
 13 Gegenproben (8 gegen Tests, 5 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Eine blieb zuerst grün (`290_3c`, bis auf den
 Aufbau-Test) -- Test nachgezogen, dieselbe Gegenprobe rot.
+
+## 1.9.291 (Punkt 2): Warnung und Hinweis als Abzeichen an der Ecke
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – das Abzeichen sitzt außerhalb des Flusses, nimmt dem Namen keinen Platz | das Abzeichen im Fluss des Chips (`position:static`; `291_1a`, `291_2a`, `291_2b`) | 1 rot: v691::test_lage_an_der_ecke; Klicktest auftraege: „1440 hell“, „1280 hell/dunkel“, „1280 dunkel/hell, 2 Wochen“ (Abzeichen nicht an der Ecke, 2 Wochen gekürzt); Klicktest ziehen: alle sechs Kombinationen („Maus 1440 hell“ … „Finger 1440 dunkel“: gekürzt, nicht an der Ecke) |
+| Nr. 1 – an der oberen rechten Ecke | an der oberen linken Ecke (`291_1b`, `291_2c`) | 1 rot: v691::test_lage_an_der_ecke; Klicktest auftraege: „1440 hell“, „1280 hell/dunkel“, „1280 dunkel, 2 Wochen“ |
+| Nr. 1 – über die Ecke hinaus, außerhalb des Namens | innen in der Ecke (`top:2px; right:2px`; `291_1c`, `291_2d`) | 1 rot: v691::test_lage_an_der_ecke; Klicktest ziehen: alle sechs Kombinationen |
+| Nr. 1 – an der Ecke des eigenen Chips | der Chip ohne `position:relative` (`291_1d`, `291_2e`) | 1 rot: v691::test_lage_an_der_ecke. Klicktest auftraege zuerst GRÜN: die Karte ist ein Container und fing das Abzeichen auf, alle landeten an ihrer Ecke -- die Prüfung verlangte nur „über und rechts vom Chip“. Nachgezogen (5 px ±1 über die Ecke des eigenen Chips), dieselbe Gegenprobe: rot („1440 hell“, „1280 hell/dunkel“, „1280 dunkel, 2 Wochen“); `291_2a` mit der neuen Prüfung noch einmal: rot |
+| Nr. 1 – Warnung vor Hinweis (mit beidem nur ⚠, wie bisher) | der Hinweis vor der Warnung (`291_1e`) | 1 rot: v691::test_warnung_vor_hinweis_und_ohne_beides_kein_abzeichen. Klicktest: keine Gegenprobe -- in den Testdaten hat kein Chip beides |
+| Nr. 2 – kein Chip gekürzt (1440/1280 px, Maus/Finger, 1 Woche; 2 Wochen eingeklappt) | das Abzeichen im Fluss (`291_2a`, `291_2b`, siehe oben) | Klicktest auftraege: „1280 dunkel/hell, 2 Wochen: … kein Chip gekürzt“; Klicktest ziehen: „… kein Chip gekürzt …“ in allen sechs Kombinationen (HS-DK 204 mit ⚠ gekürzt) |
+
+11 Gegenproben (5 gegen Tests, 6 gegen die Klicktests), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Eine blieb zuerst grün (`291_2e`) --
+Klicktest nachgezogen, dieselbe Gegenprobe rot.

@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.291 – Plantafel: Warnung und Hinweis als Abzeichen an der Ecke des Chips
+
+In „Aufträge“ sitzt ⚠ bzw. der graue Punkt eines Hinweises jetzt als kleines Abzeichen an der oberen rechten Ecke des Chips (12 px, 5 px über die Ecke hinaus) und nimmt dem Namen keinen Platz. Bis 1.9.290 stand ⚠ hinter und der Punkt vor dem Namen im Chip -- bei 1280 px mit dem Finger hieß die Pritsche dann „HS-D… ⚠“, zwei Pritschen waren nicht zu unterscheiden. Gemessen ist jetzt kein Chip gekürzt, bei 1440 und 1280 px, mit Maus und Finger, auch mit Warnung -- mit 1 Woche und mit 2 Wochen bei eingeklappter Liste (Punkt 2).
+
+Neu `tests/test_v691_abzeichen_an_der_ecke.py`, ergänzt `tests/test_v460_ecken_der_karten.py` (das Abzeichen ist keine Karte), `klicktest_plantafel_auftraege.py` und `klicktest_plantafel_auftraege_ziehen.py` (kein Chip gekürzt in vier Kombinationen aus Breite und Zeiger, Abzeichen an der Ecke, Bilder „Aufträge“ mit dem Finger bei 1280 px hell und dunkel). Keine Migration.
+
 ## 1.9.290 – Plantafel: „Zum Einplanen“ in „Aufträge“ startet nach dem Zeitraum
 
 In „Aufträge“ startet die Liste „Zum Einplanen“ mit 2–4 Wochen jetzt wie „Nicht eingeplant“ in den übrigen Ansichten: unter 1440 px eingeklappt, sofern im Browser nichts anderes gemerkt ist; mit 1 Woche bleibt sie immer offen (1.9.283). Bis 1.9.289 startete sie in „Aufträge“ immer offen -- bei 1280 px rollten 2–4 Wochen dann in ihrem Rahmen. Der Start gilt beim Wechsel in die Ansicht (mit ihrem gemerkten Zeitraum) und bei jedem anderen Zeitraum dort, auch wenn die Liste vorher von Hand auf- oder zugeklappt war; gemerkt wird dabei nichts. Bei 1280 px mit 2 Wochen rollt die Tafel jetzt nicht mehr (Punkt 1).

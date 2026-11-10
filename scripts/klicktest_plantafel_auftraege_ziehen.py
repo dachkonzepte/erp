@@ -17,6 +17,8 @@ Finger (Touch-Emulation), 1280 px dunkel: die Liste offen (seit 1.9.283), der Kn
 Lia aus der Liste auf Kaminverwahrung Mo mit Anzeige vor dem Loslassen (Bild) und „Rückgängig“.
 Seit 1.9.287: die Anzeige schwebt über der Zelle (unten angesetzt), die Zeile wird beim Ziehen nicht höher (Woanders, Kolonne); Bilder dazu mit dem Finger
 hell (1280 px) und mit der Maus dunkel (1440 px).
+Seit 1.9.291: kein Chip gekürzt, auch mit ⚠ (die Pritsche HS-DK 204 ist nach „Kolonne“ am Mo doppelt) -- bei 1440 und 1280 px, mit Maus und Finger; jedes
+Abzeichen an der Ecke seines Chips, außerhalb des Namens; Bilder „Aufträge“ mit dem Finger bei 1280 px, hell und dunkel.
 Keine JS-Fehler.
 
 AUFRUF (aus dem Projektordner):
@@ -32,7 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
-from klicktest_plantafel_auftraege import BEREIT, ZELLE  # noqa: E402
+from klicktest_plantafel_auftraege import ABZEICHEN, BEREIT, ZELLE  # noqa: E402
 from klicktest_plantafel_auftraege import befuellen as befuellen_auftraege  # noqa: E402
 from klicktest_plantafel_tage import UHR_MS  # noqa: E402
 
@@ -59,6 +61,9 @@ def chip(name: str, tag: str, art: str, text: str) -> str:
 
 
 LISTE_BEREICH = "document.getElementById('backlog')"
+# seit 1.9.291: gekürzte Namen (Text breiter als sein Teil) und die Geräte mit ⚠
+GEKUERZT = "[...document.querySelectorAll('#planner .chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim())"
+GERAETE_WARN = "[...new Set([...document.querySelectorAll('#planner .chip.warn[data-art=geraet] .chip-text')].map(t=>t.textContent.trim()))].sort()"
 LEISTE = ("(()=>{const l=document.getElementById('zugLeiste');return l&&!l.hidden?[...l.children].filter(e=>!e.classList.contains('zug-zu'))"
           ".map(e=>e.textContent.trim()):null})()")
 
@@ -124,6 +129,12 @@ async def maus_ziehen(tab, p, anlass: str, quelle: str, ziel_: str):
 async def maus_los(tab, punkt) -> None:
     await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=punkt[0], y=punkt[1], button="left", buttons=0, clickCount=1)
     await tab.warte_auf_ruhe()
+
+
+async def kein_chip_gekuerzt(tab, p, anlass: str) -> None:
+    """seit 1.9.291: kein Chip gekürzt, auch die Pritsche HS-DK 204 mit ⚠ nicht; jedes Abzeichen an der Ecke seines Chips, außerhalb des Namens"""
+    p.pruefe(f"{anlass}: kein Chip gekürzt, Abzeichen an der Ecke, HS-DK 204 mit ⚠",
+             [await tab.js(GEKUERZT), await tab.js(ABZEICHEN), "HS-DK 204" in await tab.js(GERAETE_WARN)], [[], [], True])
 
 
 async def tippen_maus(tab, element: str) -> None:
@@ -256,6 +267,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kolonne: neuer vorläufiger Einsatz", [[z[0], [c.replace(" ⚠", "") for c in z[1]]] for z in (await zelle(KAMIN, MO) or [])],
              [["vorlaeufig", ["Kai", "Lia", "Nele", "HS-DK 204"]]])
     p.pruefe("Kolonne: Leiste", await tab.js(LEISTE), ["Kolonne Süd", "Mo 09.11.", "Rückgängig"])
+    await kein_chip_gekuerzt(tab, p, "Maus 1440 hell")
 
     # --- zurück auf die Liste: Lia für Mo herausnehmen
     los = await maus_ziehen(tab, p, "Liste", chip(KAMIN, MO, "person", "Lia"), LISTE_BEREICH)
@@ -289,6 +301,8 @@ async def pruefen(tab, seed, p):
         [False, "Zum Einplanen einklappen"])
     p.pruefe("Finger: Liste offen", await tab.warten("!document.getElementById('tafelLayout').classList.contains('rk-zu')&&!!document.querySelector('#backlog .chip')"), True)
     await tab.warte_auf_ruhe()
+    await kein_chip_gekuerzt(tab, p, "Finger 1280 dunkel")
+    await tab.bild("auftraege_finger_1280_dunkel")
     # seit 1.9.284 (R5d, Punkt 2): mit dem Finger 32 px hoch (bis 1.9.283 40 px), der Treffbereich reicht 4 px darüber und darunter hinaus
     grob = await tab.js("matchMedia('(pointer:coarse)').matches")
     p.pruefe("Finger: grober Zeiger", grob, True)
@@ -327,9 +341,9 @@ async def pruefen(tab, seed, p):
     await tab.js("setView('auftraege')")
     p.pruefe("Finger hell: Aufträge bereit", await tab.warten(BEREIT), True)
     await tab.warte_auf_ruhe()
-    # ohne Warnung passt jeder Name; ein Chip mit ⚠ (hier die Pritsche 204, am Mo doppelt) braucht 16 px mehr und darf kürzen -- der Name steht im title
-    p.pruefe("Finger hell: kein Name ohne Warnung gekürzt (seitlich 6 px wie mit der Maus)", await tab.js(
-        "[...document.querySelectorAll('#planner .chip:not(.warn) .chip-text')].filter(c=>c.scrollWidth>c.clientWidth).map(c=>c.textContent.trim())"), [])
+    # seit 1.9.291 auch mit ⚠ (die Pritsche 204, am Mo doppelt): das Zeichen sitzt als Abzeichen an der Ecke -- bis 1.9.290 brauchte es 16 px im Chip, „HS-D… ⚠“
+    await kein_chip_gekuerzt(tab, p, "Finger 1280 hell")
+    await tab.bild("auftraege_finger_1280_hell")
     vorher = await tab.js(mass(GARAGE))
     pk = await punkte(tab, liste("person", "Ole Offen"), ziel(GARAGE, MI))
     await finger(tab, pk[0], pk[1], pk[2] - pk[0], pk[3] - pk[1], loslassen=False)
@@ -350,6 +364,7 @@ async def pruefen(tab, seed, p):
     await tab.js("setView('auftraege')")
     p.pruefe("Maus dunkel: Aufträge bereit", await tab.warten(BEREIT), True)
     await tab.warte_auf_ruhe()
+    await kein_chip_gekuerzt(tab, p, "Maus 1440 dunkel")
     vorher = await tab.js(mass(GARAGE))
     los = await maus_ziehen(tab, p, "Maus dunkel", liste("person", "Ole Offen"), ziel(GARAGE, MI))
     p.pruefe("Maus dunkel: Anzeige schwebt, die Zeile wird nicht höher", [(await tab.js(anzeige(GARAGE, MI)))[0], await tab.js(mass(GARAGE))],
@@ -360,6 +375,24 @@ async def pruefen(tab, seed, p):
     if los:
         await maus_los(tab, los)
     p.pruefe("Maus dunkel: abgebrochen, nichts geändert", await namen(GARAGE, MI), ["Kai", "Nele", "HS-DK 204"])
+    # seit 1.9.291 (R5e, Punkt 2): auch mit der Maus bei 1280 px und mit dem Finger bei 1440 px kein Chip gekürzt
+    await tab.fenster(1280, 1000)
+    p.pruefe("Maus 1280: neu geladen", await tab.oeffnen("/planning", "typeof board!=='undefined'&&!!board"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("setView('auftraege')")
+    p.pruefe("Maus 1280: Aufträge bereit", await tab.warten(BEREIT), True)
+    await tab.warte_auf_ruhe()
+    await kein_chip_gekuerzt(tab, p, "Maus 1280 dunkel")
+    await tab.fenster(1440, 1000)
+    await tab.cmd("Emulation.setTouchEmulationEnabled", enabled=True, maxTouchPoints=5)
+    p.pruefe("Finger 1440: neu geladen", await tab.oeffnen("/planning", "typeof board!=='undefined'&&!!board"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("setView('auftraege')")
+    p.pruefe("Finger 1440: Aufträge bereit", await tab.warten(BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Finger 1440: grober Zeiger", await tab.js("matchMedia('(pointer:coarse)').matches"), True)
+    await kein_chip_gekuerzt(tab, p, "Finger 1440 dunkel")
+    await tab.cmd("Emulation.setTouchEmulationEnabled", enabled=False)
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 
