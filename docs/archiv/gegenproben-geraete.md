@@ -188,3 +188,17 @@ Klicktest liest diese Texte; die Klicktests der berührten Seiten laufen vor dem
 
 9 Gegenproben (6 gegen Tests, 3 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Nr. 4–6 nur gegen Tests: der Klicktest
 hat keine Daten, an denen Felder, Doppelte oder die Grenze sichtbar würden.
+
+## 1.9.304 (Punkt 4): „Betriebsmittel anlegen“ wie die Seite des Geräts
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Beschriftung über dem Feld | ohne die Regel für `.felder-oben .field` (`304_1a`, `304_1b`) | 1 rot: v704::test_beschriftung_oben_zwei_spalten_nur_im_anlegen; Klicktest: „anlegen 1440/1280 hell/dunkel: Beschriftung über dem Feld …“ (4 Prüfungen; bei 412 px stand die Beschriftung schon immer oben -- unter 480 px setzt die Seite jedes Feld so) |
+| Nr. 2 – zwei Spalten, unter 900 px eine | eine Spalte (`304_2a`, `304_2b`) | 1 rot: dieselbe; Klicktest: „anlegen 1440/1280 …: 2 Spalte(n)“ (4 Prüfungen) |
+| Nr. 3 – dieselben Felder in derselben Reihenfolge | „Im Einsatzbericht auswählbar“ hinter „Notizen“ (`304_3a`, `304_3b`) | 1 rot: v704::test_reihenfolge_und_beschriftungen_wie_die_seite_des_geraets; Klicktest: „Anlegen: Beschriftungen wie auf der Seite des Geräts“ |
+| Nr. 4 – beide Felder werden mitgespeichert | ohne `usage_notes` und `selectable_in_reports` im Body (`304_4a`, `304_4b`) | 1 rot: v704::test_speichern_mit_den_beiden_neuen_feldern; Klicktest: „+ Hinzufügen: neues planbares Gerät“ |
+| Nr. 5 – Abschnitt „Plantafel“ mit Überschrift | die Überschrift als `<div class="abschnitt-titel">` wie bis 1.9.303 (`304_5a`, `304_5b`) | 2 rot: v704::test_abschnitt_plantafel_und_dokumente_darunter, test_beschriftung_oben_zwei_spalten_nur_im_anlegen; Klicktest: „anlegen …: … Abschnitt mit Überschrift“ (6 Prüfungen) |
+| Nr. 7 – das Häkchen neben seiner Beschriftung | die Zeile ohne `display:flex` (`304_6a`, `304_6b`) | 1 rot: v704::test_beschriftung_oben_zwei_spalten_nur_im_anlegen; Klicktest: „anlegen …: … Häkchen neben „Auf der Plantafel einplanbar““ (6 Prüfungen, alle Breiten) |
+| Nr. 6 – nur dieses Formular | keine eigene: belegt durch v704::test_beschriftung_oben_zwei_spalten_nur_im_anlegen (die Regel `.field` mit 170 px bleibt, `felder-oben` nur im Anlegen) und die unveränderten Klicktests der übrigen Stammdaten | -- |
+
+12 Gegenproben (6 gegen Tests, 6 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben.

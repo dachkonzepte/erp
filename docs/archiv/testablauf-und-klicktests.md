@@ -1595,3 +1595,13 @@ headless Chrome mit frischem Profil trennt nicht: `hyphens:auto` braucht die Tre
 
 - Festlegung 1.9.258 W1 (Bitte bestätigen): ein Klicktest, der Silbentrennung prüft, nimmt `silbentrennung=True` -- die Trenndaten des installierten Chrome im
   eigenen Profil; fehlen sie, entfällt nur diese Prüfung, mit Hinweis im Protokoll.
+
+## Festlegung 1.9.300 (Nachrunde der Geräte-Runde, Punkt 0; nachgetragen mit 1.9.304)
+
+Mit 1.9.300 fehlte hier die Zeile zum Bestätigen (Regel 28) -- die Regel stand nur in CLAUDE.md („Testen“) und beim Wackler `test_v596` oben.
+
+#### Festlegungen 1.9.300 (Bitte bestätigen)
+
+1. Ein Test, der ein inneres pytest auf Dateien außerhalb des Projekts startet (`tmp_path`), gibt `--confcutdir` auf deren Ordner mit -- sonst liest das
+   Sammeln jeden Ordner darüber, auch `%TEMP%`, und ein dort gleichzeitig gelöschter Ordner bricht es ab. Geprüft am Sammelbaum
+   (`tests/test_v596_reihenfolge.py::test_sammelt_nur_im_eigenen_ordner`).

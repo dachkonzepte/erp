@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.304 – Betriebsmittel anlegen wie die Seite des Geräts
+
+„Betriebsmittel anlegen“ (Stammdaten -> Betriebsmittel, „+ Hinzufügen“ und „Betriebsmittel anlegen“ an einem Gerät „nur Plantafel“) sieht jetzt aus wie die Seite des Geräts: die Beschriftung steht über dem Feld, zwei Spalten (unter 900 px eine), dieselben Felder in derselben Reihenfolge und mit denselben Namen, darunter der Abschnitt „Plantafel“ mit Überschrift und Linie, dann die Dokumente. Dazu kommen ins Anlegen „Im Einsatzbericht auswählbar“ (Vorgabe Nein) und „Bedienungshinweise“, gespeichert mit dem Gerät -- bis 1.9.303 gab es beide nur auf der Seite des Geräts, und das Anlegen war links beschriftet wie die übrigen Stammdaten. Die übrigen Formulare der Stammdaten bleiben, wie sie sind.
+
+Neu `tests/test_v704_anlegen_wie_geraeteseite.py`; `klicktest_geraete.py` vergleicht die Beschriftungen beider Seiten und misst Lage und Spalten. Keine Migration.
+
 ## 1.9.303 – Suche: Plantafel-Geräte ohne Betriebsmittel
 
 Die Büro-Suche findet jetzt auch ein Plantafel-Gerät ohne Betriebsmittel (Frage 3 der Geräte-Runde), aktiv oder inaktiv: in der Gruppe „Betriebsmittel“ hinter den Betriebsmitteln, Untertitel „nur Plantafel“ bzw. „nur Plantafel · inaktiv“, der Klick führt in „Betriebsmittel anlegen“ mit diesem Gerät. Gesucht wird in denselben Feldern wie bei den Betriebsmitteln (Bezeichnung, Typ, Hersteller, Modell, Kennzeichen, Kurzname); ein Gerät mit Betriebsmittel steht weiter nur einmal da. Bis 1.9.302 fand die Suche ein solches Gerät nicht.

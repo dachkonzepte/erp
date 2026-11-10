@@ -1757,3 +1757,37 @@ Hubsteiger sucht seine Zeile (es gibt jetzt mehrere solche Links). Gegenproben: 
 Neu: `tests/test_v703_suche_nur_plantafel.py` (Treffer und Ziel, inaktiv im Untertitel, die Felder, nur einmal, Grenze und Zahl, Modul aus). Klicktest
 `klicktest_geraete.py`: Seite „Suche“ mit „Autokran“ -- das Betriebsmittel und der Rest des Krans als „nur Plantafel · inaktiv“; der Klick führt ins Anlegen mit
 dem Gerät (Haken, verknüpft, Status Inaktiv). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.303“.
+
+### Umsetzung 1.9.304 (Punkt 4): „Betriebsmittel anlegen“ wie die Seite des Geräts
+
+- `master_data_form.html::assetForm()`: die Angaben in `.felder-oben` -- Beschriftung über dem Feld (12,5 px, wie `operational_asset.html`), zwei Spalten mit 10 px
+  Abstand, unter 900 px eine (wie die Seite des Geräts); Reihenfolge und Namen wie dort: Bezeichnung *, Typ, Hersteller, Modell, Kennzeichen / Seriennummer
+  (bis 1.9.303 „Seriennr.“), Betriebsmittelnummer (optional), Status, Im Einsatzbericht auswählbar, Notizen, Bedienungshinweise, der Haken. Darunter der Abschnitt
+  „Plantafel“ als `<section class="plantafel-abschnitt">` mit `<h3>` und Linie (wie dort; ersetzt `.plantafel-anlegen` von 1.9.298), dann die Dokumente.
+- Neu im Anlegen: „Im Einsatzbericht auswählbar“ (Nein/Ja, Vorgabe Nein, mit dem Hinweis der Seite) und „Bedienungshinweise“; gesendet als
+  `selectable_in_reports` und `usage_notes` (die Schnittstelle nahm beide schon an). Ohne sie wäre die Reihenfolge nicht dieselbe -- und wer sie braucht, musste
+  bisher nach dem Anlegen noch einmal auf die Seite des Geräts.
+- Beim Bauen gefunden, beim Ansehen der Bilder, nicht von einer Prüfung: `.felder-oben .field{display:block}` überstimmte das `display:flex` der Zeile mit
+  dem Häkchen -- es stand über seiner Beschriftung. Die Zeile ist jetzt ausdrücklich `display:flex`; der Klicktest misst seitdem, dass das Häkchen links neben
+  der Beschriftung auf einer Höhe steht (die Prüfung „Beschriftung über dem Feld“ lässt Häkchen bewusst aus).
+- Nur dieses Formular: die übrigen Bereiche der Stammdaten (`.field` mit 170 px Beschriftung links) bleiben. Die Kopfzeile (Pfad, „Abbrechen“, „Speichern“) und der
+  Hinweis oben bleiben ebenfalls -- die Seite des Geräts hat stattdessen Menü und Prüffristen, die es vor dem Anlegen nicht gibt.
+
+#### Festlegungen 1.9.304 (Bitte bestätigen)
+
+1. Im Anlegen steht die Beschriftung über dem Feld, wie auf der Seite des Geräts.
+2. Zwei Spalten, unter 900 px eine (wie auf der Seite des Geräts).
+3. Dieselben Felder in derselben Reihenfolge und mit denselben Namen wie die Karte „Stammdaten“ der Seite des Geräts.
+4. „Im Einsatzbericht auswählbar“ (Vorgabe Nein) und „Bedienungshinweise“ werden schon beim Anlegen gesetzt und gespeichert.
+5. Der Abschnitt „Plantafel“ mit Überschrift und Linie wie auf der Seite des Geräts; die Dokumente darunter.
+6. Nur dieses Formular -- die übrigen Stammdaten bleiben links beschriftet.
+7. Das Häkchen „Auf der Plantafel einplanbar“ steht neben seiner Beschriftung, wie auf der Seite des Geräts.
+
+#### Tests und Prüfung 1.9.304
+
+Neu: `tests/test_v704_anlegen_wie_geraeteseite.py` (Beschriftungen beider Vorlagen in derselben Reihenfolge, Abschnitt und Dokumente, Regeln nur für das Anlegen,
+Speichern mit den beiden Feldern, die Schnittstelle speichert beide). `scripts/klicktest_geraete.py`: die Beschriftungen der Seite des Geräts (Rüttelplatte) und
+des Anlegens gleich; bei 1440, 1280 und 412 px jede Beschriftung über ihrem Feld, zwei bzw. eine Spalte, der Abschnitt mit Überschrift, das Häkchen neben
+seiner Beschriftung; „+ Hinzufügen“ speichert
+„Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ (die Prüfung „+ Hinzufügen: neues planbares Gerät“ nennt die beiden Werte jetzt mit). Gegenproben:
+Archiv `gegenproben-geraete.md`, „1.9.304“.

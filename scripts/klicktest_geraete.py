@@ -16,6 +16,9 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
                 Schnittstelle angelegt, „Hubsteiger Genie“) als „nur Plantafel“ mit „Betriebsmittel anlegen“, im Untertitel mitgezählt; nirgends „Ressource“
     Anlegen     „Betriebsmittel anlegen“ öffnet das Formular mit Haken und dem Gerät verknüpft -> gespeichert, auf der Seite des Geräts; „+ Hinzufügen“ mit
                 Haken und Kurzname legt ein neues planbares Gerät an (Minibagger, „MB 17“) -> Seite des Geräts; die Suche findet es über „MB 17“
+    Aufbau      (seit 1.9.304) „Betriebsmittel anlegen“ wie die Seite des Geräts: dieselben Beschriftungen in derselben Reihenfolge, jede über ihrem Feld,
+                bei 1440 und 1280 px zwei Spalten, bei 412 px eine; der Abschnitt „Plantafel“ mit Überschrift; „Im Einsatzbericht auswählbar“ und
+                „Bedienungshinweise“ werden mit gespeichert
     Inaktive    (seit 1.9.302) „Inaktive ausblenden“ über der Liste: angehakt (Vorgabe) fehlen der Kompressor (inaktiv) und die Reste ohne Betriebsmittel
                 (der Kran nach dem Entfernen des Hakens, ein inaktiver Rüttler über die Schnittstelle), daneben „3 inaktiv“; ohne Haken stehen sie grau da, die
                 Reste als „nur Plantafel · inaktiv“; die Wahl bleibt nach dem Neuladen, die Mitarbeiterliste bleibt angehakt; „Betriebsmittel anlegen“ am
@@ -56,6 +59,16 @@ GRAU = ("(()=>{const grau=getComputedStyle(document.getElementById('bmInaktivZah
 LISTE = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>2).map(r=>[r.cells[2].querySelector('b').textContent,"
          "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].textContent.trim()])")
 GERAETESEITE = "/^\\/betriebsmittel\\/\\d+$/.test(location.pathname)&&" + BEREIT
+# seit 1.9.304: die Beschriftungen der Angaben -- „Betriebsmittel anlegen“ (erster Block) und die Seite des Geräts (Karte „Stammdaten“)
+BESCHRIFTUNGEN_ANLEGEN = "[...document.querySelectorAll('#form > .felder-oben:first-child > .field')].map(f=>f.querySelector('label').innerText.trim())"
+BESCHRIFTUNGEN_GERAET = "[...document.querySelector('.editor-card').querySelectorAll(':scope > .fields-2col > .field')].map(f=>f.querySelector('label').innerText.trim())"
+# jede Beschriftung über ihrem Feld; zwei Spalten, wenn Bezeichnung und Typ nebeneinander stehen
+OBEN = ("[...document.querySelectorAll('#form .felder-oben .field')].filter(f=>f.querySelector(':scope>label')&&f.querySelector(':scope>input:not([type=checkbox]),:scope>select,:scope>textarea'))"
+        ".every(f=>f.querySelector(':scope>label').getBoundingClientRect().bottom<=f.querySelector(':scope>input:not([type=checkbox]),:scope>select,:scope>textarea').getBoundingClientRect().top+1)")
+SPALTEN = "(()=>{const a=document.getElementById('assetName').getBoundingClientRect(),b=document.getElementById('assetType').getBoundingClientRect();return Math.abs(a.top-b.top)<2?2:1})()"
+# das Häkchen neben seiner Beschriftung (auf einer Höhe, links davon) -- wie auf der Seite des Geräts
+HAKEN_IN_ZEILE = ("(()=>{const h=document.getElementById('assetEinplanbar').getBoundingClientRect(),l=document.querySelector('label[for=assetEinplanbar]').getBoundingClientRect();"
+                  "return h.right<=l.left&&Math.abs((h.top+h.bottom)/2-(l.top+l.bottom)/2)<8})()")
 DIALOGE = "window.__fragen=[];window.confirm=m=>{window.__fragen.push(String(m));return window.__antwort!==false};"
 
 
@@ -124,7 +137,8 @@ async def speichern(tab, p, anlass: str) -> None:
 
 async def neues_geraet(tab) -> None:
     """seit 1.9.298: das Anlegen-Formular für ein planbares Gerät ausfüllen (ohne zu speichern)"""
-    for feld, wert in (("assetName", "Minibagger Kubota U17"), ("assetType", "Maschine"), ("assetManufacturer", "Kubota"), ("assetNumber", "BM-41")):
+    for feld, wert in (("assetName", "Minibagger Kubota U17"), ("assetType", "Maschine"), ("assetManufacturer", "Kubota"), ("assetNumber", "BM-41"),
+                       ("assetSelectable", "1"), ("assetUsageNotes", "Nur mit Einweisung")):  # die letzten beiden seit 1.9.304
         await tab.js(setzen(feld, wert))
     await tab.js("(e=>{if(!e.checked)e.click();return true})(document.getElementById('assetEinplanbar'))")
     await tab.js(setzen("assetKurzname", "MB 17"))
@@ -230,8 +244,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Betriebsmittel anlegen: gespeichert, auf der Seite des Geräts", await tab.warten(GERAETESEITE, 15), True)
     neu = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
     p.pruefe("Betriebsmittel anlegen: verknüpft", [neu["einplanbar"], neu["resource_id"], neu["name"], neu["asset_number"]], [True, hub, "Hubsteiger Genie", "BM-40"])
+    # seit 1.9.304 (Nachrunde, Punkt 4): dieselben Beschriftungen in derselben Reihenfolge wie die Seite des Geräts (ohne Haken: die Rüttelplatte)
+    n += 1
+    await laden(tab, p, seed["platte"], n, "Rüttelplatte für den Vergleich")
+    geraet = await tab.js(BESCHRIFTUNGEN_GERAET)
     p.pruefe("+ Hinzufügen geladen", await tab.oeffnen("/master-data/assets/new", FORM_BEREIT), True)
     await tab.warte_auf_ruhe()
+    p.pruefe("Anlegen: Beschriftungen wie auf der Seite des Geräts", [await tab.js(BESCHRIFTUNGEN_ANLEGEN), geraet],
+             [["Bezeichnung *", "Typ", "Hersteller", "Modell", "Kennzeichen / Seriennummer", "Betriebsmittelnummer (optional)", "Status",
+               "Im Einsatzbericht auswählbar", "Notizen", "Bedienungshinweise (für Monteure sichtbar, z. B. Kurzanleitung, Sicherheitshinweise)",
+               "Auf der Plantafel einplanbar"]] * 2)
     p.pruefe("+ Hinzufügen: ohne freies Gerät keine Auswahl, kein Abschnitt", await tab.js(
         "[document.getElementById('assetVerknuepfenWrap').hidden,document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden]"),
              [True, True, True])
@@ -241,8 +263,9 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('saveBtn').click()")
     p.pruefe("+ Hinzufügen: gespeichert, auf der Seite des Geräts", await tab.warten(GERAETESEITE, 15), True)
     bagger = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
-    p.pruefe("+ Hinzufügen: neues planbares Gerät", [bagger["einplanbar"], bagger["name"], bagger["asset_type"], bagger["manufacturer"], bagger["kurzname"]],
-             [True, "Minibagger Kubota U17", "Maschine", "Kubota", "MB 17"])
+    p.pruefe("+ Hinzufügen: neues planbares Gerät", [bagger["einplanbar"], bagger["name"], bagger["asset_type"], bagger["manufacturer"], bagger["kurzname"],
+                                                     bagger["selectable_in_reports"], bagger["usage_notes"]],
+             [True, "Minibagger Kubota U17", "Maschine", "Kubota", "MB 17", True, "Nur mit Einweisung"])  # seit 1.9.304 mit den beiden Feldern der Seite des Geräts
     suche = await tab.js("fetch('/api/search?q='+encodeURIComponent('MB 17')).then(r=>r.json())")
     p.pruefe("Suche über den Kurznamen", [h["title"] for g in suche if g["key"] == "operational_assets" for h in g["hits"]], ["Minibagger Kubota U17"])
 
@@ -332,6 +355,10 @@ async def pruefen(tab, seed, p):
             await neues_geraet(tab)
             p.pruefe(f"anlegen {breite} {name}: Abschnitt da, kein „Ressource“", [await tab.js("document.getElementById('assetPlantafel').hidden"),
                                                                                  await tab.js(OHNE_WORT)], [False, True])
+            p.pruefe(f"anlegen {breite} {name}: Beschriftung über dem Feld, {1 if mobil else 2} Spalte(n), Abschnitt mit Überschrift, Häkchen neben „Auf der Plantafel einplanbar“",
+                     [await tab.js(OBEN), await tab.js(SPALTEN), await tab.js("document.querySelector('#assetPlantafel > h3')?.textContent"),
+                      await tab.js(HAKEN_IN_ZEILE)],
+                     [True, 1 if mobil else 2, "Plantafel", True])
             if breite == 412:
                 p.pruefe(f"anlegen 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild_ganz(f"anlegen_planbar_{breite}_{name}")
