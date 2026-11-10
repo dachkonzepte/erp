@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.294 – Plantafel: der Kran bei schmalen Tagen nur mit seinem Zeichen
+
+Bei 56 px je Tag (3 und 4 Wochen, 2 Wochen mit offener Liste) zeigt der Kran in „Aufträge“ jetzt nur sein Zeichen statt „K…“; der volle Name steht im title. Kranzeichen und „Kr“ brauchen gemessen 43,7 px, die Karte hat bei 56 px je Tag 39 px Inhalt. Bei 61 px je Tag (2 Wochen, 1280 px, Liste zu) passt „Kr“ und bleibt (Geräte-Runde, Vorweg V2).
+
+Neu `tests/test_v694_kran_nur_zeichen.py`, ergänzt `klicktest_plantafel_auftraege.py`. Keine Migration.
+
 ## 1.9.293 – Plantafel: Namensspalte in „Aufträge“ ab 2 Wochen 200 px
 
 In „Aufträge“ ist die Namensspalte ab 2 Wochen jetzt 200 statt 230 px breit, wie schon unter 1400 px Fensterbreite. Damit rollt die Tafel bei 1440 px mit offener Liste „Zum Einplanen“ und 2 Wochen nicht mehr (200 + 10 × 56 + 4 × 26 = 864 px bei 881 px Platz; bis 1.9.292 rollte sie 13 px). Mit 1 Woche bleibt sie ab 1400 px 230 px; 3 und 4 Wochen dürfen rollen (Geräte-Runde, Vorweg V1).

@@ -2806,3 +2806,23 @@ Neu: `tests/test_v693_namensspalte_ab_zwei_wochen.py` (die Zeile der Seite in no
 ergänzt: bei 1440 px mit 1 Woche 230 px, mit 2 Wochen 200 px und die Tafel rollt nicht. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.293“.
 **Angepasste Erwartungen** (Regel 28): `tests/test_v683_auftraege_liste_offen.py::test_spalten_und_chips` -- alt `const nameW=window.innerWidth<1400?200:230;`, neu
 `const nameW=window.innerWidth<1400||eng?200:230;`.
+
+### Umsetzung 1.9.294 (V2): der Kran bei schmalen Tagen nur mit seinem Zeichen
+
+- CSS: `@container (max-width:43.9px){.a-einsatz .chip:has(.kranzeichen) .chip-text{display:none}}` -- die Karte ist seit 1.9.283 ein Container; ist ihr
+  Inhalt höchstens 43,9 px breit, verschwindet der Name des Krans, das Kranzeichen bleibt (1.9.283 Nr. 4), der Name steht im title des Chips. Ohne neue Klasse
+  am Chip (`:has()`), das Markup bleibt.
+- Gemessen (Klicktest-Daten): die Zelle hat 4,5 px Innenabstand je Seite, die Karte 3 px und 1 px Rand -- Inhalt der Karte bei 56 px je Tag 39 px, bei 57,7 px
+  (1440 px, 2 Wochen, Liste offen) 41 px, bei 61,3 px (1280 px, 2 Wochen, Liste zu) 44,3 px. Der Kran-Chip mit „Kr“ und Warnung ist 43,7 px breit. Die erste
+  Grenze (45 px, aus 5 px Innenabstand gerechnet) nahm auch bei 61 px den Namen weg -- der Klicktest fand es, gemessen statt gerechnet.
+
+#### Festlegungen 1.9.294 (Bitte bestätigen)
+
+1. In „Aufträge“ zeigt der Kran nur sein Zeichen, wenn die Karte höchstens 43,9 px Inhalt hat (bei 56–58 px je Tag); der Name steht im title.
+2. Darüber bleibt „Kr“ (bei 61 px je Tag: 2 Wochen, 1280 px, Liste zu); das Kranzeichen verschwindet nie.
+
+#### Tests und Prüfung 1.9.294
+
+Neu: `tests/test_v694_kran_nur_zeichen.py` (die Regel, die Karte als Container, kein Ausblenden des Kranzeichens). `scripts/klicktest_plantafel_auftraege.py`
+ergänzt: bei 1280 px mit 3 Wochen 56 px je Tag, kein Chip gekürzt, der Kran nur mit Zeichen; ebenso bei 1440 px mit 2 Wochen (58 px); bei 1280 px mit 2 Wochen
+(61 px) der Kran mit „Kr“. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.294“.

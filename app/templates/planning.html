@@ -186,6 +186,10 @@
 /* seit 1.9.283 (Stufe 6, R5d, Punkt 1): ist die Karte schmaler als ein Gerät mit Zeichen und Kurzname (bei 1280 px mit offener Liste), fällt nur das
    Gerätezeichen weg -- der Kurzname bleibt lesbar; das Kranzeichen bleibt immer */
 @container (max-width:92px){.a-einsatz .geraetzeichen{display:none}}
+/* seit 1.9.294 (Geräte-Runde, Vorweg V2): bei 56 px je Tag zeigt der Kran nur sein Zeichen -- Zeichen und „Kr“ brauchen gemessen 43,7 px (mit dem Rand der
+   Warnung), die Karte hat bei 56 px je Tag 39 px Inhalt, bei 58 px 41 px (bis 1.9.293 „K…“); der Name steht im title. Bei 61 px je Tag (2 Wochen, 1280 px,
+   Liste zu: 44,3 px Inhalt) passt „Kr“ noch */
+@container (max-width:43.9px){.a-einsatz .chip:has(.kranzeichen) .chip-text{display:none}}
 .chip .warnzeichen{color:var(--ds-fehler-text)}
 .chip.warn{border:1.5px solid var(--ds-fehler)}
 /* seit 1.9.291 (Stufe 6, R5e, Punkt 2): ⚠ bzw. der Punkt eines Hinweises sitzt als Abzeichen an der oberen rechten Ecke -- 12 px, 5 px über die Ecke hinaus (-6 px: vom Innenrand gemessen, der Rand ist 1 px)

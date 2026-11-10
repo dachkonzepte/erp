@@ -58,6 +58,13 @@ PLATZ = ("(()=>{const p=document.getElementById('planner');return [p.scrollWidth
 ABZEICHEN = ("[...document.querySelectorAll('#planner .chip .abzeichen')].filter(a=>{const c=a.closest('.chip').getBoundingClientRect(),"
              "t=a.closest('.chip').querySelector('.chip-text').getBoundingClientRect(),b=a.getBoundingClientRect();"
              "return !(Math.abs(b.right-c.right-5)<=1&&Math.abs(c.top-b.top-5)<=1&&b.left>=t.right-0.5)}).map(a=>a.closest('.chip').textContent.trim())")
+# seit 1.9.294: der Kran zeigt nur sein Zeichen -- [Breite eines Tags, gekürzte Namen, jeder Kran ohne sichtbaren Namen und mit Zeichen]
+KRAN_SCHMAL = ("(()=>{const td=document.querySelector('#planner tr.a-zeile td.a-tag:not(.we)'),"
+               "k=[...document.querySelectorAll('#planner .chip[data-art=geraet]')].filter(c=>c.querySelector('.kranzeichen'));"
+               "return [Math.round(td.getBoundingClientRect().width),[...document.querySelectorAll('#planner .chip-text')].filter(c=>c.scrollWidth>c.clientWidth)"
+               ".map(c=>c.textContent),k.length>0&&k.every(c=>c.querySelector('.chip-text').getClientRects().length===0&&c.querySelector('.kranzeichen').getClientRects().length>0)]})()")
+KRAN_MIT_NAMEN = ("[...document.querySelectorAll('#planner .chip[data-art=geraet]')].filter(c=>c.querySelector('.kranzeichen'))"
+                  ".map(c=>c.querySelector('.chip-text').getClientRects().length>0?c.querySelector('.chip-text').textContent:null)")
 ABZEICHEN_ZAHL = "[document.querySelectorAll('#planner .chip .abzeichen.warn').length,document.querySelectorAll('#planner .chip .abzeichen:not(.warn)').length]"
 # seit 1.9.290: Zeitraum in „Aufträge“ wechseln wie mit der Auswahl (change) und warten, bis die Tafel neu gezeichnet ist
 ZEITRAUM_SETZEN = "(t=>{const s=document.getElementById('rangeDays');s.value=String(t);s.dispatchEvent(new Event('change'));return true})"
@@ -218,6 +225,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("1440 px, 2 Wochen: Namensspalte 200 px, rollt nicht", await tab.js(
         "[Math.round(document.querySelector('#planner thead th.a-name').getBoundingClientRect().width),(p=>p.scrollWidth>p.clientWidth)(document.getElementById('planner'))]"),
         [200, False])
+    p.pruefe("1440 px, 2 Wochen (58 px je Tag): kein Chip gekürzt, Kran nur mit Zeichen", (await tab.js(KRAN_SCHMAL))[1:], [[], True])  # seit 1.9.294
     await tab.js("(()=>{const s=document.getElementById('rangeDays');s.value='7';s.dispatchEvent(new Event('change'));return true})()")
     await tab.warten("tageAnzahl()===7&&auftragsliste&&auftragsliste.end==='2026-11-15'")
     await tab.warte_auf_ruhe()
@@ -273,6 +281,7 @@ async def pruefen(tab, seed, p):
     # seit 1.9.291 mit dem Abzeichen auch kein Chip gekürzt (bis 1.9.290 „Kr“ am Kran mit ⚠)
     p.pruefe("1280 dunkel, 2 Wochen: Liste zu, rollt nicht, kein Chip gekürzt", await tab.js(PLATZ), [False, [], False])
     p.pruefe("1280 dunkel, 2 Wochen: Abzeichen an der Ecke", await tab.js(ABZEICHEN), [])
+    p.pruefe("1280 dunkel, 2 Wochen (61 px je Tag): der Kran mit „Kr“", await tab.js(KRAN_MIT_NAMEN), ["Kr", "Kr"])  # seit 1.9.294 erst darunter nur das Zeichen
     p.pruefe("1280, 2 Wochen: nichts gemerkt", await tab.js("localStorage.getItem('plantafel_rueckstand')"), None)
     p.pruefe("1280, 2 Wochen: nichts ragt über das Fenster", await tab.ueberlauf(), [])
     await tab.bild("auftraege_2wochen_1280_dunkel")
@@ -292,6 +301,8 @@ async def pruefen(tab, seed, p):
     await tab.warten("tageAnzahl()===21&&auftragsliste&&auftragsliste.end==='2026-11-29'&&!!document.querySelector('#planner tr.a-zeile')")
     await tab.warte_auf_ruhe()
     p.pruefe("1280, 3 Wochen: Liste zu, nichts gemerkt", await tab.js(f"[{LISTE_ZU},localStorage.getItem('plantafel_rueckstand')]"), [True, None])
+    # seit 1.9.294 (Vorweg V2): bei 56 px je Tag zeigt der Kran nur sein Zeichen -- kein Chip gekürzt (bis 1.9.293 „K…“); 3 Wochen darf rollen
+    p.pruefe("1280, 3 Wochen: Tag 56 px, kein Chip gekürzt, Kran nur mit Zeichen", await tab.js(KRAN_SCHMAL), [56, [], True])
     await tab.js(f"({ZEITRAUM_SETZEN})(14)")
     await tab.warten("tageAnzahl()===14&&auftragsliste&&auftragsliste.end==='2026-11-22'")
     await tab.warte_auf_ruhe()

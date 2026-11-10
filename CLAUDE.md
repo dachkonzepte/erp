@@ -1314,7 +1314,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   die Anzeige vor dem Loslassen unter 110 px Tagesbreite kurz („Schon woanders · Rückfrage“ …, `zugAnzeige(z, ziel, kurz)`, `SCHMALER_TAG`), den Auftrag nennt
   dann die Rückfrage (`tests/test_v692_kurze_anzeige.py`).
   **Geräte-Runde, Vorweg (ab 1.9.293):** in „Aufträge“ ab 2 Wochen die Namensspalte 200 px -- bei 1440 px mit offener Liste rollt 2 Wochen nicht, 3 und 4
-  Wochen dürfen rollen (`tests/test_v693_namensspalte_ab_zwei_wochen.py`). Befund R5 und Herleitung:
+  Wochen dürfen rollen (`tests/test_v693_namensspalte_ab_zwei_wochen.py`); seit 1.9.294 zeigt der Kran bei 56 px je Tag nur sein Zeichen (Container-Query bis 43,9 px
+  Inhalt der Karte, `tests/test_v694_kran_nur_zeichen.py`). Befund R5 und Herleitung:
   `docs/archiv/modul-kalender-und-outlook-sync.md`, „Stufe 6, R5“.
   Seit 1.9.240 (Stufe 6, R3b) hat ein Einsatz eine Art (`PlanningSlot.art`,
   `EINSATZ_ARTEN`): „baustelle“ oder „kranvermietung“ -- an einem Auftrag oder mit Kunde (Projekt und Auftrag „Kranvermietung nach Aufwand“ über

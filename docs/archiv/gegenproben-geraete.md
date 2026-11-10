@@ -13,3 +13,15 @@ lassen, die Datei byte-genau zurück (Prüfsumme). „rot“ = mindestens ein Te
 | Nr. 2 – 3 und 4 Wochen dürfen rollen | keine -- eine Erlaubnis, unverändert seit 1.9.283 (mindestens 56 px je Tag) | -- |
 
 4 Gegenproben (2 gegen Tests, 2 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben.
+
+## 1.9.294 (Vorweg V2): der Kran bei schmalen Tagen nur mit seinem Zeichen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – bis 43,9 px Inhalt der Karte nur das Kranzeichen | ohne die Regel (`294_1a`, `294_1c`) | 1 rot: v694::test_kran_bis_44_px_nur_mit_zeichen; Klicktest auftraege: „1440 px, 2 Wochen (58 px je Tag): … Kran nur mit Zeichen“, „1280, 3 Wochen: Tag 56 px, kein Chip gekürzt, Kran nur mit Zeichen“ |
+| Nr. 2 – das Kranzeichen verschwindet nie | mit dem Namen verschwindet auch das Zeichen (`294_1b`, `294_1d`) | 1 rot: v694::test_kran_bis_44_px_nur_mit_zeichen; Klicktest: dieselben zwei Prüfungen (kein sichtbares Zeichen) |
+| Nr. 2 – darüber bleibt „Kr“ (61 px je Tag) | Grenze 50 px (`294_2a`) | Klicktest: „1280 dunkel, 2 Wochen (61 px je Tag): der Kran mit „Kr““. Test: keine eigene -- die Grenze in Pixeln prüft nur der Klicktest am Verhalten |
+
+5 Gegenproben (2 gegen Tests, 3 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen: die erste Grenze (45 px,
+gerechnet mit 5 px Innenabstand der Zelle) nahm auch bei 61 px je Tag den Namen weg -- der Klicktest fand es; gemessen: 4,5 px Innenabstand, 44,3 px Inhalt.
+Der Test hieß zuerst „…_unter_46_px_…“ (umbenannt, die beiden Test-Gegenproben danach noch einmal: rot).
