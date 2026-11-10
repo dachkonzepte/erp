@@ -657,7 +657,7 @@ DATENSATZKOPF = (
          pfad=[["Stammdaten", "/master-data"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Halle Nord", "/properties/{objekt}"],
                ["Nord", None]],
          status=["", "neutral"], aktion=None, menue=["Archivieren", "Löschen"], loeschen="Diese Dachfläche inkl. aller Bauteile"),
-    dict(seite="betriebsmittel", rolle=bg.BUERO, titel="Anlegeleiter 3-teilig", kennung="{inventarnummer}", untertitel="Leiter · Eigenständig",
+    dict(seite="betriebsmittel", rolle=bg.BUERO, titel="Anlegeleiter 3-teilig", kennung="{inventarnummer}", untertitel="Leiter",  # seit 1.9.297 ohne „Eigenständig“ (mit Plantafel: „Auf der Plantafel“)
          pfad=[["Stammdaten", "/master-data"], ["Betriebsmittel", "/master-data#assets"], ["Anlegeleiter 3-teilig", None]],
          status=["", "neutral"], aktion=None, menue=["Etikett drucken", "Löschen"], loeschen="Dieses Betriebsmittel wirklich löschen?"),
     dict(seite="wartungsvertrag", rolle=bg.BUERO, titel="Wartung Halle Nord", kennung="",

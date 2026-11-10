@@ -47,6 +47,11 @@ tr:last-child td{border-bottom:none}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .check{display:flex;align-items:center;gap:8px}.check input{width:auto}
+/* seit 1.9.297 (Geräte-Runde, Punkt 2): der Abschnitt „Plantafel“ unter den Stammdaten, mit Haken; das Postfach nur lesen */
+.plantafel-abschnitt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.plantafel-abschnitt h3{margin:0 0 10px;font-size:14px}
+.feldname{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+.lesewert{padding:8px 0;overflow-wrap:anywhere}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
 .print-only{display:none}
 @media print{
@@ -75,15 +80,11 @@ tr:last-child td{border-bottom:none}
 <div class="editor-card">
   <h2>Stammdaten</h2>
   <div class="fields-2col">
-    <div class="field full check"><label style="margin:0"><input type="checkbox" id="editHasResource" onchange="toggleResourceFields()" style="width:auto"> Mit Ressourcenbezug (inventarisiert und in der Plantafel disponierbar)</label></div>
-    <div class="field full" id="resourceFieldWrap"><label>Ressource</label><select id="editResource"></select>
-      <div class="muted small hidden" id="resourceEditLink" style="margin-top:4px"></div>
-    </div>
-    <div class="field" id="nameFieldWrap"><label>Bezeichnung *</label><input id="editName" placeholder="z. B. Leiter Alu 6m"></div>
-    <div class="field" id="typeFieldWrap"><label>Typ</label><select id="editType"></select></div>
-    <div class="field" id="manufacturerFieldWrap"><label>Hersteller</label><input id="editManufacturer"></div>
-    <div class="field" id="modelFieldWrap"><label>Modell</label><input id="editModel"></div>
-    <div class="field" id="identifierFieldWrap"><label>Kennzeichen / Seriennummer</label><input id="editIdentifier"></div>
+    <div class="field"><label for="editName">Bezeichnung *</label><input id="editName" placeholder="z. B. Pritsche HS-DK 202 oder Leiter Alu 6 m"></div>
+    <div class="field"><label for="editType">Typ<span id="typPflicht" hidden> *</span></label><select id="editType"></select></div>
+    <div class="field"><label for="editManufacturer">Hersteller</label><input id="editManufacturer"></div>
+    <div class="field"><label for="editModel">Modell</label><input id="editModel"></div>
+    <div class="field"><label for="editIdentifier">Kennzeichen / Seriennummer</label><input id="editIdentifier"></div>
     <div class="field"><label>Betriebsmittelnummer <span class="muted small">(optional)</span></label><input id="editAssetNumber"></div>
     <div class="field"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
     <div class="field"><label>Im Einsatzbericht auswählbar</label><select id="editSelectableInReports"><option value="0">Nein</option><option value="1">Ja</option></select>
@@ -91,7 +92,18 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
     <div class="field full"><label>Bedienungshinweise <span class="muted small">(für Monteure sichtbar, z. B. Kurzanleitung, Sicherheitshinweise)</span></label><textarea id="editUsageNotes"></textarea></div>
+    <div class="field full check"><label style="margin:0"><input type="checkbox" id="editEinplanbar" onchange="plantafelZeigen()" style="width:auto"> Auf der Plantafel einplanbar</label></div>
   </div>
+  <section class="plantafel-abschnitt" id="plantafelAbschnitt" aria-labelledby="plantafelTitel" hidden>
+    <h3 id="plantafelTitel">Plantafel</h3>
+    <div class="fields-2col">
+      <div class="field full" id="verknuepfenWrap" hidden><label for="editVerknuepfen">Vorhandenes Plantafel-Gerät verknüpfen</label><select id="editVerknuepfen" onchange="verknuepfenGewaehlt()"></select>
+        <div class="muted small" style="margin-top:4px">Leer: ein neues Plantafel-Gerät mit den Angaben oben.</div></div>
+      <div class="field"><label for="editKurzname">Kurzname auf der Plantafel</label><input id="editKurzname" maxlength="30" placeholder="leer = die Bezeichnung, z. B. HS-DK 202"></div>
+      <div class="field"><span class="feldname">Postfach (Kalender des Geräts)</span><div class="lesewert" id="postfachText">—</div>
+        <div class="muted small" id="postfachLink" hidden><a href="/settings#outlook-sync" style="color:var(--ds-link)">In den Einstellungen ändern →</a></div></div>
+    </div>
+  </section>
   <div class="editor-actions">
     <button onclick="saveAsset()">Speichern</button>
     <span id="editorStatus" class="status"></span>
@@ -180,12 +192,13 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok){const d=await r.json(
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const assetId={{ asset_id }};
-let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecurringCost=false;
+let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecurringCost=false,istAdmin=false;
 
-// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): eine inzwischen inaktive verknüpfte Ressource bleibt
-// vorgewählt und gekennzeichnet, statt zu fehlen (dann blockierte die Prüfung "Bitte eine Ressource wählen").
-function resourceOptionsHtml(selected){
-  return auswahlOptionen(resources,selected,r=>r.resource_type+' · '+r.name,{leer:'— bitte wählen —',aktiv:r=>r.active&&(!r.taken||r.id===Number(selected))});
+// Seit 1.9.297 (Geräte-Runde, Punkt 2): ein freies Plantafel-Gerät (ohne Betriebsmittel, nur über Umwege möglich) lässt sich verknüpfen, solange dieses
+// Gerät noch keins hat -- nur dann erscheint die Auswahl (bis 1.9.296 wählte der Haken immer eine vorhandene Ressource, ein neues Gerät ließ sich nicht anlegen).
+function freieGeraete(){return resources.filter(r=>r.active&&!r.taken&&r.id!==asset.resource_id)}
+function verknuepfenOptionsHtml(){
+  return auswahlOptionen(resources,null,r=>r.resource_type+' · '+r.name,{leer:'— neues Plantafel-Gerät —',aktiv:r=>r.active&&!r.taken&&r.id!==asset.resource_id});
 }
 // Seit 1.9.12 über auswahlOptionen() (_auswahl.html): ein gespeicherter Typ außerhalb der Auswahlliste (z. B. „Leiter“) bleibt vorgewählt
 // als „… (nicht mehr verfügbar)“, ein abgeschalteter als „… (inaktiv)“ -- bis 1.9.11 stand der erste Eintrag da, und Speichern schrieb ihn.
@@ -201,12 +214,23 @@ function inspectionTypeOptionsHtml(selected){
 let assetInspectionTypes=[];
 let assetDocumentTypes=[];
 
-function toggleResourceFields(){
-  const linked=document.getElementById('editHasResource').checked;
-  document.getElementById('resourceFieldWrap').classList.toggle('hidden',!linked);
-  for(const id of ['nameFieldWrap','typeFieldWrap','manufacturerFieldWrap','modelFieldWrap','identifierFieldWrap']){
-    document.getElementById(id).classList.toggle('hidden',linked);
-  }
+// seit 1.9.297: mit Haken der Abschnitt „Plantafel“ (Kurzname, Postfach nur lesen) und der Typ als Pflicht; die Angaben oben bleiben immer stehen
+function plantafelZeigen(){
+  const an=document.getElementById('editEinplanbar').checked;
+  document.getElementById('plantafelAbschnitt').hidden=!an;
+  document.getElementById('typPflicht').hidden=!an;
+  document.getElementById('verknuepfenWrap').hidden=!an||!!asset.resource_id||!freieGeraete().length;
+}
+// ein vorhandenes Plantafel-Gerät gewählt: seine Angaben stehen oben (verknüpfen übernimmt sie, app/operational_assets.py::geraet_speichern()); leer: wieder die des Geräts
+function verknuepfenGewaehlt(){
+  const id=Number(document.getElementById('editVerknuepfen').value)||null,r=id?resources.find(x=>x.id===id):null;
+  const q=r?{name:r.name,asset_type:r.resource_type,manufacturer:r.manufacturer,model:r.model,identifier:r.identifier,kurzname:r.kurzname}:asset;
+  document.getElementById('editName').value=q.name||'';
+  document.getElementById('editType').innerHTML=typeOptionsHtml(q.asset_type);
+  document.getElementById('editManufacturer').value=q.manufacturer||'';
+  document.getElementById('editModel').value=q.model||'';
+  document.getElementById('editIdentifier').value=q.identifier||'';
+  document.getElementById('editKurzname').value=q.kurzname||'';
 }
 
 // Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Stammdaten / Betriebsmittel / Name, Kennung = Inventarnummer, Status
@@ -216,7 +240,7 @@ function renderBreadcrumb(){
 }
 
 function renderHero(){
-  const angaben=[asset.asset_type,asset.resource_id?'Mit Ressourcenbezug':'Eigenständig'];
+  const angaben=[asset.asset_type,asset.einplanbar?'Auf der Plantafel':''];  // seit 1.9.297 ohne „Ressourcenbezug“/„Eigenständig“
   if(!asset.active&&(asset.is_overdue||asset.is_due))angaben.push('Inaktiv');  // sonst steht „Inaktiv“ als Status
   if(asset.selectable_in_reports)angaben.push('Im Bericht auswählbar');
   seitenkopf({kennung:asset.asset_number||'',titel:asset.name,untertitel:angaben.filter(Boolean).join(' · '),
@@ -231,8 +255,11 @@ function printLabel(){
 }
 
 function fillEditor(){
-  document.getElementById('editHasResource').checked=!!asset.resource_id;
-  document.getElementById('editResource').innerHTML=resourceOptionsHtml(asset.resource_id);
+  document.getElementById('editEinplanbar').checked=!!asset.resource_id;
+  document.getElementById('editVerknuepfen').innerHTML=verknuepfenOptionsHtml();
+  document.getElementById('editKurzname').value=asset.kurzname||'';
+  document.getElementById('postfachText').textContent=asset.outlook_mailbox||'— (keins)';
+  document.getElementById('postfachLink').hidden=!istAdmin;  // Antwort 6: nur lesen, ändern nur der Admin in den Einstellungen
   document.getElementById('editType').innerHTML=typeOptionsHtml(asset.asset_type);
   // seit 1.9.296 immer die Werte des Geräts (mit Haken die der Ressource): nimmt man den Haken ab, wandern sie ins Betriebsmittel
   document.getElementById('editName').value=asset.name||'';
@@ -261,28 +288,17 @@ function fillEditor(){
   }else{
     productPreview.classList.add('hidden');
   }
-  const link=document.getElementById('resourceEditLink');
-  if(asset.resource_id){
-    link.innerHTML=`<a href="/master-data/resources/${asset.resource_id}/edit" style="color:var(--ds-link)">Ressourcen-Stammdaten bearbeiten →</a>`;
-    link.classList.remove('hidden');
-  }else{
-    link.classList.add('hidden');
-  }
-  toggleResourceFields();
+  plantafelZeigen();
 }
 
 async function saveAsset(){
-  const hasResource=document.getElementById('editHasResource').checked;
-  const resourceId=hasResource?document.getElementById('editResource').value:'';
-  if(hasResource&&!resourceId){
+  const einplanbar=document.getElementById('editEinplanbar').checked;
+  const verknuepfen=einplanbar&&!asset.resource_id?Number(document.getElementById('editVerknuepfen').value)||null:null;
+  const name=document.getElementById('editName').value.trim(),typ=document.getElementById('editType').value||null;
+  const fehlt=!name?'Bitte eine Bezeichnung angeben.':einplanbar&&!typ&&!verknuepfen?'Bitte einen Typ wählen – ein Gerät auf der Plantafel braucht ihn.':'';
+  if(fehlt){
     document.getElementById('editorStatus').className='status err';
-    document.getElementById('editorStatus').textContent='Bitte eine Ressource wählen.';
-    return;
-  }
-  const name=document.getElementById('editName').value.trim();
-  if(!hasResource&&!name){
-    document.getElementById('editorStatus').className='status err';
-    document.getElementById('editorStatus').textContent='Bitte eine Bezeichnung angeben, wenn kein Ressourcenbezug gewählt ist.';
+    document.getElementById('editorStatus').textContent=fehlt;
     return;
   }
   // Seit 1.8.109 über _zahl.html (leer -> null wie bisher; vorher ging der Feldtext roh an den Server): eine abgelehnte Zahl
@@ -292,14 +308,14 @@ async function saveAsset(){
     for(const id of ['editorStatus','costStatus']){const s=document.getElementById(id);s.className='status err';s.textContent=e.message}
     return;
   }
-  // seit 1.9.296 über den neuen Speicherweg (Teil-Update): einplanbar setzt bzw. entfernt den Haken, resource_id nur beim Verknüpfen eines anderen
-  // Plantafel-Geräts, die Identität nur ohne Haken (entfernt man ihn, wandert sie mit: die Felder zeigen dann die bisherigen Werte)
+  // seit 1.9.296 über den gemeinsamen Speicherweg, seit 1.9.297 ein Formular: die Angaben oben gehen immer mit (mit Haken in das Plantafel-Gerät), der
+  // Kurzname nur mit Haken, resource_id nur beim Verknüpfen eines vorhandenen Plantafel-Geräts; entfernt man den Haken, wandern die Angaben ins Gerät
   const payload={
-    einplanbar:hasResource,
-    ...(hasResource&&Number(resourceId)!==asset.resource_id?{resource_id:Number(resourceId)}:{}),
-    ...(hasResource?{}:{name,asset_type:document.getElementById('editType').value||null,
-      manufacturer:document.getElementById('editManufacturer').value.trim()||null,model:document.getElementById('editModel').value.trim()||null,
-      identifier:document.getElementById('editIdentifier').value.trim()||null}),
+    einplanbar,
+    ...(verknuepfen?{resource_id:verknuepfen}:{}),
+    ...(einplanbar?{ressource:{kurzname:document.getElementById('editKurzname').value.trim()||null}}:{}),
+    name,asset_type:typ,manufacturer:document.getElementById('editManufacturer').value.trim()||null,
+    model:document.getElementById('editModel').value.trim()||null,identifier:document.getElementById('editIdentifier').value.trim()||null,
     asset_number:document.getElementById('editAssetNumber').value.trim()||null,
     notes:document.getElementById('editNotes').value.trim()||null,
     usage_notes:document.getElementById('editUsageNotes').value.trim()||null,
@@ -351,7 +367,7 @@ async function saveRecurringCost(netAmount,forceRemove){
 }
 
 async function deleteAssetNow(){
-  if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- eine verknüpfte Ressource bleibt davon unberührt. Das kann nicht rückgängig gemacht werden.'))return;
+  if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- ein Gerät auf der Plantafel bleibt dort stehen. Das kann nicht rückgängig gemacht werden.'))return;
   try{
     await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'DELETE'}));
     location.href='/master-data#assets';
@@ -571,6 +587,7 @@ async function init(){
       // Die laufende Rate erzeugt einen echten RecurringCost -- seit Etappe 2 des Rechtekonzepts
       // ausschließlich Finanzen/Admin vorbehalten (siehe app/routers/operational_assets.py).
       canManageRecurringCost=['admin','buero_finanzen'].includes(authStatus.user?.role);
+      istAdmin=authStatus.user?.role==='admin';  // seit 1.9.297: nur der Admin pflegt das Postfach (Link in die Einstellungen)
       render();
     });
   }catch(e){

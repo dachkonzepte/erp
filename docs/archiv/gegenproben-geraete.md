@@ -66,3 +66,21 @@ Der Test hieß zuerst „…_unter_46_px_…“ (umbenannt, die beiden Test-Gege
 Weg, ihr Aufbau wird mit 1.9.297 ersetzt; das Speichern über die Seite prüft ab dort `klicktest_geraete.py` (Gegenproben dort).
 Beim Bauen gefunden: ein abgelehntes Anlegen ließ im Test das Betriebsmittel in der geteilten Sitzung hängen -- `create_asset()`/`update_asset()` rollen
 seither bei jedem Fehler zurück; der Test legte zuerst einen Einsatz an einem stornierten Auftrag an, das lehnt die Plantafel zu Recht ab (Test berichtigt).
+
+## 1.9.297 (Punkt 2): ein Formular je Gerät
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Auf der Plantafel einplanbar“, kein „Ressource“ | der alte Text „Mit Ressourcenbezug“ (`297_1a`, `297_1b`) | 1 rot: v697::test_kein_wort_ressource_auf_der_seite; Klicktest geraete: „Pritsche: nirgends „Ressource““ und alle zwölf Bilder-Prüfungen |
+| Nr. 2 – die Angaben immer oben | mit Haken leer wie bis 1.9.295 (`297_2a`, `297_2c`) | 1 rot: v697::test_mit_haken_angaben_oben_und_abschnitt_plantafel; Klicktest: „Pritsche“ (Angaben, nicht geladen), „Kran“ u. a. |
+| Nr. 2 – mit Haken der Typ Pflicht | das Sternchen nie (`297_2b`, `297_2d`) | 2 rot: v697::test_mit_haken_…, test_ohne_haken_…; Klicktest: „Pritsche: Typ als Pflicht“, „Leiter mit Haken“ |
+| Nr. 3 – mit Haken der Abschnitt „Plantafel“ | der Abschnitt nie (`297_3a`, `297_3c`) | 2 rot: v697::test_mit_haken_…, test_ohne_haken_…; Klicktest: „Pritsche“, „Leiter mit Haken“, sechs Bilder mit Haken |
+| Nr. 3 – der Link nur für den Admin | der Link für alle (`297_3b`, `297_3d`) | 2 rot: v697::test_aufbau, test_mit_haken_…; Klicktest: „Bea: Postfach ohne Link“ |
+| Nr. 4 – die Auswahl nur mit freiem Gerät | auch ohne freies (`297_4a`) | 1 rot: v697::test_ohne_haken_kein_abschnitt_und_haken_setzen. Klicktest: keine eigene -- dort gibt es zu dem Zeitpunkt ein freies |
+| Nr. 4 – gewählt, stehen oben dessen Angaben | nichts gefüllt (`297_4b`, `297_4c`) | 1 rot: v697::test_verknuepfen_zeigt_die_angaben_des_vorhandenen_geraets; Klicktest: „Verknüpfen: die Angaben oben vom vorhandenen Gerät“ |
+| Nr. 5 – nach dem Speichern auf dem Gerät, kein Link ins Formular der Ressource | keine eigene -- belegt durch v697::test_kein_wort_ressource_auf_der_seite (kein `/master-data/resources/`) und den Klicktest („Pritsche: … die Seite bleibt auf dem Gerät“) | -- |
+| Nr. 6 – Rückfrage beim Entfernen | keine Rückfrage, der Fehler bleibt stehen (`297_6a`) | Klicktest: „Kran: Rückfrage nennt den Einsatz“, „Kran bestätigt“, „Kran: ohne Plantafel …“. Test: keine -- die Rückfrage läuft nur im Browser |
+
+14 Gegenproben (7 gegen Tests, 7 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen: die ersten Bilder waren nur
+der sichtbare Ausschnitt (der Abschnitt „Plantafel“ lag bei 412 px darunter, die Kopfleiste verdeckte die erste Zeile) -- jetzt die ganze Seite; der Lauf der
+betroffenen Klicktests fand die Erwartung „Leiter · Eigenständig“ in klicktest_rahmen (angepasst).

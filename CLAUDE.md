@@ -1408,7 +1408,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `betriebskosten`, Verrechnungssatz-Kreislauf, Produktivstunden-Rechner; Geräte-Runde ab 1.9.293: ein Gerät, ein Speicherweg in einer Transaktion
   (`app/operational_assets.py::geraet_speichern()`, `PUT /api/operational-assets/{id}` als Teil-Update mit `einplanbar` und Teil `ressource`, die Identität
   wandert mit dem Haken, Ressourcennummer intern „R-<id>“, Haken entfernen löscht oder deaktiviert das Plantafel-Gerät, künftige Einsätze mit Rückfrage;
-  `tests/test_v696_ein_speicherweg.py`)) --
+  `tests/test_v696_ein_speicherweg.py`); seit 1.9.297 ein Formular je Gerät auf `/betriebsmittel/{id}`: Haken „Auf der Plantafel einplanbar“, Abschnitt
+  „Plantafel“ (Kurzname, Postfach nur lesen, Link nur Admin), kein „Ressource“ auf der Seite (`tests/test_v697_ein_formular.py`, Klicktest
+  `klicktest_geraete.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

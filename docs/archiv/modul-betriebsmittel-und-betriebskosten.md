@@ -1553,3 +1553,39 @@ Klicktests: die Speicherung über die Seite prüft `klicktest_geraete.py` ab 1.9
 `gegenproben-geraete.md`, „1.9.296“.
 **Angepasste Erwartungen** (Regel 28): `tests/test_v329_update_handler_struktur.py` -- `BEKANNT` ohne `PUT /api/operational-assets/{asset_id}` (56 statt 57
 Einträge; die Liste darf nur kürzer werden).
+
+### Umsetzung 1.9.297 (Punkt 2): ein Formular je Gerät
+
+- `operational_asset.html`, Karte „Stammdaten“: Bezeichnung, Typ, Hersteller, Modell, Kennzeichen immer oben (bis 1.9.296 mit Haken ausgeblendet -- gepflegt im
+  Ressourcen-Formular), Betriebsmittelnummer, Status, Einsatzbericht, Notizen, Bedienungshinweise, darunter der Haken „Auf der Plantafel einplanbar“. Mit Haken der
+  Abschnitt „Plantafel“ (`#plantafelAbschnitt`, ohne Haken `hidden`): Kurzname (bearbeitbar) und Postfach (`#postfachText`, nur lesen; `#postfachLink` mit
+  `/settings#outlook-sync` nur für den Admin, Antwort 6); der Typ trägt dann „*“ und ist Pflicht (Prüfung vor dem Senden, der Server prüft ihn ohnehin).
+- Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ (`#verknuepfenWrap`): nur mit Haken, nur solange das Gerät noch kein Plantafel-Gerät hat, nur wenn es ein
+  freies gibt (aktiv, keinem Betriebsmittel zugeordnet; `freieGeraete()`); leer = ein neues. Gewählt, stehen oben dessen Angaben (`verknuepfenGewaehlt()`) --
+  wie der Server sie übernimmt (1.9.296 Nr. 6). Die Liste läuft über `auswahlOptionen()` auf der ganzen Liste (Regel 22, P3).
+- Speichern: die Angaben oben gehen immer mit (`geraet_speichern()` schreibt sie mit Haken in das Plantafel-Gerät), der Kurzname nur mit Haken (Teil
+  `ressource`), `resource_id` nur beim Verknüpfen. Die Rückfrage beim Entfernen (409, 1.9.296) zeigt die Seite per `confirm()` mit den Einsätzen; abgelehnt,
+  bleibt alles. Danach bleibt die Seite auf dem Gerät und zeichnet neu.
+- Untertitel im Kopf „Auf der Plantafel“ statt „Mit Ressourcenbezug“/„Eigenständig“; Löschen erklärt, dass ein Gerät auf der Plantafel dort bleibt.
+- Das Wort „Ressource“ steht auf der Seite nirgends mehr (nur in Code-Kommentaren); der Link ins Ressourcen-Formular entfällt (N4 erledigt: es gibt keinen
+  Rückweg mehr, der in der Liste endet).
+
+#### Festlegungen 1.9.297 (Bitte bestätigen)
+
+1. Der Haken heißt „Auf der Plantafel einplanbar“ und steht unter den Stammdaten des Geräts; das Wort „Ressource“ steht auf der Seite nirgends.
+2. Bezeichnung, Typ, Hersteller, Modell, Kennzeichen stehen immer oben (mit Haken die des Plantafel-Geräts); mit Haken ist der Typ Pflicht.
+3. Mit Haken der Abschnitt „Plantafel“: Kurzname (bearbeitbar), Postfach nur lesen; „In den Einstellungen ändern →“ nur für den Admin.
+4. „Vorhandenes Plantafel-Gerät verknüpfen“ nur, wenn es ein freies gibt (aktiv, ohne Betriebsmittel) und das Gerät noch keins hat; gewählt, stehen oben dessen
+   Angaben.
+5. Nach dem Speichern bleibt die Seite auf dem Gerät; kein Link mehr ins Ressourcen-Formular.
+6. Haken entfernen an einem noch eingeplanten Gerät: Rückfrage mit den Einsätzen (confirm); abgelehnt, bleibt alles.
+
+#### Tests und Prüfung 1.9.297
+
+Neu: `tests/test_v697_ein_formular.py` (in node mit dem Code der Seite: mit und ohne Haken, Haken setzen, Auswahl nur mit freiem Gerät, verknüpfen zeigt dessen
+Angaben; kein „Ressource“ außerhalb von Kommentaren; Link nur Admin; was gesendet wird). Neu: `scripts/klicktest_geraete.py` (Testdaten: Pritsche mit Postfach,
+Autokran eingeplant, Leiter, Mein Anhänger, Rüttelplatte, ein freies Plantafel-Gerät; mit Haken speichern ins Plantafel-Gerät, Haken setzen legt eins an,
+verknüpfen, Rückfrage abgelehnt und bestätigt, Büro – Auftrag ohne Link; Bilder „Gerät mit und ohne Haken“ bei 1440, 1280 und 412 px, hell und dunkel, ganze
+Seite). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.297“.
+**Angepasste Erwartungen** (Regel 28): `scripts/klicktest_rahmen.py`, Datensatzkopf „betriebsmittel“ -- alt Untertitel „Leiter · Eigenständig“, neu „Leiter“
+(„Eigenständig“ entfällt; mit Plantafel stünde „Auf der Plantafel“) -- gefunden im Lauf der betroffenen Klicktests vor dem Festhalten.
