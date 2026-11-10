@@ -31,7 +31,7 @@ Aufbau-Test) -- Test nachgezogen, dieselbe Gegenprobe rot.
 | Nr. 1 – Warnung vor Hinweis (mit beidem nur ⚠, wie bisher) | der Hinweis vor der Warnung (`291_1e`) | 1 rot: v691::test_warnung_vor_hinweis_und_ohne_beides_kein_abzeichen. Klicktest: keine Gegenprobe -- in den Testdaten hat kein Chip beides |
 | Nr. 2 – kein Chip gekürzt (1440/1280 px, Maus/Finger, 1 Woche; 2 Wochen eingeklappt) | das Abzeichen im Fluss (`291_2a`, `291_2b`, siehe oben) | Klicktest auftraege: „1280 dunkel/hell, 2 Wochen: … kein Chip gekürzt“; Klicktest ziehen: „… kein Chip gekürzt …“ in allen sechs Kombinationen (HS-DK 204 mit ⚠ gekürzt) |
 
-11 Gegenproben (5 gegen Tests, 6 gegen die Klicktests), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Eine blieb zuerst grün (`291_2e`) --
+10 Gegenproben (5 gegen Tests, 5 gegen die Klicktests; berichtigt im Nachtrag zu 1.9.292, bis dahin hieß es 11 und 6), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Eine blieb zuerst grün (`291_2e`) --
 Klicktest nachgezogen, dieselbe Gegenprobe rot.
 
 ## 1.9.292 (Punkt 3): kurze Anzeige vor dem Loslassen bei schmalen Tagen
