@@ -1419,6 +1419,13 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   der Seite (`ds.css`, `ds-basis.css`, `ds-alte-namen.css`, `ds-gesperrt.css`) kamen laut Verbindungsprotokoll nie beim Server an, alle 13 Prüfungen sonst wie
   erwartet; `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 13 von 13. Bekannte Art „Anfrage nie angekommen“ (wie `klicktest_rahmen` am
   03.11.2026); die Runde änderte an der Seite und an `/static/` nichts.
+- **`test_v596_reihenfolge.py::test_parallel_je_arbeitsprozess_eine_datei`** -- 10.11.2026, zweimal im vollen Lauf der Hauptarbeitskopie vor dem
+  Festhalten (Geräte-Runde, Stand von 1.9.296 und von 1.9.298; die Läufe in den Arbeitskopien der Commits blieben grün): das innere pytest des Tests
+  brach beim Sammeln ab -- `FileNotFoundError` beim `lstat` auf `%TEMP%\erp-vorprobe-…`, danach „Different tests were collected between gw1 and gw0“.
+  Ursache: die Probedateien liegen in `tmp_path` unter `%TEMP%`, das Sammeln des inneren Laufs (Pfade außerhalb von `--rootdir`) listet dabei auch
+  `%TEMP%` selbst auf; `test_v630_vorprobe_time4` (`scripts/vorprobe_time4.py`, `tempfile.mkdtemp(prefix="erp-vorprobe-")`) löschte seinen Ordner
+  zwischen Auflisten und `lstat`. Allein auf demselben Stand grün (4 von 4). Stand: offen -- Vorschlag im Bericht der Geräte-Runde (die Probedateien in
+  einen Ordner, dessen Weg nicht durch `%TEMP%` führt, oder `--rootdir` auf `tmp_path`).
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)

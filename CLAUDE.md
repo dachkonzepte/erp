@@ -1410,7 +1410,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   wandert mit dem Haken, Ressourcennummer intern „R-<id>“, Haken entfernen löscht oder deaktiviert das Plantafel-Gerät, künftige Einsätze mit Rückfrage;
   `tests/test_v696_ein_speicherweg.py`); seit 1.9.297 ein Formular je Gerät auf `/betriebsmittel/{id}`: Haken „Auf der Plantafel einplanbar“, Abschnitt
   „Plantafel“ (Kurzname, Postfach nur lesen, Link nur Admin), kein „Ressource“ auf der Seite (`tests/test_v697_ein_formular.py`, Klicktest
-  `klicktest_geraete.py`)) --
+  `klicktest_geraete.py`); seit 1.9.298 legt „+ Hinzufügen“ mit Haken auch das Plantafel-Gerät an, ein aktives ohne Betriebsmittel steht in der Liste als
+  „nur Plantafel“ mit „Betriebsmittel anlegen“ (`/master-data/assets/new?ressource=<id>`), die Suche findet den Kurznamen; bei ausgeschaltetem Modul bleibt
+  „Fuhrpark & Maschinen“ (`tests/test_v698_liste_und_anlegen.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

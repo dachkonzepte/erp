@@ -367,7 +367,7 @@ async function saveRecurringCost(netAmount,forceRemove){
 }
 
 async function deleteAssetNow(){
-  if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- ein Gerät auf der Plantafel bleibt dort stehen. Das kann nicht rückgängig gemacht werden.'))return;
+  if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- ein Gerät auf der Plantafel bleibt dort stehen (in den Stammdaten dann „nur Plantafel“). Das kann nicht rückgängig gemacht werden.'))return;
   try{
     await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'DELETE'}));
     location.href='/master-data#assets';

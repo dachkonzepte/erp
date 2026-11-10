@@ -12,7 +12,12 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
     Verknüpfen  „Mein Anhänger“ mit dem freien Anhänger Humbaur: die Angaben oben wechseln, gespeichert ist die Verknüpfung
     Entfernen   am Kran (noch eingeplant): Rückfrage, abgelehnt -> nichts; bestätigt -> ohne Plantafel, Angaben gewandert, das Plantafel-Gerät inaktiv
     Büro – A.   Postfach zu sehen, kein Link
-    Bilder      Gerät mit und ohne Haken bei 1440, 1280 und 412 px, hell und dunkel; bei 412 px läuft nichts über
+    Liste       (seit 1.9.298) Stammdaten -> Betriebsmittel: „Plantafel“ an den Geräten mit Haken; ein Plantafel-Gerät ohne Betriebsmittel (hier über die
+                Schnittstelle angelegt, „Hubsteiger Genie“) als „nur Plantafel“ mit „Betriebsmittel anlegen“, im Untertitel mitgezählt; nirgends „Ressource“
+    Anlegen     „Betriebsmittel anlegen“ öffnet das Formular mit Haken und dem Gerät verknüpft -> gespeichert, auf der Seite des Geräts; „+ Hinzufügen“ mit
+                Haken und Kurzname legt ein neues planbares Gerät an (Minibagger, „MB 17“) -> Seite des Geräts; die Suche findet es über „MB 17“
+    Bilder      Gerät mit und ohne Haken, neues planbares Gerät anlegen (vor dem Speichern), Liste -- bei 1440, 1280 und 412 px, hell und dunkel; bei
+                412 px läuft nichts über
 
 AUFRUF (aus dem Projektordner):
 
@@ -35,6 +40,11 @@ FORMULAR = ("[document.getElementById('editName').value,document.getElementById(
             "document.getElementById('verknuepfenWrap').hidden]")
 OHNE_WORT = "!document.querySelector('main').innerText.includes('Ressource')"
 GESPEICHERT = "document.getElementById('editorStatus').textContent==='Gespeichert.'"
+FORM_BEREIT = "typeof assetResources!=='undefined'&&!!document.getElementById('assetEinplanbar')"
+LISTE_BEREIT = "!!document.querySelector('#content tbody tr td')"
+LISTE = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>2).map(r=>[r.cells[2].querySelector('b').textContent,"
+         "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].textContent.trim()])")
+GERAETESEITE = "/^\\/betriebsmittel\\/\\d+$/.test(location.pathname)&&" + BEREIT
 DIALOGE = "window.__fragen=[];window.confirm=m=>{window.__fragen.push(String(m));return window.__antwort!==false};"
 
 
@@ -98,6 +108,14 @@ async def speichern(tab, p, anlass: str) -> None:
     await tab.js("document.querySelector('.editor-card button[onclick=\"saveAsset()\"]').click()")
     await tab.warte_auf_ruhe()
     p.pruefe(f"{anlass}: gespeichert", await tab.warten(GESPEICHERT, 10), True)
+
+
+async def neues_geraet(tab) -> None:
+    """seit 1.9.298: das Anlegen-Formular für ein planbares Gerät ausfüllen (ohne zu speichern)"""
+    for feld, wert in (("assetName", "Minibagger Kubota U17"), ("assetType", "Maschine"), ("assetManufacturer", "Kubota"), ("assetNumber", "BM-41")):
+        await tab.js(setzen(feld, wert))
+    await tab.js("(e=>{if(!e.checked)e.click();return true})(document.getElementById('assetEinplanbar'))")
+    await tab.js(setzen("assetKurzname", "MB 17"))
 
 
 async def api(tab, pfad: str):
@@ -176,6 +194,46 @@ async def pruefen(tab, seed, p):
                                                                                  (await api(tab, f"/api/resources/{seed['rk']}"))["active"]],
              [False, "Autokran", "Liebherr", False])
 
+    # --- seit 1.9.298 (Punkt 3): Liste, „Betriebsmittel anlegen“, neues planbares Gerät, Suche
+    # ein Plantafel-Gerät ohne Betriebsmittel entsteht nur über Umwege -- hier über die Schnittstelle der Ressourcen (die das Formular bei ausgeschaltetem Modul nutzt)
+    hub = await tab.js("fetch('/api/resources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Hubsteiger Genie',"
+                       "resource_type:'Maschine',kurzname:'Hub'})}).then(r=>r.json()).then(r=>r.id)")
+    p.pruefe("Liste geladen", await tab.oeffnen("/master-data?n=1#assets", LISTE_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    liste = await tab.js(LISTE)
+    p.pruefe("Liste: Plantafel und nur Plantafel", [z for z in liste if z[0] in ("Pritsche HS-DK 202 MAN", "Leiter Alu 6 m", "Rüttelplatte Wacker", "Hubsteiger Genie")],
+             [["Pritsche HS-DK 202 MAN", "Plantafel", "Öffnen"], ["Leiter Alu 6 m", "Plantafel", "Öffnen"], ["Rüttelplatte Wacker", "", "Öffnen"],
+              ["Hubsteiger Genie", "nur Plantafel", "Betriebsmittel anlegen"]])
+    p.pruefe("Liste: Untertitel zählt „nur Plantafel“, nirgends „Ressource“", [await tab.js("document.getElementById('seitenkopfUntertitel').textContent"),
+                                                                             await tab.js(OHNE_WORT)], ["5 inventarisierte Betriebsmittel · 1 nur Plantafel", True])
+    await tab.js("[...document.querySelectorAll('#content a')].find(a=>a.textContent.trim()==='Betriebsmittel anlegen').click()")
+    p.pruefe("Betriebsmittel anlegen: das Formular mit Haken und dem Gerät", await tab.warten(f"location.search==='?ressource={hub}'&&{FORM_BEREIT}&&"
+                                                                                             "document.getElementById('assetName').value==='Hubsteiger Genie'", 15), True)
+    p.pruefe("Betriebsmittel anlegen: Haken, Abschnitt, Auswahl sichtbar und verknüpft, Kurzname", await tab.js(
+        "[document.getElementById('assetEinplanbar').checked,document.getElementById('assetPlantafel').hidden,document.getElementById('assetVerknuepfenWrap').hidden,"
+        "document.getElementById('assetVerknuepfen').value,document.getElementById('assetKurzname').value,document.getElementById('assetType').value]"),
+             [True, False, False, str(hub), "Hub", "Maschine"])
+    await tab.js(setzen("assetNumber", "BM-40"))
+    await tab.js("document.getElementById('saveBtn').click()")
+    p.pruefe("Betriebsmittel anlegen: gespeichert, auf der Seite des Geräts", await tab.warten(GERAETESEITE, 15), True)
+    neu = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
+    p.pruefe("Betriebsmittel anlegen: verknüpft", [neu["einplanbar"], neu["resource_id"], neu["name"], neu["asset_number"]], [True, hub, "Hubsteiger Genie", "BM-40"])
+    p.pruefe("+ Hinzufügen geladen", await tab.oeffnen("/master-data/assets/new", FORM_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("+ Hinzufügen: ohne freies Gerät keine Auswahl, kein Abschnitt", await tab.js(
+        "[document.getElementById('assetVerknuepfenWrap').hidden,document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden]"),
+             [True, True, True])
+    await neues_geraet(tab)
+    p.pruefe("+ Hinzufügen mit Haken: Abschnitt, Typ als Pflicht", await tab.js(
+        "[document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden]"), [False, False])
+    await tab.js("document.getElementById('saveBtn').click()")
+    p.pruefe("+ Hinzufügen: gespeichert, auf der Seite des Geräts", await tab.warten(GERAETESEITE, 15), True)
+    bagger = await api(tab, "/api/operational-assets/" + (await tab.js("location.pathname.split('/').pop()")))
+    p.pruefe("+ Hinzufügen: neues planbares Gerät", [bagger["einplanbar"], bagger["name"], bagger["asset_type"], bagger["manufacturer"], bagger["kurzname"]],
+             [True, "Minibagger Kubota U17", "Maschine", "Kubota", "MB 17"])
+    suche = await tab.js("fetch('/api/search?q='+encodeURIComponent('MB 17')).then(r=>r.json())")
+    p.pruefe("Suche über den Kurznamen", [h["title"] for g in suche if g["key"] == "operational_assets" for h in g["hits"]], ["Minibagger Kubota U17"])
+
     # --- Büro – Auftrag: Postfach zu sehen, kein Link
     await tab.anmelden(seed["bea"])
     n += 1
@@ -197,6 +255,30 @@ async def pruefen(tab, seed, p):
                 if breite == 412:
                     p.pruefe(f"{was} 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
                 await tab.bild_ganz(f"geraet_{was}_{breite}_{name}")  # die ganze Seite: der Abschnitt „Plantafel“ liegt bei 412 px weit unten
+    # seit 1.9.298: neues planbares Gerät anlegen (vor dem Speichern) und die Liste -- dafür noch ein freies Plantafel-Gerät (Zeile „nur Plantafel“, Auswahl)
+    await tab.js("fetch('/api/resources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Hebebühne JLG',"
+                 "resource_type:'Maschine'})}).then(r=>r.json()).then(r=>r.id)")
+    for breite, mobil in ((1440, False), (1280, False), (412, True)):
+        await tab.fenster(breite, 1000, mobil=mobil)
+        for thema, name in (("light", "hell"), ("dark", "dunkel")):
+            await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+            n += 1
+            p.pruefe(f"anlegen {breite} {name}: geladen", await tab.oeffnen(f"/master-data/assets/new?n={n}", FORM_BEREIT), True)
+            await tab.warte_auf_ruhe()
+            await neues_geraet(tab)
+            p.pruefe(f"anlegen {breite} {name}: Abschnitt da, kein „Ressource“", [await tab.js("document.getElementById('assetPlantafel').hidden"),
+                                                                                 await tab.js(OHNE_WORT)], [False, True])
+            if breite == 412:
+                p.pruefe(f"anlegen 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.bild_ganz(f"anlegen_planbar_{breite}_{name}")
+            n += 1
+            p.pruefe(f"Liste {breite} {name}: geladen", await tab.oeffnen(f"/master-data?n={n}#assets", LISTE_BEREIT), True)
+            await tab.warte_auf_ruhe()
+            p.pruefe(f"Liste {breite} {name}: „nur Plantafel“, kein „Ressource“", [[z[1:] for z in await tab.js(LISTE) if z[0] == "Hebebühne JLG"],
+                                                                                await tab.js(OHNE_WORT)], [[["nur Plantafel", "Betriebsmittel anlegen"]], True])
+            if breite == 412:
+                p.pruefe(f"Liste 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.bild_ganz(f"liste_{breite}_{name}")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

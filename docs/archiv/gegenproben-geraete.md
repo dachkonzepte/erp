@@ -84,3 +84,22 @@ seither bei jedem Fehler zurück; der Test legte zuerst einen Einsatz an einem s
 14 Gegenproben (7 gegen Tests, 7 gegen den Klicktest), alle rot, jede Datei byte-genau zurück, kein Marker geblieben. Beim Bauen: die ersten Bilder waren nur
 der sichtbare Ausschnitt (der Abschnitt „Plantafel“ lag bei 412 px darunter, die Kopfleiste verdeckte die erste Zeile) -- jetzt die ganze Seite; der Lauf der
 betroffenen Klicktests fand die Erwartung „Leiter · Eigenständig“ in klicktest_rahmen (angepasst).
+
+## 1.9.298 (Punkt 3): Liste und Anlegen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „+ Hinzufügen“ legt mit Haken auch das Plantafel-Gerät an | `einplanbar` immer false im Körper (`298_1a`, `298_1b`) | 1 rot: v698::test_anlegen_mit_haken_und_verknuepfen; Klicktest geraete: „Betriebsmittel anlegen“, „+ Hinzufügen“ (zweimal), „Suche über den Kurznamen“ |
+| Nr. 1 – mit Haken der Typ Pflicht | das Sternchen nie (`298_1c`) | Klicktest: „+ Hinzufügen mit Haken“. Test: keine eigene -- die Anzeige setzt erst der Haken im Browser |
+| Nr. 2 – die Auswahl nur mit freiem Gerät | nie (`298_2a`, `298_2c`) und immer (`298_2b`) | 1 rot: v698::test_anlegen_mit_haken_und_verknuepfen (nie); Klicktest: „Betriebsmittel anlegen“ (nie), „+ Hinzufügen“ (immer, dort gibt es kein freies) |
+| Nr. 3 – „Plantafel“ statt „Ressourcenbezug“ | das alte Wort (`298_3a`, `298_3b`) | 1 rot: v698::test_liste_plantafel_und_nur_plantafel; Klicktest: „Liste“ (zweimal) und alle sechs Bilder der Liste |
+| Nr. 4 – „nur Plantafel“ steht in der Liste | die Zeilen nie (`298_4a`, `298_4c`) | **zuerst grün** gegen v698 (der Test prüfte nur Filter und Text der Zeile, nicht, dass sie in die Liste kommt) -- nachgezogen, dieselbe Gegenprobe noch einmal: 1 rot: v698::test_liste_plantafel_und_nur_plantafel. Klicktest: „Liste“, „Betriebsmittel anlegen“ (dreimal) |
+| Nr. 4 – ein inaktives nicht | auch die inaktiven (`298_4b`, `298_4d`) | 1 rot: v698::test_liste_plantafel_und_nur_plantafel; Klicktest: „Liste“ (der Autokran nach dem Entfernen des Hakens als zweites „nur Plantafel“), „Betriebsmittel anlegen“ (dreimal) |
+| Nr. 4 – „Betriebsmittel anlegen“ startet mit Haken und verknüpft | die Vorgabe aus der Adresse nie (`298_4e`) | Klicktest: „Betriebsmittel anlegen“ (dreimal). Test: keine eigene -- die Vorgabe wirkt nur im Browser |
+| Nr. 5 – die Suche findet den Kurznamen | ohne Kurzname (`298_5a`, `298_5b`) | 1 rot: v698::test_suche_findet_den_kurznamen; Klicktest: „Suche über den Kurznamen“ |
+| Nr. 6 – Modul aus: „Fuhrpark & Maschinen“ bleibt | „+ Hinzufügen“ auch dort ins Formular der Betriebsmittel (`298_6a`) | 1 rot: v698::test_modul_aus_bleibt_das_formular_fuhrpark. Klicktest: keine -- er läuft mit eingeschaltetem Modul |
+
+16 Gegenproben (7 gegen Tests, 9 gegen den Klicktest), alle rot -- `298_4a` erst nach dem Nachziehen von v698; jede Datei byte-genau zurück, kein Marker
+geblieben. Vor dem Festhalten fand der volle Lauf zwei Wächter rot (v414: `Number()` auf der Auswahl „verknüpfen“; v447: Typ und Auswahl über `.value`
+gesetzt statt über `auswahlOptionen()`) -- jetzt sucht das Formular das Gerät über den Text seiner ID, baut beide Auswahlen über `auswahlOptionen()` neu und
+blendet die Auswahl „verknüpfen“ nur aus (sie steht immer im Markup).

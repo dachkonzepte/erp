@@ -1589,3 +1589,34 @@ verknüpfen, Rückfrage abgelehnt und bestätigt, Büro – Auftrag ohne Link; B
 Seite). Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.297“.
 **Angepasste Erwartungen** (Regel 28): `scripts/klicktest_rahmen.py`, Datensatzkopf „betriebsmittel“ -- alt Untertitel „Leiter · Eigenständig“, neu „Leiter“
 („Eigenständig“ entfällt; mit Plantafel stünde „Auf der Plantafel“) -- gefunden im Lauf der betroffenen Klicktests vor dem Festhalten.
+
+### Umsetzung 1.9.298 (Punkt 3): Liste und Anlegen
+
+- Anlegen (`master_data_form.html::assetForm()`): wie die Seite des Geräts -- Bezeichnung, Typ, Hersteller, Modell, Kennzeichen, Betriebsmittelnummer, Status,
+  Notizen, darunter der Haken; mit Haken der Abschnitt „Plantafel“ (Kurzname; „Vorhandenes Plantafel-Gerät verknüpfen“ nur, wenn es ein freies gibt), der Typ
+  Pflicht. Gesendet wird `einplanbar`, der Teil `ressource` und beim Verknüpfen `resource_id` (`geraet_speichern()`, 1.9.296); danach die Seite des Geräts wie
+  bisher. `/master-data/assets/new?ressource=<id>` startet mit Haken und diesem Gerät verknüpft (nur ein freies, aktives; sonst leer).
+- Liste (`master_data.html`, Betriebsmittel): „Plantafel“ statt „Ressourcenbezug“; dazu je aktivem Plantafel-Gerät ohne Betriebsmittel eine Zeile „nur
+  Plantafel“ mit „Betriebsmittel anlegen“ (Antwort 5) und im Untertitel „· N nur Plantafel“. Ein inaktives zählt nicht: es ist der Rest, den das Entfernen
+  des Hakens an einem noch eingeplanten Gerät hinterlässt (1.9.296 Nr. 7) -- im Klicktest stand der Autokran sonst zweimal in der Liste (einmal als
+  Betriebsmittel, einmal als „nur Plantafel“).
+- Suche (`app/search.py::_search_operational_assets()`): dazu `OperationalResource.kurzname` (N5). Ein Plantafel-Gerät ohne Betriebsmittel findet die Suche
+  weiter nicht (eine eigene Quelle wäre nötig; im Bestand gibt es keins).
+- Modul aus: unverändert „Fuhrpark & Maschinen“ mit `/master-data/resources/new` und dem bisherigen Formular (mit dem Wort „Ressource“).
+
+#### Festlegungen 1.9.298 (Bitte bestätigen)
+
+1. „+ Hinzufügen“ legt mit dem Haken auch das Plantafel-Gerät an (Abschnitt „Plantafel“ mit Kurzname, Typ Pflicht).
+2. Ein freies, aktives Plantafel-Gerät lässt sich beim Anlegen verknüpfen; die Auswahl erscheint nur, wenn es eins gibt.
+3. In der Liste trägt ein Gerät mit Plantafel „Plantafel“ (statt „Ressourcenbezug“).
+4. Ein aktives Plantafel-Gerät ohne Betriebsmittel steht als „nur Plantafel“ mit „Betriebsmittel anlegen“ (öffnet das Anlegen mit Haken und verknüpft) und
+   zählt im Untertitel; ein inaktives nicht (Rest vom Entfernen des Hakens).
+5. Die Büro-Suche findet ein Gerät über seinen Kurznamen.
+6. Bei ausgeschaltetem Modul bleibt „Fuhrpark & Maschinen“ mit dem Ressourcen-Formular.
+
+#### Tests und Prüfung 1.9.298
+
+Neu: `tests/test_v698_liste_und_anlegen.py` (Suche über den Kurznamen; Aufbau von Anlegen und Liste; Modul aus unverändert). `scripts/klicktest_geraete.py` ergänzt:
+ein Plantafel-Gerät über die Schnittstelle der Ressourcen (der Umweg), Liste mit „Plantafel“ und „nur Plantafel“, Untertitel, „Betriebsmittel anlegen“ -> mit
+Haken und verknüpft gespeichert, „+ Hinzufügen“ ohne freies Gerät ohne Auswahl, mit Haken und Kurzname gespeichert, Suche „MB 17“; Bilder „anlegen“ (vor dem
+Speichern, mit einem freien Gerät in der Auswahl) und „Liste“ bei 1440, 1280 und 412 px, hell und dunkel. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.298“.

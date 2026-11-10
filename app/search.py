@@ -600,6 +600,7 @@ def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int,
             OperationalResource.manufacturer.ilike(pattern),
             OperationalResource.model.ilike(pattern),
             OperationalResource.identifier.ilike(pattern),
+            OperationalResource.kurzname.ilike(pattern),  # seit 1.9.298 (Geräte-Runde, N5): der Kurzname auf der Plantafel
         ))
     )
     return _count_and_fetch(db, stmt, OperationalAsset.id.desc(), limit, options=(selectinload(OperationalAsset.resource),))
