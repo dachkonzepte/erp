@@ -1424,8 +1424,12 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   brach beim Sammeln ab -- `FileNotFoundError` beim `lstat` auf `%TEMP%\erp-vorprobe-…`, danach „Different tests were collected between gw1 and gw0“.
   Ursache: die Probedateien liegen in `tmp_path` unter `%TEMP%`, das Sammeln des inneren Laufs (Pfade außerhalb von `--rootdir`) listet dabei auch
   `%TEMP%` selbst auf; `test_v630_vorprobe_time4` (`scripts/vorprobe_time4.py`, `tempfile.mkdtemp(prefix="erp-vorprobe-")`) löschte seinen Ordner
-  zwischen Auflisten und `lstat`. Allein auf demselben Stand grün (4 von 4). Stand: offen -- Vorschlag im Bericht der Geräte-Runde (die Probedateien in
-  einen Ordner, dessen Weg nicht durch `%TEMP%` führt, oder `--rootdir` auf `tmp_path`).
+  zwischen Auflisten und `lstat`. Allein auf demselben Stand grün (4 von 4). Stand: behoben mit 1.9.300 (Nachrunde der Geräte-Runde, Punkt 0).
+  Genauer als vermutet: pytest 9 sammelt eine Datei außerhalb von `--confcutdir` (Vorgabe: der Ordner der `pytest.ini`) über jeden Ordner ihres Wegs, der
+  nicht über dem Projekt liegt -- hier ab `C:\Users`, über `AppData\Local\Temp` (dort jeder Eintrag einzeln geprüft) bis `tmp_path`; `--collect-only`
+  zeigte den Baum ab `<Dir Users>`. Behoben über `--confcutdir` auf `tmp_path` im inneren Lauf (`tests/test_v596_reihenfolge.py::_lauf()`): der Baum beginnt
+  beim Ordner der Probedateien. Neu `test_sammelt_nur_im_eigenen_ordner` (der Baum hat genau einen Ordner, `tmp_path`); Gegenprobe ohne `--confcutdir`: rot.
+  Die übrigen Tests mit innerem pytest (`test_v413`, `test_v416`) sammeln Dateien im Projekt und sind davon nicht betroffen.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)

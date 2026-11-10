@@ -118,3 +118,17 @@ blendet die Auswahl „verknüpfen“ nur aus (sie steht immer im Markup).
 6 Gegenproben, alle gegen Tests, alle rot -- je die rote Zeile angesehen, jede scheitert an ihrer eigenen Prüfung; jede Datei byte-genau zurück, kein Marker
 geblieben. Klicktests: keine -- kein Klicktest liest die Änderungshistorie eines Betriebsmittels, und die beiden 500er sind über die Seiten nicht zu erreichen
 (die Liste bietet kein Löschen eines Plantafel-Geräts mit Betriebsmittel, die Gleichzeitigkeit braucht zwei Anfragen im selben Augenblick).
+
+# Nachrunde der Geräte-Runde (ab 1.9.300)
+
+Bestätigt am 10.11.2026: die Festlegungen 1.9.293–1.9.299. Fünf Punkte, je eine Version: 0 Wackler test_v596, 1 „Ressource“ heißt überall „Gerät“, 2 „Inaktive
+ausblenden“ in der Liste der Betriebsmittel, 3 die Suche findet „nur Plantafel“, 4 „Betriebsmittel anlegen“ wie die Seite des Geräts. Ablauf wie oben.
+
+## 1.9.300 (Punkt 0): Wackler test_v596
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – das innere pytest sammelt nur im Ordner der Probedateien | ohne `--confcutdir` (`300_1a`) | 1 rot: v596::test_sammelt_nur_im_eigenen_ordner (der Baum beginnt bei `<Dir Users>`) |
+
+1 Gegenprobe gegen den Test, rot; die Datei byte-genau zurück. Die Gegenprobe ändert den Test selbst (die Behebung steht dort, nicht unter `app/`).
+Klicktests: keine -- die Änderung betrifft nur einen Test.

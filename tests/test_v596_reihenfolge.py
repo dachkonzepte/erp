@@ -26,14 +26,25 @@ def _dateien(tmp_path: Path) -> list[Path]:
     return [a, b]
 
 
-def _lauf(tmp_path: Path, ordner: Path, *argumente: str, verschachtelt: bool = False) -> subprocess.CompletedProcess:
+def _lauf(tmp_path: Path, ordner: Path, *argumente: str, verschachtelt: bool = False, ruhig: bool = True) -> subprocess.CompletedProcess:
     umgebung = {k: v for k, v in os.environ.items() if k not in (reihenfolge.LAUF, reihenfolge.AUS, "ERP_TEST_POSTGRES_URL")}
     umgebung["ERP_TEST_REIHENFOLGE"] = str(ordner)
     if verschachtelt:
         umgebung[reihenfolge.LAUF] = "1"  # wie in einem Test eines laufenden Laufs
-    return subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "tests.conftest", "-p", "no:cacheprovider", "--rootdir", str(ROOT),
+    # --confcutdir (seit 1.9.300): ohne ihn sammelt das innere pytest die Probedateien über jeden Ordner ab C:\Users -- auch über %TEMP% selbst,
+    # und ein Ordner, den ein anderer Test dort gerade löscht, brach das Sammeln ab (Wackler 10.11.2026, test_parallel_je_arbeitsprozess_eine_datei)
+    return subprocess.run([sys.executable, "-m", "pytest", *(["-q"] if ruhig else []), "-p", "tests.conftest", "-p", "no:cacheprovider",
+                           "--rootdir", str(ROOT), "--confcutdir", str(tmp_path),
                            *argumente, *map(str, _dateien(tmp_path))], cwd=ROOT, env=umgebung, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=240)
+
+
+def test_sammelt_nur_im_eigenen_ordner(tmp_path):
+    """Seit 1.9.300: der Baum des inneren Laufs beginnt beim Ordner der Probedateien -- kein Ordner darüber (%TEMP%, C:\\Users) wird gelesen."""
+    lauf = _lauf(tmp_path, tmp_path / "r", "--collect-only", ruhig=False)
+    ordner = [z.strip() for z in lauf.stdout.splitlines() if z.strip().startswith("<Dir ")]
+    assert ordner == [f"<Dir {tmp_path.name}>"], lauf.stdout[-2000:]
+    assert "<Module test_a_probe.py>" in lauf.stdout and "<Module test_b_probe.py>" in lauf.stdout, lauf.stdout[-2000:]
 
 
 def _zeilen(ordner: Path) -> dict[str, list[str]]:

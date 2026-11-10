@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.300 – Tests: Wackler test_v596 behoben
+
+`tests/test_v596_reihenfolge.py` startet ein inneres pytest auf Probedateien in `tmp_path` (unter `%TEMP%`). Ohne `--confcutdir` sammelte es sie über jeden Ordner ab `C:\Users` -- auch über `%TEMP%` selbst, dessen Einträge es dabei einzeln ansieht. Löschte ein anderer Test im selben Augenblick dort seinen Ordner (`test_v630_vorprobe_time4`, `erp-vorprobe-…`), brach das Sammeln mit `FileNotFoundError` ab (zweimal im vollen Lauf der Hauptarbeitskopie, Geräte-Runde). Jetzt mit `--confcutdir` auf `tmp_path`: der Baum beginnt beim Ordner der Probedateien, kein Ordner darüber wird gelesen.
+
+Neu `test_sammelt_nur_im_eigenen_ordner` (der Sammelbaum des inneren Laufs, `--collect-only`). Keine Änderung unter `app/`, keine Migration.
+
 ## 1.9.299 – Betriebsmittel: Änderungshistorie, Meldungen statt 500
 
 Betriebsmittel und Prüffristen stehen jetzt in der Änderungshistorie („Betriebsmittel“, „Prüffrist“, jedes Feld mit Namen) -- bis 1.9.298 nur das Plantafel-Gerät (N2). Ein neues Betriebsmittel steht dort gleich mit Nummer und Namen: es kommt erst am Ende in die Sitzung, ein Zwischen-Flush schrieb es sonst ohne beides. Eine Ressource, die zu einem Betriebsmittel gehört, lässt sich über `DELETE /api/resources/{id}` nicht mehr löschen: 409 mit Meldung, bis 1.9.298 scheiterte das unter PostgreSQL mit 500 am Fremdschlüssel (N1). Verknüpfen zwei Anfragen gleichzeitig dasselbe Plantafel-Gerät, bekommt die zweite die Meldung „bereits einem anderen Betriebsmittel zugeordnet“ statt 500 (N6) (Punkt 4).

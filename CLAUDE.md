@@ -779,7 +779,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
     „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
-  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Geräte-Runde (ab 1.9.293): `docs/archiv/gegenproben-geraete.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Geräte-Runde (ab 1.9.293, Nachrunde ab 1.9.300): `docs/archiv/gegenproben-geraete.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -2047,7 +2047,8 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   (`.pytest_cache/reihenfolge/gw*.txt`, `ERP_TEST_REIHENFOLGE`; nur der letzte Lauf -- nach einem roten Lauf kopieren); `python -m tests.reihenfolge
   ORDNER` stellt ihn nach (`tests/reihenfolge.py`). Abfragen zählen nur mit `gc.collect()` davor und ohne Speicherbereinigung währenddessen
   (`tests/test_v564_plantafel_leistung.py::Zaehler`): ein Fehler beim Abräumen einer fremden Verbindung hält sonst über seinen Traceback die
-  Objekte der Anfrage fest.
+  Objekte der Anfrage fest. Ein Test, der ein inneres pytest auf Dateien außerhalb des Projekts startet (`tmp_path`), gibt `--confcutdir` auf deren
+  Ordner mit (seit 1.9.300) -- sonst liest das Sammeln jeden Ordner darüber, auch `%TEMP%`, und ein dort gleichzeitig gelöschter Ordner bricht es ab.
 - **Engines in Tests** (seit 1.9.195): eine Engine unter `tests/` schließt die Funktion, die sie anlegt, selbst mit `dispose()` -- sonst entsteht
   sie über `tests/aufraeumen.py::wegwerf_engine()`, und `tests/conftest.py` schließt sie am Ende des Tests (des Moduls, des Laufs, wenn ein Aufbau
   dieses Umfangs sie anlegte). Nie der Speicherbereinigung überlassen: sie räumte die Verbindung sonst in einem fremden Thread ab (Fehler im
