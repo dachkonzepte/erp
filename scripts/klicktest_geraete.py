@@ -25,6 +25,8 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
                 Rüttler: verknüpft, „(inaktiv)“ in der Auswahl, Status Inaktiv -> gespeichert bleiben Gerät und Plantafel-Gerät inaktiv
     Suche       (seit 1.9.303) die Seite „Suche“ findet zu „Autokran“ das Betriebsmittel und den Rest des Krans als „nur Plantafel · inaktiv“; der Klick
                 führt ins Anlegen mit dem Gerät (Haken, verknüpft, Status Inaktiv)
+    Dokumente   (seit 1.9.307) im Anlegen bei 1440 und 1280 px Art, Datei und „+ Vormerken“ in einer Zeile, bei 412 px untereinander, Auswahl und Dateifeld
+                so breit wie die Karte (bis 1.9.306 schnitten sie bei 412 px ihren Text ab); in der Liste steht die Nummer (BM-12) auf einer Zeile
     Rest        (seit 1.9.305) die Auswahl beim Anlegen und auf der Seite des Geräts bietet auch den inaktiven Rest des Krans an („(inaktiv)“); am Kran
                 verknüpft -> wieder auf der Plantafel, aktiv wie der Kran. „Löschen“ steht nur an einem Rest, an dem nichts hängt (der Rüttler, die
                 Hebebühne -- nicht der eingeplante Kran); nach der Rückfrage ist die Hebebühne weg
@@ -62,6 +64,12 @@ GRAU = ("(()=>{const grau=getComputedStyle(document.getElementById('bmInaktivZah
 # seit 1.9.305 der erste Link der letzten Spalte (dort steht an einem Rest ohne alles auch „Löschen“), bis 1.9.304 der Text der ganzen Zelle
 LISTE = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>2).map(r=>[r.cells[2].querySelector('b').textContent,"
          "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].querySelector('a')?.textContent||''])")
+# seit 1.9.307: die Zeile der Dokumente -- [Art, Datei, Knopf untereinander?, Breite von Art und Datei in px]
+DOKUMENTE = ("(()=>{const a=document.getElementById('assetDocType').getBoundingClientRect(),d=document.getElementById('assetDocFile').getBoundingClientRect(),"
+             "k=document.querySelector('.dok-zeile>button').getBoundingClientRect();return [a.bottom<=d.top&&d.bottom<=k.top,Math.round(a.width),Math.round(d.width)]})()")
+# seit 1.9.307: die Nummer der Leiter (BM-12) -- über wie viele Zeilen ihr Text läuft
+NUMMER_ZEILEN = ("(()=>{const r=[...document.querySelectorAll('#content tbody tr')].find(z=>z.querySelector('b')?.textContent==='Leiter Alu 6 m');"
+                 "const g=document.createRange();g.selectNodeContents(r.cells[0]);return [r.cells[0].textContent,g.getClientRects().length]})()")
 # seit 1.9.305: die Zeilen mit „Löschen“
 LOESCHEN = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>[...r.querySelectorAll('a[data-klick=\"geraetLoeschen\"]')]"
             ".some(a=>a.textContent==='Löschen')).map(r=>r.cells[2].querySelector('b').textContent).sort()")
@@ -369,6 +377,9 @@ async def pruefen(tab, seed, p):
                      [await tab.js(OBEN), await tab.js(SPALTEN), await tab.js("document.querySelector('#assetPlantafel > h3')?.textContent"),
                       await tab.js(HAKEN_IN_ZEILE)],
                      [True, 1 if mobil else 2, "Plantafel", True])
+            dok = await tab.js(DOKUMENTE)  # seit 1.9.307
+            p.pruefe(f"anlegen {breite} {name}: Dokumente {'untereinander, so breit wie die Karte' if mobil else 'in einer Zeile'}",
+                     [dok[0], dok[1] >= 300, dok[2] >= 300] if mobil else [dok[0]], [True, True, True] if mobil else [False])
             if breite == 412:
                 p.pruefe(f"anlegen 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild_ganz(f"anlegen_planbar_{breite}_{name}")
@@ -378,6 +389,7 @@ async def pruefen(tab, seed, p):
             await tab.warte_auf_ruhe()
             p.pruefe(f"Liste {breite} {name}: „nur Plantafel“, kein „Ressource“", [[z[1:] for z in await tab.js(LISTE) if z[0] == "Hebebühne JLG"],
                                                                                 await tab.js(OHNE_WORT)], [[["nur Plantafel", "Betriebsmittel anlegen"]], True])
+            p.pruefe(f"Liste {breite} {name}: die Nummer auf einer Zeile", await tab.js(NUMMER_ZEILEN), ["BM-12", 1])  # seit 1.9.307
             p.pruefe(f"Liste {breite} {name}: angehakt, keine inaktive Zeile", [await tab.js(KAESTCHEN),
                                                                              await tab.js("document.querySelectorAll('#content tbody tr.inaktiv').length")],
                      [[True, "3 inaktiv"], 0])

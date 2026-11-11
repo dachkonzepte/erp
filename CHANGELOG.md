@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.307 – Betriebsmittel: Dokumente im Anlegen, Nummer ohne Umbruch
+
+Vorweg zu Lohn L2a, Frage 5 der Nachrunde der Geräte-Runde. In „Betriebsmittel anlegen“ stehen Art, Datei und „+ Vormerken“ der Dokumente unter 900 px jetzt untereinander, Auswahl und Dateifeld so breit wie die Karte -- bis 1.9.306 blieben es auch bei 412 px drei Spalten, und beide schnitten ihren Text ab („Anschaff…“, „Datei auswä…“). Breiter bleibt es eine Zeile. Dazu bricht in der Liste der Betriebsmittel die Nummer nicht mehr um (bei 412 px wie bei 1440 px stand „BM-/12“ auf zwei Zeilen); die Tabelle rollt dort in ihrem Rahmen.
+
+Neu `tests/test_v707_dokumente_und_nummer.py`; `klicktest_geraete.py` misst Lage und Breite der Felder und die Zeilen der Nummer bei 1440, 1280 und 412 px. Keine Migration.
+
 ## 1.9.306 – Auswahlliste „Gerätetypen“
 
 Vorweg zu Lohn L2a, Frage 2 der Nachrunde der Geräte-Runde: die Auswahlliste der Gerätetypen heißt nur noch „Gerätetypen“ (1.9.301–1.9.305 „Gerätetypen · Fuhrpark & Maschinen“). Eine neue Installation legt sie so an; im Bestand stellt die Migration `84ee228b331e` die Bezeichnung um, nur wo genau die bisherige steht (wie `c990522c34ff`), und zurück ebenso. Keine Schemaänderung.

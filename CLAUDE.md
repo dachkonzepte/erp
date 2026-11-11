@@ -1422,7 +1422,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Reihenfolge, „Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ auch beim Anlegen; `tests/test_v704_anlegen_wie_geraeteseite.py`); seit 1.9.305 bietet
   „Vorhandenes Plantafel-Gerät verknüpfen“ auch inaktive freie Geräte an („(inaktiv)“), „Löschen“ an einem Rest „nur Plantafel“, an dem nichts hängt (`loeschbar`,
   `app/operational_assets.py::loeschbare_ressourcen()`, `tests/test_v705_wieder_verknuepfen_und_loeschen.py`); seit 1.9.306 heißt die Auswahlliste nur „Gerätetypen“
-  (Migration `84ee228b331e`, `tests/test_v706_nur_geraetetypen.py`)) --
+  (Migration `84ee228b331e`, `tests/test_v706_nur_geraetetypen.py`); seit 1.9.307 im Anlegen die Dokumente unter 900 px untereinander, die Nummer der Liste ohne
+  Umbruch (`tests/test_v707_dokumente_und_nummer.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

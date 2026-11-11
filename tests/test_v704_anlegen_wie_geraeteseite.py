@@ -61,7 +61,7 @@ def test_beschriftung_oben_zwei_spalten_nur_im_anlegen():
                   ".felder-oben .field>label{padding-top:0;font-size:12.5px;font-weight:650;margin-bottom:5px}",
                   ".felder-oben .check{display:flex;",  # das Häkchen neben seiner Beschriftung (sonst überstimmt display:block der Felder)
                   ".plantafel-abschnitt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.plantafel-abschnitt h3{margin:0 0 10px;font-size:14px}",
-                  "@media(max-width:900px){.felder-oben{grid-template-columns:1fr}}"):
+                  "@media(max-width:900px){.felder-oben{grid-template-columns:1fr}"):  # seit 1.9.307 folgen darin die Dokumente (bis 1.9.306 mit „}}“ am Ende)
         assert regel in form, regel
     # die übrigen Formulare der Stammdaten bleiben links beschriftet
     assert ".field{display:grid;grid-template-columns:170px minmax(0,1fr);" in form

@@ -1856,3 +1856,25 @@ nach der Rückfrage. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.305“
 Neu: `tests/test_v706_nur_geraetetypen.py`. Angepasste Erwartung: `tests/test_v701_geraet_statt_ressource.py::test_auswahlliste_heisst_geraetetypen` -- alt:
 „Gerätetypen · Fuhrpark & Maschinen“; neu: „Gerätetypen“ (die Migration `c990522c34ff` prüft der Test weiter mit ihren Bezeichnungen). Kein Klicktest: die
 Bezeichnung steht nur in den Einstellungen, aus der Datenbank. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.306“.
+
+### Umsetzung 1.9.307 (Frage 5): Dokumente im Anlegen, Nummer ohne Umbruch
+
+- `master_data_form.html`: die Zeile der Dokumente (Art, Datei, „+ Vormerken“) trägt die Klasse `.dok-zeile` statt fester Spalten im Markup -- drei Spalten,
+  unter 900 px (wo auch die Angaben einspaltig werden) eine, der Knopf links. Beschriftung und Bemerkung bleiben, wie sie sind; die Seite des Geräts hat
+  ihre eigene Karte „Dokumente“ und ändert sich nicht.
+- `master_data.html`: die Spalte „Nr.“ der Betriebsmittel mit `.nw` (`white-space:nowrap`, wie „40 h/Woche“ seit 1.9.289). Bei 412 px rollt die Tabelle
+  in ihrem Rahmen (seit 1.9.275), die Seite läuft nicht über.
+
+#### Festlegungen 1.9.307 (Bitte bestätigen)
+
+1. Im Anlegen stehen Art, Datei und „+ Vormerken“ unter 900 px untereinander, Auswahl und Dateifeld so breit wie die Karte; breiter in einer Zeile wie bisher.
+2. In der Liste der Betriebsmittel bricht die Nummer nicht um.
+
+#### Tests und Prüfung 1.9.307
+
+Neu: `tests/test_v707_dokumente_und_nummer.py`. Angepasste Erwartung: `tests/test_v704_anlegen_wie_geraeteseite.py::test_beschriftung_oben_zwei_spalten_nur_im_anlegen` --
+alt: die Regel `@media(max-width:900px){.felder-oben{grid-template-columns:1fr}}` wörtlich mit ihrem Ende; neu: nur ihr Anfang (darin folgen jetzt die
+Dokumente) -- nur der Aufbau. Die Nummer brach ohne `.nw` bei 1440 und 412 px um (Gegenprobe 307_2b),
+bei 1280 px nicht. Klicktest `klicktest_geraete.py`: im Anlegen bei 1440 und 1280 px die Dokumente in einer Zeile, bei 412 px untereinander, Auswahl
+und Dateifeld mindestens 300 px breit; in der Liste „BM-12“ auf einer Zeile (alle drei Breiten, hell und dunkel). Gegenproben: Archiv `gegenproben-geraete.md`,
+„1.9.307“.

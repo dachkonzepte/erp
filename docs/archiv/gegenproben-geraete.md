@@ -238,3 +238,13 @@ Quelltext geprüft (`test_liste_loeschen_nur_wenn_loeschbar`).
 
 4 Gegenproben gegen den Test, alle rot (der Test unter PostgreSQL lief jedes Mal mit); jede Datei byte-genau zurück, kein Marker geblieben -- auch die
 Migration (Prüfsumme gegen die Ablage verglichen). Kein Klicktest: die Bezeichnung steht nur in den Einstellungen, aus der Datenbank.
+
+## 1.9.307 (Frage 5): Dokumente im Anlegen, Nummer ohne Umbruch
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Dokumente unter 900 px untereinander, Auswahl und Dateifeld so breit wie die Karte | die Zeile bleibt drei Spalten (`307_1a`, `307_1b`) | 1 rot: v707::test_dokumente_unter_900_px_untereinander; Klicktest: „anlegen 412 hell/dunkel: Dokumente untereinander, so breit wie die Karte“ |
+| Nr. 2 – die Nummer bricht in der Liste nicht um | ohne `.nw` (`307_2a`, `307_2b`) | 1 rot: v707::test_nummer_bricht_nicht_um; Klicktest: „Liste … die Nummer auf einer Zeile“ bei 1440 und 412 px, hell und dunkel (bei 1280 px passte sie auch ohne) |
+
+4 Gegenproben (2 gegen Tests, 2 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. „breiter in einer Zeile wie bisher“
+(Nr. 1, zweiter Teil) prüft der Klicktest bei 1440 und 1280 px mit; eine eigene Gegenprobe dafür gibt es nicht -- es ist der Zustand bis 1.9.306.
