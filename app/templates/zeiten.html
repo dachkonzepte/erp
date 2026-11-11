@@ -383,7 +383,7 @@
     <label class="feld breit" for="adMitarbeiter" id="adMitarbeiterFeld">Mitarbeiter<select id="adMitarbeiter"></select></label>
     <label class="feld" for="adKolonne" id="adKolonneFeld" hidden>Kolonne<select id="adKolonne"></select></label>
     <fieldset class="feld breit ad-personen" id="adPersonenFeld" hidden><legend>Personen <button type="button" class="knopf knopf-neutral" id="adAlle">Alle</button></legend><div id="adPersonen" class="mitglieder"></div></fieldset>
-    <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option><option value="freizeitausgleich">Freizeitausgleich</option></select></label>
+    <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="sonderurlaub">Sonderurlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option><option value="freizeitausgleich">Freizeitausgleich</option></select></label>
     <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
@@ -555,7 +555,7 @@ function fehltHtml(t,i,plan){
         +(t.darf_buchen?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-aendern" data-i="'+i+'" data-id="'+e.id+'">Ändern</button>':'')+'</div>'}).join('')
     +'</div></div>';
 }
-var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',schlechtwetter:'Schlechtwetter',unbekannt:'Unbekannt'};
+var KATEGORIE={urlaub:'Urlaub',sonderurlaub:'Sonderurlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',schlechtwetter:'Schlechtwetter',unbekannt:'Unbekannt'};
 // „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
 // seit 1.9.154: ein Datum, das für sich steht, mit Jahr; ein Antrag aus der Migration wurde nie beantragt -- sein Datum ist der Tag, an dem die Abwesenheit eingetragen wurde
 function beantragtText(a){

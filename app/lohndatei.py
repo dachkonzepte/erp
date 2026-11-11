@@ -76,6 +76,8 @@ class Person:
     zeilen: list[Zeile] = field(default_factory=list)
     # seit 1.9.225: was nicht in die Datei geht -- je (Art, Grund) {"was", "grund", "tage", "stunden"}
     nicht: list[dict] = field(default_factory=list)
+    # seit 1.9.313 (Lohn L2b, Punkt 1): je Kategorie die Tage einer Abwesenheit ohne Kennzeichen in der Zuordnung („Vor dem Abschluss“, ohne_zuordnung())
+    ohne_zuordnung: dict[str, set] = field(default_factory=dict)
 
     def nicht_merken(self, was: str, grund: str, tag: date, stunden: Decimal) -> None:
         for n in self.nicht:
@@ -126,38 +128,41 @@ def berechnen(db: Session, erster: date) -> list[Person]:
         for tag, t in b.tage[emp.id].items():
             # (Quelle, Stunden, Zuordnung, Bezeichnung) außer der Arbeit; Feiertag und Kalendertag nur für eine Person mit Export (seit 1.9.225 der
             # Feiertag auch bei „nur Abwesenheiten“ -- er steht dann unter „Nicht in der Datei“)
-            posten: list[tuple[str, Decimal, dict | None, str]] = []
+            # seit 1.9.313 dazu die Kategorie einer Abwesenheit (sonst None) -- für ohne_zuordnung
+            posten: list[tuple[str, Decimal, dict | None, str, str | None]] = []
             for x in t.posten:
                 if x.quelle == "feiertag":
                     if not nichts:
-                        posten.append(("feiertag", x.stunden, z_feiertag, x.bezeichnung))
+                        posten.append(("feiertag", x.stunden, z_feiertag, x.bezeichnung, None))
                 elif x.quelle == "kalender":
                     if not nichts:
                         z = kalender(db, x.kategorie, alle=alle)
-                        posten.append(("kalender", x.stunden, z if z and z["exportiert"] else None, x.bezeichnung))
+                        posten.append(("kalender", x.stunden, z if z and z["exportiert"] else None, x.bezeichnung, None))
                 elif x.quelle == "schlechtwetter":
-                    posten.append(("schlechtwetter", x.stunden, zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle), x.bezeichnung))
+                    posten.append(("schlechtwetter", x.stunden, zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle), x.bezeichnung, None))
                 else:
-                    posten.append(("abwesenheit", x.stunden, zuordnung(db, x.kategorie, x.art, tag, alle=alle), x.bezeichnung))
+                    posten.append(("abwesenheit", x.stunden, zuordnung(db, x.kategorie, x.art, tag, alle=alle), x.bezeichnung, x.kategorie))
             if t.gebucht:
                 arbeit = t.arbeit
                 if not t.beschaeftigt:
                     if arbeit > 0:
                         person.nicht_merken("Arbeit", AUSSERHALB, tag, arbeit)
                 elif not alles:
-                    posten = [("arbeit", arbeit, z_arbeit, "Arbeit")] + posten
+                    posten = [("arbeit", arbeit, z_arbeit, "Arbeit", None)] + posten
                 else:
                     mehr = NULL
                     if person.azubi and z_mehr is not None:
-                        mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z, _w in posten), NULL) - t.soll))
-                    posten = [("arbeit", arbeit - mehr, z_arbeit, "Arbeit"), ("mehrarbeit", mehr, z_mehr, "Mehrarbeit")] + posten
-            for quelle, stunden, z, was in sorted(posten, key=lambda x: REIHE.index(x[0])):
+                        mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z, _w, _k in posten), NULL) - t.soll))
+                    posten = [("arbeit", arbeit - mehr, z_arbeit, "Arbeit", None), ("mehrarbeit", mehr, z_mehr, "Mehrarbeit", None)] + posten
+            for quelle, stunden, z, was, kategorie in sorted(posten, key=lambda x: REIHE.index(x[0])):
                 if stunden <= 0:
                     continue
                 grund = (UMFANG_NICHTS if nichts else UMFANG_ABWESENHEITEN if not alles and quelle in ("arbeit", "mehrarbeit", "feiertag")
                          else OHNE_KENNZEICHEN if z is None else None)
                 if grund:
                     person.nicht_merken(was, grund, tag, stunden)
+                    if grund == OHNE_KENNZEICHEN and kategorie:  # seit 1.9.313
+                        person.ohne_zuordnung.setdefault(kategorie, set()).add(tag)
                     continue
                 if z.get("monatszeile"):
                     monat[z["lohnart"]] = monat.get(z["lohnart"], NULL) + stunden
@@ -167,6 +172,27 @@ def berechnen(db: Session, erster: date) -> list[Person]:
             person.zeilen.append(Zeile(None, None, lohnart, round_hours(monat[lohnart]), "schlechtwetter"))
     ergebnis.sort(key=lambda x: (x.personalnummer is None, x.personalnummer or "", x.name.casefold()))
     return ergebnis
+
+
+# Seit 1.9.313 (Lohn L2b, Punkt 1): ohne Zuordnung bewusst leer (LB1) -- „Vor dem Abschluss“ nennt sie nicht
+BEWUSST_LEER = ("unbezahlt", "freizeitausgleich")
+
+
+def ohne_zuordnung(personen: list[Person]) -> list[dict]:
+    """Seit 1.9.313 (Lohn L2b, Punkt 1, Entscheidung 11.11.2026): je Kategorie, deren Abwesenheiten im Monat ohne Kennzeichen in der Zuordnung nicht in
+    die Lohndatei gehen, eine Zeile für „Vor dem Abschluss“ -- „Sonderurlaub ohne Zuordnung: 2 Tage“ (Tage aller Personen zusammen, ohne Namen: „Prüfen“
+    sieht auch Büro – Auftrag). Ohne Unbezahlt und Freizeitausgleich (BEWUSST_LEER); wer den Export-Umfang „nichts“ hat, zählt nicht. Sperrt nichts --
+    weder den Abschluss noch die Lohndatei."""
+    from .absence_requests import ABSENCE_CATEGORIES, ABSENCE_CATEGORY_LABELS
+    tage: dict[str, int] = {}
+    for p in personen:
+        for kategorie, je in p.ohne_zuordnung.items():
+            if kategorie not in BEWUSST_LEER:
+                tage[kategorie] = tage.get(kategorie, 0) + len(je)
+    reihe = list(ABSENCE_CATEGORIES)
+    return [{"art": "zuordnung", "kategorie": k,
+             "text": f"{ABSENCE_CATEGORY_LABELS.get(k, k)} ohne Zuordnung: {n} {'Tag' if n == 1 else 'Tage'} nicht in der Lohndatei"}
+            for k, n in sorted(tage.items(), key=lambda x: reihe.index(x[0]) if x[0] in reihe else len(reihe))]
 
 
 def zeile_text(pnr: str, z: Zeile) -> str:

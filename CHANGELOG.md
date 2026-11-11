@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.313 – Lohn L2b: Kategorie „Sonderurlaub“
+
+Zweiter Punkt von Lohn L2b (Antwort 3 des Befunds L2: gegen den Urlaub zählt nur Urlaub). Neu ist die Kategorie **Sonderurlaub** neben Urlaub, Krankheit und den übrigen -- in jeder Auswahl der Kategorie (Zeiten → Abwesenheiten, Plantafel, „Meine Zeiten“) direkt nach Urlaub. Sie wird angelegt wie jede andere, ohne halben Tag; ohne genauere Art heißt sie „Sonderurlaub“. Eine Art „Sonderurlaub“ passt nur noch zu ihr (steht eine solche im Bestand unter Urlaub, nennt `scripts/pruefe_abwesenheiten.py` den Widerspruch -- keine Migration, der Betrieb stellt um); die Arten darunter legt der Betrieb an, eine selbst angelegte Art passt wie bisher zu jeder Kategorie. Gegen das Urlaubskonto zählt Sonderurlaub nicht (das Urlaubskonto folgt mit Punkt 3).
+
+Die Lohnart nennt das Steuerbüro noch: die Zuordnung „Kategorie Sonderurlaub“ ist leer, Sonderurlaub geht damit nicht in die Lohndatei („Nicht in der Datei“ wie bisher). Neu nennt „Zeiten → Prüfen → Vor dem Abschluss“ jede Kategorie, deren Abwesenheiten im Monat ohne Zuordnung nicht in die Lohndatei gehen -- „Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei“, ohne Namen, nicht für Unbezahlt und Freizeitausgleich (bewusst leer) und nicht für Personen mit Export-Umfang „nichts“ (Entscheidung 11.11.2026). Die Meldung sperrt nichts. Einstellungen → Abwesenheitsarten nennt je Art die Kategorie, zu der sie passt (vom Server).
+
+Neu `tests/test_v713_sonderurlaub.py` und `scripts/klicktest_sonderurlaub.py`; `tests/test_v571_kategorie_und_art.py` um `kategorien_text` ergänzt. Keine Migration.
+
 ## 1.9.312 – Lohn L2b: Urlaub und Startwerte -- Inaktive ausblenden, Übertrag 2027 aus dem Startwert, „geprüft“ zeigt den Stand
 
 Erster Punkt von Lohn L2b, Korrektur aus L2a. Über den Lohnstammdaten und über „Urlaub und Startwerte der Konten“ steht jetzt „Inaktive ausblenden“ wie in der Mitarbeiterliste (Vorgabe an, im Browser gemerkt, ein Stand für beide Listen, mit der Zahl der inaktiven); ausgeblendet ist nur die Anzeige, das Kästchen bleibt auch ohne Recht zum Ändern bedienbar. Inaktive stehen gezeigt grau da. Die Lohnstammdaten nennen dafür „active“.

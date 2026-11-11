@@ -187,7 +187,8 @@ def test_liste_fuer_jede_rolle(threaded_db_session, router_test_client, rolle):
     """Wer einen Antrag stellen darf, bekommt die Liste; sie enthält nichts über Personen."""
     client = router_test_client(threaded_db_session, antraege_router, role=rolle)
     antwort = client.get("/api/absence-requests/arten")
-    assert antwort.status_code == 200 and antwort.json()[0].keys() == {"value", "label", "active", "kategorien"}
+    # seit 1.9.313 dazu kategorien_text (Einstellungen → Abwesenheitsarten)
+    assert antwort.status_code == 200 and antwort.json()[0].keys() == {"value", "label", "active", "kategorien", "kategorien_text"}
 
 
 # --- Seite -------------------------------------------------------------------------------------------------------------------------

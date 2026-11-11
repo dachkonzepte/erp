@@ -173,7 +173,8 @@ def test_allgemeine_dialoge_bieten_schlechtwetter_nicht_an(vorlage, auswahl):
     treffer = re.search(rf'<select id="{auswahl}"[^>]*>(.*?)</select>', html, re.S)
     assert treffer is not None, vorlage
     werte = re.findall(r'<option value="([^"]*)"', treffer.group(1))
-    assert werte == ["urlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich"], (vorlage, werte)
+    # seit 1.9.313 mit Sonderurlaub nach Urlaub (Lohn L2b, Punkt 1)
+    assert werte == ["urlaub", "sonderurlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich"], (vorlage, werte)
 
 
 # --- 1.9.170 Nr. 9: wieder eingeschaltet -> Kachel -----------------------------------------------------------------------------------------

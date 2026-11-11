@@ -36,3 +36,26 @@ Klicktest, die Datei byte-genau zurück (Prüfsumme). Rot zählt nur ein FAILED,
 
 25 Gegenproben, alle rot. Ohne eigene Gegenprobe: „Diesen Übertrag entfernen“ (null) -- das Leeren war schon erlaubt (1.9.310), geprüft im Klicktest („Fin:
 entfernt“) und in v712::test_doppelt_bleibt_bis_von_hand_entfernt.
+
+## 1.9.313 (Punkt 1): Kategorie „Sonderurlaub“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Kategorie gibt es | ohne Sonderurlaub (`313_1a`) | 6 rot: v713::test_antrag_ohne_art_und_ohne_halben_tag, test_jede_seite_kennt_jede_kategorie (drei Seiten), test_kategorie_und_art, … |
+| Nr. 1 – nach Urlaub | hinten (`313_1b`) | 4 rot: v713::test_jede_seite_kennt_jede_kategorie (drei Seiten), test_kategorie_und_art |
+| Nr. 1 – kein halber Tag | halber Sonderurlaub erlaubt (`313_1c`) | 1 rot: v713::test_antrag_ohne_art_und_ohne_halben_tag |
+| Nr. 2 – die Art „Sonderurlaub“ passt nur zu Sonderurlaub | passt zu jeder Kategorie (`313_2a`) | 2 rot: v713::test_antrag_ohne_art_und_ohne_halben_tag, test_kategorie_und_art |
+| Nr. 3 – ohne Zuordnung nicht in der Lohndatei | Sonderurlaub nimmt die Zuordnung von Urlaub (`313_4a`) | 3 rot: v713::test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss, test_sperrt_nichts, test_umfang_nichts_und_ein_tag |
+| Nr. 3 – die Zuordnung ist leer | vorbelegt U / 8000 (`313_4b`) | 3 rot: dieselben drei |
+| Nr. 4 – „Vor dem Abschluss“ nennt die Tage | nicht gemerkt (`313_5a`); die Meldung fehlt (`313_5e`) | 3 rot bzw. 1 rot: v713::test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss (u. a.) |
+| Nr. 4 – nicht Unbezahlt und Freizeitausgleich | alle genannt (`313_5b`) | 2 rot: v713::test_auch_eine_andere_kategorie_ohne_zuordnung, test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss |
+| Nr. 4 – nicht bei Export-Umfang „nichts“ | auch „nichts“ gezählt (`313_5c`) | 1 rot: v713::test_umfang_nichts_und_ein_tag |
+| Nr. 4 – ohne Namen | mit den Namen (`313_5d`) | 3 rot: v713::test_auch_eine_andere_kategorie_ohne_zuordnung, test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss, test_umfang_nichts_und_ein_tag |
+| Nr. 4 – sperrt nichts | sperrt die Lohndatei (in `datev_fehlt()`, `313_5f`) | 2 rot: v713::test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss, test_sperrt_nichts |
+| Nr. 6 – je Art die Kategorie vom Server | ohne Text (`313_7a`); die Seite ohne die Zeile (`313_K2`, Klicktest) | 2 rot: v713::test_arten_mit_kategorie_auch_inaktive, test_kategorie_und_art; Klicktest: „Fin: je Art die Kategorie vom Server“ (u. a.) |
+| Nr. 6 – auch inaktive Arten | `alle` übergangen (`313_7b`) | 1 rot: v713::test_arten_mit_kategorie_auch_inaktive |
+| Nr. 6 – eine neue Art gleich mit Kategorie | nicht neu geladen (`313_K1`, Klicktest) | Klicktest: „Fin: „Umzug“ mit Kategorie, ohne Neuladen“ |
+| Nr. 7 – jede Seite kennt jede Kategorie | Plantafel ohne Sonderurlaub (`313_8a`) | 1 rot: v713::test_jede_seite_kennt_jede_kategorie[planning.html] |
+
+17 Gegenproben, alle rot. Ohne eigene Gegenprobe hier: Nr. 5 „zählt nicht gegen das Urlaubskonto“ -- das Urlaubskonto kommt mit 1.9.315, die Gegenprobe
+steht dort; Nr. 8 „keine Migration“ (nichts gebaut, nichts zu prüfen).

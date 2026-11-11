@@ -1222,6 +1222,7 @@ async function load(){
     lade('Zuordnung für den DATEV-Export','lohnarten','/api/time-backoffice/lohnarten',[],d=>{lohnarten=d;renderLohnarten()}),  // seit 1.9.169
     lade('Arbeitszeitkalender','kalender','/api/time-backoffice/arbeitszeitkalender',{eintraege:[],im_urlaub:[]},d=>{kalender=d;renderKalender()}),  // seit 1.9.175
     lade('Zeit-Listen','zeitlisten','/api/settings/option-groups',[],og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()}),
+    lade('Abwesenheitsarten','abwesenheitsarten','/api/absence-requests/arten?alle=true',[],d=>{artenKategorien=d;renderTimeList()}),  // seit 1.9.313
   ];
   // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
   // fuer diese Rolle gar nicht erst abrufen, sonst zeigt load() faelschlich einen
@@ -2572,13 +2573,19 @@ function renderKalender(){document.getElementById('kalenderZeilen').innerHTML=ka
 function kalenderDialogOeffnen(e){kalenderId=e?e.id:null;document.getElementById('kalenderTitel').textContent=e?'Kalendertag – '+e.name:'Neuer Kalendertag';document.getElementById('kalenderDialogStatus').textContent='';setv('kdName',e?e.name:'');setv('kdAbwesenheit',e?e.abwesenheit:'');document.getElementById('kdTag').innerHTML=auswahlOptionen(Array.from({length:31},(_,i)=>i+1),e?e.tag:1,t=>String(t),{wert:t=>t,aktiv:()=>true});document.getElementById('kdMonat').innerHTML=auswahlOptionen(KD_MONATE.map((n,i)=>({id:i+1,name:n})),e?e.monat:12,m=>m.name);document.getElementById('kdUrlaub').innerHTML=auswahlOptionen(kalender.im_urlaub,e?e.im_urlaub:(kalender.im_urlaub[0]||{}).value,u=>u.label,{wert:u=>u.value,aktiv:()=>true});setv('kdSoll',e&&e.sollzeit!==null?zahlText(e.sollzeit,2):'');document.getElementById('kdBezahlt').checked=e?e.bezahlt:true;document.getElementById('kdGewerblich').checked=e?e.nur_gewerblich:true;document.getElementById('kdMoFr').checked=e?e.nur_mo_fr:true;document.getElementById('kdAktiv').checked=e?e.aktiv:true;document.getElementById('kalenderDialog').showModal()}
 async function saveKalendertag(){const st=document.getElementById('kalenderDialogStatus');st.textContent='';try{const soll=zahlFeld('kdSoll');const body=JSON.stringify({name:document.getElementById('kdName').value.trim(),abwesenheit:document.getElementById('kdAbwesenheit').value.trim(),tag:Number(document.getElementById('kdTag').value),monat:Number(document.getElementById('kdMonat').value),sollzeit:soll,im_urlaub:document.getElementById('kdUrlaub').value,bezahlt:document.getElementById('kdBezahlt').checked,nur_gewerblich:document.getElementById('kdGewerblich').checked,nur_mo_fr:document.getElementById('kdMoFr').checked,aktiv:document.getElementById('kdAktiv').checked});const url=kalenderId===null?'/api/time-backoffice/arbeitszeitkalender':'/api/time-backoffice/arbeitszeitkalender/'+kalenderId;await speichern('kalender',()=>api(url,{method:kalenderId===null?'POST':'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{kalender=d;renderKalender()}});await ladeLohnarten();document.getElementById('kalenderDialog').close();document.getElementById('kalenderStatus').textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 function setTimeList(groupKey){currentTimeList=groupKey;renderTimeList()}
+/* Seit 1.9.313 (Lohn L2b, Punkt 1): je Abwesenheitsart die Kategorie, zu der sie passt -- vom Server (kategorien_text), keine Seite kennt die
+   Zuordnung selbst; eine selbst angelegte Art passt zu jeder Kategorie, auch zu Sonderurlaub. Eigener Bereich, eigener Stand. */
+let artenKategorien=[];
+function ladeArtenKategorien(){return lesen('abwesenheitsarten',()=>api('/api/absence-requests/arten?alle=true'),d=>{artenKategorien=d;renderTimeList()})}
+function artKategorieText(o){const a=artenKategorien.find(x=>x.value===o.value);return a?a.kategorien_text:''}
 function currentTimeListGroup(){return timeListGroups.find(g=>g.group_key===currentTimeList)}
 function ladeZeitlisten(){return lesen('zeitlisten',()=>api('/api/settings/option-groups'),og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()})}
 function renderTimeList(){
   const g=currentTimeListGroup();
   document.getElementById('timeListHeading').textContent=ZEIT_LISTEN_TITEL[currentTimeList]||'';
-  document.getElementById('timeListDescription').textContent=[g?.description,'Wie bisher im Backoffice lassen sich Einträge hinzufügen und löschen.'].filter(Boolean).join(' ');
-  document.getElementById('timeListRows').innerHTML=(g?.options||[]).map(o=>`<tr><td><b>${esc(o.label)}</b></td><td class="muted small">${esc(o.value)}</td><td>${o.is_default?'<span class="pill">Standard</span>':''}</td><td><button class="danger" data-klick="zeitliste-loeschen" data-id="${o.id}">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch keine Einträge.</td></tr>';
+  const abw=currentTimeList==='absence_types';
+  document.getElementById('timeListDescription').textContent=[g?.description,abw?'Je Art steht die Kategorie, zu der sie passt; eine selbst angelegte Art passt zu jeder Kategorie, auch zu Sonderurlaub (zählt nicht gegen den Urlaub).':'','Wie bisher im Backoffice lassen sich Einträge hinzufügen und löschen.'].filter(Boolean).join(' ');
+  document.getElementById('timeListRows').innerHTML=(g?.options||[]).map(o=>`<tr><td><b>${esc(o.label)}</b>${abw&&artKategorieText(o)?`<div class="muted small" data-art-kategorie>Kategorie: ${esc(artKategorieText(o))}</div>`:''}</td><td class="muted small">${esc(o.value)}</td><td>${o.is_default?'<span class="pill">Standard</span>':''}</td><td><button class="danger" data-klick="zeitliste-loeschen" data-id="${o.id}">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch keine Einträge.</td></tr>';
 }
 async function saveTimeListOption(){
   const st=document.getElementById('timeListStatus');const g=currentTimeListGroup();
@@ -2587,6 +2594,7 @@ async function saveTimeListOption(){
     const sort=zahlFeld('timeListSort',{leer:100});
     const body=JSON.stringify({label:v('timeListLabel'),value:v('timeListValue'),sort_order:sort,active:true,is_default:document.getElementById('timeListDefault').checked});
     await speichern('zeitlisten',()=>api(`/api/settings/option-groups/${g.group_key}/options`,{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:ladeZeitlisten});
+    if(g.group_key==='absence_types')await ladeArtenKategorien();  // seit 1.9.313: die Kategorie der neuen Art
     setv('timeListLabel','');setv('timeListValue','');document.getElementById('timeListDefault').checked=false;
     st.textContent='Hinzugefügt.';
   }catch(e){st.textContent='Fehler: '+e.message}

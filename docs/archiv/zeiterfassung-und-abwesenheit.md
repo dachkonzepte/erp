@@ -2427,3 +2427,51 @@ Angepasste Erwartungen:
   leerem Haken; neu: Kai „30 Tage (Vorgabe) · Übertrag doppelt – prüfen“ (Bestand), Mia „24 Tage · Übertrag 4,5“ (aus dem Startwert), der Haken steht nach
   dem Speichern und geht beim Ändern heraus; Jahr 2028 mit freiem Feld.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.312“.
+
+### Rückfrage zu Punkt 1 (11.11.2026, Tobias)
+
+- „Prüfen“ meldete bis dahin keine fehlende Zuordnung (eine Abwesenheit ohne Kennzeichen stand nur in „Monat & Lohn → Nicht in der Datei“). Entscheidung:
+  „Vor dem Abschluss“ bekommt je Kategorie oder Art ohne Kennzeichen, die im Monat Tage hat, eine Zeile; sperrt nichts; Unbezahlt und Freizeitausgleich
+  (bewusst leer, LB1) ausgenommen.
+- Abwesenheiten mit einer selbst angelegten Art „Sonderurlaub“ unter der Kategorie Urlaub im Bestand: keine Migration -- `scripts/pruefe_abwesenheiten.py`
+  nennt Kategorie × Art, der Betrieb stellt solche Einträge bei Bedarf von Hand um.
+
+### Umsetzung 1.9.313 (Punkt 1): Kategorie „Sonderurlaub“
+
+- `app/absence_requests.py`: `ABSENCE_CATEGORIES` mit „sonderurlaub“ nach „urlaub“ (Spalte `absence_category` `String(20)` passt), Name „Sonderurlaub“; in
+  `ART_KATEGORIEN` „sonderurlaub“ -> nur Sonderurlaub (so heißt ein Sonderurlaub ohne genauere Art; eine Art „Sonderurlaub“ unter Urlaub ist damit ein
+  Widerspruch). Halbe Tage bleiben nur Urlaub (Antwort 6). Die Schemas lassen die Kategorie zu (drei Muster in `app/schemas.py`).
+- Seiten: Auswahl und Namen in `mobil_zeiten.html`, `zeiten.html`, `planning.html`.
+- Zuordnung (`app/lohnarten.py`): `FEST` nimmt jede Kategorie außer Schlechtwetter -- die Zeile „Kategorie Sonderurlaub“ entsteht von selbst, leer
+  (kein Eintrag in `START`): nicht exportiert, bis das Steuerbüro die Lohnart nennt.
+- „Vor dem Abschluss“: `app/lohndatei.py::berechnen()` merkt je Person die Tage einer Abwesenheit ohne Kennzeichen nach ihrer Kategorie
+  (`Person.ohne_zuordnung`; nur beim Grund „ohne Kennzeichen in der Zuordnung“, also nicht bei Export-Umfang „nichts“); `ohne_zuordnung()` macht daraus je
+  Kategorie eine Zeile (Tage aller Personen zusammen, ohne Namen -- „Prüfen“ sieht auch Büro – Auftrag; ohne `BEWUSST_LEER` = Unbezahlt,
+  Freizeitausgleich). `app/zeiten.py::vor_dem_abschluss()` rechnet die Lohndatei einmal für beides (DATEV und Zuordnung). Weder `abschluss_hindernisse()`
+  noch `datev_fehlt()` sehen sie -- sie sperrt nichts.
+- Einstellungen → Abwesenheitsarten: je Art „Kategorie: …“ (`GET /api/absence-requests/arten?alle=true`, `kategorien_text()`: der Name der Kategorie oder
+  „jede Kategorie“), dazu der Satz zu Sonderurlaub; nach „+ Eintrag hinzufügen“ lädt die Seite die Kategorien neu (eigener Bereich `abwesenheitsarten`).
+- Gegen das Urlaubskonto zählt nur „urlaub“ -- gerechnet ab 1.9.315.
+
+#### Festlegungen 1.9.313 (Bitte bestätigen)
+
+1. Kategorie „Sonderurlaub“ nach Urlaub in jeder Auswahl; angelegt wie jede andere (Antrag, Eintrag, Plantafel, „Meine Zeiten“), ohne halben Tag.
+2. Ohne Art heißt sie „Sonderurlaub“; eine Art „Sonderurlaub“ passt nur zu ihr; eine selbst angelegte Art passt zu jeder Kategorie (wie bisher).
+3. Zuordnung „Kategorie Sonderurlaub“ leer, bis das Steuerbüro die Lohnart nennt: Sonderurlaub geht nicht in die Lohndatei.
+4. „Vor dem Abschluss“ nennt je Kategorie ohne Zuordnung die Tage des Monats („Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei“) -- ohne Namen,
+   ohne Unbezahlt und Freizeitausgleich, ohne Personen mit Export-Umfang „nichts“; sperrt weder Abschluss noch Lohndatei.
+5. Sonderurlaub zählt nicht gegen das Urlaubskonto (gerechnet ab 1.9.315).
+6. Einstellungen → Abwesenheitsarten nennt je Art die Kategorie vom Server, auch für inaktive Arten; eine neue Art gleich nach dem Hinzufügen.
+7. Jede Seite mit einer Auswahl oder Liste der Kategorien kennt jede Kategorie (Wächter).
+8. Keine Migration; eine Art „Sonderurlaub“ unter Urlaub im Bestand stellt der Betrieb um.
+
+#### Tests und Prüfung 1.9.313
+
+Neu: `tests/test_v713_sonderurlaub.py` (Kategorie und Art, Antrag ohne Art und ohne halben Tag, Arten mit Kategorie auch inaktiv, nicht in der Lohndatei und
+„Vor dem Abschluss“ auch für Büro – Auftrag ohne Namen, Export-Umfang „nichts“, eine andere Kategorie ohne Zuordnung, sperrt nichts, Wächter über die drei Seiten,
+Einstellungen) und `scripts/klicktest_sonderurlaub.py` (Abwesenheitsarten mit Kategorie, eine neue Art; Zuordnung; Dialog unter Zeiten; „Vor dem Abschluss“;
+Plantafel; „Meine Zeiten“; Bilder). Angepasste Erwartungen:
+- `tests/test_v571_kategorie_und_art.py::test_liste_fuer_jede_rolle` -- alt: je Art value, label, active, kategorien; neu: dazu `kategorien_text`.
+- `tests/test_v605_festlegungen_170_173.py::test_allgemeine_dialoge_bieten_schlechtwetter_nicht_an` (drei Seiten) -- alt: Urlaub, Krankheit, Fortbildung,
+  Unbezahlt, Freizeitausgleich; neu: dazu Sonderurlaub nach Urlaub (Schlechtwetter weiter nicht).
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.313“.

@@ -54,9 +54,10 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/absence-requests/arten")
-def get_absence_types(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    """Seit 1.9.153: die aktiven Arten mit den Kategorien, zu denen sie passen (Auswahl „Art“ im Dialog der Plantafel)."""
-    return arten_fuer_auswahl(db, nur_aktive=True)
+def get_absence_types(alle: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.153: die aktiven Arten mit den Kategorien, zu denen sie passen (Auswahl „Art“ im Dialog der Plantafel). Seit 1.9.313 mit
+    alle=true auch die inaktiven (Einstellungen → Abwesenheitsarten nennt je Art ihre Kategorie, kategorien_text)."""
+    return arten_fuer_auswahl(db, nur_aktive=not alle)
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])

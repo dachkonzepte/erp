@@ -3450,7 +3450,7 @@ class EmployeeAbsenceCreate(BaseModel):
     absence_type: str | None = Field(default=None, max_length=80)
     # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
     # Neuanlegen/Ändern bewusst NICHT erlaubt, siehe app/absence_requests.py::ABSENCE_CATEGORIES.
-    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
+    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3498,7 +3498,7 @@ class EmployeeAbsencePlanningOut(BaseModel):
 class EmployeeAbsenceRequestCreate(BaseModel):
     employee_id: int
     absence_type: str | None = Field(default=None, max_length=80)  # seit 1.9.153 optional, wie EmployeeAbsenceCreate
-    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
+    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3519,7 +3519,7 @@ class AbwesenheitSammel(BaseModel):
     POST /api/schlechtwetter."""
     employee_ids: list[int] = Field(min_length=1, max_length=500)
     absence_type: str | None = Field(default=None, max_length=80)
-    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")
+    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")
     start_date: date
     end_date: date
     notes: str | None = Field(default=None, max_length=2000)

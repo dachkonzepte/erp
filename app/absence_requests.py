@@ -16,10 +16,13 @@ from .option_settings import get_option_group
 # kein Urlaub (bis 1.9.168 Art „Freizeitausgleich“ in der Kategorie Urlaub, Festlegung 1.9.153 Nr. 1 entfällt).
 # Seit 1.9.170 (Lohn L1a, Punkt 5, E5): Schlechtwetter -- ein Ausfalltag je Person und Tag, nur über app/schlechtwetter.py (Prüfungen, Rechte);
 # die allgemeinen Wege lassen die Kategorie nicht zu (Muster in app/schemas.py).
-ABSENCE_CATEGORIES = ("urlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich", "schlechtwetter")
+# Seit 1.9.313 (Lohn L2b, Punkt 1, Antwort 3 des Befunds L2): Sonderurlaub -- zählt nicht gegen das Urlaubskonto (dort zählt nur „urlaub“); die Arten
+# darunter legt der Betrieb an, die Lohnart nennt das Steuerbüro (bis dahin ohne Zuordnung: nicht in der Lohndatei, „Vor dem Abschluss“ nennt es).
+ABSENCE_CATEGORIES = ("urlaub", "sonderurlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich", "schlechtwetter")
 ABSENCE_CATEGORY_UNKNOWN = "unbekannt"
 ABSENCE_CATEGORY_LABELS = {
     "urlaub": "Urlaub",
+    "sonderurlaub": "Sonderurlaub",  # seit 1.9.313
     "krankheit": "Krankheit",
     "fortbildung": "Fortbildung",
     "unbezahlt": "Unbezahlt",
@@ -34,6 +37,9 @@ ABSENCE_CATEGORY_LABELS = {
 # ihre Bedeutung kennt das Programm nicht. Klein geschrieben (art_kategorien() vergleicht ohne Groß- und Kleinschreibung).
 ART_KATEGORIEN = {
     "urlaub": ("urlaub",), "freizeitausgleich": ("freizeitausgleich",),  # seit 1.9.169 eigene Kategorie (bis 1.9.168 Urlaub)
+    # seit 1.9.313: so heißt ein Sonderurlaub ohne genauere Art -- eine selbst angelegte Art „Sonderurlaub“ passt damit nur noch hierher; steht sie im
+    # Bestand unter Urlaub, nennt scripts/pruefe_abwesenheiten.py den Widerspruch (keine Migration, der Betrieb stellt um -- Entscheidung 11.11.2026)
+    "sonderurlaub": ("sonderurlaub",),
     "krankheit": ("krankheit",),
     "fortbildung": ("fortbildung",), "weiterbildung": ("fortbildung",), "berufsschule": ("fortbildung",),
     "unbezahlt": ("unbezahlt",),
@@ -104,7 +110,16 @@ def arten_fuer_auswahl(db: Session, *, nur_aktive: bool = False) -> list[dict]:
     (_abwesenheit.html), keine Seite kennt die Zuordnung selbst."""
     gruppe = get_option_group(db, "absence_types")
     optionen = sorted(gruppe.options if gruppe is not None else [], key=lambda o: (o.sort_order, o.id))
-    return [{"value": o.value, "label": o.label, "active": o.active, "kategorien": list(art_kategorien(o.value))} for o in optionen if o.active or not nur_aktive]
+    return [{"value": o.value, "label": o.label, "active": o.active, "kategorien": list(art_kategorien(o.value)),
+             "kategorien_text": kategorien_text(art_kategorien(o.value))} for o in optionen if o.active or not nur_aktive]
+
+
+def kategorien_text(kategorien) -> str:
+    """Seit 1.9.313: „Urlaub“, „Fortbildung“ oder „jede Kategorie“ (eine Art, deren Bedeutung das Programm nicht kennt) -- Einstellungen →
+    Abwesenheitsarten."""
+    if set(kategorien) >= set(ABSENCE_CATEGORIES):
+        return "jede Kategorie"
+    return ", ".join(ABSENCE_CATEGORY_LABELS.get(k, k) for k in kategorien)
 
 
 def _employee_name(emp: Employee | None) -> str | None:
