@@ -100,6 +100,8 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
         z["darf_schliessen"] = _darf_aendern(user, z["employee_id"], z["tag"], lock)
     for t in daten["pausen"]:
         t["darf_buchen"] = _darf_aendern(user, t["employee_id"], t["tag"], lock)
+    for r in daten["rueckfahrten"]:  # seit 1.9.314: „Ändern“ an der Fahrzeit nach Arbeitsende -- zählt nicht am Reiter (nur ein Hinweis)
+        r["darf_aendern"] = _darf_aendern(user, r["employee_id"], r["tag"], lock)
     daten["antraege"] = _antraege(db, user)
     # seit 1.9.101: „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht; „Anträge entschieden“ nur, wenn keiner offen ist
     # (auch keiner, den das Konto nicht sieht -- Büro – Auftrag sieht nur die eigenen)

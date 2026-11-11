@@ -2475,3 +2475,32 @@ Plantafel; „Meine Zeiten“; Bilder). Angepasste Erwartungen:
 - `tests/test_v605_festlegungen_170_173.py::test_allgemeine_dialoge_bieten_schlechtwetter_nicht_an` (drei Seiten) -- alt: Urlaub, Krankheit, Fortbildung,
   Unbezahlt, Freizeitausgleich; neu: dazu Sonderurlaub nach Urlaub (Schlechtwetter weiter nicht).
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.313“.
+
+### Umsetzung 1.9.314 (Punkt 2): Hinweis Rückfahrt
+
+- `app/zeiten.py::rueckfahrten(db, ab, bis)`: je Person und Tag die gebuchten Zeiten; hat eine davon keine Von/Bis, bleibt der Tag ohne Hinweis (die
+  Reihenfolge ist unbekannt); ohne Buchung einer anderen Zeitart (nur Fahrzeit) ebenso. Sonst ist das Arbeitsende das späteste Ende der Buchungen anderer
+  Zeitarten, und jede Fahrzeit (`travel`), die nicht vor diesem Ende beginnt, ist ein Treffer -- je Treffer die Zeile wie in „Buchungen“
+  (`_listenzeilen()`, für „Ändern“) mit Name, Tag, Arbeitsende und dem Text `RUECKFAHRT`. Eine Abfrage für die Buchungen.
+- `pruefen()` liefert `rueckfahrten` für denselben Zeitraum wie die Pausen (`pruef_beginn()` bis heute); der Router setzt je Zeile `darf_aendern` (dieselbe
+  Regel wie an den Pausen); die Zahl am Reiter zählt sie nicht.
+- Seite (`zeiten.html`): Karte „Fahrzeit nach Arbeitsende“ mit „Zur Info“ und der Zahl, je Zeile Name · Tag, „Fahrzeit 15:00–15:45 · 0,75 h · nach
+  Arbeitsende 15:00 · Auftrag“, der Hinweis, „Ändern“ (öffnet den Dialog der Buchung wie unter „Buchungen“); „Nichts zu prüfen“ nur ohne sie.
+- Nichts wird abgezogen (Buchung, Tagesbilanz und Lohndatei unverändert), weder `abschluss_hindernisse()` noch `datev_fehlt()` noch „Vor dem Abschluss“
+  sehen sie.
+
+#### Festlegungen 1.9.314 (Bitte bestätigen)
+
+1. Hinweis an jeder Fahrzeit, die nach der letzten Arbeit ihres Tags beginnt (Beginn nicht vor dem Ende der letzten Buchung einer anderen Zeitart), mit dem
+   Text „Fahrzeit nach Arbeitsende – Rückfahrt? Feierabend ist auf der Baustelle.“
+2. Nicht an der Hinfahrt, der Fahrt zwischen zwei Baustellen, an einem Tag nur mit Fahrzeit und an einem Tag mit einer Buchung ohne Uhrzeiten.
+3. Geprüft wird derselbe Zeitraum wie bei den Pausen (ab dem Tag nach „Abgeschlossen bis“, sonst ab dem Monatsersten, bis heute).
+4. Nichts wird abgezogen, nichts gesperrt (Abschluss, Lohndatei, „Vor dem Abschluss“), keine Zahl am Reiter.
+5. Karte „Fahrzeit nach Arbeitsende“ (zur Info); „Ändern“ nur, wer die Buchung ändern darf -- öffnet sie im Dialog wie unter „Buchungen“.
+6. Der Hinweis bleibt, solange die Buchung so steht -- es gibt kein Quittieren.
+
+#### Tests und Prüfung 1.9.314
+
+Neu: `tests/test_v714_rueckfahrt.py` (welche Fahrzeit, Zeitraum, nichts abgezogen und nichts gesperrt, Rechte und Zahl, die Zeile der Seite in node, Aufbau)
+und `scripts/klicktest_rueckfahrt.py` (Karte mit Zeile und Hinweis, „Ändern“ öffnet die Buchung, keine Zahl am Reiter, Büro – Auftrag ohne „Ändern“, nach
+dem Löschen weg; Bilder bei 1440 und 412 px, hell und dunkel). Keine angepasste Erwartung. Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.314“.

@@ -59,3 +59,22 @@ entfernt“) und in v712::test_doppelt_bleibt_bis_von_hand_entfernt.
 
 17 Gegenproben, alle rot. Ohne eigene Gegenprobe hier: Nr. 5 „zählt nicht gegen das Urlaubskonto“ -- das Urlaubskonto kommt mit 1.9.315, die Gegenprobe
 steht dort; Nr. 8 „keine Migration“ (nichts gebaut, nichts zu prüfen).
+
+## 1.9.314 (Punkt 2): Hinweis Rückfahrt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Beginn nicht vor dem Arbeitsende (auch genau ab dem Ende) | erst nach dem Ende (`314_1a`) | 2 rot: v714::test_nur_die_fahrzeit_nach_der_letzten_arbeit, test_pruefen_mit_rechten_und_ohne_zahl |
+| Nr. 1 – nach der letzten Arbeit | nach der ersten Arbeit (`314_1b`) | 2 rot: dieselben |
+| Nr. 1 – der Text des Hinweises | anderer Text (`314_6a`) | 1 rot: v714::test_nur_die_fahrzeit_nach_der_letzten_arbeit |
+| Nr. 2 – nicht mit einer Buchung ohne Uhrzeiten | Dauern übergangen (`314_2a`) | 2 rot: v714::test_nur_die_fahrzeit_nach_der_letzten_arbeit, test_pruefen_mit_rechten_und_ohne_zahl |
+| Nr. 2 – nicht an einem Tag nur mit Fahrzeit | auch ohne Arbeit (`314_2b`) | 2 rot: dieselben |
+| Nr. 2 – nicht Hinfahrt und Fahrt zwischen Baustellen | über `314_1b` (Arbeitsende = erste Arbeit) | siehe dort |
+| Nr. 3 – Zeitraum wie die Pausen | ohne den Abschluss (`314_3a`) | 1 rot: v714::test_pruefen_mit_rechten_und_ohne_zahl |
+| Nr. 4 – keine Zahl am Reiter | mitgezählt (`314_4a`); Klicktest ohne „Nichts zu prüfen“-Regel (`314_K2`) | 1 rot: v714::test_pruefen_mit_rechten_und_ohne_zahl; Klicktest: „Anna: Karte zur Info, keine Zahl am Reiter dafür“ |
+| Nr. 4 – nichts gesperrt | in „Vor dem Abschluss“ (`314_4b`) | 1 rot: v714::test_nichts_abgezogen_nichts_gesperrt |
+| Nr. 5 – „Ändern“ nur, wer ändern darf | jeder ändert (`314_5a`); die Seite ohne Bedingung (`314_5b`) | 1 rot: v714::test_pruefen_mit_rechten_und_ohne_zahl; 1 rot: v714::test_seite_zeichnet_den_hinweis |
+| Nr. 5 – „Ändern“ öffnet die Buchung | tut nichts (`314_K1`, Klicktest) | Klicktest: „Anna: „Ändern“ öffnet die Buchung“, „Anna: im Dialog die Fahrzeit“ |
+
+12 Gegenproben, alle rot. Ohne eigene Gegenprobe: Nr. 4 „nichts abgezogen“ -- `rueckfahrten()` schreibt nicht (ein GET schreibt nie, Regel 23,
+`test_kein_get_schreibt`); geprüft in v714::test_nichts_abgezogen_nichts_gesperrt. Nr. 6 „kein Quittieren“ -- nichts gebaut.

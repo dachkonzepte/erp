@@ -196,11 +196,18 @@
       <div class="karte-kopf"><h2 id="pauseTitel">Pause passt nicht zum Tag</h2><span class="karte-zahl" id="pauseZahl"></span></div>
       <div id="pauseListe"></div>
     </section>
+    {# seit 1.9.314 (Lohn L2b, Punkt 2): Fahrzeit nach der letzten Arbeit des Tags -- nur ein Hinweis, nichts abgezogen, nichts gesperrt #}
+    <section class="karte" id="rueckfahrtKarte" aria-labelledby="rueckfahrtTitel" hidden>
+      <div class="karte-kopf"><span class="eb">Zur Info</span><span class="karte-zahl" id="rueckfahrtZahl"></span></div>
+      <h2 id="rueckfahrtTitel" style="margin-bottom:6px">Fahrzeit nach Arbeitsende</h2>
+      <div id="rueckfahrtListe"></div>
+      <p class="fuss">Nichts wird abgezogen, die Lohndatei bleibt frei. Korrigiere die Buchung oder lass sie stehen.</p>
+    </section>
     <section class="karte" id="antragKarte" aria-labelledby="antragTitel" hidden>
       <div class="karte-kopf"><h2 id="antragTitel">Anträge</h2><span class="karte-zahl" id="antragZahl"></span></div>
       <div id="antragListe"></div>
     </section>
-    <section class="karte" id="allesGut" hidden><p class="alles-gut" style="margin:0">Nichts zu prüfen: keine Zeit von früher läuft, die Pausen passen, keine Anträge offen.</p></section>
+    <section class="karte" id="allesGut" hidden><p class="alles-gut" style="margin:0">Nichts zu prüfen: keine Zeit von früher läuft, die Pausen passen, keine Fahrzeit nach Arbeitsende, keine Anträge offen.</p></section>
   </div>
   <div class="spalte">
     <section class="karte" aria-labelledby="monatTitel" style="gap:10px">
@@ -484,11 +491,15 @@ function pruefenZeichnen(d){
   el('pauseKarte').hidden=!d.pausen.length;
   el('pauseZahl').textContent=d.pausen.length+(d.pausen.length===1?' Tag':' Tage');
   el('pauseListe').innerHTML=d.pausen.map(pauseHtml).join('');
+  // seit 1.9.314: Fahrzeit nach Arbeitsende (zur Info, zählt nicht am Reiter)
+  el('rueckfahrtKarte').hidden=!d.rueckfahrten.length;
+  el('rueckfahrtZahl').textContent=d.rueckfahrten.length+(d.rueckfahrten.length===1?' Fahrzeit':' Fahrzeiten');
+  el('rueckfahrtListe').innerHTML=d.rueckfahrten.map(rueckfahrtHtml).join('');
   // Anträge
   el('antragKarte').hidden=!d.antraege.length;
   el('antragZahl').textContent=d.antraege.length+' offen';
   el('antragListe').innerHTML=d.antraege.map(antragHtml).join('');
-  el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.antraege.length);
+  el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length);
   // der Monat rechts
   var m=d.monat;
   el('monatTitel').textContent=m.titel;
@@ -527,6 +538,15 @@ function offenHtml(z){
     :'';
   return '<div class="zeile" data-offen="'+z.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(z.name)+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span><span class="zeile-vorschau" id="ende-vorschau-'+z.id+'"></span></div>'+bedienung+'</div>';
+}
+// Seit 1.9.314: eine Fahrzeit nach der letzten Arbeit des Tags -- Name und Tag, die Fahrzeit mit Uhrzeiten, das Arbeitsende, der Hinweis vom Server;
+// „Ändern“ (wer die Buchung ändern darf) öffnet den Dialog wie in „Buchungen“
+function rueckfahrtHtml(r,i){
+  var unter=(r.zeitart||'Fahrzeit')+' '+uhr(r.started_at)+'–'+uhr(r.ended_at)+' · '+stunden(r.hours)+' · nach Arbeitsende '+uhr(r.arbeitsende)
+    +(r.order_number?' · '+auftragTitel({order_number:r.order_number,title:r.order_title}):'');
+  return '<div class="zeile" data-rueckfahrt="'+r.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(r.name+' · '+tagKurz(r.tag))+'</span>'
+    +'<span class="zeile-unter">'+esc(unter)+'</span><span class="zeile-unter">'+esc(r.text)+'</span></div>'
+    +(r.darf_aendern?'<button type="button" class="knopf knopf-neutral" data-aktion="rueckfahrt-aendern" data-i="'+i+'">Ändern</button>':'')+'</div>';
 }
 function pauseHtml(t,i){
   var schluessel=t.employee_id+'/'+t.tag,plan=t.buchungen.length>0;
@@ -1170,6 +1190,7 @@ function binden(){
     else if(a==='pause-zu'||a==='pause-zeigen'){var t=P.pausen[Number(b.dataset.i)];ZU[t.employee_id+'/'+t.tag]=a==='pause-zu';pruefenZeichnen(P)}
     else if(a==='pause-aendern'){var d=(P.pausen[Number(b.dataset.i)].dauern||[]).find(function(e){return String(e.id)===b.dataset.id});if(d)buchungDialogOeffnen(d)}
     else if(a==='antrag')antragEntscheiden(b.dataset.id,b.dataset.entscheidung,b);
+    else if(a==='rueckfahrt-aendern'){var r=P.rueckfahrten[Number(b.dataset.i)];if(r)buchungDialogOeffnen(r)}  // seit 1.9.314
   });
   el('reiter-pruefen').addEventListener('input',function(ev){var f=ev.target;if(f.dataset&&f.dataset.ende)endeVorschau(f.dataset.ende)});
   el('reiter-buchungen').addEventListener('click',function(ev){

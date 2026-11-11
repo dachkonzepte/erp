@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.314 – Lohn L2b: Hinweis Rückfahrt in „Zeiten → Prüfen“
+
+Dritter Punkt von Lohn L2b (Antwort 7 des Befunds L2: der Weg zur Baustelle ist Arbeitszeit, Feierabend ist auf der Baustelle). „Zeiten → Prüfen“ zeigt jetzt eine Karte „Fahrzeit nach Arbeitsende“ (zur Info): jede gebuchte Fahrzeit, die nach der letzten Arbeit ihres Tags beginnt, mit Name, Tag, Uhrzeiten, Arbeitsende und dem Hinweis „Fahrzeit nach Arbeitsende – Rückfahrt? Feierabend ist auf der Baustelle.“ Nicht gemeint sind die Hinfahrt, die Fahrt zwischen zwei Baustellen und ein Tag nur mit Fahrzeit; hat eine Buchung des Tags keine Uhrzeiten, ist die Reihenfolge unbekannt und es gibt keinen Hinweis. Geprüft wird derselbe Zeitraum wie bei den Pausen.
+
+Nichts wird abgezogen, weder der Abschluss noch die Lohndatei werden gesperrt, und die Zahl am Reiter zählt den Hinweis nicht. Wer die Buchung ändern darf, öffnet sie über „Ändern“ im selben Dialog wie unter „Buchungen“; der Betrieb korrigiert sie oder lässt sie stehen.
+
+Neu `app/zeiten.py::rueckfahrten()`, `tests/test_v714_rueckfahrt.py` und `scripts/klicktest_rueckfahrt.py`. Keine Migration.
+
 ## 1.9.313 – Lohn L2b: Kategorie „Sonderurlaub“
 
 Zweiter Punkt von Lohn L2b (Antwort 3 des Befunds L2: gegen den Urlaub zählt nur Urlaub). Neu ist die Kategorie **Sonderurlaub** neben Urlaub, Krankheit und den übrigen -- in jeder Auswahl der Kategorie (Zeiten → Abwesenheiten, Plantafel, „Meine Zeiten“) direkt nach Urlaub. Sie wird angelegt wie jede andere, ohne halben Tag; ohne genauere Art heißt sie „Sonderurlaub“. Eine Art „Sonderurlaub“ passt nur noch zu ihr (steht eine solche im Bestand unter Urlaub, nennt `scripts/pruefe_abwesenheiten.py` den Widerspruch -- keine Migration, der Betrieb stellt um); die Arten darunter legt der Betrieb an, eine selbst angelegte Art passt wie bisher zu jeder Kategorie. Gegen das Urlaubskonto zählt Sonderurlaub nicht (das Urlaubskonto folgt mit Punkt 3).

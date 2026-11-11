@@ -139,6 +139,39 @@ def pausen_tage(db: Session, ab: date, bis: date) -> list[dict]:
     return tage
 
 
+# Seit 1.9.314 (Lohn L2b, Punkt 2; Antwort 7 des Befunds L2: der Weg zur Baustelle ist Arbeitszeit, Feierabend ist auf der Baustelle)
+RUECKFAHRT = "Fahrzeit nach Arbeitsende – Rückfahrt? Feierabend ist auf der Baustelle."
+FAHRZEIT = "travel"
+
+
+def rueckfahrten(db: Session, ab: date, bis: date) -> list[dict]:
+    """Seit 1.9.314: jede gebuchte Fahrzeit zwischen ab und bis, die nach der letzten Arbeit ihres Tags beginnt (Beginn nicht vor dem Ende der
+    letzten Buchung einer anderen Zeitart derselben Person am Tag) -- je eine Zeile wie in „Buchungen“ (für „Ändern“) mit Name, Tag, Arbeitsende
+    und dem Hinweis RUECKFAHRT. Nur mit Von und Bis: hat eine Buchung des Tags keine Uhrzeiten, ist die Reihenfolge unbekannt -- kein Hinweis; ein
+    Tag nur mit Fahrzeit auch nicht. Nichts wird abgezogen, nichts gesperrt (weder Abschluss noch Lohndatei): der Betrieb korrigiert die Buchung
+    oder lässt sie stehen. Eine Abfrage für die Buchungen, der Verlauf über _listenzeilen()."""
+    rows = db.scalars(select(TimeEntry).options(selectinload(TimeEntry.employee), selectinload(TimeEntry.order))
+                      .where(TimeEntry.status == "booked", TimeEntry.work_date >= ab, TimeEntry.work_date <= bis)
+                      .order_by(TimeEntry.employee_id, TimeEntry.work_date, TimeEntry.started_at, TimeEntry.id)).all()
+    je_tag: dict[tuple[int, date], list[TimeEntry]] = defaultdict(list)
+    for r in rows:
+        je_tag[(r.employee_id, r.work_date)].append(r)
+    treffer: list[tuple[TimeEntry, datetime]] = []
+    for (_e, _t), eigene in je_tag.items():
+        if any(not (r.started_at and r.ended_at) for r in eigene):
+            continue
+        arbeit = [r for r in eigene if r.entry_type != FAHRZEIT]
+        if not arbeit:
+            continue
+        ende = max(r.ended_at for r in arbeit)
+        treffer += [(r, ende) for r in eigene if r.entry_type == FAHRZEIT and r.started_at >= ende]
+    if not treffer:
+        return []
+    zeilen = {z["id"]: z for z in _listenzeilen(db, [r for r, _ in treffer], _entry_type_labels(db))}
+    return [{**zeilen[r.id], "name": employee_name(r.employee) or f"#{r.employee_id}", "tag": r.work_date, "arbeitsende": ende,
+             "text": RUECKFAHRT} for r, ende in treffer]
+
+
 def feiertage_bundesland(db: Session) -> str:
     """Seit 1.9.108 (Nachrunde 2, Punkt 2): das Bundesland der Feiertage für „Arbeitstage“ -- die Einstellung „Bundesland“ der Plantafel
     (PlanningRegionSettings, eine Quelle), ohne Einstellung oder ohne Wert Nordrhein-Westfalen. Nur lesen."""
@@ -218,13 +251,15 @@ def vor_dem_abschluss(db: Session, erster: date) -> list[dict]:
 
 
 def pruefen(db: Session, heute: date) -> dict:
-    """„Prüfen“: Zeiten von früher, Tage mit unpassender Pause (seit pruef_beginn()), der Monat mit Stunden je Mitarbeiter und „Vor dem
-    Abschluss“. Die Anträge gibt der Router dazu (wer sie sieht, hängt am Konto)."""
+    """„Prüfen“: Zeiten von früher, Tage mit unpassender Pause (seit pruef_beginn()), seit 1.9.314 die Fahrzeiten nach Arbeitsende (derselbe
+    Zeitraum, rueckfahrten()), der Monat mit Stunden je Mitarbeiter und „Vor dem Abschluss“. Die Anträge gibt der Router dazu (wer sie sieht, hängt
+    am Konto)."""
     erster = pruef_monat(db, heute)
     lock = load_time_settings(db).locked_until
     stunden = monat_stunden(db, erster)
     stunden.pop("rows")
     return {"heute": heute, "offene_zeiten": offene_zeiten(db, heute), "pausen": pausen_tage(db, pruef_beginn(db, heute), heute),
+            "rueckfahrten": rueckfahrten(db, pruef_beginn(db, heute), heute),
             "monat": {**_monat_kopf(erster), "status": _status(erster, lock), "abgeschlossen_bis": lock, **stunden},
             "vor_dem_abschluss": vor_dem_abschluss(db, erster)}
 
