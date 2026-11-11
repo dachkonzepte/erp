@@ -1,14 +1,23 @@
 """Klicktest: Urlaub und Startwerte der Konten in Einstellungen → Zeitregeln und DATEV (1.9.310, Lohn L2a, Punkt 3; Antworten 11 und 12 des Befunds L2).
 
-Stehende Uhr Mi 11.11.2026 10:00. Mia (gewerblich), Kai (gewerblich), Bea (kaufmännisch, Konto Büro – Auftrag); Fin (Büro – Finanzen, ohne Mitarbeiter).
+Stehende Uhr Mi 11.11.2026 10:00. Mia (gewerblich), Kai (gewerblich), Bea (kaufmännisch, Konto Büro – Auftrag); Fin (Büro – Finanzen, ohne Mitarbeiter);
+seit 1.9.312 Ute (gewerblich, inaktiv) und am Anspruch 2027 von Kai ein Übertrag von 2 Tagen aus der Zeit vor 1.9.312 (Bestand).
 
     Büro – Finanzen  Block „Urlaub und Startwerte der Konten“: Vorgabe 30 Tage, Übertrag „von Hand“, Verfall leer; jede Person mit „30 Tage (Vorgabe)“ und „—“;
                      Vorgaben 28,5 Tage und Verfall 31.03. gespeichert; „Ändern“ an Mia: Dialog „Urlaub und Startwert – Mia Monteurin“, Jahr 2027 (dazu
-                     2028), Urlaubstage leer mit „Vorgabe 28,5“; 24 Tage, Übertrag -1,5, Notiz gespeichert -> „24 Tage · Übertrag -1,5“; Startwert
-                     Resturlaub 4,5, Saldo -12,25 h, Bemerkung, „geprüft“ -> „Geprüft am 11.11.2026 durch Fin Finanzen.“, in der Zeile „4,5 Tage“,
+                     2028), Urlaubstage leer mit „Vorgabe 28,5“; 24 Tage, Notiz gespeichert -> „24 Tage“; Startwert Resturlaub 4,5, Saldo -12,25 h,
+                     Bemerkung, „geprüft“ -> „Geprüft am 11.11.2026 durch Fin Finanzen.“, in der Zeile „24 Tage · Übertrag 4,5“, „4,5 Tage“,
                      „-12,25 h“, „Steuerbüro · geprüft 11.11.2026“; Resturlaub 4,3 -> Meldung „in halben Tagen“, nichts gespeichert; Saldo -11 ohne
                      „geprüft“ -> „Noch nicht geprüft.“, mit dem Haken wieder geprüft; Jahr 2028 -> leer
-    Bilder           der Block und der Dialog bei 1440 und 412 px, hell und dunkel; bei 412 px läuft die Seite nicht über
+    seit 1.9.312     Inaktive ausblenden: beide Kästchen an, Ute fehlt in Lohnstammdaten und Konten, „1 inaktiv“; ein Kästchen ab -> Ute in beiden
+                     grau, das andere Kästchen folgt, nach dem Neuladen gemerkt; wieder an -> weg. Übertrag 2027: Feld gesperrt, zeigt den Startwert
+                     „Resturlaub“ (leer bzw. 4,5) mit Hinweis; 2028 von Hand frei; Kais Übertrag aus dem Bestand: in der Zeile „Übertrag doppelt –
+                     prüfen“, im Dialog der Hinweis mit 2 Tagen, nach „Diesen Übertrag entfernen“ weg (nichts still gelöscht). „geprüft“: der Haken
+                     zeigt den Stand; Saldo getippt -> Haken heraus, „Wert geändert – neu prüfen“; zurückgetippt bleibt er heraus; ohne Haken
+                     gespeichert -> nicht geprüft; Bemerkung getippt ohne vorherige Prüfung -> kein Hinweis
+    Bilder           der Block und der Dialog bei 1440 und 412 px, hell und dunkel; bei 412 px läuft die Seite nicht über, „28,5 Tage (Vorgabe)“ auf
+                     einer Zeile; seit 1.9.312 die Liste mit und ohne „Inaktive ausblenden“, der Dialog 2027 (Übertrag aus dem Startwert) und der
+                     Dialog „Wert geändert – neu prüfen“
     Büro – Auftrag   Bea sieht nur ihre eigene Zeile, „Ansehen“ statt „Ändern“, die Vorgaben gesperrt ohne Knopf; im Dialog alles gesperrt, keine Knöpfe zum
                      Speichern; derselbe PUT vom Server 403
     Monat & Lohn     (seit 1.9.311) November 2026: Mia mit Buchung, Kai den ganzen Monat im Urlaub, Bea ohne alles -- alle drei mit Sollzeit stehen in der
@@ -45,14 +54,17 @@ def befuellen(db, k):
     from datetime import date, datetime, time
     from decimal import Decimal
 
-    from app.models import AppUser, Customer, Employee, EmployeeAbsence, Order, Project, TimeEntry
+    from app.models import AppUser, Customer, Employee, EmployeeAbsence, Order, Project, TimeEntry, Urlaubsanspruch
     from app.project_pipeline_columns import default_pipeline_column_id
 
     mia = Employee(employee_number="M-1", first_name="Mia", last_name="Monteurin", employee_group="gewerblich", active=True)
     kai = Employee(employee_number="M-2", first_name="Kai", last_name="Kolonne", employee_group="gewerblich", active=True)
     bea_ma = Employee(employee_number="B-1", first_name="Bea", last_name="Büro", employee_group="kaufmaennisch", active=True)
-    db.add_all([mia, kai, bea_ma])
+    ute = Employee(employee_number="M-9", first_name="Ute", last_name="Ehemalig", employee_group="gewerblich", active=False)  # seit 1.9.312
+    db.add_all([mia, kai, bea_ma, ute])
     db.flush()
+    # seit 1.9.312: ein Übertrag am Anspruch 2027 aus der Zeit vor 1.9.312 -- jetzt „Übertrag doppelt – prüfen“ (2027 gilt der Startwert)
+    db.add(Urlaubsanspruch(employee_id=kai.id, jahr=2027, uebertrag=Decimal("2")))
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", employee_id=bea_ma.id, password_hash=k.passwort())
     db.add_all([fin, bea])
@@ -72,11 +84,22 @@ def befuellen(db, k):
                      break_minutes=30, status="booked", started_at=datetime.combine(tag, time(7)), ended_at=datetime.combine(tag, time(15))))
     db.add(EmployeeAbsence(employee_id=kai.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 11, 2), end_date=date(2026, 11, 30)))
     db.commit()
-    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": mia.id, "bea_ma": bea_ma.id}
+    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": mia.id, "bea_ma": bea_ma.id, "kai": kai.id}
 
 
 async def _setze(tab, werte: dict):
     await tab.js(";".join(f"document.getElementById('{i}').value={json.dumps(v)}" for i, v in werte.items()))
+
+
+# seit 1.9.312: echt tippen (Input.insertText löst „input“ aus wie eine Eingabe)
+async def _tippen(tab, feld: str, text: str):
+    await tab.js(f"(()=>{{const el=document.getElementById('{feld}');el.focus();el.select()}})()")
+    await tab.cmd("Input.insertText", text=text)
+
+
+PAYROLL = "[...document.querySelectorAll('#payrollRows tr')].map(tr=>[tr.cells[0].innerText.trim(),tr.className])"
+KAESTCHEN = ("[document.getElementById('lohnInaktiveAusblenden').checked,document.getElementById('kontenInaktiveAusblenden').checked,"
+             "document.getElementById('lohnInaktivZahl').innerText,document.getElementById('kontenInaktivZahl').innerText]")
 
 
 async def _api(tab, pfad: str):
@@ -108,8 +131,24 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('kvTage').value,document.getElementById('kvUebertrag').value,document.getElementById('kvVerfall').value,"
         "document.getElementById('kontenJahrKopf').textContent]"), ["30", "von_hand", "", "Urlaub 2027"])
     p.pruefe("Fin: jede Person mit der Vorgabe, ohne Startwert", await tab.js(ZEILEN),
-             [["Bea Büro", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"], ["Kai Kolonne", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"],
+             [["Bea Büro", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"],
+              ["Kai Kolonne", "30 Tage (Vorgabe) · Übertrag doppelt – prüfen", "—", "—", "—", "Ändern"],
               ["Mia Monteurin", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"]])
+    # ---- seit 1.9.312: Inaktive ausblenden -- ein Stand für beide Kästchen, gemerkt im Browser ----------------------------------------------
+    p.pruefe("Fin: Inaktive ausgeblendet (Vorgabe)", [await tab.js(KAESTCHEN), await tab.js(PAYROLL)],
+             [[True, True, "1 inaktiv", "1 inaktiv"], [["Bea Büro", ""], ["Kai Kolonne", ""], ["Mia Monteurin", ""]]])
+    await tab.js("document.getElementById('kontenInaktiveAusblenden').click()")
+    p.pruefe("Fin: Kästchen ab -- Ute in beiden Listen, grau", [await tab.js(KAESTCHEN), await tab.js(PAYROLL),
+             await tab.js("[...document.querySelectorAll('#kontenZeilen tr[data-konto]')].map(tr=>[tr.cells[0].innerText.trim(),tr.className])"),
+             await tab.js("getComputedStyle(document.querySelector('#kontenZeilen tr.inaktiv td')).color!==getComputedStyle(document.querySelector('#kontenZeilen tr:not(.inaktiv) td')).color")],
+             [[False, False, "1 inaktiv", "1 inaktiv"], [["Bea Büro", ""], ["Kai Kolonne", ""], ["Mia Monteurin", ""], ["Ute Ehemalig", "inaktiv"]],
+              [["Bea Büro", ""], ["Kai Kolonne", ""], ["Mia Monteurin", ""], ["Ute Ehemalig", "inaktiv"]], True])
+    p.pruefe("Fin: nach dem Neuladen gemerkt", await tab.oeffnen("/settings?n=90#time-rules", BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Fin: weiter gezeigt", [await tab.js(KAESTCHEN), len(await tab.js(ZEILEN))], [[False, False, "1 inaktiv", "1 inaktiv"], 4])
+    await tab.js("document.getElementById('lohnInaktiveAusblenden').click()")
+    p.pruefe("Fin: wieder ausgeblendet", [await tab.js(KAESTCHEN), [z[0] for z in await tab.js(ZEILEN)]],
+             [[True, True, "1 inaktiv", "1 inaktiv"], ["Bea Büro", "Kai Kolonne", "Mia Monteurin"]])
     await _setze(tab, {"kvTage": "28,5", "kvVerfall": "31.03."})
     p.pruefe("Fin: Vorgaben gespeichert", await _klick_bis(tab, "[data-klick=konten-vorgaben]", "kontenVorgabenStatus", "Gespeichert."), True)
     p.pruefe("Fin: Vorgaben auf dem Server", (await _api(tab, "/api/time-backoffice/konten"))["vorgaben"],
@@ -121,15 +160,43 @@ async def pruefen(tab, seed, p):
         "document.getElementById('kdTage').value,document.getElementById('kdTage').placeholder,document.getElementById('kdStichtag').innerText,"
         "document.getElementById('kdGeprueftText').innerText,document.getElementById('kdGesperrt').hidden]"),
         ["Urlaub und Startwert – Mia Monteurin", ["2027", "2028"], "2027", "", "Vorgabe 28,5", "31.12.2026", "Noch nicht geprüft.", True])
-    await _setze(tab, {"kdTage": "24", "kdUebertrag": "-1,5", "kdNotiz": "Teilzeit 4 Tage"})
+    p.pruefe("Fin: Übertrag 2027 gesperrt, aus dem Startwert", await tab.js(
+        "[document.getElementById('kdUebertrag').disabled,document.getElementById('kdUebertrag').value,document.getElementById('kdUebertragHinweis').innerText,"
+        "document.getElementById('kdUebertragDoppelt').hidden,document.getElementById('kdUebertragLeeren').hidden,document.getElementById('kdGeprueft').checked]"),
+        [True, "", "2027: der Startwert „Resturlaub“ (unten) – hier nur angezeigt.", True, True, False])
+    await _setze(tab, {"kdTage": "24", "kdNotiz": "Teilzeit 4 Tage"})
     p.pruefe("Fin: Anspruch gespeichert", await _klick_bis(tab, "#kdAnspruchKnopf", "kdAnspruchStatus", "Gespeichert."), True)
     await _setze(tab, {"kdRest": "4,5", "kdSaldo": "-12,25", "kdHerkunftNotiz": "Liste vom 30.12.2026"})
     await tab.js("document.getElementById('kdGeprueft').checked=true")
     p.pruefe("Fin: Startwert gespeichert", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
-    p.pruefe("Fin: geprüft heute durch Fin", await tab.js("document.getElementById('kdGeprueftText').innerText"),
-             "Geprüft am 11.11.2026 durch Fin Finanzen.")
-    p.pruefe("Fin: Mias Zeile", [z for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
-             [["Mia Monteurin", "24 Tage · Übertrag -1,5", "4,5 Tage", "-12,25 h", "Steuerbüro · geprüft 11.11.2026", "Ändern"]])
+    p.pruefe("Fin: geprüft heute durch Fin, der Haken zeigt es", await tab.js(
+        "[document.getElementById('kdGeprueftText').innerText,document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden]"),
+        ["Geprüft am 11.11.2026 durch Fin Finanzen.", True, True])
+    p.pruefe("Fin: Mias Zeile mit dem Übertrag aus dem Startwert", [z for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
+             [["Mia Monteurin", "24 Tage · Übertrag 4,5", "4,5 Tage", "-12,25 h", "Steuerbüro · geprüft 11.11.2026", "Ändern"]])
+    await tab.js("auswahlWert(document.getElementById('kdJahr'),'2027');document.getElementById('kdJahr').dispatchEvent(new Event('change',{bubbles:true}))")
+    p.pruefe("Fin: Dialog 2027 zeigt den Startwert als Übertrag", await tab.js("document.getElementById('kdUebertrag').value"), "4,5")
+    await tab.bild("konten_dialog_2027_1440")
+    # ---- seit 1.9.312: „Wert geändert – neu prüfen“ ------------------------------------------------------------------------------------------
+    await _tippen(tab, "kdSaldo", "-13")
+    p.pruefe("Fin: Saldo getippt -- Haken heraus, Hinweis", await tab.js(
+        "[document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden,document.getElementById('kdGeprueftHinweis').innerText]"),
+        [False, False, "Wert geändert – neu prüfen"])
+    await tab.js("document.getElementById('kdGeprueftHinweis').scrollIntoView({block:'center'})")
+    await tab.bild("konten_dialog_neu_pruefen_1440")
+    await _tippen(tab, "kdSaldo", "-12,25")
+    p.pruefe("Fin: zurückgetippt -- der Haken bleibt heraus", await tab.js(
+        "[document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden]"), [False, False])
+    p.pruefe("Fin: ohne Haken gespeichert", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
+    p.pruefe("Fin: nicht mehr geprüft", [await tab.js("[document.getElementById('kdGeprueftText').innerText,document.getElementById('kdGeprueft').checked]"),
+                                         [z[4] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"]],
+             [["Noch nicht geprüft.", False], ["Steuerbüro · nicht geprüft"]])
+    await _tippen(tab, "kdHerkunftNotiz", "Liste vom 31.12.2026")
+    p.pruefe("Fin: ohne vorherige Prüfung kein Hinweis", await tab.js(
+        "[document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden]"), [False, True])
+    await _setze(tab, {"kdHerkunftNotiz": "Liste vom 30.12.2026"})
+    await tab.js("document.getElementById('kdGeprueft').checked=true")
+    p.pruefe("Fin: neu geprüft", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
     await _setze(tab, {"kdRest": "4,3"})
     p.pruefe("Fin: Resturlaub 4,3 abgelehnt", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "in halben Tagen"), True)
     p.pruefe("Fin: nichts gespeichert, geprüft bleibt", [
@@ -148,7 +215,24 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Zeile wieder geprüft", [z[3:5] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
              [["-12,25 h", "Steuerbüro · geprüft 11.11.2026"]])
     await tab.js("auswahlWert(document.getElementById('kdJahr'),'2028');document.getElementById('kdJahr').dispatchEvent(new Event('change',{bubbles:true}))")
-    p.pruefe("Fin: Jahr 2028 leer", await tab.js("[document.getElementById('kdTage').value,document.getElementById('kdUebertrag').value]"), ["", ""])
+    p.pruefe("Fin: Jahr 2028 leer, Übertrag von Hand frei", await tab.js(
+        "[document.getElementById('kdTage').value,document.getElementById('kdUebertrag').value,document.getElementById('kdUebertrag').disabled,"
+        "document.getElementById('kdUebertragHinweis').innerText]"), ["", "", False, ""])
+    await tab.js("document.getElementById('kontenDialog').close()")
+    # ---- seit 1.9.312: Kais Übertrag aus dem Bestand -- „doppelt – prüfen“, entfernt nur von Hand --------------------------------------------
+    p.pruefe("Fin: Dialog an Kai", await _oeffnen(tab, seed["kai"]), True)
+    p.pruefe("Fin: Hinweis „doppelt“ mit 2 Tagen", await tab.js(
+        "[document.getElementById('kdUebertragDoppelt').hidden,document.getElementById('kdUebertragDoppelt').innerText,"
+        "document.getElementById('kdUebertragLeeren').hidden,document.getElementById('kdUebertrag').value]"),
+        [False, "Übertrag doppelt – prüfen: am Anspruch 2027 steht zusätzlich ein Übertrag von 2 Tagen.", False, ""])
+    await tab.bild("konten_dialog_doppelt_1440")
+    await _setze(tab, {"kdNotiz": "Teilzeit"})
+    p.pruefe("Fin: Anspruch gespeichert -- der Übertrag bleibt", await _klick_bis(tab, "#kdAnspruchKnopf", "kdAnspruchStatus", "Gespeichert."), True)
+    p.pruefe("Fin: Kai weiter doppelt", [x["ansprueche"] for x in (await _api(tab, "/api/time-backoffice/konten"))["personen"] if x["employee_id"] == seed["kai"]][0][0]["uebertrag"], "2.0")
+    p.pruefe("Fin: entfernt", await _klick_bis(tab, "#kdUebertragLeeren", "kdAnspruchStatus", "Übertrag entfernt."), True)
+    p.pruefe("Fin: Hinweis weg, Zeile ohne", [await tab.js("[document.getElementById('kdUebertragDoppelt').hidden,document.getElementById('kdUebertragLeeren').hidden]"),
+                                              [z[1] for z in await tab.js(ZEILEN) if z[0] == "Kai Kolonne"]],
+             [[True, True], ["28,5 Tage (Vorgabe)"]])
     await tab.js("document.getElementById('kontenDialog').close()")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
@@ -164,7 +248,19 @@ async def pruefen(tab, seed, p):
             await tab.js("document.getElementById('kontenBlock').scrollIntoView({block:'start'})")
             if mobil:
                 p.pruefe(f"Bild 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+                # seit 1.9.312: „28,5 Tage (Vorgabe)“ auf einer Zeile (bis 1.9.311 auf drei); die erste Spalte zieht die Trennlinie selbst
+                p.pruefe(f"Bild 412 {name}: Anspruch auf einer Zeile", await tab.js(
+                    "[...document.querySelectorAll('#kontenZeilen tr[data-konto]')].every(tr=>{const r=document.createRange();r.selectNodeContents(tr.cells[1]);"
+                    "return new Set([...r.getClientRects()].map(x=>Math.round(x.top))).size===1})"), True)
+                p.pruefe(f"Bild 412 {name}: Trennlinie in der ersten Spalte", await tab.js(
+                    "getComputedStyle(document.querySelector('#kontenZeilen tr[data-konto] td')).boxShadow.split('inset').length-1"), 2)
             await tab.bild(f"lohnstammdaten_konten_{breite}_{name}")
+            await tab.js("document.getElementById('kontenInaktiveAusblenden').click()")
+            await tab.bild(f"lohnstammdaten_konten_inaktive_gezeigt_{breite}_{name}")
+            await tab.js("document.getElementById('lohnInaktiveAusblenden').scrollIntoView({block:'start'})")
+            await tab.bild(f"lohnstammdaten_liste_inaktive_gezeigt_{breite}_{name}")
+            await tab.js("document.getElementById('lohnInaktiveAusblenden').click()")
+            await tab.bild(f"lohnstammdaten_liste_{breite}_{name}")
             await _oeffnen(tab, mia)
             await tab.bild(f"konten_dialog_{breite}_{name}")
             await tab.js("document.getElementById('kontenDialog').close()")
@@ -176,6 +272,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Zeitregeln geladen", await tab.oeffnen("/settings?n=20#time-rules", BEREIT), True)
     await tab.warte_auf_ruhe()
     p.pruefe("Bea: nur die eigene Zeile, „Ansehen“", await tab.js(ZEILEN), [["Bea Büro", "28,5 Tage (Vorgabe)", "—", "—", "—", "Ansehen"]])
+    p.pruefe("Bea: „Inaktive ausblenden“ bleibt bedienbar (nur Anzeige)", await tab.js(
+        "[document.getElementById('kontenInaktiveAusblenden').disabled,document.getElementById('lohnInaktiveAusblenden').disabled]"), [False, False])
     p.pruefe("Bea: Vorgaben gesperrt, ohne Knopf", await tab.js(
         "[document.getElementById('kvTage').disabled,document.querySelector('[data-klick=konten-vorgaben]').hidden]"), [True, True])
     p.pruefe("Bea: Dialog", await _oeffnen(tab, seed["bea_ma"]), True)

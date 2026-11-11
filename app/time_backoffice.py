@@ -342,6 +342,7 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
     return {
         "employee_id": emp.id,
         "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
+        "active": bool(emp.active),  # seit 1.9.312 (L2b, Punkt 0): „Inaktive ausblenden“
         "employee_number": emp.employee_number,
         "datev_personnel_number": heute,
         "datev_personnel_number_stored": p.datev_personnel_number,

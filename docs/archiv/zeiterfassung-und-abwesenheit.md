@@ -2198,7 +2198,7 @@ den Fragen der Nachrunde der Geräte-Runde (Archiv `modul-betriebsmittel-und-bet
   Änderung (Stand 1.9.307) und danach -- beide Dateien Byte für Byte gleich (SHA-256 gleich); ebenso die lokale Datei aus echten Buchungen Oktober
   (`bildgrundlage/lohn_echt`, nicht in Git, keine Werte hier).
 
-#### Festlegungen 1.9.308 (Bitte bestätigen)
+#### Festlegungen 1.9.308 (bestätigt am 11.11.2026)
 
 1. Je Person und Tag eine Tagesbilanz aus einer Funktion (`app/tagesbilanz.py::bilanz()`): Sollzeit, beschäftigt, Arbeit (alle Zeitarten, 0,25 h), Feiertag und
    die Posten Feiertag, Kalendertag, Abwesenheit (Kategorie, Art, Anteil, Sollzeit × Anteil) und Schlechtwetter (Soll − Arbeit, nie unter 0).
@@ -2230,7 +2230,7 @@ Tests der Lohndatei. Keine angepasste Erwartung. Kein Klicktest (keine Oberfläc
   alles, wie bei den Zeitbuchungen. Die Seiten zeigen die Meldung im Dialog (Fehlertext des Servers, unverändert).
 - Bestand: nichts zu migrieren. Was bis 1.9.308 im abgeschlossenen Zeitraum eingetragen wurde, bleibt.
 
-#### Festlegungen 1.9.309 (Bitte bestätigen)
+#### Festlegungen 1.9.309 (bestätigt am 11.11.2026)
 
 1. Eine Abwesenheit oder ein Ausfalltag, der einen Tag bis „Abgeschlossen bis“ berührt, legt nur der Admin an, genehmigt und löscht sie -- auf jedem Weg
    (Antrag, Sammeleintrag, Plantafel, Schlechtwetter eintragen und bestätigen); sonst 403 mit Meldung, nichts gespeichert.
@@ -2279,12 +2279,13 @@ am 30.11. ein: Meldung, keine Rückfrage „trotzdem“, nichts gespeichert (Bil
   nächste), Anspruch und Startwert, je mit eigenem Speichern (Bereich `konten`, Regel 29). Ohne Recht alles gesperrt ohne Knöpfe; nach dem Januar der Hinweis
   „Der Monat nach dem Stichtag ist abgeschlossen – den Startwert ändert jetzt nur ein Administrator.“
 
-#### Festlegungen 1.9.310 (Bitte bestätigen)
+#### Festlegungen 1.9.310 (bestätigt am 11.11.2026, außer Nr. 2 -- siehe 1.9.312)
 
 1. Vorgaben des Urlaubskontos in den Zeitregeln: Anspruch je Jahr 30 Tage (halbe erlaubt), Übertrag „von Hand“ oder „automatisch“, Verfall „TT.MM.“ (leer = nie,
    nicht der 29.02.); Übertrag und Verfall nur vorgemerkt, bis Frage 2 beantwortet ist.
 2. Urlaubsanspruch je Person und Jahr: Urlaubstage (leer = die Vorgabe), Übertrag aus dem Vorjahr (auch negativ), Verfallsdatum im Jahr des Anspruchs, Notiz --
-   Tage in halben Schritten.
+   Tage in halben Schritten. *Nicht bestätigt (11.11.2026): für 2027 ist der Übertrag der Startwert „Resturlaub“, kein zweites Feld; ab 2028 nach der Vorgabe --
+   umgesetzt in 1.9.312.*
 3. Startwert je Person: Stichtag 31.12.2026 (Stand nach dem Tag), Resturlaub in halben Tagen (auch negativ), Saldo in Stunden mit zwei Stellen (auch negativ),
    Herkunft Steuerbüro, Time 4 oder Sonstiges mit Bemerkung; von Hand, kein Einleseskript.
 4. „geprüft am / durch“ setzt der Haken beim Speichern (heute, das Konto); ändert sich ein Wert ohne neue Prüfung, fällt sie weg.
@@ -2315,7 +2316,7 @@ hell und dunkel). Erweitert ohne angepasste Erwartung: `tests/test_v364_feste_we
 - Die Seite (`zeiten.html`) bleibt unverändert: sie zeichnet jede Zeile, die der Server schickt; Summen und „Vor dem Abschluss“ ändern sich nicht.
 - Was die Zeile noch nicht zeigt (Soll, Saldo des Monats, Stand), kommt mit dem Arbeitszeitkonto (L2c).
 
-#### Festlegungen 1.9.311 (Bitte bestätigen)
+#### Festlegungen 1.9.311 (bestätigt am 11.11.2026)
 
 1. „Monat & Lohn“ zeigt jede Person mit Sollzeit im Monat -- auch wer nur abwesend ist oder gar nichts hat -- mit 0 Tagen und 0,00 h.
 2. Ohne Sollzeit im Monat (vor dem Eintritt, nach dem Austritt) keine Zeile; eine inaktive Person ohne Daten im Monat ebenso nicht (die Personen der Tagesbilanz).
@@ -2333,3 +2334,96 @@ Angepasste Erwartungen (die neue Regel ersetzt „keine Zeile ohne Buchung“):
 - `klicktest_zeiten.py` „Fin: Tabelle mit Personalnummer“ -- alt: Mia, Tom, Zusammen; neu: dazu Bea und Ole mit 0 Tagen und 0,00 h (Sollzeit im Monat, nichts
   gebucht; Ole nur eine laufende Zeit).
 Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.311“.
+
+## Lohn L2b: Urlaubskonto (ab 1.9.312)
+
+### Bestätigt (11.11.2026, Tobias)
+
+L2a ist geprüft, f2cab6b geht live. Die 34 Festlegungen 1.9.305–1.9.311 sind bestätigt, bis auf 1.9.310 Nr. 2 (Übertrag im ersten Jahr, Punkt 0 unten).
+Antworten auf die Fragen des Berichts L2a:
+
+1. Ort der Pflege: eigener Block unter den Lohnstammdaten -- recht so.
+2. Übertrag und Verfall (Vorgaben) sichtbar lassen, mit „nur vorgemerkt“.
+3. Herkunft eines Startwerts: Steuerbüro, Time 4, Sonstiges reicht.
+4. Stichtag fest 31.12.2026 für jeden -- recht so.
+5. „Monat & Lohn“: 0 Tage / 0,00 h reicht bis L2c.
+
+### Antworten des Betriebs zum Befund L2 (11.11.2026, Angabe Tobias)
+
+- 1 Urlaubsanspruch: Fachkräfte 30, Helfer 26, Azubis 26 Tage im Jahr; Teilzeit in Tagen der eigenen Woche. Der Betrieb trägt ihn je Person ein (Urlaubsanspruch je
+  Jahr, 1.9.310). Anteilig bei Eintritt oder Austritt rechnet das ERP nicht selbst -- das Urlaubskonto weist nur auf „Anspruch prüfen“ hin.
+- 3 Gegen den Urlaub zählt nur Urlaub. Neu die Kategorie „Sonderurlaub“, die nicht gegen den Urlaub zählt.
+- 4 Der betriebsfreie Tag zählt als Urlaub -- Befund 7.2 bleibt so.
+- 7 Der Weg zur Baustelle ist Arbeitszeit, Feierabend ist auf der Baustelle. Festlegung 1.9.308 Nr. 2 (Fahrzeit getrennt ausgewiesen) bleibt.
+- 8 Azubis bekommen ein Arbeitszeitkonto. Ob Mehrarbeit AA/1900 ausgezahlt wird, klärt das Steuerbüro.
+- 9 Ein Arbeitszeitkonto nur für gewerbliche Mitarbeiter, mit Azubis.
+- Offen beim Steuerbüro: 2 Übertrag und Verfall, 13 Korrekturdatei; dazu die Lohnart für „Sonderurlaub“.
+
+### Auftrag L2b (je Punkt eine Version)
+
+0 Korrektur aus L2a: Inaktive in „Urlaub und Startwerte“ und in den Lohnstammdaten ausgeblendet mit „Inaktive ausblenden“ (Vorgabe an); der Übertrag 2027 ist
+der Startwert „Resturlaub“ (kein zweites Feld, der Dialog zeigt ihn nur an), ein schon gespeicherter Übertrag 2027 nicht still gelöscht, sondern „Übertrag
+doppelt – prüfen“; ab 2028 die Vorgabe; der Haken „geprüft“ zeigt den Stand und geht bei einem geänderten Wert sichtbar heraus („Wert geändert – neu prüfen“);
+bei 412 px kein Umbruch in „30 Tage (Vorgabe)“, Trennlinien auch in der ersten Spalte. 1 Kategorie „Sonderurlaub“ (zählt nicht gegen das Urlaubskonto, Arten
+legt der Betrieb an; ohne Zuordnung meldet „Prüfen“ „Sonderurlaub ohne Zuordnung“). 2 Hinweis Rückfahrt in „Zeiten → Prüfen“ (Fahrzeit nach der letzten
+Arbeit des Tags, nichts abgezogen, die Lohndatei nicht gesperrt). 3 Urlaubskonto je Person und Jahr ab 2027 (eine Funktion wie die Tagesbilanz, feste Zahl
+Abfragen; Anspruch, Übertrag, genehmigt davon vorbei/künftig, beantragt, Rest, Rest nach den offenen Anträgen; Urlaubstage nur an Tagen mit Sollzeit, halbe über
+den Anteil, der betriebsfreie Tag zählt; Verfall nur als Hinweis; „Anspruch prüfen“ bei Eintritt/Austritt im Jahr; ohne Startwert „ohne Übertrag – Startwert
+folgt“; Rest unter 0 nur Hinweis). 4 Anzeige: Zeiten → Abwesenheiten (Jahr wählbar, Inaktive ausgeblendet), am Antrag „danach Rest n Tage“, „Meine Zeiten“ nur
+das eigene Konto, im Block „Urlaub und Startwerte“ die Spalte „Rest 2027“.
+
+### Umsetzung 1.9.312 (Punkt 0): Korrektur aus L2a
+
+- Inaktive ausblenden (`settings.html`): über den Lohnstammdaten und über „Urlaub und Startwerte der Konten“ je ein Kästchen „Inaktive ausblenden“ mit der Zahl
+  „n inaktiv“ -- ein Stand für beide (`lohnInaktiveVersteckt`, gemerkt unter `erp_lohnstammdaten_inaktive`, eigener Schlüssel neben dem der Mitarbeiterliste;
+  Vorgabe an). Nur Anzeige: `lohnDerListe()` filtert die geladenen Daten, beide Listen zeichnen neu ohne Anfrage (`renderPayroll()`, aus `loadPayroll()`
+  herausgelöst; `renderKonten()`). Das Kästchen trägt `data-nur-anzeige` -- `lohnregelnNurLesen()` sperrt es für Büro – Auftrag nicht. Inaktive Zeilen
+  `tr.inaktiv` grau. Die Lohnstammdaten nennen `active` (`app/time_backoffice.py::_payroll_dict()`, `EmployeePayrollSettingsOut`).
+- Übertrag (`app/lohnkonten.py`): `ERSTES_JAHR` = 2027, `uebertrag_quelle(jahr, modus)` -> „startwert“ (2027), „automatisch“ (ab 2028 unter der Vorgabe
+  „automatisch“), sonst „von_hand“. Jeder Anspruch trägt `uebertrag_quelle` und `uebertrag_doppelt` (ein Übertrag steht am Anspruch, gilt dort aber nicht);
+  `GET …/konten` nennt `erstes_jahr`. `anspruch_setzen()` lehnt einen Übertrag ab, wo er nicht von Hand gilt (422 „Für 2027 ist der Übertrag der Startwert
+  „Resturlaub“ – bitte dort eintragen.“ bzw. „Der Übertrag ist automatisch der Rest des Vorjahres …“); leeren (null) geht immer. Kein Lesen und kein
+  Speichern anderer Werte ändert einen gespeicherten Übertrag.
+- Seite: `kontenQuelle()` rechnet dieselbe Regel (der Test vergleicht beide); die Liste zeigt für 2027 „Übertrag n“ aus dem Startwert, „Übertrag doppelt –
+  prüfen“ oder „Übertrag automatisch“ (`kontenUebertragText()`). Im Dialog ist das Feld „Übertrag“ nur bei „von Hand“ frei; 2027 zeigt es den Startwert mit
+  dem Hinweis „2027: der Startwert „Resturlaub“ (unten) – hier nur angezeigt.“; „Anspruch speichern“ sendet den Übertrag nur bei „von Hand“. Ein doppelter
+  Übertrag: Hinweis mit dem gespeicherten Wert und „Diesen Übertrag entfernen“ (`PUT …/anspruch/{Jahr}` mit `uebertrag: null`, Bereich `konten`).
+- „geprüft“: `kontenStartwertFuellen()` setzt den Haken nach `geprueft_am` und merkt den Stand der Werte (`kontenStartwertWerte()`: Resturlaub und Saldo über
+  `zahlVorschau()`, Herkunft, Bemerkung). Jede Eingabe in den Feldern des Startwerts ruft `kontenStartwertGeaendert()`: war er geprüft und weicht ein Wert ab,
+  geht der Haken heraus und „Wert geändert – neu prüfen“ erscheint (bleibt bis zum nächsten Füllen, auch wenn zurückgetippt). Gesendet: angehakt und (vorher
+  nicht geprüft oder geändert) -> `geprueft: true`; abgehakt, vorher geprüft -> `false`; sonst nichts -- der Server entscheidet wie bisher. Vor dem Senden ruft
+  das Speichern `kontenStartwertGeaendert()` noch einmal (ein Wert ohne Eingabe-Ereignis nimmt den Haken so auch heraus).
+- 412 px: Zellen der Konten `td.nw` (`white-space:nowrap`, die Tabelle rollt in ihrem Rahmen); die erste Spalte zieht die Trennlinie zwischen den Personen selbst
+  (`box-shadow: inset 0 -1px 0`, nicht unter der letzten Zeile) -- ihr deckender Hintergrund verdeckte die Linie der Tabelle.
+
+#### Festlegungen 1.9.312 (Bitte bestätigen)
+
+1. „Inaktive ausblenden“ über den Lohnstammdaten und über „Urlaub und Startwerte“: ein Stand für beide, Vorgabe an, im Browser gemerkt (eigener Schlüssel), mit
+   „n inaktiv“; nur Anzeige, bedienbar auch ohne Recht zum Ändern; inaktive gezeigt grau.
+2. Für 2027 ist der Übertrag der Startwert „Resturlaub“: kein zweites Feld, der Dialog zeigt ihn nur an, die Liste nennt ihn, am Anspruch 2027 abgelehnt (422);
+   leeren geht immer. Ersetzt 1.9.310 Nr. 2 für 2027.
+3. Ab 2028 nach der Vorgabe: „von Hand“ das Feld am Anspruch, „automatisch“ der Rest des Vorjahres (das Feld gesperrt, am Anspruch abgelehnt; gerechnet mit dem
+   Urlaubskonto, Punkt 3).
+4. Ein Übertrag am Anspruch, wo er nicht gilt, bleibt stehen: „Übertrag doppelt – prüfen“ in Liste und Dialog, entfernt nur mit „Diesen Übertrag entfernen“;
+   kein Lesen und kein Speichern anderer Werte ändert ihn.
+5. Der Haken „geprüft“ zeigt den Stand; ein geänderter Wert nimmt ihn sichtbar heraus („Wert geändert – neu prüfen“, auch zurückgetippt bis zum Neuladen);
+   gesendet wird „geprüft“ nur, wenn sich etwas tut -- vor dem Senden noch einmal verglichen.
+6. 412 px: die Werte der Konten ohne Umbruch (die Tabelle rollt in ihrem Rahmen), die erste Spalte mit der Trennlinie zwischen den Personen.
+7. Server und Seite rechnen die Quelle des Übertrags mit derselben Regel.
+
+#### Tests und Prüfung 1.9.312
+
+Neu: `tests/test_v712_konten_korrektur.py` (Quelle je Jahr, 2027 abgelehnt und leeren erlaubt, „automatisch“ abgelehnt, doppelt bleibt bis „entfernen“, „active“
+der Lohnstammdaten; in node: die Seite rechnet wie der Server, Text der Liste, Inaktive ausblenden, der Haken „geprüft“ und was gesendet wird; Aufbau der Seite).
+`klicktest_konten.py` erweitert: Ute (inaktiv) und ein Übertrag 2027 aus dem Bestand bei Kai; Inaktive ausblenden in beiden Listen und nach dem Neuladen; Übertrag
+2027 aus dem Startwert; „doppelt“ und „entfernen“; der Haken mit echtem Tippen (`Input.insertText`); bei 412 px eine Zeile und die Trennlinie; Bilder der Listen
+mit und ohne „Inaktive ausblenden“ und des Dialogs (1440 und 412 px, hell und dunkel), dazu „doppelt“ und „neu prüfen“.
+Angepasste Erwartungen:
+- `tests/test_v710_urlaub_und_startwerte.py::test_anspruch_je_jahr` -- alt: Übertrag -1,5 am Anspruch 2027 gespeichert, Antwort ohne Quelle; neu: 2027 mit 422
+  abgelehnt, der Übertrag von Hand am Anspruch 2028, jede Antwort mit `uebertrag_quelle` und `uebertrag_doppelt`.
+- `tests/test_v710_urlaub_und_startwerte.py::test_seite_block_und_dialog` -- alt: „geprüft“ geht mit, wenn angehakt; neu: nur, wenn sich etwas tut (Text der
+  neuen Zeile).
+- `klicktest_konten.py` -- alt: Kai „30 Tage (Vorgabe)“, Mia „24 Tage · Übertrag -1,5“ (Übertrag im Dialog eingetragen), „Saldo geändert ohne geprüft“ mit
+  leerem Haken; neu: Kai „30 Tage (Vorgabe) · Übertrag doppelt – prüfen“ (Bestand), Mia „24 Tage · Übertrag 4,5“ (aus dem Startwert), der Haken steht nach
+  dem Speichern und geht beim Ändern heraus; Jahr 2028 mit freiem Feld.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.312“.

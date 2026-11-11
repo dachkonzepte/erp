@@ -4024,6 +4024,8 @@ class UrlaubsanspruchOut(BaseModel):
     uebertrag: Decimal | None = None
     verfall_am: date | None = None
     notiz: str | None = None
+    uebertrag_quelle: str = "von_hand"  # seit 1.9.312: startwert | von_hand | automatisch (app/lohnkonten.py::uebertrag_quelle())
+    uebertrag_doppelt: bool = False  # seit 1.9.312: ein Übertrag am Anspruch, wo er nicht gilt -- „Übertrag doppelt – prüfen“
 
 
 class StartwertOut(BaseModel):
@@ -4050,6 +4052,7 @@ class KontenOut(BaseModel):
     (Admin und Büro – Finanzen alle, sonst nur die eigene)."""
     vorgaben: KontenVorgabenOut
     stichtag: date
+    erstes_jahr: int  # seit 1.9.312: das erste Jahr der Konten (2027) -- sein Übertrag ist der Startwert
     jahr: int
     darf_aendern: bool
     startwert_gesperrt: bool
@@ -4367,6 +4370,7 @@ class DocumentCategoryUpdate(BaseModel):
 class EmployeePayrollSettingsOut(BaseModel):
     employee_id: int
     employee_name: str
+    active: bool = True  # seit 1.9.312 (L2b, Punkt 0): „Inaktive ausblenden“ über den Lohnstammdaten
     employee_number: str | None = None
     datev_personnel_number: str | None = None
     payroll_export_enabled: bool = True

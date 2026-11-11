@@ -88,13 +88,18 @@ def test_anspruch_je_jahr(w):
     leer = _person(c.get(K).json(), ada)
     assert (leer["ansprueche"], leer["startwert"]) == ([], None)
     assert db.query(Urlaubsanspruch).count() == 0  # ein Lesepfad legt nichts an (Regel 23)
-    p = c.put(f"{K}/{ada.id}/anspruch/2027", json={"uebertrag": -1.5, "notiz": "Teilzeit 4 Tage"}).json()
-    assert p["ansprueche"] == [{"jahr": 2027, "urlaubstage": None, "urlaubstage_wirksam": "30.0", "vorgabe": True, "uebertrag": "-1.5",
-                                "verfall_am": None, "notiz": "Teilzeit 4 Tage"}]
-    p = c.put(f"{K}/{ada.id}/anspruch/2027", json={"urlaubstage": 24, "verfall_am": "2027-03-31"}).json()  # Teil-Update: Übertrag und Notiz bleiben
-    assert p["ansprueche"][0] | {} == {"jahr": 2027, "urlaubstage": "24.0", "urlaubstage_wirksam": "24.0", "vorgabe": False, "uebertrag": "-1.5",
-                                       "verfall_am": "2027-03-31", "notiz": "Teilzeit 4 Tage"}
-    c.put(f"{K}/{ada.id}/anspruch/2028", json={"urlaubstage": 30.5})
+    # seit 1.9.312: der Übertrag 2027 ist der Startwert „Resturlaub“ -- am Anspruch 2027 abgelehnt; von Hand ab 2028 (Vorgabe „von Hand“)
+    r = c.put(f"{K}/{ada.id}/anspruch/2027", json={"uebertrag": -1.5, "notiz": "Teilzeit 4 Tage"})
+    assert (r.status_code, r.json()["detail"]) == (422, "Für 2027 ist der Übertrag der Startwert „Resturlaub“ – bitte dort eintragen.")
+    p = c.put(f"{K}/{ada.id}/anspruch/2027", json={"notiz": "Teilzeit 4 Tage"}).json()
+    assert p["ansprueche"] == [{"jahr": 2027, "urlaubstage": None, "urlaubstage_wirksam": "30.0", "vorgabe": True, "uebertrag": None,
+                                "verfall_am": None, "notiz": "Teilzeit 4 Tage", "uebertrag_quelle": "startwert", "uebertrag_doppelt": False}]
+    p = c.put(f"{K}/{ada.id}/anspruch/2027", json={"urlaubstage": 24, "verfall_am": "2027-03-31"}).json()  # Teil-Update: die Notiz bleibt
+    assert p["ansprueche"][0] | {} == {"jahr": 2027, "urlaubstage": "24.0", "urlaubstage_wirksam": "24.0", "vorgabe": False, "uebertrag": None,
+                                       "verfall_am": "2027-03-31", "notiz": "Teilzeit 4 Tage", "uebertrag_quelle": "startwert", "uebertrag_doppelt": False}
+    p = c.put(f"{K}/{ada.id}/anspruch/2028", json={"urlaubstage": 30.5, "uebertrag": -1.5}).json()
+    assert p["ansprueche"][1] == {"jahr": 2028, "urlaubstage": "30.5", "urlaubstage_wirksam": "30.5", "vorgabe": False, "uebertrag": "-1.5",
+                                  "verfall_am": None, "notiz": None, "uebertrag_quelle": "von_hand", "uebertrag_doppelt": False}
     assert [a["jahr"] for a in _person(c.get(K).json(), ada)["ansprueche"]] == [2027, 2028]
     for jahr, body, status, meldung in ((2027, {"urlaubstage": 24.25}, 422, "in halben Tagen"), (2027, {"urlaubstage": -1}, 422, "zwischen 0"),
                                         (2027, {"verfall_am": "2028-03-31"}, 422, "im Jahr des Anspruchs (2027)"), (2101, {"urlaubstage": 1}, 422, "2100"),
@@ -249,7 +254,7 @@ def test_seite_block_und_dialog():
     assert '<div class="block" id="kontenBlock">' in text and '<dialog id="kontenDialog" class="modal">' in text
     assert text.index('id="payrollRollen"') < text.index('id="kontenBlock"')  # unter den Lohnstammdaten
     assert "ladeKonten().catch(" in text and "aktion('konten-oeffnen',el=>kontenOeffnen(Number(el.dataset.mitarbeiter)));" in text
-    # „geprüft“ geht nur mit, wenn angehakt -- sonst entscheidet der Server (ein geänderter Wert verliert die Prüfung)
-    assert "if(document.getElementById('kdGeprueft').checked)werte.geprueft=true;" in text
+    # „geprüft“ geht nur mit, wenn sich etwas tut (seit 1.9.312, test_v712) -- sonst entscheidet der Server (ein geänderter Wert verliert die Prüfung)
+    assert "if(haken&&(!kdGeprueftVorher||geaendert))werte.geprueft=true;else if(!haken&&kdGeprueftVorher)werte.geprueft=false;" in text
     # ändern nur, wer darf; den Startwert nicht, wenn er für das Konto gesperrt ist
     assert "const darf=!!konten.darf_aendern,zu=!darf||konten.startwert_gesperrt;" in text

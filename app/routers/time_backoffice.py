@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_im_abschluss_aendern, darf_konten_aller, darf_lohnregeln, require_lohndaten,
                            require_lohnregeln, require_min_role, require_personalnummer_freigeben)
-from ..lohnkonten import (STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
+from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
                           vorgaben_setzen)
 from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
 from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
@@ -90,7 +90,7 @@ def _konten_personen(user) -> list[int] | None:
 
 @router.get("/api/time-backoffice/konten", response_model=KontenOut)
 def get_konten(db: Session = Depends(get_db, scope="function"), _role=_role_dep):
-    return {"vorgaben": vorgaben(db), "stichtag": STICHTAG, "jahr": standardjahr(), "darf_aendern": darf_lohnregeln(_role),
+    return {"vorgaben": vorgaben(db), "stichtag": STICHTAG, "erstes_jahr": ERSTES_JAHR, "jahr": standardjahr(), "darf_aendern": darf_lohnregeln(_role),
             "startwert_gesperrt": startwert_gesperrt(db) and not darf_im_abschluss_aendern(_role), "personen": konten(db, _konten_personen(_role))}
 
 

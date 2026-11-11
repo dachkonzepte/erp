@@ -5,6 +5,9 @@ Nur die Daten und ihre Pflege; gerechnet wird mit ihnen erst im Urlaubskonto (L2
     Vorgaben    in den Zeitregeln (TimeTrackingSettings): Urlaubsanspruch je Jahr in Tagen (halbe erlaubt) -- gilt für jede Person ohne eigenen Wert im
                 Jahr; Übertrag ins Folgejahr („von_hand“ | „automatisch“) und sein Verfall („TT.MM.“ im Folgejahr, leer = kein Verfall). Übertrag und Verfall
                 wirken erst mit dem Urlaubskonto; bis Frage 2 des Befunds beantwortet ist, sind sie nur vorgemerkt.
+    Übertrag    seit 1.9.312 (L2b, Punkt 0): im ersten Jahr (2027) der Startwert „Resturlaub“, kein zweites Feld; ab 2028 nach der Vorgabe -- „von_hand“
+                das Feld am Anspruch, „automatisch“ der Rest des Vorjahres (uebertrag_quelle()). Ein Übertrag am Anspruch, wo er nicht gilt, wird nie still
+                gelöscht: „Übertrag doppelt – prüfen“, entfernt nur von Hand (null).
     Anspruch    je Person und Jahr (Urlaubsanspruch): Urlaubstage (leer = die Vorgabe), Übertrag aus dem Vorjahr (leer = nicht von Hand), Verfallsdatum des
                 Übertrags (leer = die Vorgabe), Notiz. So passen die offenen Antworten zu Frage 1 (Anspruch, Teilzeit, anteilig im Eintrittsjahr) und
                 Frage 2 (Übertrag, Verfall) ohne neue Migration: ein Wert je Person und Jahr von Hand, eine allgemeine Regel später im Code.
@@ -31,6 +34,7 @@ from .models import Employee, LohnStartwert, TimeTrackingSettings, Urlaubsanspru
 from .rounding import round_half_up
 
 STICHTAG = date(2026, 12, 31)  # Antwort 12: Stand nach dem Tag, die Konten beginnen am 01.01.2027
+ERSTES_JAHR = STICHTAG.year + 1  # seit 1.9.312: das erste Jahr der Konten (2027)
 UEBERTRAG = ("von_hand", "automatisch")
 HERKUNFT = ("steuerbuero", "time4", "sonstiges")
 HERKUNFT_TEXT = {"steuerbuero": "Steuerbüro", "time4": "Time 4", "sonstiges": "Sonstiges"}
@@ -136,10 +140,25 @@ def startwert_gesperrt(db: Session) -> bool:
     return bis is not None and bis >= grenze
 
 
-def _anspruch_dict(row: Urlaubsanspruch, vorgabe: Decimal) -> dict:
+def uebertrag_quelle(jahr: int, modus: str) -> str:
+    """Seit 1.9.312 (Lohn L2b, Punkt 0): woher der Übertrag eines Jahres kommt -- im ersten Jahr der Konten (2027) aus dem Startwert „Resturlaub“
+    („startwert“, kein zweites Feld), ab dem Jahr danach nach der Vorgabe „Übertrag ins Folgejahr“: „von_hand“ das Feld am Anspruch, „automatisch“ der
+    Rest des Vorjahres (Urlaubskonto). Vor 2027 gibt es kein Konto (von Hand, ohne Wirkung). Dieselbe Regel steht in settings.html (kontenQuelle())."""
+    if jahr == ERSTES_JAHR:
+        return "startwert"
+    if jahr > ERSTES_JAHR and modus == "automatisch":
+        return "automatisch"
+    return "von_hand"
+
+
+def _anspruch_dict(row: Urlaubsanspruch, vorgabe: Decimal, modus: str) -> dict:
+    quelle = uebertrag_quelle(row.jahr, modus)
     return {"jahr": row.jahr, "urlaubstage": row.urlaubstage, "urlaubstage_wirksam": row.urlaubstage if row.urlaubstage is not None else vorgabe,
             "vorgabe": row.urlaubstage is None,
-            "uebertrag": row.uebertrag, "verfall_am": row.verfall_am, "notiz": row.notiz}
+            "uebertrag": row.uebertrag, "verfall_am": row.verfall_am, "notiz": row.notiz,
+            # seit 1.9.312: steht ein Übertrag am Anspruch, wo er nicht gilt (2027: der Startwert; „automatisch“), wird er nicht still gelöscht --
+            # die Seite zeigt „Übertrag doppelt – prüfen“, entfernen geht nur von Hand
+            "uebertrag_quelle": quelle, "uebertrag_doppelt": row.uebertrag is not None and quelle != "von_hand"}
 
 
 def _startwert_dict(row: LohnStartwert | None) -> dict | None:
@@ -152,7 +171,8 @@ def _startwert_dict(row: LohnStartwert | None) -> dict | None:
 
 def konten(db: Session, employee_ids=None) -> list[dict]:
     """Je Person (employee_ids: nur diese; sonst alle, aktive zuerst) ihre Ansprüche aller Jahre und ihr Startwert -- drei Abfragen."""
-    vorgabe = _einstellungen(db).urlaub_vorgabe_tage
+    einstellungen = _einstellungen(db)
+    vorgabe, modus = einstellungen.urlaub_vorgabe_tage, einstellungen.urlaub_uebertrag
     abfrage = select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
     if employee_ids is not None:
         abfrage = abfrage.where(Employee.id.in_(list(employee_ids) or [0]))
@@ -160,7 +180,7 @@ def konten(db: Session, employee_ids=None) -> list[dict]:
     ids = [e.id for e in personen] or [0]
     ansprueche: dict[int, list] = {}
     for a in db.scalars(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id.in_(ids)).order_by(Urlaubsanspruch.jahr)):
-        ansprueche.setdefault(a.employee_id, []).append(_anspruch_dict(a, vorgabe))
+        ansprueche.setdefault(a.employee_id, []).append(_anspruch_dict(a, vorgabe, modus))
     startwerte = {s.employee_id: s for s in db.scalars(select(LohnStartwert).where(LohnStartwert.employee_id.in_(ids)))}
     return [{"employee_id": e.id, "employee_name": f"{e.first_name} {e.last_name}".strip(), "active": bool(e.active),
              "ansprueche": ansprueche.get(e.id, []), "startwert": _startwert_dict(startwerte.get(e.id))} for e in personen]
@@ -186,6 +206,12 @@ def anspruch_setzen(db: Session, employee_id: int, jahr: int, werte: dict) -> di
         neu["urlaubstage"] = halbe_tage(werte["urlaubstage"], "Urlaubstage", Decimal("0"))
     if "uebertrag" in werte:
         neu["uebertrag"] = halbe_tage(werte["uebertrag"], "Übertrag", -TAGE_MAX)
+        # seit 1.9.312: ein Übertrag von Hand nur, wo er gilt -- leeren (null) geht immer (so wird ein doppelter entfernt)
+        quelle = uebertrag_quelle(jahr, _einstellungen(db).urlaub_uebertrag)
+        if neu["uebertrag"] is not None and quelle == "startwert":
+            raise ValueError(f"Für {jahr} ist der Übertrag der Startwert „Resturlaub“ – bitte dort eintragen.")
+        if neu["uebertrag"] is not None and quelle == "automatisch":
+            raise ValueError("Der Übertrag ist automatisch der Rest des Vorjahres (Einstellung „Übertrag ins Folgejahr“).")
     if "verfall_am" in werte:
         neu["verfall_am"] = werte["verfall_am"]
         if neu["verfall_am"] is not None and neu["verfall_am"].year != jahr:

@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.312 – Lohn L2b: Urlaub und Startwerte -- Inaktive ausblenden, Übertrag 2027 aus dem Startwert, „geprüft“ zeigt den Stand
+
+Erster Punkt von Lohn L2b, Korrektur aus L2a. Über den Lohnstammdaten und über „Urlaub und Startwerte der Konten“ steht jetzt „Inaktive ausblenden“ wie in der Mitarbeiterliste (Vorgabe an, im Browser gemerkt, ein Stand für beide Listen, mit der Zahl der inaktiven); ausgeblendet ist nur die Anzeige, das Kästchen bleibt auch ohne Recht zum Ändern bedienbar. Inaktive stehen gezeigt grau da. Die Lohnstammdaten nennen dafür „active“.
+
+Der Übertrag ins erste Jahr der Konten (2027) ist der Startwert „Resturlaub“ -- es gibt kein zweites Feld dafür: der Dialog zeigt ihn für 2027 nur an, die Liste nennt „Übertrag n“ aus dem Startwert, und ein Übertrag am Anspruch 2027 wird abgelehnt (bis 1.9.311 ließ er sich dort zusätzlich eintragen). Ab 2028 gilt die Vorgabe: „von Hand“ das Feld, „automatisch“ der Rest des Vorjahres (gerechnet mit dem Urlaubskonto). Steht schon ein Übertrag dort, wo er nicht gilt, wird er nicht still gelöscht: Liste und Dialog zeigen „Übertrag doppelt – prüfen“, entfernt wird er nur mit „Diesen Übertrag entfernen“. Server und Seite rechnen die Quelle mit derselben Regel (`app/lohnkonten.py::uebertrag_quelle()`, `kontenQuelle()`).
+
+Der Haken „geprüft“ am Startwert zeigt jetzt den Stand (bis 1.9.311 war er immer leer). Ändert sich ein Wert, geht er sichtbar heraus: „Wert geändert – neu prüfen“. Gesendet wird „geprüft“ nur, wenn sich etwas tut (neu angehakt, nach einer Änderung wieder angehakt oder abgehakt). Bei 412 px bricht „28,5 Tage (Vorgabe)“ nicht mehr auf drei Zeilen um, und die erste Spalte zeigt die Trennlinie zwischen den Personen.
+
+Neu `tests/test_v712_konten_korrektur.py`; `tests/test_v710_urlaub_und_startwerte.py` und `scripts/klicktest_konten.py` an die neue Regel angepasst. Keine Migration.
+
 ## 1.9.311 – Lohn L2a: „Monat & Lohn“ mit allen, die Sollzeit haben
 
 Vierter Punkt von Lohn L2a (Antwort 14 des Befunds L2). „Zeiten → Monat & Lohn“ zeigt jetzt jede Person, die im Monat Sollzeit hat -- auch wer den ganzen Monat Urlaub hat, krank ist oder gar nichts eingetragen hat, mit 0 Tagen und 0,00 h. Bis 1.9.310 stand dort nur, wer im Monat gebucht oder einen Ausfalltag Schlechtwetter hatte (Befund 7.3), obwohl die Lohndatei die anderen mit U oder K führte. Wer im Monat keine Sollzeit hat (vor dem Eintritt, nach dem Austritt) und wer inaktiv ist und im Monat nichts hat, fehlt weiter; die Personen und ihre Sollzeit kommen aus der Tagesbilanz (1.9.308). Die Summen ändern sich nicht. Spalten für Soll und Stand folgen mit dem Arbeitszeitkonto (L2c).

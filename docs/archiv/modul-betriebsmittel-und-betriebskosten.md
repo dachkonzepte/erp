@@ -1814,7 +1814,7 @@ dazu bricht in der Liste die Nummer nicht um -- 1.9.307. Danach Lohn L2a (Archiv
   Server nicht (inzwischen hängt etwas daran: er deaktiviert, wie bisher), sagt die Seite „Inzwischen hängt etwas an dem Gerät -- es bleibt deaktiviert.“
 - Bei ausgeschaltetem Modul (Liste „Fuhrpark & Maschinen“) ändert sich nichts.
 
-#### Festlegungen 1.9.305 (Bitte bestätigen)
+#### Festlegungen 1.9.305 (bestätigt am 11.11.2026)
 
 1. Die Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ bietet auf der Seite des Geräts und beim Anlegen jedes freie Gerät an, auch ein inaktives, mit „(inaktiv)“.
 2. Verknüpft gilt der Status des Betriebsmittels für beides: ein aktives Betriebsmittel macht den Rest wieder aktiv.
@@ -1846,7 +1846,7 @@ nach der Rückfrage. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.305“
   'Gerätetypen · Fuhrpark & Maschinen'` -- eine andere Bezeichnung bleibt (in den Einstellungen nicht änderbar, nur der Vollständigkeit halber); `downgrade()`
   zurück, nur wo genau „Gerätetypen“ steht. Ein Bestand von vor 1.9.301 geht über beide Migrationen. Daten, kein Schema; `update.sh` probt sie gegen `spielwiese`.
 
-#### Festlegungen 1.9.306 (Bitte bestätigen)
+#### Festlegungen 1.9.306 (bestätigt am 11.11.2026)
 
 1. Die Auswahlliste heißt nur „Gerätetypen“ -- in einer neuen Installation wie im Bestand.
 2. Die Migration stellt nur genau „Gerätetypen · Fuhrpark & Maschinen“ um, eine andere Bezeichnung bleibt; `downgrade()` stellt genau „Gerätetypen“ zurück.
@@ -1865,7 +1865,7 @@ Bezeichnung steht nur in den Einstellungen, aus der Datenbank. Gegenproben: Arch
 - `master_data.html`: die Spalte „Nr.“ der Betriebsmittel mit `.nw` (`white-space:nowrap`, wie „40 h/Woche“ seit 1.9.289). Bei 412 px rollt die Tabelle
   in ihrem Rahmen (seit 1.9.275), die Seite läuft nicht über.
 
-#### Festlegungen 1.9.307 (Bitte bestätigen)
+#### Festlegungen 1.9.307 (bestätigt am 11.11.2026)
 
 1. Im Anlegen stehen Art, Datei und „+ Vormerken“ unter 900 px untereinander, Auswahl und Dateifeld so breit wie die Karte; breiter in einer Zeile wie bisher.
 2. In der Liste der Betriebsmittel bricht die Nummer nicht um.
