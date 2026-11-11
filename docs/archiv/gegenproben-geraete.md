@@ -202,3 +202,27 @@ hat keine Daten, an denen Felder, Doppelte oder die Grenze sichtbar würden.
 | Nr. 6 – nur dieses Formular | keine eigene: belegt durch v704::test_beschriftung_oben_zwei_spalten_nur_im_anlegen (die Regel `.field` mit 170 px bleibt, `felder-oben` nur im Anlegen) und die unveränderten Klicktests der übrigen Stammdaten | -- |
 
 12 Gegenproben (6 gegen Tests, 6 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben.
+
+# L2a, Vorweg (ab 1.9.305)
+
+Drei Versionen zu den Fragen der Nachrunde, dann Lohn L2a (Gegenproben dort: `gegenproben-lohn-l2a.md`). Ablauf wie oben.
+
+## 1.9.305 (Frage 1): Rest wieder verknüpfen, Rest ohne alles löschen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Seite des Geräts: jedes freie Gerät, auch ein inaktives | wieder nur aktive (`305_1a`, `305_1b`) | 1 rot: v705::test_seite_des_geraets_bietet_den_rest_an; Klicktest: „Kran: die Auswahl bietet den Rest an“ und die Prüfungen danach |
+| Nr. 1 – … mit „(inaktiv)“ | ohne „(inaktiv)“ in der Beschriftung (`305_2a`) | 1 rot: v705::test_seite_des_geraets_bietet_den_rest_an |
+| Nr. 1 – beim Anlegen ebenso | in der Auswahl wieder nur aktive (`305_3a`, `305_3b`); die Auswahl nur bei einem aktiven freien Gerät (`305_3c`, `305_3d`) | je 1 rot: v705::test_anlegen_bietet_den_rest_an; Klicktest: „+ Hinzufügen: der Rest des Krans in der Auswahl“ (bei `305_3b` auch „Rüttler: Haken, Auswahl mit „(inaktiv)““) |
+| Nr. 2 – verknüpft gilt der Status des Betriebsmittels für beides | ohne den Status an beiden Stellen (`305_10a`, eine Gegenprobe an zwei Stellen) | 1 rot: v696::test_ein_status_fuer_beides_und_kurzname |
+| Nr. 3 – „Löschen“ nur ohne Postfach | das Postfach nicht geprüft (`305_4a`) | 2 rot: v705::test_loeschbar_nur_ohne_alles, test_dieselben_tabellen_wie_in_gebrauch_und_das_betriebsmittel |
+| Nr. 3 – … ohne Einsatz (auch vergangen), Kolonne, AV, Termin | ohne die Tabelle der Einsätze (`305_5a`, `305_5b`) | 2 rot: v705::test_loeschbar_nur_ohne_alles, test_dieselben_tabellen_wie_in_gebrauch_und_das_betriebsmittel; Klicktest: „Inaktive ohne Haken: „Löschen“ nur am Rüttler“ und „Liste ohne Haken …: „Löschen“ nur an der Hebebühne“ (6 Bilder) |
+| Nr. 3 – … ohne Betriebsmittel | ohne die Tabelle der Betriebsmittel (`305_6a`) | 2 rot: dieselben |
+| Nr. 3 – „Löschen“ steht an einer Zeile „nur Plantafel“ | kein „Löschen“ (`305_7a`, `305_7b`) | 1 rot: v705::test_liste_loeschen_nur_wenn_loeschbar; Klicktest: alle Prüfungen von „Löschen“ |
+| Nr. 4 – erst nach Rückfrage mit dem Namen | ohne Rückfrage (`305_8a`, `305_8b`) | 2 rot: v705::test_liste_loeschen_nur_wenn_loeschbar, test_loeschen_fragt_und_sendet_genau_das_geraet; Klicktest: „Löschen: Rückfrage, danach ist die Hebebühne weg“ |
+| Nr. 5 – die Liste: eine Abfrage je Tabelle, nicht je Gerät | löschbar je Gerät abgefragt (`305_9a`) | 1 rot: v705::test_eine_abfrage_je_tabelle_nicht_je_geraet |
+
+17 Gegenproben (11 gegen Tests, 6 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Ohne eigene Gegenprobe: Nr. 4,
+zweiter Teil (deaktiviert statt gelöscht, die Seite sagt es) -- das Deaktivieren ist das Verhalten von `DELETE /api/resources/{id}` seit 1.9.299 (im
+Test `test_loeschbar_nur_ohne_alles` mit geprüft); die Meldung der Seite braucht eine Belegung zwischen dem Laden der Liste und dem Klick und ist nur im
+Quelltext geprüft (`test_liste_loeschen_nur_wenn_loeschbar`).

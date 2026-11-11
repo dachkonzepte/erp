@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalAsset, OperationalResource, OutlookSeriesOccurrence, PlanningSlotResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
-from ..operational_assets import ressource_in_gebrauch
+from ..operational_assets import loeschbare_ressourcen, ressource_in_gebrauch
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
@@ -30,10 +30,16 @@ def _supplier_dict(x: Supplier):
     )}
 
 
-def _resource_dict(x: OperationalResource):
-    return {k: getattr(x, k) for k in (
+def _resource_dict(x: OperationalResource, loeschbar: bool = False):
+    d = {k: getattr(x, k) for k in (
         "id","resource_number","resource_type","name","manufacturer","model","identifier","notes","active","kurzname"
     )}
+    d["loeschbar"] = loeschbar  # seit 1.9.305: nichts hängt daran (app/operational_assets.py::loeschbare_ressourcen())
+    return d
+
+
+def _resource_out(db: Session, x: OperationalResource):
+    return OperationalResourceOut.model_validate(_resource_dict(x, x.id in loeschbare_ressourcen(db, [x.id])))
 
 
 def _team_dict(db: Session, team: Team):
@@ -142,14 +148,15 @@ def delete_supplier(supplier_id:int,db:Session=Depends(get_db, scope="function")
 
 @router.get("/api/resources", response_model=list[OperationalResourceOut])
 def list_resources(db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    return [OperationalResourceOut.model_validate(_resource_dict(x)) for x in db.scalars(select(OperationalResource).order_by(OperationalResource.resource_type,OperationalResource.name)).all()]
+    frei=loeschbare_ressourcen(db)  # seit 1.9.305: eine Abfrage je Tabelle für die ganze Liste
+    return [OperationalResourceOut.model_validate(_resource_dict(x,x.id in frei)) for x in db.scalars(select(OperationalResource).order_by(OperationalResource.resource_type,OperationalResource.name)).all()]
 
 
 @router.get("/api/resources/{resource_id}", response_model=OperationalResourceOut)
 def get_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Gerät nicht gefunden.")
-    return OperationalResourceOut.model_validate(_resource_dict(x))
+    return _resource_out(db,x)
 
 
 @router.post("/api/resources", response_model=OperationalResourceOut)
@@ -158,7 +165,7 @@ def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db,
         raise HTTPException(status_code=409,detail="Gerätenummer ist bereits vergeben.")
     werte=payload.model_dump(); werte["kurzname"]=(werte.get("kurzname") or "").strip() or None  # seit 1.9.280: leer = der Name
     x=OperationalResource(**werte); db.add(x); db.commit(); db.refresh(x)
-    return OperationalResourceOut.model_validate(_resource_dict(x))
+    return _resource_out(db,x)
 
 
 @router.put("/api/resources/{resource_id}", response_model=OperationalResourceOut)
@@ -171,7 +178,7 @@ def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session
         if other: raise HTTPException(status_code=409,detail="Gerätenummer ist bereits vergeben.")
     if "kurzname" in werte: werte["kurzname"]=(werte["kurzname"] or "").strip() or None
     for k,v in werte.items(): setattr(x,k,v)
-    db.commit(); db.refresh(x); return OperationalResourceOut.model_validate(_resource_dict(x))
+    db.commit(); db.refresh(x); return _resource_out(db,x)
 
 
 @router.delete("/api/resources/{resource_id}")

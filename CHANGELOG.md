@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.305 – Plantafel-Gerät: Rest wieder verknüpfen, Rest ohne alles löschen
+
+Vorweg zu Lohn L2a, Frage 1 der Nachrunde der Geräte-Runde. Die Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ -- auf der Seite eines Geräts und in „Betriebsmittel anlegen“ -- bietet jetzt jedes freie Plantafel-Gerät an, auch ein inaktives, mit „(inaktiv)“. So kommt der Rest, der beim Entfernen des Hakens an einem noch eingeplanten Gerät bleibt, wieder an sein Betriebsmittel; gespeichert gilt der Status des Betriebsmittels für beides (ein aktives macht den Rest wieder aktiv). Bis 1.9.304 standen dort nur aktive.
+
+In der Liste der Betriebsmittel steht an einer Zeile „nur Plantafel“ jetzt „Löschen“, wenn nichts mehr an dem Gerät hängt: kein Betriebsmittel, kein Postfach, keine Kolonne, keine Arbeitsvorbereitung, kein Einsatz (auch kein vergangener), kein Termin. Nach der Rückfrage mit dem Namen löscht der Server das Gerät; hängt bis dahin doch etwas daran, deaktiviert er es nur, und die Seite sagt das. Dafür sagt jede Antwort mit einem Plantafel-Gerät `loeschbar` (`app/operational_assets.py::loeschbare_ressourcen()`, eine Abfrage je Tabelle für die ganze Liste).
+
+Neu `tests/test_v705_wieder_verknuepfen_und_loeschen.py`; `klicktest_geraete.py` hängt den Rest des Krans wieder an den Kran und löscht die Hebebühne. Keine Migration.
+
 ## 1.9.304 – Betriebsmittel anlegen wie die Seite des Geräts
 
 „Betriebsmittel anlegen“ (Stammdaten -> Betriebsmittel, „+ Hinzufügen“ und „Betriebsmittel anlegen“ an einem Gerät „nur Plantafel“) sieht jetzt aus wie die Seite des Geräts: die Beschriftung steht über dem Feld, zwei Spalten (unter 900 px eine), dieselben Felder in derselben Reihenfolge und mit denselben Namen, darunter der Abschnitt „Plantafel“ mit Überschrift und Linie, dann die Dokumente. Dazu kommen ins Anlegen „Im Einsatzbericht auswählbar“ (Vorgabe Nein) und „Bedienungshinweise“, gespeichert mit dem Gerät -- bis 1.9.303 gab es beide nur auf der Seite des Geräts, und das Anlegen war links beschriftet wie die übrigen Stammdaten. Die übrigen Formulare der Stammdaten bleiben, wie sie sind.

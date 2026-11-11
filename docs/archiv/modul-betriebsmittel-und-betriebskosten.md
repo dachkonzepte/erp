@@ -1791,3 +1791,49 @@ des Anlegens gleich; bei 1440, 1280 und 412 px jede Beschriftung über ihrem Fel
 seiner Beschriftung; „+ Hinzufügen“ speichert
 „Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ (die Prüfung „+ Hinzufügen: neues planbares Gerät“ nennt die beiden Werte jetzt mit). Gegenproben:
 Archiv `gegenproben-geraete.md`, „1.9.304“.
+
+## L2a, Vorweg (ab 1.9.305)
+
+Bestätigt am 11.11.2026: die Festlegungen 1.9.300–1.9.304 und die zum Testablauf. Zu den Fragen der Nachrunde: Frage 1 ja (ein inaktives freies Gerät lässt sich
+verknüpfen, mit „(inaktiv)“; ein Rest ohne alles daran lässt sich löschen) -- 1.9.305; Frage 2 nur „Gerätetypen“ -- 1.9.306; Fragen 3 und 4 bleiben; Frage 5 ja,
+dazu bricht in der Liste die Nummer nicht um -- 1.9.307. Danach Lohn L2a (Archiv `zeiterfassung-und-abwesenheit.md`, „Lohn L2a“).
+
+### Umsetzung 1.9.305 (Frage 1): Rest wieder verknüpfen, Rest ohne alles löschen
+
+- Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ auf der Seite des Geräts (`operational_asset.html`: `freieGeraete()`, `verknuepfenOptionsHtml()`) und in
+  „Betriebsmittel anlegen“ (`master_data_form.html`: `assetVerknuepfenOptionen()`, `frei`): jedes Gerät ohne Betriebsmittel, auch ein inaktives -- die
+  Beschriftung trägt dann „(inaktiv)“ (über `auswahlOptionen()` mit der ganzen Liste, Regel 22). Der Server nahm ein inaktives schon an
+  (`app/operational_assets.py::geraet_speichern()`): verknüpft gilt der Status des Betriebsmittels für beides -- an der Seite des Geräts der Status oben, beim
+  Anlegen der des gewählten Geräts (seit 1.9.302).
+- „löschbar“: `app/operational_assets.py::loeschbare_ressourcen()` -- ohne Postfach und ohne Zeile in einer der Tabellen von `ressource_in_gebrauch()`
+  (Kolonne, AV, Einsatz, Termin, Serientermin) und ohne Betriebsmittel; eine Abfrage je Tabelle für alle Geräte. Jede Antwort mit einem Plantafel-Gerät
+  (`GET /api/resources`, `GET/PUT /api/resources/{id}`, `POST /api/resources`) trägt `loeschbar` (`OperationalResourceOut`).
+- Liste der Betriebsmittel (`master_data.html`): an einer Zeile „nur Plantafel“ mit `loeschbar` unter „Betriebsmittel anlegen“ der Link „Löschen“
+  (`data-klick="geraetLoeschen"`, Regel 32; die Seite bindet dafür `_aktionen.html` ein). Rückfrage „Plantafel-Gerät „<Name>“ löschen? An ihm hängt nichts
+  mehr.“, dann `DELETE /api/resources/{id}` über `speichern()` (Regel 29) und die Liste neu (`geraeteNeuLaden()`, nur Geräte und Betriebsmittel). Löscht der
+  Server nicht (inzwischen hängt etwas daran: er deaktiviert, wie bisher), sagt die Seite „Inzwischen hängt etwas an dem Gerät -- es bleibt deaktiviert.“
+- Bei ausgeschaltetem Modul (Liste „Fuhrpark & Maschinen“) ändert sich nichts.
+
+#### Festlegungen 1.9.305 (Bitte bestätigen)
+
+1. Die Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ bietet auf der Seite des Geräts und beim Anlegen jedes freie Gerät an, auch ein inaktives, mit „(inaktiv)“.
+2. Verknüpft gilt der Status des Betriebsmittels für beides: ein aktives Betriebsmittel macht den Rest wieder aktiv.
+3. „Löschen“ steht nur an einer Zeile „nur Plantafel“, an der nichts hängt: kein Betriebsmittel, kein Postfach, keine Kolonne, AV, kein Einsatz (auch kein
+   vergangener), kein Termin.
+4. Löschen erst nach Rückfrage mit dem Namen; hängt bis dahin doch etwas daran, deaktiviert der Server das Gerät nur, und die Seite sagt das.
+5. Jede Antwort mit einem Plantafel-Gerät sagt `loeschbar`; die Liste rechnet es mit einer Abfrage je Tabelle, nicht je Gerät.
+
+#### Tests und Prüfung 1.9.305
+
+Neu: `tests/test_v705_wieder_verknuepfen_und_loeschen.py` (löschbar je Fall, Abfragen unabhängig von der Zahl der Geräte, dieselben Tabellen wie
+`ressource_in_gebrauch()`, die Auswahl beider Seiten in node, „Löschen“ mit Rückfrage in node). Angepasste Erwartungen:
+- `tests/test_v697_ein_formular.py::test_ohne_haken_kein_abschnitt_und_haken_setzen` -- alt: ein inaktives freies Gerät zählt nicht (keine Auswahl); neu: nur ein
+  vergebenes zählt nicht.
+- `tests/test_v702_betriebsmittel_inaktive.py::test_anlegen_nimmt_auch_ein_inaktives_freies_geraet` -- alt: `aktiv:x=>x.active&&!x.taken`; neu: „(inaktiv)“ in der
+  Beschriftung, `aktiv:x=>!x.taken`.
+- `klicktest_geraete.py` „+ Hinzufügen: ohne freies Gerät keine Auswahl, kein Abschnitt“ -- alt: Auswahl versteckt; neu: „+ Hinzufügen: der Rest des Krans in der
+  Auswahl („(inaktiv)“), kein Abschnitt“, Auswahl sichtbar mit „Kran · Autokran (inaktiv)“.
+- `klicktest_geraete.py`, Aufbau: die Liste liest in der letzten Spalte den ersten Link statt des Texts der ganzen Zelle (dort steht jetzt auch „Löschen“); die
+  erwarteten Werte bleiben.
+Neu im Klicktest: „Löschen“ nur am Rüttler bzw. an der Hebebühne (nie am eingeplanten Kran), der Rest des Krans wieder am Kran (aktiv), die Hebebühne gelöscht
+nach der Rückfrage. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.305“.

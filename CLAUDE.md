@@ -779,7 +779,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
     „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`; der Runde Stufe 6, R4: `docs/archiv/gegenproben-stufe6-r4.md`; der Runde Stufe 6, R4b: `docs/archiv/gegenproben-stufe6-r4b.md`; der Runde Stufe 6, R5a: `docs/archiv/gegenproben-stufe6-r5a.md`; der Runde Stufe 6, R5b und ihrer Nachrunde (ab 1.9.272): `docs/archiv/gegenproben-stufe6-r5b.md`; der Runde Stufe 6, R5c (ab 1.9.276):
-  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Geräte-Runde (ab 1.9.293, Nachrunde ab 1.9.300): `docs/archiv/gegenproben-geraete.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
+  `docs/archiv/gegenproben-stufe6-r5c.md`; der Runde Stufe 6, R5d (ab 1.9.283): `docs/archiv/gegenproben-stufe6-r5d.md`; der Runde Stufe 6, R5e (ab 1.9.290): `docs/archiv/gegenproben-stufe6-r5e.md`; der Geräte-Runde (ab 1.9.293, Nachrunde ab 1.9.300, Vorweg von L2a ab 1.9.305): `docs/archiv/gegenproben-geraete.md`; der Versionen 1.9.271, 1.9.274 und 1.9.275: `docs/archiv/stammdaten-und-sidebar.md`, „Inaktive Mitarbeiter ausblenden (1.9.271)“ und
   „Untertitel und Breite der Stammdaten (1.9.274–1.9.275)“.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
@@ -1419,7 +1419,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Mitarbeitern (eigener Schlüssel `erp_betriebsmittel_inaktive`), ohne Haken ein inaktives Gerät ohne Betriebsmittel als „nur Plantafel · inaktiv“, das Anlegen mit ihm
   übernimmt seinen Status (`tests/test_v702_betriebsmittel_inaktive.py`); seit 1.9.303 findet die Suche auch „nur Plantafel“ (Gruppe „Betriebsmittel“, Ziel „Betriebsmittel
   anlegen“, `tests/test_v703_suche_nur_plantafel.py`); seit 1.9.304 sieht „Betriebsmittel anlegen“ aus wie die Seite des Geräts (Beschriftung über dem Feld, dieselbe
-  Reihenfolge, „Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ auch beim Anlegen; `tests/test_v704_anlegen_wie_geraeteseite.py`)) --
+  Reihenfolge, „Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ auch beim Anlegen; `tests/test_v704_anlegen_wie_geraeteseite.py`); seit 1.9.305 bietet
+  „Vorhandenes Plantafel-Gerät verknüpfen“ auch inaktive freie Geräte an („(inaktiv)“), „Löschen“ an einem Rest „nur Plantafel“, an dem nichts hängt (`loeschbar`,
+  `app/operational_assets.py::loeschbare_ressourcen()`, `tests/test_v705_wieder_verknuepfen_und_loeschen.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder

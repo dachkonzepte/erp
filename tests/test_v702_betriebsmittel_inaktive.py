@@ -130,5 +130,6 @@ def test_anlegen_nimmt_auch_ein_inaktives_freies_geraet():
     assert "const vorgabeGeraet=vorgabe?assetResources.find(x=>x.id===vorgabe&&!x.taken)||null:null;if(vorgabeGeraet){el('assetVerknuepfenWrap').hidden=false;" in form
     # der Status des gewählten Geräts -- ein inaktives wird nicht still wieder aktiv
     assert "if(r)auswahlWert(el('assetActiveSelect'),r.active?'1':'0')}" in form
-    # in der Auswahl als „(inaktiv)“ (auswahlOptionen kennzeichnet einen gewählten, nicht neu angebotenen Eintrag)
-    assert "{leer:'— neues Plantafel-Gerät —',aktiv:x=>x.active&&!x.taken}" in form
+    # in der Auswahl als „(inaktiv)“ -- seit 1.9.305 in der Beschriftung, angeboten wird jedes freie (bis 1.9.304 kennzeichnete auswahlOptionen den gewählten,
+    # nicht neu angebotenen Eintrag: aktiv:x=>x.active&&!x.taken)
+    assert "x=>x.resource_type+' · '+x.name+(x.active?'':' (inaktiv)'),{leer:'— neues Plantafel-Gerät —',aktiv:x=>!x.taken}" in form

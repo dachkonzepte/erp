@@ -3,7 +3,7 @@
     Haken       „Auf der Plantafel einplanbar“ unter den Stammdaten; das Wort „Ressource“ steht auf der Seite nirgends (nur in Code-Kommentaren)
     oben        Bezeichnung, Typ, Hersteller, Modell, Kennzeichen immer -- mit Haken die des Plantafel-Geräts; mit Haken ist der Typ Pflicht
     Plantafel   mit Haken ein Abschnitt mit Kurzname und Postfach (nur lesen); der Link in die Einstellungen nur für den Admin
-    Auswahl     „Vorhandenes Plantafel-Gerät verknüpfen“ nur, wenn es ein freies gibt (aktiv, ohne Betriebsmittel) und das Gerät noch keins hat
+    Auswahl     „Vorhandenes Plantafel-Gerät verknüpfen“ nur, wenn es ein freies gibt (ohne Betriebsmittel; bis 1.9.304 nur aktive) und das Gerät noch keins hat
 Im Browser: scripts/klicktest_geraete.py (speichern, verknüpfen, Rückfrage beim Entfernen, Büro – Auftrag, Bilder).
 """
 
@@ -44,8 +44,9 @@ def test_ohne_haken_kein_abschnitt_und_haken_setzen():
     assert _zustand(OHNE, [FREI], True) == [False, True, True, True, "Leiter", "", "— (keins)", False]
     # Haken setzen: Abschnitt, Typ als Pflicht, Auswahl (es gibt ein freies Plantafel-Gerät)
     assert _zustand(OHNE, [FREI], True, "_element('editEinplanbar').checked = true; plantafelZeigen();")[:4] == [True, False, False, False]
-    # ohne freies keine Auswahl; ein vergebenes oder inaktives zählt nicht
-    ohne_freies = [{**FREI, "taken": True}, {**FREI, "id": 10, "active": False}]
+    # ohne freies keine Auswahl; ein vergebenes zählt nicht -- ein inaktives seit 1.9.305 schon (mit „(inaktiv)“, tests/test_v705_wieder_verknuepfen_und_loeschen.py;
+    # bis 1.9.304 stand hier auch ein inaktives als „zählt nicht“)
+    ohne_freies = [{**FREI, "taken": True}]
     assert _zustand(OHNE, ohne_freies, True, "_element('editEinplanbar').checked = true; plantafelZeigen();")[3] is True
 
 

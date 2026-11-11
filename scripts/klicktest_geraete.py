@@ -25,6 +25,9 @@ Plantafel-Gerät ohne Betriebsmittel: Anhänger Humbaur (nur über Umwege mögli
                 Rüttler: verknüpft, „(inaktiv)“ in der Auswahl, Status Inaktiv -> gespeichert bleiben Gerät und Plantafel-Gerät inaktiv
     Suche       (seit 1.9.303) die Seite „Suche“ findet zu „Autokran“ das Betriebsmittel und den Rest des Krans als „nur Plantafel · inaktiv“; der Klick
                 führt ins Anlegen mit dem Gerät (Haken, verknüpft, Status Inaktiv)
+    Rest        (seit 1.9.305) die Auswahl beim Anlegen und auf der Seite des Geräts bietet auch den inaktiven Rest des Krans an („(inaktiv)“); am Kran
+                verknüpft -> wieder auf der Plantafel, aktiv wie der Kran. „Löschen“ steht nur an einem Rest, an dem nichts hängt (der Rüttler, die
+                Hebebühne -- nicht der eingeplante Kran); nach der Rückfrage ist die Hebebühne weg
     Bilder      Gerät mit und ohne Haken, neues planbares Gerät anlegen (vor dem Speichern), Liste mit und ohne Haken bei „Inaktive ausblenden“ -- bei 1440,
                 1280 und 412 px, hell und dunkel; bei 412 px läuft nichts über
 
@@ -56,8 +59,12 @@ KAESTCHEN = "[document.getElementById('bmInaktiveAusblenden').checked,document.g
 GRAU = ("(()=>{const grau=getComputedStyle(document.getElementById('bmInaktivZahl')).color;const z=[...document.querySelectorAll('#content tbody tr')];"
         "return z.filter(r=>r.classList.contains('inaktiv')).every(r=>getComputedStyle(r.cells[2].querySelector('b')).color===grau)"
         "&&z.filter(r=>!r.classList.contains('inaktiv')).every(r=>getComputedStyle(r.cells[2].querySelector('b')).color!==grau)})()")
+# seit 1.9.305 der erste Link der letzten Spalte (dort steht an einem Rest ohne alles auch „Löschen“), bis 1.9.304 der Text der ganzen Zelle
 LISTE = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>r.cells.length>2).map(r=>[r.cells[2].querySelector('b').textContent,"
-         "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].textContent.trim()])")
+         "[...r.cells[2].querySelectorAll('.pill')].map(p=>p.textContent).join(' '),r.cells[r.cells.length-1].querySelector('a')?.textContent||''])")
+# seit 1.9.305: die Zeilen mit „Löschen“
+LOESCHEN = ("[...document.querySelectorAll('#content tbody tr')].filter(r=>[...r.querySelectorAll('a[data-klick=\"geraetLoeschen\"]')]"
+            ".some(a=>a.textContent==='Löschen')).map(r=>r.cells[2].querySelector('b').textContent).sort()")
 GERAETESEITE = "/^\\/betriebsmittel\\/\\d+$/.test(location.pathname)&&" + BEREIT
 # seit 1.9.304: die Beschriftungen der Angaben -- „Betriebsmittel anlegen“ (erster Block) und die Seite des Geräts (Karte „Stammdaten“)
 BESCHRIFTUNGEN_ANLEGEN = "[...document.querySelectorAll('#form > .felder-oben:first-child > .field')].map(f=>f.querySelector('label').innerText.trim())"
@@ -254,9 +261,11 @@ async def pruefen(tab, seed, p):
              [["Bezeichnung *", "Typ", "Hersteller", "Modell", "Kennzeichen / Seriennummer", "Betriebsmittelnummer (optional)", "Status",
                "Im Einsatzbericht auswählbar", "Notizen", "Bedienungshinweise (für Monteure sichtbar, z. B. Kurzanleitung, Sicherheitshinweise)",
                "Auf der Plantafel einplanbar"]] * 2)
-    p.pruefe("+ Hinzufügen: ohne freies Gerät keine Auswahl, kein Abschnitt", await tab.js(
-        "[document.getElementById('assetVerknuepfenWrap').hidden,document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden]"),
-             [True, True, True])
+    # seit 1.9.305 steht der inaktive Rest des Krans in der Auswahl -- bis 1.9.304 war hier „ohne freies Gerät keine Auswahl“ ([True, True, True])
+    p.pruefe("+ Hinzufügen: der Rest des Krans in der Auswahl („(inaktiv)“), kein Abschnitt", await tab.js(
+        "[document.getElementById('assetVerknuepfenWrap').hidden,document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden,"
+        "[...document.getElementById('assetVerknuepfen').options].map(o=>o.textContent)]"),
+             [False, True, True, ["— neues Plantafel-Gerät —", "Kran · Autokran (inaktiv)"]])
     await neues_geraet(tab)
     p.pruefe("+ Hinzufügen mit Haken: Abschnitt, Typ als Pflicht", await tab.js(
         "[document.getElementById('assetPlantafel').hidden,document.getElementById('assetTypPflicht').hidden]"), [False, False])
@@ -283,6 +292,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Inaktive ohne Haken: Kompressor, die Reste als „nur Plantafel · inaktiv“", sorted(z for z in await tab.js(LISTE) if z[0] in inaktiv),
              [["Autokran", "", "Öffnen"], ["Autokran", "nur Plantafel · inaktiv", "Betriebsmittel anlegen"], ["Kompressor alt", "", "Öffnen"],
               ["Rüttler alt", "nur Plantafel · inaktiv", "Betriebsmittel anlegen"]])
+    p.pruefe("Inaktive ohne Haken: „Löschen“ nur am Rüttler (am Kran hängt der Einsatz)", await tab.js(LOESCHEN), ["Rüttler alt"])  # seit 1.9.305
     p.pruefe("Inaktive ohne Haken: grau, Zahl und Untertitel unverändert", [await tab.js(GRAU), await tab.js(KAESTCHEN),
                                                                          await tab.js("document.getElementById('seitenkopfUntertitel').textContent")],
              [True, [False, "3 inaktiv"], "8 inventarisierte Betriebsmittel"])
@@ -382,9 +392,37 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"Liste ohne Haken {breite} {name}: Kompressor und Kran grau, „nur Plantafel · inaktiv“",
                      [await tab.js(KAESTCHEN), await tab.js(GRAU), [z[1:] for z in await tab.js(LISTE) if z[0] == "Autokran" and z[1]]],
                      [[False, "3 inaktiv"], True, [["nur Plantafel · inaktiv", "Betriebsmittel anlegen"]]])
+            p.pruefe(f"Liste ohne Haken {breite} {name}: „Löschen“ nur an der Hebebühne", await tab.js(LOESCHEN), ["Hebebühne JLG"])  # seit 1.9.305
             if breite == 412:
                 p.pruefe(f"Liste ohne Haken 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild_ganz(f"liste_ohne_haken_{breite}_{name}")
+
+    # --- seit 1.9.305 (Frage 1 der Nachrunde): den Rest des Krans wieder an den Kran; „Löschen“ der Hebebühne
+    await tab.fenster(1440, 1000, mobil=False)
+    n += 1
+    await laden(tab, p, seed["k"], n, "Kran wieder verknüpfen")
+    await tab.js("document.getElementById('editEinplanbar').click()")
+    p.pruefe("Kran: die Auswahl bietet den Rest an („(inaktiv)“)", await tab.js(
+        "[document.getElementById('verknuepfenWrap').hidden,[...document.getElementById('editVerknuepfen').options].map(o=>o.textContent)]"),
+             [False, ["— neues Plantafel-Gerät —", "Kran · Autokran (inaktiv)", "Maschine · Hebebühne JLG"]])
+    await tab.js(setzen("editVerknuepfen", str(seed["rk"])))
+    await speichern(tab, p, "Kran wieder verknüpft")
+    kran = await api(tab, f"/api/operational-assets/{seed['k']}")
+    p.pruefe("Kran: wieder auf der Plantafel, der Rest aktiv wie der Kran", [kran["einplanbar"], kran["resource_id"], kran["active"],
+                                                                           (await api(tab, f"/api/resources/{seed['rk']}"))["active"]], [True, seed["rk"], True, True])
+    n += 1
+    p.pruefe("Löschen: Liste geladen", await tab.oeffnen(f"/master-data?n={n}#assets", LISTE_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Löschen: nur an der Hebebühne, der Kran ist keine Zeile „nur Plantafel“ mehr",
+             [await tab.js(LOESCHEN), [z for z in await tab.js(LISTE) if z[1].startswith("nur Plantafel")]],
+             [["Hebebühne JLG"], [["Hebebühne JLG", "nur Plantafel", "Betriebsmittel anlegen"]]])
+    await tab.js("window.__fragen=[];window.confirm=m=>{window.__fragen.push(String(m));return true}")
+    await tab.js("[...document.querySelectorAll('a[data-klick=\"geraetLoeschen\"]')].find(a=>a.dataset.name==='Hebebühne JLG').click()")
+    p.pruefe("Löschen: Rückfrage, danach ist die Hebebühne weg", [await tab.warten(
+        "![...document.querySelectorAll('#content tbody b')].some(b=>b.textContent==='Hebebühne JLG')", 10), await tab.js("window.__fragen")],
+             [True, ["Plantafel-Gerät „Hebebühne JLG“ löschen? An ihm hängt nichts mehr."]])
+    await tab.warte_auf_ruhe()
+    p.pruefe("Löschen: gelöscht, nicht nur deaktiviert", [g["name"] for g in await api(tab, "/api/resources") if g["name"] == "Hebebühne JLG"], [])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

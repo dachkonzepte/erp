@@ -3108,6 +3108,8 @@ class OperationalResourceUpdate(PartialUpdate):
 class OperationalResourceOut(OperationalResourceCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    # seit 1.9.305: nichts hängt am Gerät (kein Betriebsmittel, keine Kolonne, AV, kein Einsatz, Termin, Postfach) -- die Liste bietet dann „Löschen“ an
+    loeschbar: bool = False
 
 
 class TeamEmployeeInput(BaseModel):

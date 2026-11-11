@@ -196,9 +196,11 @@ let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecu
 
 // Seit 1.9.297 (Geräte-Runde, Punkt 2): ein freies Plantafel-Gerät (ohne Betriebsmittel, nur über Umwege möglich) lässt sich verknüpfen, solange dieses
 // Gerät noch keins hat -- nur dann erscheint die Auswahl (bis 1.9.296 wählte der Haken immer eine vorhandene Ressource, ein neues Gerät ließ sich nicht anlegen).
-function freieGeraete(){return resources.filter(r=>r.active&&!r.taken&&r.id!==asset.resource_id)}
+// Seit 1.9.305 (Frage 1 der Nachrunde) auch ein inaktives freies Gerät, mit „(inaktiv)“ -- so kommt der Rest vom Entfernen des Hakens wieder an sein
+// Betriebsmittel; gespeichert gilt der Status oben für beides (Antwort 3 der Geräte-Runde). Bis 1.9.304 nur aktive.
+function freieGeraete(){return resources.filter(r=>!r.taken&&r.id!==asset.resource_id)}
 function verknuepfenOptionsHtml(){
-  return auswahlOptionen(resources,null,r=>r.resource_type+' · '+r.name,{leer:'— neues Plantafel-Gerät —',aktiv:r=>r.active&&!r.taken&&r.id!==asset.resource_id});
+  return auswahlOptionen(resources,null,r=>r.resource_type+' · '+r.name+(r.active?'':' (inaktiv)'),{leer:'— neues Plantafel-Gerät —',aktiv:r=>!r.taken&&r.id!==asset.resource_id});
 }
 // Seit 1.9.12 über auswahlOptionen() (_auswahl.html): ein gespeicherter Typ außerhalb der Auswahlliste (z. B. „Leiter“) bleibt vorgewählt
 // als „… (nicht mehr verfügbar)“, ein abgeschalteter als „… (inaktiv)“ -- bis 1.9.11 stand der erste Eintrag da, und Speichern schrieb ihn.

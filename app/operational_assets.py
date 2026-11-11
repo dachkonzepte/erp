@@ -355,6 +355,21 @@ def ressource_in_gebrauch(db: Session, resource_id: int) -> bool:
                for m in (TeamResource, WorkPreparationTeamResource, PlanningSlotResource, CalendarEvent, OutlookSeriesOccurrence))
 
 
+def loeschbare_ressourcen(db: Session, ids: list[int] | None = None) -> set[int]:
+    """Seit 1.9.305 (Frage 1 der Nachrunde): die Plantafel-Geräte, an denen nichts hängt -- kein Betriebsmittel, kein Postfach und nichts von dem, was
+    ressource_in_gebrauch() prüft (Kolonne, AV, Einsatz, Termin). Nur sie bekommen in der Liste der Betriebsmittel „Löschen“ (ein Rest „nur Plantafel“);
+    DELETE /api/resources/{id} löscht sie (bekommt eins bis dahin doch etwas, deaktiviert er es nur). Eine Abfrage je Tabelle, nicht je Gerät."""
+    abfrage = select(OperationalResource.id, OperationalResource.outlook_mailbox)
+    if ids is not None:
+        abfrage = abfrage.where(OperationalResource.id.in_(ids))
+    frei = {rid for rid, postfach in db.execute(abfrage) if not (postfach or "").strip()}
+    for m in (OperationalAsset, TeamResource, WorkPreparationTeamResource, PlanningSlotResource, CalendarEvent, OutlookSeriesOccurrence):
+        if not frei:
+            break
+        frei -= set(db.scalars(select(m.resource_id).where(m.resource_id.in_(frei)).distinct()))
+    return frei
+
+
 def kuenftige_einsaetze(db: Session, resource_id: int) -> list[dict]:
     """Seit 1.9.296: Einsätze, an denen das Gerät heute oder später steht (an seinen Tagen, 1.9.234) -- ohne abgeschlossene und stornierte Aufträge
     (die zählen auf der Tafel nicht, 1.9.151)."""
