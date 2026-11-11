@@ -2305,3 +2305,31 @@ hell und dunkel). Erweitert ohne angepasste Erwartung: `tests/test_v364_feste_we
 (fünf Zahlenfelder in `ABGLEICH`). Angepasste Erwartung: `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_router_fully_uses_shared_dependency`
 -- alt: 8 Endpunkte mit `_role_dep`, 12 mit `_regeln_dep`; neu: 9 und 15 (die vier neuen Endpunkte). Die Art heißt „Urlaubsanspruch je Jahr“, nicht
 „Urlaubsanspruch“: ein Name gleich dem Klassennamen gilt in `tests/test_v438_nachrunde.py` als technisch. Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.310“.
+
+### Umsetzung 1.9.311 (Punkt 4): „Monat & Lohn“ mit allen, die im Monat Sollzeit haben
+
+- `app/zeiten.py::monat()`: nach den Zeilen der Personen mit Buchungen und Ausfalltagen (wie bisher) eine Zeile je Person mit Sollzeit im Monat -- die Personen
+  der Tagesbilanz (`app/tagesbilanz.py::bilanz()`: aktiv oder mit Buchungen bzw. Abwesenheiten im Monat), davon jede mit mindestens einem Tag Sollzeit; 0 Tage,
+  0,00 h je Zeitart und „Zusammen“, „Ausfall Schlechtwetter“ leer. Wer vor dem Eintritt oder nach dem Austritt steht, hat keine Sollzeit und fehlt; eine
+  inaktive Person ohne Daten im Monat ist nicht in der Tagesbilanz und fehlt (eine inaktive ohne Austritt hätte sonst jeden Monat Sollzeit).
+- Die Seite (`zeiten.html`) bleibt unverändert: sie zeichnet jede Zeile, die der Server schickt; Summen und „Vor dem Abschluss“ ändern sich nicht.
+- Was die Zeile noch nicht zeigt (Soll, Saldo des Monats, Stand), kommt mit dem Arbeitszeitkonto (L2c).
+
+#### Festlegungen 1.9.311 (Bitte bestätigen)
+
+1. „Monat & Lohn“ zeigt jede Person mit Sollzeit im Monat -- auch wer nur abwesend ist oder gar nichts hat -- mit 0 Tagen und 0,00 h.
+2. Ohne Sollzeit im Monat (vor dem Eintritt, nach dem Austritt) keine Zeile; eine inaktive Person ohne Daten im Monat ebenso nicht (die Personen der Tagesbilanz).
+3. Personen mit Buchung oder Ausfalltag stehen wie bisher da; die Summen bleiben.
+
+#### Tests und Prüfung 1.9.311
+
+Neu: `tests/test_v711_monat_alle_mit_sollzeit.py` (wer bucht, wer nur Urlaub hat, wer nichts hat, Eintritt danach, Austritt davor, inaktiv ohne und mit Daten).
+`klicktest_konten.py`: November 2026 -- Mia mit Buchung, Kai nur Urlaub, Bea ohne alles, alle drei in der Tabelle; Bilder bei 1440 und 412 px, hell und dunkel.
+Angepasste Erwartungen (die neue Regel ersetzt „keine Zeile ohne Buchung“):
+- `tests/test_v517_zeiten_server.py::test_nur_laufende_zeit_ohne_zeile_im_monat` -- alt: Tom (nur eine laufende Zeit) ohne Zeile in „Monat & Lohn“; neu: Tom mit
+  0 Tagen und 0,00 h, weil er Sollzeit hat (die laufende Zeit zählt weiter nicht; rechts auf „Prüfen“ steht er weiter nicht).
+- `tests/test_v621_schlechtwetter_stunden.py::test_monat_und_lohn` -- alt: im November ohne Ausfalltage keine Zeile; neu: Mia und Tom mit 0 Tagen, 0,00 h und
+  ohne Ausfall.
+- `klicktest_zeiten.py` „Fin: Tabelle mit Personalnummer“ -- alt: Mia, Tom, Zusammen; neu: dazu Bea und Ole mit 0 Tagen und 0,00 h (Sollzeit im Monat, nichts
+  gebucht; Ole nur eine laufende Zeit).
+Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.311“.

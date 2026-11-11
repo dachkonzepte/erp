@@ -342,6 +342,7 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
 
 def monat(db: Session, erster: date) -> dict:
     """„Monat & Lohn“: Status und Abschluss, die Lücken der Zeiten (abschluss_hindernisse() bis zum Monatsende -- sperren das Abschließen),
+    seit 1.9.311 je Person mit Buchungen, Ausfalltagen oder Sollzeit im Monat eine Zeile (auch wer nur abwesend ist),
     was dem DATEV-Export fehlt (datev_fehlt() -- sperrt den Export, nicht den Abschluss), seit 1.9.225 was nicht in die Lohndatei geht (je Person
     mit Grund, app/lohndatei.py) und die Stunden je Mitarbeiter und Zeitart mit
     Personalnummer (je Zeitart minutengenau wie der Stundenzettel; seit 1.9.223 „Zusammen“ die Arbeit für den Lohn, je Tag auf 0,25 h)."""
@@ -390,15 +391,22 @@ def monat(db: Session, erster: date) -> dict:
                        "stunden": {k: stunden.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": zusammen,
                        "schlechtwetter": schlechtwetter.get(employee_id, ohne_sw)})
     gezeigt = {z["employee_id"] for z in zeilen}
-    for employee_id in [i for i in schlechtwetter if i not in gezeigt]:
-        emp = db.get(Employee, employee_id)
+    # seit 1.9.311 (Lohn L2a, Punkt 4; Antwort 14 des Befunds L2): auch jede Person mit Sollzeit im Monat -- wer den ganzen Monat Urlaub hat oder krank
+    # ist, fehlte bis 1.9.310 (Befund 7.3), stand aber in der Lohndatei. Die Personen wie die Tagesbilanz (aktiv oder mit Buchungen bzw. Abwesenheiten),
+    # die Sollzeit aus ihr (app/tagesbilanz.py, eine feste Zahl Abfragen); eine inaktive Person ohne Daten im Monat bleibt draußen.
+    from .tagesbilanz import bilanz
+    b = bilanz(db, erster, ende)
+    mit_soll = [e for e in b.personen if any(t.soll > 0 for t in b.tage[e.id].values())]
+    personen = {e.id: e for e in mit_soll}
+    for employee_id in [i for i in schlechtwetter if i not in gezeigt] + [e.id for e in mit_soll if e.id not in gezeigt and e.id not in schlechtwetter]:
+        emp = personen.get(employee_id) or db.get(Employee, employee_id)
         p = payroll.get(employee_id) or load_employee_payroll(db, employee_id)
         zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
                        "personalnummer_gueltig": emp is not None and personalnummer_gueltig(effective_datev_personnel_number(db, emp, p)),
                        "lohnexport": exportiert_arbeit(p), "tage": 0,
                        "stunden": {k: Decimal("0") for k, _ in SPALTEN + (("other", ""),)}, "zusammen": Decimal("0"),
-                       "schlechtwetter": schlechtwetter[employee_id]})
+                       "schlechtwetter": schlechtwetter.get(employee_id, ohne_sw)})
     zeilen.sort(key=lambda x: x["name"].casefold())
     spalten = [{"key": k, "label": label} for k, label in SPALTEN] + ([{"key": "other", "label": "Sonstige"}] if sonstige else [])
     from .absence_requests import list_requests

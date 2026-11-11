@@ -63,3 +63,15 @@ hält es fest).
 Gegenprobe nahm die eigene Prüfung auf den 29.02. weg -- den Tag lehnt aber schon das Jahr der Prüfung ab (2027, kein Schaltjahr). Die eigene Prüfung war
 doppelt; sie ist entfallen, die Stelle sagt jetzt, warum 2027, und die Gegenprobe prüft gegen ein Schaltjahr -- rot. Ohne eigene Gegenprobe: Nr. 3 Herkunft
 und Bemerkung (feste Liste im Code, im Test geprüft), Nr. 10 (Ort auf der Seite, im Klicktest und in `test_seite_block_und_dialog`).
+
+## 1.9.311 (Punkt 4): „Monat & Lohn“ mit allen, die Sollzeit haben
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jede Person mit Sollzeit, auch nur abwesend oder ohne alles | nur mit Ausfalltag wie bis 1.9.310 (`311_1a`, `311_1b`) | 2 rot: v711::test_alle_mit_sollzeit, test_ein_monat_ohne_sollzeit_fuer_alle; Klicktest: „Monat 1440/412 hell/dunkel: alle drei mit Sollzeit …“ (4 Prüfungen) |
+| Nr. 2 – ohne Sollzeit im Monat keine Zeile | auch ohne Sollzeit (`311_2a`) | 2 rot: v711::test_alle_mit_sollzeit, test_ein_monat_ohne_sollzeit_fuer_alle |
+| Nr. 2 – inaktiv ohne Daten keine Zeile | auch inaktive ohne Daten (`311_2b`) | 1 rot: v711::test_alle_mit_sollzeit |
+
+4 Gegenproben (3 gegen Tests, 1 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Nr. 3 (Personen mit Buchung oder
+Ausfalltag wie bisher, die Summen bleiben) prüfen die unveränderten Tests von „Monat & Lohn“ (test_v517, test_v621, test_v625) und v711 mit; eine eigene
+Gegenprobe gibt es nicht -- der Teil ist der Zustand bis 1.9.310.

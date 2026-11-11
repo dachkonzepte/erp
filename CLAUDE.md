@@ -384,7 +384,7 @@ Behoben, drei Teile:
   gemessen in `klicktest_tablet.py` (jede Seite der Monteurin, beide TerraPad-Fenster).
   Archiv: `docs/archiv/redesign.md`, „Stufe 4, R2“ und „R2 Nachrunde“.
 - **Stufe 4, R5b „Zeiten“ (Büro, seit 1.9.96):** `/zeiten` (`zeiten.html`, Daten nur aus `app/zeiten.py` über `GET /api/zeiten/pruefen`,
-  `/buchungen`, `/abwesenheiten`, `/monat`) mit den Reitern Prüfen · Buchungen · Abwesenheiten · Monat & Lohn (nur Admin und Büro – Finanzen,
+  `/buchungen`, `/abwesenheiten`, `/monat`) mit den Reitern Prüfen · Buchungen · Abwesenheiten · Monat & Lohn (seit 1.9.311 jede Person mit Sollzeit im Monat; nur Admin und Büro – Finanzen,
   `darf_lohndaten()`); Büro – Auftrag sieht Prüfen und Buchungen ohne Knöpfe. **Seit 1.9.98** ersetzt sie Zeiterfassung (Büro) und Backoffice: in
   der Leiste ein Eintrag „Zeiten“, `/time-tracking` und `/time-backoffice` leiten weiter (das Büro mit Filter und Reiter, die Monteurin auf „Meine
   Zeiten“), die Anker der früheren Reiter öffnen die neuen; jede Funktion der alten Seiten steht in `FUNKTIONEN`

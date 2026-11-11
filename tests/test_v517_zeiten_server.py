@@ -318,14 +318,16 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
 
 
 def test_nur_laufende_zeit_ohne_zeile_im_monat(welt):  # noqa: F811
-    """Angriff: Tom hat im Monat nur eine laufende Zeit -- er steht weder rechts auf „Prüfen“ noch in „Stunden je Mitarbeiter“ (keine Zeile
-    „0 Tage, 0,00“, gefunden im Klicktest 1.9.96). Gegenprobe: Mia mit gebuchter Zeit steht in beiden."""
+    """Angriff: Tom hat im Monat nur eine laufende Zeit -- er steht nicht rechts auf „Prüfen“, und die laufende Zeit zählt in „Stunden je
+    Mitarbeiter“ nicht (gefunden im Klicktest 1.9.96). Gegenprobe: Mia mit gebuchter Zeit steht in beiden. Seit 1.9.311 (Lohn L2a, Punkt 4) steht Tom
+    in „Monat & Lohn“ trotzdem -- er hat Sollzeit im Monat --, mit 0 Tagen und 0,00 h (bis 1.9.310 hier: keine Zeile)."""
     tag = welt["gestern"]
     _abschluss(welt, tag.replace(day=1) - timedelta(days=1))
     _zeit(welt, welt["mia"], time(7), time(9), tag)
     start_timer(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, started_at=datetime.combine(tag, time(7)))
     assert [x["name"] for x in _get(welt, "/api/zeiten/pruefen")["monat"]["mitarbeiter"]] == ["Mia Monteurin"]
-    assert [z["name"] for z in _get(welt, "/api/zeiten/monat", monat=_monat(tag))["zeilen"]] == ["Mia Monteurin"]
+    zeilen = {z["name"]: (z["tage"], z["zusammen"]) for z in _get(welt, "/api/zeiten/monat", monat=_monat(tag))["zeilen"]}
+    assert set(zeilen) == {"Mia Monteurin", "Tom Monteur"} and zeilen["Tom Monteur"] == (0, 0) and zeilen["Mia Monteurin"][0] == 1
 
 
 @pytest.mark.parametrize("rolle, zahl", [("buero_auftrag", 0), ("buero_finanzen", 2), ("admin", 2)])

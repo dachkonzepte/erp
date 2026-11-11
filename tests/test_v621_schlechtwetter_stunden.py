@@ -110,7 +110,8 @@ def test_monat_und_lohn(welt):
     assert d["summe"]["schlechtwetter"] == {"tage": 2, "stunden": D("13.50")}
     assert d["summe"]["zusammen"] == D("3.50")
     ohne = monat(db, date(2026, 11, 1))
-    assert ohne["schlechtwetter"] is False and ohne["zeilen"] == []
+    # seit 1.9.311 (Lohn L2a, Punkt 4) stehen beide da -- sie haben im November Sollzeit --, ohne Stunden und ohne Ausfall (bis 1.9.310: keine Zeile)
+    assert ohne["schlechtwetter"] is False and [(z["tage"], z["zusammen"], z["schlechtwetter"]["tage"]) for z in ohne["zeilen"]] == [(0, D("0"), 0)] * 2
 
 
 def test_listen_unter_zeiten(welt):

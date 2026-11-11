@@ -11,6 +11,8 @@ Stehende Uhr Mi 11.11.2026 10:00. Mia (gewerblich), Kai (gewerblich), Bea (kaufm
     Bilder           der Block und der Dialog bei 1440 und 412 px, hell und dunkel; bei 412 px läuft die Seite nicht über
     Büro – Auftrag   Bea sieht nur ihre eigene Zeile, „Ansehen“ statt „Ändern“, die Vorgaben gesperrt ohne Knopf; im Dialog alles gesperrt, keine Knöpfe zum
                      Speichern; derselbe PUT vom Server 403
+    Monat & Lohn     (seit 1.9.311) November 2026: Mia mit Buchung, Kai den ganzen Monat im Urlaub, Bea ohne alles -- alle drei mit Sollzeit stehen in der
+                     Tabelle, Kai und Bea mit 0,00 (bis 1.9.310 fehlten sie); Bilder bei 1440 und 412 px, hell und dunkel; bei 412 px läuft nichts über
     Januar zu        Fin schließt bis 31.01.2027 ab: im Dialog der Hinweis „… ändert jetzt nur ein Administrator.“, der Startwert gesperrt, der Anspruch
                      weiter änderbar
     überall          keine JS-Fehler
@@ -32,10 +34,19 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 BEREIT = "typeof konten!=='undefined'&&!!konten&&document.querySelectorAll('#kontenZeilen tr[data-konto]').length>0"
 ZEILEN = ("[...document.querySelectorAll('#kontenZeilen tr[data-konto]')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()))")
 DIALOG_BEREIT = "document.getElementById('kontenDialog').open"
+# seit 1.9.311: „Monat & Lohn“ -- je Zeile Name, Tage und „Zusammen“ (die Spalte über den Kopf; „Ausfall Schlechtwetter“ gibt es nur mit Ausfalltagen)
+MONAT_BEREIT = "!!window.P&&!!document.querySelector('#lohnZeilen tr')"
+MONAT_ZEILEN = ("(()=>{const k=[...document.querySelectorAll('#lohnKopf th')].map(t=>t.textContent.trim()).indexOf('Zusammen');"
+                "return [...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[tr.cells[0].innerText.trim(),tr.cells[2].innerText.trim(),"
+                "tr.cells[k].innerText.trim()])})()")
 
 
 def befuellen(db, k):
-    from app.models import AppUser, Employee
+    from datetime import date, datetime, time
+    from decimal import Decimal
+
+    from app.models import AppUser, Customer, Employee, EmployeeAbsence, Order, Project, TimeEntry
+    from app.project_pipeline_columns import default_pipeline_column_id
 
     mia = Employee(employee_number="M-1", first_name="Mia", last_name="Monteurin", employee_group="gewerblich", active=True)
     kai = Employee(employee_number="M-2", first_name="Kai", last_name="Kolonne", employee_group="gewerblich", active=True)
@@ -45,6 +56,21 @@ def befuellen(db, k):
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", employee_id=bea_ma.id, password_hash=k.passwort())
     db.add_all([fin, bea])
+    # seit 1.9.311: im November bucht Mia einen Tag, Kai hat den ganzen Monat Urlaub, Bea nichts
+    kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
+    db.add(kunde)
+    db.flush()
+    projekt = Project(project_number="P-KT-KO1", name="Halle", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
+    db.add(projekt)
+    db.flush()
+    auftrag = Order(order_number="AUF-2026-0311", project_id=projekt.id, source_quote_id=311, quote_number_snapshot="A-KT-311", title="Halle",
+                    customer_name=kunde.name)
+    db.add(auftrag)
+    db.flush()
+    tag = date(2026, 11, 3)
+    db.add(TimeEntry(employee_id=mia.id, project_id=projekt.id, order_id=auftrag.id, work_date=tag, entry_type="site", hours=Decimal("7.5"),
+                     break_minutes=30, status="booked", started_at=datetime.combine(tag, time(7)), ended_at=datetime.combine(tag, time(15))))
+    db.add(EmployeeAbsence(employee_id=kai.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 11, 2), end_date=date(2026, 11, 30)))
     db.commit()
     return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": mia.id, "bea_ma": bea_ma.id}
 
@@ -161,6 +187,25 @@ async def pruefen(tab, seed, p):
         f"fetch('/api/time-backoffice/konten/{seed['bea_ma']}/startwert',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
         "body:JSON.stringify({resturlaub_tage:5})}).then(r=>r.status)"), 403)
     p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])
+
+    # ---- seit 1.9.311: „Monat & Lohn“ mit allen, die im Monat Sollzeit haben ---------------------------------------------------------------
+    await tab.anmelden(seed["fin"])
+    n = 30
+    for breite, mobil in ((1440, False), (412, True)):
+        await tab.fenster(breite, 1000, mobil=mobil)
+        for thema, name in (("light", "hell"), ("dark", "dunkel")):
+            await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+            n += 1
+            p.pruefe(f"Monat {breite} {name}: Zeiten geladen", await tab.oeffnen(f"/zeiten?n={n}#monat", MONAT_BEREIT), True)
+            await tab.warte_auf_ruhe()
+            p.pruefe(f"Monat {breite} {name}: alle drei mit Sollzeit, Kai nur Urlaub, Bea ohne alles", await tab.js(MONAT_ZEILEN),
+                     [["Bea Büro", "0", "0,00"], ["Kai Kolonne", "0", "0,00"], ["Mia Monteurin", "1", "7,50"], ["Zusammen", "", "7,50"]])
+            if mobil:
+                p.pruefe(f"Monat 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.bild_ganz(f"monat_und_lohn_nur_urlaub_{breite}_{name}")
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    p.pruefe("Monat: keine JS-Fehler", tab.fehler, [])
 
     # ---- Januar abgeschlossen ----------------------------------------------------------------------------------------------------------
     await tab.anmelden(seed["fin"])

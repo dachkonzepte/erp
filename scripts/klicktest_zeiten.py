@@ -606,9 +606,12 @@ async def pruefen(tab, seed, p):
         "(()=>{const l=document.getElementById('lohnNicht').getBoundingClientRect(),k=document.getElementById('lohnDatevGesperrt').getBoundingClientRect();"
         "return [document.getElementById('lohnNichtListe').innerText.trim(),l.bottom<=k.top+1,k.top-l.bottom<24]})()"),
         ["Nichts – alles aus dem Monat geht in die Datei.", True, True])
+    # seit 1.9.311 (Lohn L2a, Punkt 4) auch Bea und Ole: beide haben im Monat Sollzeit, aber nichts gebucht (Ole nur eine laufende Zeit) -- bis 1.9.310
+    # standen nur Mia und Tom da
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
-        ["Mia Monteurin | 1001 nicht 5 Ziffern | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 01002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
+        ["Bea Büro | fehlt | 0 | 0,00 | 0,00 | 0,00 | 0,00 | 0,00", "Mia Monteurin | 1001 nicht 5 Ziffern | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00",
+         "Ole Offen | fehlt | 0 | 0,00 | 0,00 | 0,00 | 0,00 | 0,00", "Tom Monteur | 01002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
          "Zusammen |  |  | 48,25 | 0,75 | 3,75 | 0,00 | 52,75"])
     await tab.bild("zeiten_monat_hell")
     await tab.js("document.querySelector('#lohnPruefen a[data-reiter-link=pruefen]').click()")
