@@ -14,8 +14,10 @@ from ..berlin_time import berlin_today
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
-from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
-                           darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
+from ..lohnkonten import ERSTES_JAHR, standardjahr
+from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
+                           darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
+from ..urlaubskonto import konten as urlaubskonten
 from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
@@ -116,6 +118,19 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     daten["zahlen"] = {"pruefen": sum(1 for z in daten["offene_zeiten"] if z["darf_schliessen"]) + sum(1 for t in daten["pausen"] if t["darf_buchen"]),
                        "abwesenheiten": len(daten["antraege"]) if daten["rechte"]["antraege_entscheiden"] else 0}
     return daten
+
+
+@router.get("/api/zeiten/urlaubskonto")
+def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Session = Depends(get_db, scope="function"), user: AppUser = _buero_dep):
+    """Seit 1.9.315 (Lohn L2b, Punkt 3): das Urlaubskonto im Jahr (Vorgabe: das laufende, frühestens 2027) -- Admin und Büro – Finanzen alle
+    (darf_konten_aller()), sonst nur das eigene (ohne Mitarbeiter keins). Vor 2027 422."""
+    jahr = jahr or standardjahr()
+    ids = None if darf_konten_aller(user) else ([user.employee_id] if getattr(user, "employee_id", None) else [])
+    try:
+        liste = urlaubskonten(db, jahr, ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "konten": [k.als_dict() for k in liste]}
 
 
 @router.get("/api/zeiten/buchungen")

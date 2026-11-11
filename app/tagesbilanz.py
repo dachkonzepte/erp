@@ -75,6 +75,9 @@ class Bilanz:
     payrolls: dict[int, EmployeePayrollSettings]
     feiertage: dict[date, str]
     tage: dict[int, dict[date, Tag]]  # je Person jeder Tag von von bis bis
+    # seit 1.9.315 (Lohn L2b, Punkt 3): je Person ihre Tage des Arbeitszeitkalenders ({Tag: Eintrag}) -- das Urlaubskonto zählt damit offene Anträge
+    # ohne weitere Abfrage (app/sollzeit.py::abwesenheit_tage(kalender=…))
+    kalender: dict[int, dict] = field(default_factory=dict)
 
 
 def _tage(von: date, bis: date):
@@ -121,6 +124,7 @@ def bilanz(db: Session, von: date, bis: date, employee_ids=None) -> Bilanz:
     kalender_liste = aktive(db)
 
     ergebnis: dict[int, dict[date, Tag]] = {}
+    kalender_je: dict[int, dict] = {}
     for emp in personen:
         p, soll_p, eigene = payrolls.get(emp.id), soll.get(emp.id, {}), abwesend.get(emp.id, [])
         tage: dict[date, Tag] = {}
@@ -136,6 +140,7 @@ def bilanz(db: Session, von: date, bis: date, employee_ids=None) -> Bilanz:
                 tag.posten.append(Posten("feiertag", tag.soll, "Feiertag"))
             tage[t] = tag
         kal = kalendertage_aus(kalender_liste, emp.employee_group, soll_p, von, bis)
+        kalender_je[emp.id] = dict(kal)
         for k in abwesenheiten_aus(kal, soll_p, ersetzt_aus(kal, [a for a in eigene if a.absence_category == "urlaub"])):
             if k["tag"] not in feiertage:
                 tage[k["tag"]].posten.append(Posten("kalender", k["stunden"], k["abwesenheit"], kategorie=k["schluessel"]))
@@ -155,4 +160,4 @@ def bilanz(db: Session, von: date, bis: date, employee_ids=None) -> Bilanz:
                 tage[x["tag"]].posten.append(Posten("abwesenheit", x["stunden"], was, kategorie=a.absence_category, art=a.absence_type,
                                                     anteil=x["anteil"]))
         ergebnis[emp.id] = tage
-    return Bilanz(von, bis, personen, payrolls, feiertage, ergebnis)
+    return Bilanz(von, bis, personen, payrolls, feiertage, ergebnis, kalender_je)

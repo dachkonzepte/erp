@@ -2504,3 +2504,49 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.313“.
 Neu: `tests/test_v714_rueckfahrt.py` (welche Fahrzeit, Zeitraum, nichts abgezogen und nichts gesperrt, Rechte und Zahl, die Zeile der Seite in node, Aufbau)
 und `scripts/klicktest_rueckfahrt.py` (Karte mit Zeile und Hinweis, „Ändern“ öffnet die Buchung, keine Zahl am Reiter, Büro – Auftrag ohne „Ändern“, nach
 dem Löschen weg; Bilder bei 1440 und 412 px, hell und dunkel). Keine angepasste Erwartung. Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.314“.
+
+### Umsetzung 1.9.315 (Punkt 3): das Urlaubskonto je Person und Jahr
+
+- `app/urlaubskonto.py::konten(db, jahr, employee_ids=None, heute=None)` -> je Person ein `Konto` (`als_dict()` mit Tagen auf eine Stelle):
+  - Anspruch: `Urlaubsanspruch.urlaubstage` des Jahrs, leer = `TimeTrackingSettings.urlaub_vorgabe_tage` (`anspruch_vorgabe`).
+  - Übertrag nach `app/lohnkonten.py::uebertrag_quelle()`: 2027 der Startwert „Resturlaub“ (fehlt er: 0 und „ohne Übertrag – Startwert folgt“); ab 2028
+    „von Hand“ der Wert am Anspruch (leer = 0), „automatisch“ der Rest des Vorjahres -- dann rechnet die Tagesbilanz ab 2027 in einem Aufruf über alle Jahre.
+    Ein Übertrag am Anspruch, wo er nicht gilt, zählt nicht („Übertrag doppelt – prüfen“).
+  - genehmigt: die Posten „abwesenheit“ der Kategorie Urlaub in der Tagesbilanz (`app/tagesbilanz.py`) mit ihrem Anteil -- damit nur Tage mit Sollzeit der
+    eigenen Woche, ohne gesetzliche Feiertage, ohne Tage des Arbeitszeitkalenders (Silvester nur als ganzer Urlaubstag), ein von Hand eingetragener
+    betriebsfreier Tag zählt (Antwort 4, Befund 7.2). „vorbei“ bis einschließlich heute, „künftig“ danach.
+  - beantragt: offene Anträge (`status` „pending“) der Kategorie Urlaub, nur der Teil im Jahr, gezählt über `app/sollzeit.py::abwesenheit_tage()` mit
+    Sollzeit und Kalendertagen aus der Tagesbilanz (neu `Bilanz.kalender`) -- ohne weitere Abfrage.
+  - Rest = Anspruch + Übertrag − genehmigt; Rest nach den Anträgen = Rest − beantragt.
+  - Hinweise (keine Sperre): „ohne Übertrag – Startwert folgt“, „Übertrag doppelt – prüfen“, „Anspruch prüfen“ (Eintritt oder Austritt im Jahr -- anteilig
+    rechnet das ERP nicht, Antwort 1), „Verfall des Übertrags vorgemerkt am TT.MM.JJJJ – nichts verfällt von selbst“ (Verfall am Anspruch, sonst die
+    Vorgabe; nur mit Übertrag über 0), „Rest unter 0 (−n Tage)“.
+  - Personen ohne Angabe: aktiv oder im Jahr mit Buchungen bzw. Abwesenheiten -- Feiertage und Kalendertage zählen dafür nicht (eine inaktive Person ohne
+    Austritt hätte sonst jedes Jahr ein Konto; gefunden in der Gegenprobe-Vorbereitung, siehe Tests).
+  - Vor 2027 `ValueError`. Eine feste Zahl Abfragen (Tagesbilanz, Vorgaben, Ansprüche, Startwerte, offene Anträge).
+- `GET /api/zeiten/urlaubskonto?jahr=` (`app/routers/zeiten.py`, ab Büro – Auftrag): Vorgabe `standardjahr()` (das laufende, frühestens 2027); Admin und
+  Büro – Finanzen alle (`darf_konten_aller()`), sonst nur das eigene, ohne Mitarbeiter keins; vor 2027 422. Antwort `{jahr, erstes_jahr, konten}`.
+
+#### Festlegungen 1.9.315 (Bitte bestätigen)
+
+1. Anspruch: der Wert je Person und Jahr, sonst die Vorgabe; anteilig bei Eintritt oder Austritt rechnet das ERP nicht -- Hinweis „Anspruch prüfen“.
+2. Übertrag 2027 = Startwert „Resturlaub“; ohne Startwert 0 mit „ohne Übertrag – Startwert folgt“.
+3. Ab 2028: „von Hand“ der Wert am Anspruch (leer 0), „automatisch“ der Rest des Vorjahres.
+4. Ein Übertrag am Anspruch, wo er nicht gilt, zählt nicht -- „Übertrag doppelt – prüfen“.
+5. Genehmigt zählt nur Urlaub, nur an Tagen mit Sollzeit der eigenen Woche, halber Tag mit Anteil, ohne gesetzliche Feiertage und Heiligabend, Silvester nur
+   als ganzer Urlaubstag; ein betriebsfreier Tag zählt.
+6. „vorbei“ bis einschließlich heute, „künftig“ danach.
+7. Beantragt: die offenen Anträge auf Urlaub, nur der Teil im Jahr, nach derselben Regel.
+8. Rest = Anspruch + Übertrag − genehmigt; daneben der Rest nach den offenen Anträgen.
+9. Hinweise ohne Sperre: Anspruch prüfen, Verfall vorgemerkt (nichts verfällt von selbst), Rest unter 0.
+10. Eine feste Zahl Abfragen, unabhängig von Personen, Tagen und Anträgen.
+11. Schnittstelle: Admin und Büro – Finanzen alle Konten, sonst das eigene; vor 2027 422; Vorgabe das laufende Jahr, frühestens 2027.
+12. Ohne Auswahl: wer aktiv ist oder im Jahr Buchungen bzw. Abwesenheiten hat.
+
+#### Tests und Prüfung 1.9.315
+
+Neu: `tests/test_v715_urlaubskonto.py` (zählt nur Urlaub an Tagen mit Sollzeit -- Neujahr, betriebsfreier Tag, halber Tag, Sonderurlaub, Heiligabend und Silvester,
+Teilzeit Mo–Mi --, Silvester frei, offene Anträge auch über den Jahreswechsel und ohne entschiedene, Hinweise, 2028 von Hand und automatisch, welche Personen
+auch unter „automatisch“, vor 2027, feste Zahl Abfragen, Schnittstelle mit Rechten). Eigener Fehler vor dem Festhalten: die Auswahl der Personen nahm Feiertage
+als „Daten im Jahr“ -- eine inaktive Person ohne Austritt stand so 2028 im Konto; gefunden mit dem ergänzten Test, behoben. Keine angepasste Erwartung.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.315“.

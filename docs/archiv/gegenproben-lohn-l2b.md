@@ -78,3 +78,31 @@ steht dort; Nr. 8 „keine Migration“ (nichts gebaut, nichts zu prüfen).
 
 12 Gegenproben, alle rot. Ohne eigene Gegenprobe: Nr. 4 „nichts abgezogen“ -- `rueckfahrten()` schreibt nicht (ein GET schreibt nie, Regel 23,
 `test_kein_get_schreibt`); geprüft in v714::test_nichts_abgezogen_nichts_gesperrt. Nr. 6 „kein Quittieren“ -- nichts gebaut.
+
+## 1.9.315 (Punkt 3): das Urlaubskonto
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Anspruch je Person | immer die Vorgabe (`315_1a`) | 1 rot: v715::test_hinweise |
+| Nr. 1 – „Anspruch prüfen“ bei Eintritt/Austritt | kein Hinweis (`315_9a`) | 1 rot: v715::test_hinweise |
+| Nr. 2 – Übertrag 2027 = Startwert | ohne Startwert (`315_2a`) | 5 rot: v715::test_ab_2028_von_hand_und_automatisch, test_hinweise, test_offene_antraege, test_schnittstelle_mit_rechten, test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 2 – „ohne Übertrag – Startwert folgt“ | kein Hinweis (`315_2b`) | 2 rot: v715::test_hinweise, test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 3 – „automatisch“: Rest des Vorjahres | 0 (`315_3a`) | 1 rot: v715::test_ab_2028_von_hand_und_automatisch |
+| Nr. 3 – „von Hand“: der Wert am Anspruch | übergangen (`315_3b`) | 1 rot: v715::test_ab_2028_von_hand_und_automatisch |
+| Nr. 4 – der doppelte Übertrag zählt nicht | er zählt (`315_4a`) | 2 rot: v715::test_ab_2028_von_hand_und_automatisch, test_hinweise |
+| Nr. 5 – nur Urlaub | jede Kategorie (`315_5a`) | 1 rot: v715::test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 5 – halber Tag mit Anteil | als ganzer (`315_5b`) | 1 rot: v715::test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 5 – Heiligabend zählt nicht | Tage des Arbeitszeitkalenders als ganze Tage gezählt (`315_5c`; der erste Versuch stürzte am fehlenden Anteil ab, neu gefasst) | 6 rot (Zählung, z. B. 12,5 statt 11,5): v715::test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit, test_silvester_frei_zaehlt_nicht, test_offene_antraege, test_hinweise, test_ab_2028_von_hand_und_automatisch, test_schnittstelle_mit_rechten |
+| Nr. 6 – heute zählt als vorbei | heute künftig (`315_6a`) | 1 rot: v715::test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 7 – nur offene Anträge auf Urlaub | jede Kategorie (`315_7a`); auch entschiedene (`315_7b`) | je 1 rot: v715::test_offene_antraege |
+| Nr. 8 – Rest mit Übertrag | ohne Übertrag (`315_8a`) | 5 rot: v715::test_ab_2028_von_hand_und_automatisch, test_hinweise, test_offene_antraege, test_schnittstelle_mit_rechten, test_zaehlt_nur_urlaub_an_tagen_mit_sollzeit |
+| Nr. 8 – Rest nach den offenen Anträgen | ohne die Anträge (`315_8b`) | 1 rot: v715::test_offene_antraege |
+| Nr. 9 – Verfall vorgemerkt | kein Hinweis (`315_9b`) | 1 rot: v715::test_hinweise |
+| Nr. 9 – Rest unter 0 | kein Hinweis (`315_9c`) | 1 rot: v715::test_hinweise |
+| Nr. 10 – feste Zahl Abfragen | je Person eine Abfrage (`315_10a`) | 1 rot: v715::test_eine_feste_zahl_abfragen |
+| Nr. 11 – Rechte | jeder sieht alle (`315_11a`) | 1 rot: v715::test_schnittstelle_mit_rechten |
+| Nr. 11 – vor 2027 nicht | auch vor 2027 (`315_11b`) | 2 rot: v715::test_schnittstelle_mit_rechten, test_vor_2027_nicht |
+| Nr. 12 – wer im Konto steht | jede Person der Tagesbilanz (`315_12a`) | 1 rot: v715::test_personen_aktiv_oder_mit_urlaub_im_jahr |
+
+21 Gegenproben, alle rot. Die Regeln der Tagesbilanz selbst (Sollzeit der eigenen Woche, Feiertage, Silvester als ganzer Urlaubstag) sind in 1.9.308
+gegengeprobt (`gegenproben-lohn-l2a.md`); hier zählt das Konto ihre Posten.

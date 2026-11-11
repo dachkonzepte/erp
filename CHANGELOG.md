@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.315 – Lohn L2b: das Urlaubskonto je Person und Jahr
+
+Vierter Punkt von Lohn L2b (Antworten 1, 3, 4 und 5 des Befunds L2). Neu ist das Urlaubskonto je Person und Jahr ab 2027 (`app/urlaubskonto.py`), eine Rechnung wie die Tagesbilanz in einer festen Zahl Abfragen: Anspruch (Urlaubsanspruch je Jahr oder die Vorgabe), Übertrag (2027 der Startwert „Resturlaub“; ab 2028 nach der Vorgabe von Hand oder der Rest des Vorjahres), genehmigt mit „davon vorbei“ und „künftig“, beantragt (die offenen Anträge), Rest = Anspruch + Übertrag − genehmigt und der Rest nach den offenen Anträgen.
+
+Gezählt wird nur die Kategorie Urlaub, nur an Tagen mit Sollzeit der eigenen Woche, ein halber Tag mit seinem Anteil -- die Posten der Tagesbilanz: ohne gesetzliche Feiertage und Heiligabend, Silvester nur als ganzer Urlaubstag, ein betriebsfreier Tag zählt. Nichts verfällt von selbst und nichts wird gesperrt; Hinweise nennen, was zu prüfen ist: „ohne Übertrag – Startwert folgt“, „Übertrag doppelt – prüfen“, „Anspruch prüfen“ bei Eintritt oder Austritt im Jahr, den vorgemerkten Verfall des Übertrags und „Rest unter 0“. Die Schnittstelle `GET /api/zeiten/urlaubskonto?jahr=` gibt Admin und Büro – Finanzen alle Konten, allen anderen das eigene; die Anzeige folgt mit Punkt 4.
+
+Neu `app/urlaubskonto.py` und `tests/test_v715_urlaubskonto.py`; die Tagesbilanz nennt dafür die Tage des Arbeitszeitkalenders je Person (`Bilanz.kalender`). Keine Migration.
+
 ## 1.9.314 – Lohn L2b: Hinweis Rückfahrt in „Zeiten → Prüfen“
 
 Dritter Punkt von Lohn L2b (Antwort 7 des Befunds L2: der Weg zur Baustelle ist Arbeitszeit, Feierabend ist auf der Baustelle). „Zeiten → Prüfen“ zeigt jetzt eine Karte „Fahrzeit nach Arbeitsende“ (zur Info): jede gebuchte Fahrzeit, die nach der letzten Arbeit ihres Tags beginnt, mit Name, Tag, Uhrzeiten, Arbeitsende und dem Hinweis „Fahrzeit nach Arbeitsende – Rückfahrt? Feierabend ist auf der Baustelle.“ Nicht gemeint sind die Hinfahrt, die Fahrt zwischen zwei Baustellen und ein Tag nur mit Fahrzeit; hat eine Buchung des Tags keine Uhrzeiten, ist die Reihenfolge unbekannt und es gibt keinen Hinweis. Geprüft wird derselbe Zeitraum wie bei den Pausen.
