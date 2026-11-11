@@ -89,7 +89,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ada: „frei“ gesendet", await _senden(tab), "Antrag gesendet: Mia Monteurin, Mo 28.12.2026–Fr 08.01.2027")
     await tab.warte_auf_neu_geladene_liste("abwesenheitenLaden()", "#abwListe")
     p.pruefe("Ada: Liste nennt „frei“ und 8 Arbeitstage", await _zeilen(tab),
-             ["Mia Monteurin · Urlaub | Mo 28.12.2026–Fr 08.01.2027 · Kalendertag frei, kein Urlaubstag · 8 Arbeitstage · danach Rest 25 Tage"])  # seit 1.9.316 „danach Rest“ (2027: 04.–08.01.)
+             ["Mia Monteurin · Urlaub | Mo 28.12.2026–Fr 08.01.2027 · Kalendertag frei, kein Urlaubstag · 8 Arbeitstage · danach Rest 25 Tage · ohne Übertrag – Startwert folgt"])  # seit 1.9.316 „danach Rest“ (2027: 04.–08.01.), seit 1.9.318 der Hinweis
 
     await tab.js("document.getElementById('abwNeu').click()")
     await tab.js("{const m=document.getElementById('adMehrere');m.checked=true;m.dispatchEvent(new Event('change'))}")

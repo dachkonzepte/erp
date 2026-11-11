@@ -148,3 +148,14 @@ gegengeprobt (`gegenproben-lohn-l2a.md`); hier zählt das Konto ihre Posten.
 | Nr. 5 – Vorprobe September/Oktober Byte für Byte gleich | die Zuordnung der Art übergangen, Vorprobe September (`317_5a`, Skript) | rot: keine Datei („Kein DATEV-Export: Fortbildung ohne Zuordnung: 16 Tage …“) |
 
 11 Gegenproben, alle rot (9 über Tests, eine über den Klicktest, eine über die Vorprobe).
+
+## 1.9.318 (Nachrunde, Punkt B): „Meine Zeiten“ ohne Startwert
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – das Konto in „Meine Zeiten“ zeigt den Hinweis | die Karte ohne Hinweise (`318_2a`; Klicktest `318_K2`) | 1 rot: v716::test_meine_zeiten_eigenes_konto; Klicktest: „Tom 412 hell/dunkel: das Konto mit dem Hinweis“ |
+| Nr. 2 – „danach Rest“ mit „ · ohne Übertrag – Startwert folgt“ | kein Hinweis (`318_1a`; Klicktest `318_K1`) | 4 rot: v716::test_an_offenen_antraegen, test_rest_danach_schnittstelle_rechte, v718::test_danach_rest_mit_dem_hinweis, test_im_antrag_von_meine_zeiten; Klicktest: „Tom 412 hell/dunkel: im Antrag „danach Rest“ mit dem Hinweis“ |
+| Nr. 3 – nicht mit Startwert | immer (`318_1b`) | 3 rot: v716::test_rest_danach, test_rest_danach_schnittstelle_rechte, v718::test_danach_rest_mit_dem_hinweis |
+| Nr. 3 – nicht ab 2028 | nach dem Startwert auch ab 2028 (`318_1c`) | 1 rot: v718::test_danach_rest_mit_dem_hinweis |
+
+6 Gegenproben, alle rot (4 über Tests, 2 über `klicktest_urlaubskonto`).

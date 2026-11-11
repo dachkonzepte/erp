@@ -181,7 +181,8 @@ def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_t
     Rechnung: der Rest des Kontos (Anspruch + Übertrag − genehmigt) minus die Tage dieses Urlaubs; andere offene Anträge zählen nicht mit (die
     zeigt das Konto unter „nach den offenen Anträgen“). Je Jahr ab 2027 {jahr, tage, rest_danach}; ein Urlaub über den Jahreswechsel nennt beide
     Jahre. None, wenn kein Tag in einem Jahr ab 2027 liegt. text: „danach Rest 21,5 Tage“ bzw. „danach Rest 2027: 1 Tag · 2028: 29 Tage“;
-    tage_text: „5 Urlaubstage“."""
+    tage_text: „5 Urlaubstage“. Seit 1.9.318 (Nachrunde L2b, Punkt B): fehlt in einem dieser Jahre der Startwert (2027), dazu „ · ohne Übertrag – Startwert
+    folgt“ (ohne_startwert je Jahr) -- überall, wo „danach Rest“ steht."""
     from .lohnkonten import ERSTES_JAHR
     from .planning import automatic_public_holidays
     from .sollzeit import abwesenheit_tage
@@ -196,12 +197,14 @@ def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_t
             continue
         tage = abwesenheit_tage(db, employee_id, max(von, date(j, 1, 1)), min(bis, date(j, 12, 31)), kategorie=URLAUB, halber_tag=halber_tag,
                                 feiertage=feiertage, kalendertag_urlaub=kalendertag_urlaub)["tage"]
-        jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage})
+        jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage, "ohne_startwert": OHNE_STARTWERT in k[0].hinweise})
     if not jahre:
         return None
     summe = sum((x["tage"] for x in jahre), NULL)
     text = "danach Rest " + (tage_wort(jahre[0]["rest_danach"]) if len(jahre) == 1 else
                              " · ".join(f"{x['jahr']}: {tage_wort(x['rest_danach'])}" for x in jahre))
+    if any(x["ohne_startwert"] for x in jahre):  # seit 1.9.318
+        text += " · " + OHNE_STARTWERT
     return {"jahre": jahre, "tage": summe, "tage_text": f"{_tage_text(summe)} {'Urlaubstag' if summe == 1 else 'Urlaubstage'}", "text": text}
 
 

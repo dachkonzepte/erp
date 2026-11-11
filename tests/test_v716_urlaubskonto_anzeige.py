@@ -43,7 +43,7 @@ def test_rest_danach(w):
     db, ada = w["db"], w["ada"]
     d = rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 16))  # Rest 30 + 4,5 − 5 = 29,5; minus 5
     assert (d["tage"], d["tage_text"], d["text"], d["jahre"]) == (D("5"), "5 Urlaubstage", "danach Rest 24,5 Tage",
-                                                                   [{"jahr": 2027, "tage": D("5"), "rest_danach": D("24.5")}])
+                                                                   [{"jahr": 2027, "tage": D("5"), "rest_danach": D("24.5"), "ohne_startwert": False}])  # seit 1.9.318 ohne_startwert
     assert rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 12), halber_tag=True)["tage_text"] == "0,5 Urlaubstage"
     assert rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 12))["tage_text"] == "1 Urlaubstag"
     # über den Jahreswechsel: Mo 27.–Do 30.12. und Silvester (Vorschlag ganzer Urlaubstag) = 5; Mo 03.–Fr 07.01.2028 = 5 (Neujahr Feiertag)
@@ -64,7 +64,7 @@ def test_rest_danach_schnittstelle_rechte(w):
     assert eigen.get(f"{R}?employee_id={ada.id}{q}").json()["text"] == "danach Rest 24,5 Tage"
     assert eigen.get(f"{R}?employee_id={bo.id}{q}").status_code == 403
     fin = w["client"](db, antraege_router.router, role="buero_finanzen")
-    assert fin.get(f"{R}?employee_id={bo.id}{q}").json()["text"] == "danach Rest 25 Tage"
+    assert fin.get(f"{R}?employee_id={bo.id}{q}").json()["text"] == "danach Rest 25 Tage · ohne Übertrag – Startwert folgt"  # Bo ohne Startwert (seit 1.9.318)
     assert fin.get(f"{R}?employee_id={bo.id}&von=2027-04-16&bis=2027-04-12").status_code == 422
     assert fin.get(f"{R}?employee_id=999999{q}").status_code == 404
     assert fin.get(f"{R}?employee_id={bo.id}&von=2026-12-01&bis=2026-12-04").json() is None
@@ -78,9 +78,9 @@ def test_an_offenen_antraegen(w):
     db.commit()
     c = w["client"](db, zeiten_router.router, role="admin")
     abw = {(a["employee_id"], a["absence_category"], a["status"]): a["rest_danach"] for a in c.get("/api/zeiten/abwesenheiten").json()["antraege"]}
-    assert abw == {(bo.id, "urlaub", "pending"): "danach Rest 25 Tage", (bo.id, "krankheit", "pending"): None, (ada.id, "urlaub", "approved"): None}
+    assert abw == {(bo.id, "urlaub", "pending"): "danach Rest 25 Tage · ohne Übertrag – Startwert folgt", (bo.id, "krankheit", "pending"): None, (ada.id, "urlaub", "approved"): None}
     assert {(a["absence_category"], a["rest_danach"]) for a in c.get("/api/zeiten/pruefen").json()["antraege"]} == {
-        ("urlaub", "danach Rest 25 Tage"), ("krankheit", None)}
+        ("urlaub", "danach Rest 25 Tage · ohne Übertrag – Startwert folgt"), ("krankheit", None)}
 
 
 def test_jahre_meine_zeiten_und_rest_2027(w):

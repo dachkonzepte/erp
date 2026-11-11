@@ -13,6 +13,8 @@ Urlaub Mo 04.–Fr 08.01.2027), Tom (gewerblich, ohne Startwert, offener Antrag 
     Plantafel       „Abwesenheit eintragen“: Mia 01.–05.03.2027 -> „5 Urlaubstage · danach Rest 24,5 Tage“
     Meine Zeiten    Mia: Karte „Abwesenheit“ mit „Urlaub 2027“, Rest 29,5 …; Antrag 01.–05.03.2027 -> „danach Rest 24,5 Tage“; Bilder der Karte und des
                     Antrags bei 412 und 1440 px, hell und dunkel
+    ohne Startwert  (seit 1.9.318) Tom in „Meine Zeiten“: das Konto mit „ohne Übertrag – Startwert folgt“, im Antrag „5 Urlaubstage · danach Rest 20 Tage ·
+                    ohne Übertrag – Startwert folgt“; Bilder bei 412 px, hell und dunkel
     überall         keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -54,14 +56,15 @@ def befuellen(db, k):
     anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     mia_konto = AppUser(username="mia", display_name="Mia Monteurin", role="field", employee_id=mia.id, password_hash=k.passwort())
-    db.add_all([anna, fin, mia_konto])
+    tom_konto = AppUser(username="tom", display_name="Tom Monteur", role="field", employee_id=tom.id, password_hash=k.passwort())  # seit 1.9.318
+    db.add_all([anna, fin, mia_konto, tom_konto])
     db.add(LohnStartwert(employee_id=mia.id, stichtag=date(2026, 12, 31), resturlaub_tage=Decimal("4.5"), saldo_stunden=Decimal("0"), herkunft="steuerbuero"))
     db.add(EmployeeAbsence(employee_id=mia.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 1, 4), end_date=date(2027, 1, 8)))
     db.add(EmployeeAbsence(employee_id=ute.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 1, 11), end_date=date(2027, 1, 11)))
     db.add(EmployeeAbsenceRequest(employee_id=tom.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 4, 12),
                                   end_date=date(2027, 4, 16), status="pending"))
     db.commit()
-    return {"anna": k.cookies(anna), "fin": k.cookies(fin), "mia": k.cookies(mia_konto), "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
+    return {"anna": k.cookies(anna), "fin": k.cookies(fin), "mia": k.cookies(mia_konto), "tom": k.cookies(tom_konto), "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
 
 
 async def _eingeben(tab, feld: str, wert: str):
@@ -200,6 +203,31 @@ async def pruefen(tab, seed, p):
     p.pruefe("Mia: fremder Mitarbeiter vom Server abgelehnt (403)", await tab.js(
         f"fetch('/api/absence-requests/rest-danach?employee_id={seed['mia_id'] + 1}&von=2027-03-01&bis=2027-03-05').then(r=>r.status)"), 403)
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
+
+    # ---- seit 1.9.318 (Nachrunde L2b, Punkt B): „Meine Zeiten“ ohne Startwert -- Tom (sein Antrag ist oben genehmigt: Rest 25) --------------------
+    await tab.anmelden(seed["tom"])
+    await tab.fenster(412, 900, mobil=True)
+    n = 40
+    for thema, name in (("light", "hell"), ("dark", "dunkel")):
+        await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+        n += 1
+        p.pruefe(f"Tom 412 {name}: Meine Zeiten", await tab.oeffnen(f"/mobil/zeiten?n={n}", MEINE), True)
+        await tab.warte_auf_ruhe()
+        p.pruefe(f"Tom 412 {name}: das Konto mit dem Hinweis", await tab.js("document.getElementById('ukEigen').innerText.replace(/\\s+/g,' ').trim()"),
+                 "Urlaub 2027 Rest 25 Anspruch 30 Übertrag 0 Genehmigt 5 davon vorbei 0 Beantragt 0 Rest nach den offenen Anträgen 25 "
+                 "ohne Übertrag – Startwert folgt")
+        p.pruefe(f"Tom 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+        await tab.js("document.getElementById('abwesenheitKarte').scrollIntoView({block:'start'})")
+        await tab.bild(f"meine_zeiten_ohne_startwert_412_{name}")
+        await tab.js("document.getElementById('antragKnopf').click()")
+        await tab.warten("document.getElementById('abwDialog').open", 5)
+        await _eingeben(tab, "adVon", "2027-03-01")
+        await _eingeben(tab, "adBis", "2027-03-05")
+        p.pruefe(f"Tom 412 {name}: im Antrag „danach Rest“ mit dem Hinweis", await tab.warten(
+            "document.getElementById('adRest').textContent==='5 Urlaubstage · danach Rest 20 Tage · ohne Übertrag – Startwert folgt'", 10), True)
+        await tab.bild(f"meine_zeiten_ohne_startwert_antrag_412_{name}")
+        await tab.js("document.getElementById('abwDialog').close()")
+    p.pruefe("Tom: keine JS-Fehler", tab.fehler, [])
 
 
 if __name__ == "__main__":

@@ -2662,3 +2662,28 @@ DATEV-Nummern“ und der Zeile mit Weg, Bild. Angepasste Erwartungen:
   `test_auch_eine_andere_kategorie_ohne_zuordnung`) -- alt: „… nicht in der Lohndatei“; neu: dazu „– keine Lohndatei, bis die Zuordnung steht“.
 - `klicktest_sonderurlaub.py` „Anna: „Vor dem Abschluss“ nennt Sonderurlaub ohne Zuordnung“ -- alt: ohne Zusatz; neu: mit.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.317“.
+
+### Umsetzung 1.9.318 (Punkt B): „Meine Zeiten“ ohne Startwert
+
+- Am Konto: die Karte „Abwesenheit“ in „Meine Zeiten“ zeigt seit 1.9.316 alle Hinweise des eigenen Kontos (`ukEigenZeichnen()`), also auch „ohne Übertrag –
+  Startwert folgt“, wenn 2027 der Startwert fehlt -- unverändert, jetzt geprüft und mit Bildern einer Person ohne Startwert.
+- Bei „danach Rest“: `app/urlaubskonto.py::rest_danach()` merkt je Jahr `ohne_startwert` (der Hinweis steht am Konto des Jahrs) und hängt dann einmal
+  „ · ohne Übertrag – Startwert folgt“ an den Text. Dieselbe Rechnung gilt beim Stellen (Zeiten, Plantafel, „Meine Zeiten“) und an offenen Anträgen -- der
+  Hinweis steht deshalb überall, wo „danach Rest“ steht. Mit Startwert nicht, ab 2028 nicht (dort ist der Übertrag kein Startwert).
+
+#### Festlegungen 1.9.318 (Bitte bestätigen)
+
+1. Das Konto in „Meine Zeiten“ zeigt „ohne Übertrag – Startwert folgt“, wenn der Startwert fehlt (wie unter „Zeiten“).
+2. „danach Rest“ trägt dann „ · ohne Übertrag – Startwert folgt“ -- im Antrag in „Meine Zeiten“ und überall sonst, wo „danach Rest“ steht.
+3. Nicht mit Startwert und nicht ab 2028; über den Jahreswechsel einmal am Ende.
+
+#### Tests und Prüfung 1.9.318
+
+Neu: `tests/test_v718_ohne_startwert.py` (Konto in „Meine Zeiten“, „danach Rest“ mit und ohne Startwert, 2028, über den Jahreswechsel, Schnittstelle als
+Monteurin). `klicktest_urlaubskonto.py`: Tom (ohne Startwert) in „Meine Zeiten“ -- Konto mit Hinweis, Antrag mit „danach Rest“ und Hinweis; Bilder bei 412 px,
+hell und dunkel. Angepasste Erwartungen:
+- `tests/test_v716_urlaubskonto_anzeige.py::test_rest_danach` -- alt: je Jahr jahr, tage, rest_danach; neu: dazu `ohne_startwert`.
+- `tests/test_v716_urlaubskonto_anzeige.py::test_rest_danach_schnittstelle_rechte` und `::test_an_offenen_antraegen` (Bo ohne Startwert) -- alt: „danach Rest
+  25 Tage“; neu: dazu „ · ohne Übertrag – Startwert folgt“.
+- `klicktest_silvester.py` „Ada: Liste nennt „frei“ und 8 Arbeitstage“ (Mia ohne Startwert) -- alt: „· danach Rest 25 Tage“; neu: dazu der Hinweis.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.318“.
