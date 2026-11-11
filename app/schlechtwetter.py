@@ -142,12 +142,13 @@ def warnungen(db: Session, employee_ids: list[int], tag: date) -> list[dict]:
 
 
 def eintragen(db: Session, *, employee_ids: list[int], tag: date, notes: str | None, gleich_genehmigt: bool, user_id: int | None,
-              trotzdem: bool) -> list[EmployeeAbsenceRequest]:
+              trotzdem: bool, abschluss_erlaubt: bool = False) -> list[EmployeeAbsenceRequest]:
     """Ein Ausfalltag für jede genannte Person, alles oder nichts in einem Commit. Abgelehnte Tage -> SchlechtwetterAbgelehnt (422),
     gebuchte Zeit ohne „trotzdem“ -> SchlechtwetterWarnung (409). Seit 1.9.204 (L1a Stufe 4, Punkt 3) gehört auch „schon abwesend“ und „offener
     Antrag“ zu den abgelehnten Tagen -- je Person mit Namen in der Liste (bis 1.9.203 erst beim Anlegen, ohne Namen und nur der erste)."""
-    from .absence_requests import _antrag_anlegen, _entscheiden, belegt, load_request
+    from .absence_requests import _antrag_anlegen, _entscheiden, abschluss_pruefen, belegt, load_request
     ids = list(dict.fromkeys(int(i) for i in employee_ids))
+    abschluss_pruefen(db, tag, tag, abschluss_erlaubt=abschluss_erlaubt)  # seit 1.9.309: vor allem anderen (403), wie bei den Zeitbuchungen
     gruende = []
     for eid in ids:
         emp = db.get(Employee, eid)
@@ -166,9 +167,9 @@ def eintragen(db: Session, *, employee_ids: list[int], tag: date, notes: str | N
         antraege = []
         for eid in ids:
             row = _antrag_anlegen(db, employee_id=eid, absence_type=None, absence_category=SCHLECHTWETTER, start_date=tag, end_date=tag,
-                                  notes=notes, requested_by_user_id=user_id)
+                                  notes=notes, requested_by_user_id=user_id, abschluss_erlaubt=abschluss_erlaubt)
             if gleich_genehmigt:
-                _entscheiden(db, row, decision="approved", reviewed_by_user_id=user_id)
+                _entscheiden(db, row, decision="approved", reviewed_by_user_id=user_id, abschluss_erlaubt=abschluss_erlaubt)
             antraege.append(row.id)
     except ValueError as exc:
         db.rollback()
@@ -237,13 +238,14 @@ def offene_antraege(db: Session) -> list[EmployeeAbsenceRequest]:
                            .order_by(EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.id)).all())
 
 
-def entscheiden(db: Session, antrag_id: int, *, decision: str, user_id: int | None, notes: str | None) -> EmployeeAbsenceRequest:
+def entscheiden(db: Session, antrag_id: int, *, decision: str, user_id: int | None, notes: str | None,
+                abschluss_erlaubt: bool = False) -> EmployeeAbsenceRequest:
     """Einen offenen Schlechtwetter-Antrag bestätigen oder ablehnen; beim Bestätigen gelten dieselben Regeln wie beim Eintragen -- seit 1.9.202
     prüft sie _entscheiden() für jeden Weg (grund_gegen(), auch beim Genehmigen unter „Zeiten“)."""
     from .absence_requests import _entscheiden, load_request
     row = db.get(EmployeeAbsenceRequest, antrag_id)
     if row is None or row.absence_category != SCHLECHTWETTER:
         raise LookupError("Antrag nicht gefunden.")
-    _entscheiden(db, row, decision=decision, reviewed_by_user_id=user_id, review_notes=notes)
+    _entscheiden(db, row, decision=decision, reviewed_by_user_id=user_id, review_notes=notes, abschluss_erlaubt=abschluss_erlaubt)
     db.commit()
     return load_request(db, row.id)

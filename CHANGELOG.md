@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.309 – Lohn L2a: Abwesenheiten und Ausfalltage nach dem Abschluss gesperrt
+
+Zweiter Punkt von Lohn L2a (Antwort 10 des Befunds L2). Eine Abwesenheit oder ein Ausfalltag Schlechtwetter, der einen Tag bis „Abgeschlossen bis“ berührt, wird jetzt wie eine Zeitbuchung nur noch vom Admin angelegt, genehmigt oder gelöscht -- auf jedem Weg: Antrag unter „Zeiten“ und „Meine Zeiten“, Sammeleintrag, „Abwesenheit eintragen“ auf der Plantafel, „Schlechtwetter eintragen“ und das Bestätigen durch Kolonnenführer oder Vorarbeiter. Alle anderen bekommen 403 mit „Die Zeiterfassung ist bis TT.MM.JJJJ abgeschlossen. Abwesenheiten in diesem Zeitraum nur durch einen Administrator.“ im Dialog, gespeichert wird nichts. Bis 1.9.308 ging das alles auch im abgeschlossenen Monat (Befund L2, 7.1): die nächste Lohndatei desselben Monats sah anders aus, mit Konten wäre der Stand eines abgeschlossenen Monats gewandert.
+
+Ein offener Antrag zählt nirgends -- ihn abzulehnen oder zurückzuziehen bleibt frei. Die Regel „im abgeschlossenen Zeitraum nur der Admin“ steht jetzt an einer Stelle für Zeitbuchungen und Abwesenheiten (`app/permissions.py::darf_im_abschluss_aendern()`); die Geschäftslogik (`app/absence_requests.py::abschluss_pruefen()`) sperrt, wenn der Aufrufer nichts angibt.
+
+Neu `tests/test_v709_abschluss_abwesenheiten.py`; `klicktest_zeiten.py` und `klicktest_schlechtwetter.py` versuchen es als Büro – Finanzen im abgeschlossenen Zeitraum. Keine Migration.
+
 ## 1.9.308 – Lohn L2a: die Tagesbilanz je Person und Tag
 
 Erster Punkt von Lohn L2a (Fundament für Urlaubskonto und Arbeitszeitkonto). Neu ist `app/tagesbilanz.py::bilanz()`: eine Rechnung für alles, was je Person und Tag für Lohn und Konten zählt -- Sollzeit, ob beschäftigt, die Arbeit im Lohn (alle Zeitarten, auf 0,25 h), davon die Fahrzeit getrennt (minutengenau) und die Arbeit ohne Fahrzeit (auf 0,25 h), der gesetzliche Feiertag und die Posten des Tags: Feiertag mit Sollzeit, Tag des Arbeitszeitkalenders, jede genehmigte Abwesenheit mit Kategorie, Art und Anteil, der Ausfall eines Schlechtwettertags. Sie hängt nicht an Export-Umfang und Zuordnung und rechnet für viele Personen in einer festen Zahl Abfragen. Die Fahrzeit steht getrennt, weil offen ist, ob sie ins Arbeitszeitkonto zählt (Frage 7 des Befunds L2).

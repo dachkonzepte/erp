@@ -12,11 +12,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..absence_requests import request_to_dict
+from ..absence_requests import AbschlussGesperrt, request_to_dict
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_FINANZEN, has_role, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_FINANZEN, darf_im_abschluss_aendern, has_role, require_min_role
 from ..schemas import SchlechtwetterEintragen, SchlechtwetterEntscheidung
 from ..schlechtwetter import (SchlechtwetterAbgelehnt, SchlechtwetterWarnung, eintragen, entscheiden, gewerbliche, ist_fuehrung, kolonnen,
                               offene_antraege)
@@ -70,7 +70,9 @@ def post_schlechtwetter(payload: SchlechtwetterEintragen, request: Request, db: 
             raise HTTPException(status_code=403, detail=NUR_FUER_DICH)
     try:
         antraege = eintragen(db, employee_ids=payload.employee_ids, tag=payload.tag, notes=payload.notes, gleich_genehmigt=gleich,
-                             user_id=getattr(user, "id", None), trotzdem=payload.trotzdem)
+                             user_id=getattr(user, "id", None), trotzdem=payload.trotzdem, abschluss_erlaubt=darf_im_abschluss_aendern(user))
+    except AbschlussGesperrt as exc:  # seit 1.9.309: wie eine Zeitbuchung im abgeschlossenen Zeitraum
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except SchlechtwetterWarnung as exc:
         return JSONResponse(status_code=409, content={"detail": str(exc), "warnungen": jsonable_encoder(exc.warnungen)})
     except SchlechtwetterAbgelehnt as exc:
@@ -85,7 +87,10 @@ def post_entscheiden(antrag_id: int, payload: SchlechtwetterEntscheidung, reques
     if not darf_bestaetigen(db, user):
         raise HTTPException(status_code=403, detail=NUR_FUEHRUNG)
     try:
-        row = entscheiden(db, antrag_id, decision=payload.decision, user_id=getattr(user, "id", None), notes=payload.notes)
+        row = entscheiden(db, antrag_id, decision=payload.decision, user_id=getattr(user, "id", None), notes=payload.notes,
+                          abschluss_erlaubt=darf_im_abschluss_aendern(user))
+    except AbschlussGesperrt as exc:  # seit 1.9.309
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

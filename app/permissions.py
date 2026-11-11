@@ -189,6 +189,13 @@ ABWESENHEIT_LOESCHEN_ROLLEN = frozenset({ROLE_ADMIN})
 ABWESENHEIT_LOESCHEN_NUR_ADMIN = "Eine genehmigte Abwesenheit löscht nur der Admin."
 
 
+def darf_im_abschluss_aendern(user: AppUser | None) -> bool:
+    """Seit 1.9.309 (Lohn L2a, Punkt 2): im abgeschlossenen Zeitraum („Abgeschlossen bis“) ändert nur der Admin -- Zeitbuchungen seit 1.7.10
+    (app/routers/time_tracking.py::_require_open_period()), Abwesenheiten und Ausfalltage seit 1.9.309 (app/absence_requests.py::abschluss_pruefen()).
+    Ohne Konto (Tests ohne Anmeldung) frei wie bei den Zeitbuchungen."""
+    return user is None or user.role == ROLE_ADMIN
+
+
 def darf_abwesenheit_loeschen(user: AppUser | None) -> bool:
     return user is None or has_role(user, *ABWESENHEIT_LOESCHEN_ROLLEN)
 

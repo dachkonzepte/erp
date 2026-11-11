@@ -21,3 +21,22 @@ Klicktest, die Datei byte-genau zurück (Prüfsumme). Rot zählt nur ein FAILED,
 9 Gegenproben (8 gegen Tests, 1 gegen die Vorprobe), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. „Byte für Byte gleich“ (Nr. 5) ist
 der Nachweis selbst: die Vorprobe September und Oktober (Muster) und die lokale Oktober-Datei aus echten Buchungen auf 1.9.307 und auf diesem Stand --
 dieselben SHA-256. Kein Klicktest (keine Oberfläche).
+
+## 1.9.309 (Punkt 2): Sperre nach dem Abschluss für Abwesenheiten und Ausfalltage
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – im abgeschlossenen Zeitraum nur der Admin, jeder Weg | keine Sperre (`309_1a`, `309_1f`, `309_1g`) | 7 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[antrag], [plantafel], [sammel], [schlechtwetter], test_geschaeftslogik_sperrt_ohne_angabe, test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen, test_monteurin_und_buero_auftrag_fuer_sich; Klicktests: klicktest_zeiten „Fin: im abgeschlossenen Zeitraum …“ (3 Prüfungen), klicktest_schlechtwetter „Fin: im abgeschlossenen Zeitraum …“ (2 Prüfungen) |
+| Nr. 1 – … beim Anlegen | das Anlegen ohne Sperre (`309_1b`) | 4 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[antrag], [plantafel], test_geschaeftslogik_sperrt_ohne_angabe, test_monteurin_und_buero_auftrag_fuer_sich |
+| Nr. 1 – … beim Genehmigen | das Genehmigen ohne Sperre (`309_1c`) | 2 rot: v709::test_geschaeftslogik_sperrt_ohne_angabe, test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen |
+| Nr. 1 – … beim Löschen | das Löschen ohne Sperre (`309_1d`) | 1 rot: v709::test_geschaeftslogik_sperrt_ohne_angabe |
+| Nr. 2 – ablehnen bleibt frei | auch das Ablehnen gesperrt (`309_2a`) | 1 rot: v709::test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen |
+| Nr. 3 – eine Regel: der Admin darf | auch der Admin nicht (`309_3a`) | 7 rot: v709::test_admin_auch_im_abschluss[antrag], [plantafel], [sammel], [schlechtwetter], test_eine_regel_fuer_zeiten_und_abwesenheiten, test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen, test_offenen_antrag_zurueckziehen_frei_genehmigen_nur_admin |
+| Nr. 4 – jeder Router gibt die Rolle mit | die Plantafel ohne Rolle (`309_4a`) | 2 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[plantafel], test_jeder_router_gibt_die_rolle_mit |
+| Nr. 5 – die Meldung | eine andere Meldung (`309_5a`, `309_5b`) | 6 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[antrag], [plantafel], [sammel], [schlechtwetter], test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen, test_monteurin_und_buero_auftrag_fuer_sich; Klicktest: klicktest_zeiten „Fin: im abgeschlossenen Zeitraum die Meldung …“ |
+| Nr. 5 – beim Sammeleintrag einmal statt je Person | ohne die Prüfung vorweg (`309_5c`) | 1 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[sammel] (422 mit der Meldung je Person statt 403) |
+| Nr. 5 – beim Ausfalltag vor jeder anderen Prüfung | ohne die Prüfung vorweg (`309_1e`, `309_1h`) | 2 rot: v709::test_buero_finanzen_im_abschluss_gesperrt[schlechtwetter], test_kolonnenfuehrer_schlechtwetter_eintragen_und_bestaetigen (422 statt 403); Klicktest: klicktest_schlechtwetter „Fin: im abgeschlossenen Zeitraum die Meldung, keine Rückfrage“ |
+
+14 Gegenproben (10 gegen Tests, 4 gegen Klicktests), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Ohne eigene Gegenprobe: „zurückziehen
+bleibt frei“ (Nr. 2, zweiter Teil) -- `cancel_request()` prüft nichts und wurde nicht angefasst (der Test `test_offenen_antrag_zurueckziehen_frei_genehmigen_nur_admin`
+hält es fest).

@@ -15,11 +15,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..berlin_time import berlin_today
 from ..database import get_db
-from ..absence_requests import KalendertagFrage, abwesenheit_loeschen, eintragen
+from ..absence_requests import AbschlussGesperrt, KalendertagFrage, abwesenheit_loeschen, eintragen
 from ..meldungen import KEIN_MITARBEITER
 from ..auftragsstatus import einsatz_gesperrt
 from ..models import AppUser, Employee, EmployeeAbsence, Order, PlanningHoliday
-from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen,
+from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen, darf_im_abschluss_aendern,
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
@@ -188,9 +188,11 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
     sich (403). Bis 1.9.145 trug hier jedes Büro für jede Person jede Art ein, ohne Antrag und ohne Entscheidung (P9)."""
     employee_id=antrag_fuer(_role,payload.employee_id)
     try:
-        antrag=eintragen(db,gleich_genehmigt=_role.role==ROLE_ADMIN,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=_role.id,kalendertag_urlaub=payload.kalendertag_urlaub)
+        antrag=eintragen(db,gleich_genehmigt=_role.role==ROLE_ADMIN,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=_role.id,kalendertag_urlaub=payload.kalendertag_urlaub,abschluss_erlaubt=darf_im_abschluss_aendern(_role))
     except KalendertagFrage as exc:  # seit 1.9.176: Silvester im Urlaub -- 409 mit der Rückfrage, wie unter „Zeiten“
         return kalendertag_frage_antwort(exc)
+    except AbschlussGesperrt as exc:  # seit 1.9.309: wie eine Zeitbuchung im abgeschlossenen Zeitraum
+        raise HTTPException(status_code=403,detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     # "Einmal eintragen, nie wieder lesen" (siehe CLAUDE.md "Krankheitssichtbarkeit"): buero_auftrag
@@ -205,7 +207,9 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
 def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_abwesenheit_loeschen_dep):
     """Seit 1.9.146 (P1): der Antrag folgt, nie ein 500; nur der Admin (er entscheidet auch die Anträge)."""
     try:
-        abwesenheit_loeschen(db,absence_id,geloescht_von_user_id=_role.id)
+        abwesenheit_loeschen(db,absence_id,geloescht_von_user_id=_role.id,abschluss_erlaubt=darf_im_abschluss_aendern(_role))
+    except AbschlussGesperrt as exc:  # seit 1.9.309 (löschen darf ohnehin nur der Admin -- der Vollständigkeit halber)
+        raise HTTPException(status_code=403,detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404,detail=str(exc)) from exc
     return {"deleted":True}

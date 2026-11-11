@@ -14,7 +14,9 @@
                                      seit 1.9.178 Uwe am Do 10.12.2026, als betriebsfreier Tag eingetragen -> Rückfrage „Der 10.12.2026 ist als
                                      betriebsfreier Tag eingetragen (Betriebsausflug).“, „Trotzdem eintragen“ -> eingetragen -- Bilder;
                                      seit 1.9.216 Uwes Ausfalltage mit Stunden („Ausfall 5,50 h (Sollzeit 7,50 h − gebucht 2,00 h)“, „Ausfall
-                                     7,50 h“), „Monat & Lohn“ mit Spalte „Ausfall Schlechtwetter“ je Person (auch ohne Buchung) und zusammen -- Bild
+                                     7,50 h“), „Monat & Lohn“ mit Spalte „Ausfall Schlechtwetter“ je Person (auch ohne Buchung) und zusammen -- Bild;
+                                     seit 1.9.309 Uwe am Mo 30.11.2026 (abgeschlossen bis 30.11.2026) -> „Die Zeiterfassung ist bis 30.11.2026
+                                     abgeschlossen. …“, keine Rückfrage „trotzdem“, nichts gespeichert
     überall                          keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -41,7 +43,7 @@ def befuellen(db, k):
     from datetime import date, datetime, time
     from decimal import Decimal
 
-    from app.models import AppUser, Customer, Employee, Order, PlanningHoliday, Project, Team, TeamEmployee, TimeEntry
+    from app.models import AppUser, Customer, Employee, Order, PlanningHoliday, Project, Team, TeamEmployee, TimeEntry, TimeTrackingSettings
     from app.project_pipeline_columns import default_pipeline_column_id
 
     leute = {}
@@ -64,6 +66,7 @@ def befuellen(db, k):
                      hours=Decimal("2"), break_minutes=0, status="booked", started_at=datetime.combine(tag, time(7)),
                      ended_at=datetime.combine(tag, time(9))))
     db.add(PlanningHoliday(holiday_date=date(2026, 12, 10), name="Betriebsausflug", active=True))  # seit 1.9.178: Rückfrage statt stiller Annahme
+    db.get(TimeTrackingSettings, 1).locked_until = date(2026, 11, 30)  # seit 1.9.309: der November ist abgeschlossen
     benutzer = {
         "kai": AppUser(username="kai", display_name="Kai Kolonne", role="field", employee_id=leute["kai"].id, password_hash=k.passwort()),
         "tom": AppUser(username="tom", display_name="Tom Monteur", role="field", employee_id=leute["tom"].id, password_hash=k.passwort()),
@@ -197,6 +200,20 @@ async def pruefen(tab, seed, p):
         [["Kai Kolonne", "0,00", "7,50 (1 T.)"], ["Mia Monteurin", "0,00", "7,50 (1 T.)"], ["Tom Monteur", "0,00", "15,00 (2 T.)"],
          ["Uwe Ohnekolonne", "2,00", "13,00 (2 T.)"], ["Zusammen", "2,00", "43,00 (6 T.)"]])
     await tab.bild("schlechtwetter_fin_monat_und_lohn")
+    # seit 1.9.309 (Lohn L2a, Punkt 2): ein Ausfalltag im abgeschlossenen Zeitraum -- nur der Admin; Büro – Finanzen sieht die Meldung, nichts gespeichert
+    p.pruefe("Fin: Zeiten wieder geladen", await tab.oeffnen("/zeiten?n=2#abwesenheiten", ZEITEN_BEREIT), True)
+    vorher = await tab.js("fetch('/api/absence-requests').then(r=>r.json()).then(l=>l.length)")
+    await tab.js("document.getElementById('swNeu').click()")
+    await tab.js(f"document.querySelector('[data-sw-person=\"{ids['uwe']}\"]').checked=true")
+    await _setze(tab, {"swTag": "2026-11-30"})
+    await tab.js("document.getElementById('swSenden').click()")
+    p.pruefe("Fin: im abgeschlossenen Zeitraum die Meldung, keine Rückfrage", await tab.warten(
+        "document.getElementById('swStatus').textContent==='Die Zeiterfassung ist bis 30.11.2026 abgeschlossen. Abwesenheiten in diesem Zeitraum nur "
+        "durch einen Administrator.'&&document.getElementById('swTrotzdem').hidden&&document.getElementById('swDialog').open", 10), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Fin: im abgeschlossenen Zeitraum nichts gespeichert", await tab.js("fetch('/api/absence-requests').then(r=>r.json()).then(l=>l.length)"),
+             vorher)
+    await tab.bild("schlechtwetter_fin_abgeschlossen")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
 

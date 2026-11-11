@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .models import AppUser, Employee, EmployeeAbsence, EmployeeAbsenceRequest
+from .models import AppUser, Employee, EmployeeAbsence, EmployeeAbsenceRequest, TimeTrackingSettings
 from .option_settings import get_option_group
 
 # Feste Abwesenheitskategorie (Schlechtwetter/Krankheit-Trennung) -- kein Optionsgruppen-Wert,
@@ -56,6 +56,23 @@ class KalendertagFrage(Exception):
 
     def rueckfrage(self) -> dict:
         return {"tage": [{"tag": t["tag"].isoformat(), "name": t["name"], "abwesenheit": t["abwesenheit"]} for t in self.tage]}
+
+
+class AbschlussGesperrt(ValueError):
+    """Seit 1.9.309 (Lohn L2a, Punkt 2): ein Tag der Abwesenheit liegt im abgeschlossenen Zeitraum (bis „Abgeschlossen bis“) -- wie eine Zeitbuchung
+    ändert ihn dort nur der Admin (403)."""
+
+
+def abschluss_pruefen(db: Session, start_date, end_date, *, abschluss_erlaubt: bool) -> None:
+    """Seit 1.9.309 (Lohn L2a, Punkt 2, Antwort 10 des Befunds L2): eine Abwesenheit oder ein Ausfalltag im abgeschlossenen Zeitraum -- anlegen,
+    genehmigen, löschen -- nur mit abschluss_erlaubt (der Router setzt es für den Admin, app/permissions.py::darf_im_abschluss_aendern()), wie die
+    Zeitbuchungen seit 1.7.10. Ein offener Antrag zählt nirgends; ihn abzulehnen oder zurückzuziehen bleibt frei. Rollenlos: die Vorgabe sperrt."""
+    if abschluss_erlaubt:
+        return
+    einstellungen = db.get(TimeTrackingSettings, 1)
+    bis = einstellungen.locked_until if einstellungen is not None else None
+    if bis is not None and start_date <= bis:
+        raise AbschlussGesperrt(f"Die Zeiterfassung ist bis {bis:%d.%m.%Y} abgeschlossen. Abwesenheiten in diesem Zeitraum nur durch einen Administrator.")
 
 
 class Belegt(ValueError):
@@ -149,6 +166,7 @@ def list_requests(db: Session, *, employee_id: int | None = None, status: str | 
 def _antrag_anlegen(
     db: Session, *, employee_id: int, absence_type: str | None = None, absence_category: str, start_date, end_date,
     notes: str | None = None, requested_by_user_id: int | None = None, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
+    abschluss_erlaubt: bool = False,
 ) -> EmployeeAbsenceRequest:
     """Prüft und legt an, ohne Commit. Seit 1.9.153: ohne Art trägt sie den Namen der Kategorie (bis 1.9.152 fest „Urlaub“, das ergab „Krankheit (Urlaub)“); eine Art, die der
     Kategorie widerspricht, lehnt sie ab. Das gilt nur fürs Anlegen: was schon dasteht, bleibt -- auch beim Entscheiden eines älteren Antrags (scripts/pruefe_abwesenheiten.py nennt es)."""
@@ -162,6 +180,7 @@ def _antrag_anlegen(
         raise ValueError(f"Die Art „{art}“ passt nicht zur Kategorie „{ABSENCE_CATEGORY_LABELS[absence_category]}“.")
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+    abschluss_pruefen(db, start_date, end_date, abschluss_erlaubt=abschluss_erlaubt)  # seit 1.9.309
     if absence_category == "schlechtwetter" and end_date != start_date:  # seit 1.9.170: ein Ausfalltag ist ein Tag
         raise ValueError("Schlechtwetter wird je Tag eingetragen.")
     if halber_tag and (absence_category != "urlaub" or end_date != start_date):  # seit 1.9.171 (Lohn L1a, Punkt 6)
@@ -227,13 +246,13 @@ def create_request(db: Session, **werte) -> EmployeeAbsenceRequest:
     return load_request(db, row.id)
 
 
-def eintragen(db: Session, *, gleich_genehmigt: bool, **werte) -> EmployeeAbsenceRequest:
+def eintragen(db: Session, *, gleich_genehmigt: bool, abschluss_erlaubt: bool = False, **werte) -> EmployeeAbsenceRequest:
     """„Abwesenheit eintragen“ auf der Plantafel (seit 1.9.146, Stufe 6, R1, Punkt 4): derselbe Weg wie unter „Zeiten“ -- ein Antrag; vom Admin gleich genehmigt, in einem
     Commit. Scheitert das Genehmigen (schon eine Abwesenheit im Zeitraum), bleibt auch kein Antrag zurück."""
     try:
-        row = _antrag_anlegen(db, **werte)
+        row = _antrag_anlegen(db, abschluss_erlaubt=abschluss_erlaubt, **werte)
         if gleich_genehmigt:
-            _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
+            _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"), abschluss_erlaubt=abschluss_erlaubt)
     except (ValueError, KalendertagFrage):
         db.rollback()
         raise
@@ -249,7 +268,8 @@ class SammelAbgelehnt(ValueError):
         super().__init__("Nicht eingetragen: " + "; ".join(x["text"].rstrip(".") for x in liste) + ".")  # ein Punkt am Ende, nicht zwei
 
 
-def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: bool, **werte) -> list[EmployeeAbsenceRequest]:
+def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: bool, abschluss_erlaubt: bool = False,
+                     **werte) -> list[EmployeeAbsenceRequest]:
     """Seit 1.9.171 (Lohn L1a, Punkt 6, Entscheidung Tobias E9): dieselbe Abwesenheit für mehrere Personen -- je Person ein Antrag über
     _antrag_anlegen() (ein Weg), gleich genehmigt, wenn der Aufrufer entscheidet. Alles oder nichts in einem Commit: geht es für eine Person
     nicht, SammelAbgelehnt mit jeder Person und ihrem Grund. Bewusst ohne SAVEPOINT je Person: unter SQLite ist ein SAVEPOINT vor der ersten
@@ -259,12 +279,15 @@ def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: 
     für jeden Antrag (Belegt), bis 1.9.207 stand die Prüfung hier vorweg. Das Genehmigen prüft dahinter weiter selbst (zeitgleiche Einträge).
     Die Rückfrage zu Silvester kommt erst, wenn für keine Person etwas dagegen spricht."""
     ids = list(dict.fromkeys(int(i) for i in employee_ids))
+    # seit 1.9.309: der abgeschlossene Zeitraum gilt für alle gleich -- einmal vorweg (403), nicht je Person in der Liste
+    if werte.get("start_date") is not None and werte.get("end_date") is not None:
+        abschluss_pruefen(db, werte["start_date"], werte["end_date"], abschluss_erlaubt=abschluss_erlaubt)
     antraege, fehler, frage = [], [], None
     for eid in ids:
         try:
-            row = _antrag_anlegen(db, employee_id=eid, **werte)
+            row = _antrag_anlegen(db, employee_id=eid, abschluss_erlaubt=abschluss_erlaubt, **werte)
             if gleich_genehmigt:
-                _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
+                _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"), abschluss_erlaubt=abschluss_erlaubt)
             antraege.append(row.id)
         except Belegt as exc:
             fehler.append({"employee_id": eid, "text": f"{exc.name or eid}: {exc.grund}"})
@@ -281,23 +304,27 @@ def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: 
 
 def review_request(
     db: Session, request_id: int, *, decision: str, reviewed_by_user_id: int | None,
-    review_notes: str | None = None,
+    review_notes: str | None = None, abschluss_erlaubt: bool = False,
 ) -> EmployeeAbsenceRequest:
     """Entscheiden unter „Zeiten“ (nur Admin). Seit 1.9.202 prüft _entscheiden() einen Ausfalltag Schlechtwetter wie der Dialog (grund_gegen())."""
     row = db.get(EmployeeAbsenceRequest, request_id)
     if row is None:
         raise ValueError("Abwesenheitsantrag wurde nicht gefunden.")
-    _entscheiden(db, row, decision=decision, reviewed_by_user_id=reviewed_by_user_id, review_notes=review_notes)
+    _entscheiden(db, row, decision=decision, reviewed_by_user_id=reviewed_by_user_id, review_notes=review_notes, abschluss_erlaubt=abschluss_erlaubt)
     db.commit()
     return load_request(db, row.id)
 
 
-def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, reviewed_by_user_id: int | None, review_notes: str | None = None) -> None:
-    """Die Entscheidung, ohne Commit."""
+def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, reviewed_by_user_id: int | None, review_notes: str | None = None,
+                 abschluss_erlaubt: bool = False) -> None:
+    """Die Entscheidung, ohne Commit. Seit 1.9.309 genehmigt im abgeschlossenen Zeitraum nur, wer dort ändern darf (abschluss_pruefen());
+    ablehnen bleibt frei -- ein offener Antrag zählt nirgends."""
     if row.status != "pending":
         raise ValueError("Dieser Abwesenheitsantrag wurde bereits bearbeitet.")
     if decision not in {"approved", "rejected"}:
         raise ValueError("Ungültige Entscheidung.")
+    if decision == "approved":
+        abschluss_pruefen(db, row.start_date, row.end_date, abschluss_erlaubt=abschluss_erlaubt)
     if decision == "approved" and row.absence_category == "schlechtwetter":
         # seit 1.9.202 (L1a Stufe 4, Punkt 1): jede Genehmigung eines Ausfalltags prüft wie der Schlechtwetter-Dialog -- auch unter „Zeiten“
         # (bis 1.9.201 genehmigte der Admin dort auch an einem Tag ohne Sollzeit); die Meldung ist der Grund
@@ -330,12 +357,13 @@ def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, rev
     db.flush()
 
 
-def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id: int | None = None) -> None:
+def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id: int | None = None, abschluss_erlaubt: bool = False) -> None:
     """Eine genehmigte Abwesenheit löschen (seit 1.9.146, P1): der Antrag folgt -- er ist danach zurückgezogen, mit Vermerk, und zeigt auf nichts mehr. Bis 1.9.145 scheiterte
     das Löschen unter PostgreSQL am Fremdschlüssel (500), unter SQLite blieb der Antrag „genehmigt“ und zeigte ins Leere."""
     row = db.get(EmployeeAbsence, absence_id)
     if row is None:
         raise ValueError("Abwesenheit nicht gefunden.")
+    abschluss_pruefen(db, row.start_date, row.end_date, abschluss_erlaubt=abschluss_erlaubt)  # seit 1.9.309
     for antrag in db.scalars(select(EmployeeAbsenceRequest).where(EmployeeAbsenceRequest.approved_absence_id == absence_id)):
         antrag.approved_absence_id = None
         antrag.status = "cancelled"

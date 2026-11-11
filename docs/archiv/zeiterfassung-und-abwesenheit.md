@@ -2213,3 +2213,38 @@ den Fragen der Nachrunde der Geräte-Runde (Archiv `modul-betriebsmittel-und-bet
 Neu: `tests/test_v708_tagesbilanz.py` (ein Monat mit allem, unabhängig von Umfang und Zuordnung, vor dem Eintritt gebucht, nur genannte Personen, eine feste
 Zahl Abfragen, eine Regel gegenüber der Abfrage je Person, die Lohndatei fragt nicht selbst). Unverändert grün: `tests/test_v626_lohndatei.py` und die übrigen
 Tests der Lohndatei. Keine angepasste Erwartung. Kein Klicktest (keine Oberfläche). Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.308“.
+
+### Umsetzung 1.9.309 (Punkt 2): Sperre nach dem Abschluss für Abwesenheiten und Ausfalltage
+
+- `app/absence_requests.py::abschluss_pruefen(db, von, bis, abschluss_erlaubt=…)`: berührt der Zeitraum einen Tag bis „Abgeschlossen bis“
+  (`TimeTrackingSettings.locked_until`) und ist `abschluss_erlaubt` nicht gesetzt, `AbschlussGesperrt` (Unterklasse von `ValueError`) mit „Die Zeiterfassung ist
+  bis TT.MM.JJJJ abgeschlossen. Abwesenheiten in diesem Zeitraum nur durch einen Administrator.“ Aufgerufen in `_antrag_anlegen()` (nach den Prüfungen der
+  Eingabe, vor „schon abwesend“), in `_entscheiden()` nur beim Genehmigen, in `abwesenheit_loeschen()`; `sammel_eintragen()` und
+  `app/schlechtwetter.py::eintragen()` prüfen einmal vorweg (403 statt eines Eintrags je Person in der Liste, beim Ausfalltag vor „gebucht“ und „betriebsfrei“
+  -- keine Rückfrage „trotzdem“). `abschluss_erlaubt` ist überall ein Schlüsselwort mit Vorgabe False: wer nichts angibt, ist gesperrt.
+- Die Router geben die Rolle mit: `app/permissions.py::darf_im_abschluss_aendern(user)` -- der Admin, ohne Konto (Tests ohne Anmeldung) frei; dieselbe Regel
+  prüft seit 1.9.309 auch `app/routers/time_tracking.py::_require_open_period()` (bis dahin dort von Hand). `AbschlussGesperrt` -> 403 in
+  `routers/absence_requests.py` (Antrag, Sammeleintrag, Entscheiden), `routers/planning.py` (eintragen, löschen), `routers/schlechtwetter.py` (eintragen,
+  bestätigen).
+- Frei bleiben: ablehnen eines offenen Antrags (auch Schlechtwetter), zurückziehen eines offenen Antrags -- ein offener Antrag zählt nirgends. Der Admin darf
+  alles, wie bei den Zeitbuchungen. Die Seiten zeigen die Meldung im Dialog (Fehlertext des Servers, unverändert).
+- Bestand: nichts zu migrieren. Was bis 1.9.308 im abgeschlossenen Zeitraum eingetragen wurde, bleibt.
+
+#### Festlegungen 1.9.309 (Bitte bestätigen)
+
+1. Eine Abwesenheit oder ein Ausfalltag, der einen Tag bis „Abgeschlossen bis“ berührt, legt nur der Admin an, genehmigt und löscht sie -- auf jedem Weg
+   (Antrag, Sammeleintrag, Plantafel, Schlechtwetter eintragen und bestätigen); sonst 403 mit Meldung, nichts gespeichert.
+2. Ablehnen und Zurückziehen eines offenen Antrags bleiben frei -- er zählt nirgends.
+3. Eine Regel für Zeitbuchungen und Abwesenheiten: `darf_im_abschluss_aendern()` (der Admin; ohne Konto frei).
+4. Die Geschäftslogik sperrt ohne Angabe; jeder Router gibt die Rolle aus `darf_im_abschluss_aendern()` mit.
+5. Die Meldung „Die Zeiterfassung ist bis TT.MM.JJJJ abgeschlossen. Abwesenheiten in diesem Zeitraum nur durch einen Administrator.“; beim Ausfalltag vor jeder
+   anderen Prüfung (keine Rückfrage „trotzdem“), beim Sammeleintrag einmal statt je Person.
+
+#### Tests und Prüfung 1.9.309
+
+Neu: `tests/test_v709_abschluss_abwesenheiten.py` (jeder Weg als Büro – Finanzen gesperrt und nach dem Abschluss frei, als Admin frei, Monteurin und Büro –
+Auftrag für sich, Kolonnenführer eintragen und bestätigen, ablehnen frei, zurückziehen frei, Admin genehmigt und löscht, die Geschäftslogik ohne Angabe
+gesperrt, eine Regel, jeder Router gibt die Rolle mit). Klicktests: `klicktest_zeiten.py` -- Büro – Finanzen beantragt für Tom 29.09.–01.10.2026 (abgeschlossen
+bis 30.09.): Meldung im Dialog, nichts gespeichert, danach wie bisher; `klicktest_schlechtwetter.py` -- abgeschlossen bis 30.11.2026, Büro – Finanzen trägt Uwe
+am 30.11. ein: Meldung, keine Rückfrage „trotzdem“, nichts gespeichert (Bild `schlechtwetter_fin_abgeschlossen`). Keine angepasste Erwartung. Gegenproben:
+`gegenproben-lohn-l2a.md`, „1.9.309“.

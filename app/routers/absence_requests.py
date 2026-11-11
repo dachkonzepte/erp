@@ -10,12 +10,12 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..absence_requests import KalendertagFrage, SammelAbgelehnt, arten_fuer_auswahl, sammel_eintragen, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
+from ..absence_requests import AbschlussGesperrt, KalendertagFrage, SammelAbgelehnt, arten_fuer_auswahl, sammel_eintragen, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, EmployeeAbsenceRequest
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_im_abschluss_aendern, require_min_role
 from ..schemas import AbwesenheitSammel, EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
 router = APIRouter()
@@ -75,9 +75,11 @@ def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request
     user=getattr(request.state,"erp_user",None)
     employee_id=antrag_fuer(user,payload.employee_id)
     try:
-        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None),halber_tag=payload.halber_tag,kalendertag_urlaub=payload.kalendertag_urlaub)
+        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None),halber_tag=payload.halber_tag,kalendertag_urlaub=payload.kalendertag_urlaub,abschluss_erlaubt=darf_im_abschluss_aendern(user))
     except KalendertagFrage as exc:
         return kalendertag_frage_antwort(exc)
+    except AbschlussGesperrt as exc:  # seit 1.9.309: wie eine Zeitbuchung im abgeschlossenen Zeitraum
+        raise HTTPException(status_code=403,detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     return _antrag_out(db,row,user)
@@ -103,7 +105,10 @@ def post_absence_sammel(payload: AbwesenheitSammel, request: Request, db: Sessio
         rows = sammel_eintragen(db, employee_ids=payload.employee_ids, gleich_genehmigt=user is None or user.role == ROLE_ADMIN,
                                 absence_type=payload.absence_type, absence_category=payload.absence_category, start_date=payload.start_date,
                                 end_date=payload.end_date, notes=payload.notes, halber_tag=payload.halber_tag,
-                                kalendertag_urlaub=payload.kalendertag_urlaub, requested_by_user_id=getattr(user, "id", None))
+                                kalendertag_urlaub=payload.kalendertag_urlaub, requested_by_user_id=getattr(user, "id", None),
+                                abschluss_erlaubt=darf_im_abschluss_aendern(user))
+    except AbschlussGesperrt as exc:  # seit 1.9.309
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except SammelAbgelehnt as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc), "liste": exc.liste})
     except KalendertagFrage as exc:
@@ -114,7 +119,9 @@ def post_absence_sammel(payload: AbwesenheitSammel, request: Request, db: Sessio
 @router.post("/api/absence-requests/{request_id}/review", response_model=EmployeeAbsenceRequestOut)
 def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,db:Session=Depends(get_db, scope="function"),user=Depends(require_admin("Nur Administratoren dürfen Abwesenheitsanträge freigeben oder ablehnen."))):
     try:
-        row=review_absence_request_row(db,request_id,decision=payload.decision,reviewed_by_user_id=getattr(user,"id",None),review_notes=payload.review_notes)
+        row=review_absence_request_row(db,request_id,decision=payload.decision,reviewed_by_user_id=getattr(user,"id",None),review_notes=payload.review_notes,abschluss_erlaubt=darf_im_abschluss_aendern(user))
+    except AbschlussGesperrt as exc:  # seit 1.9.309 (entscheiden darf ohnehin nur der Admin -- der Vollständigkeit halber)
+        raise HTTPException(status_code=403,detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeeAbsenceRequestOut.model_validate(absence_request_to_dict(db,row))

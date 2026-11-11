@@ -33,7 +33,7 @@ from ..berlin_time import BERLIN, berlin_now, berlin_today
 from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN, NUR_VON_BIS
 from ..database import get_db
 from ..models import AppUser, Order, TimeEntry, TimeEntryGroup
-from ..permissions import ROLE_FIELD, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, has_role, require_min_role, require_zeit_buchen, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, darf_im_abschluss_aendern, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, has_role, require_min_role, require_zeit_buchen, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneDauerVorschauOut, TimeKolonneVorschauOut, TimeDauerVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
@@ -111,9 +111,9 @@ def _require_order_open_for_field(request: Request, db: Session, *order_ids: int
 def _require_open_period(request: Request, db: Session, *work_dates: date) -> None:
     """Seit 1.7.10: Buchungen im abgeschlossenen Zeitraum (work_date <= locked_until) legt nur noch
     ein Admin an, ändert, stoppt oder löscht -- auch die eigenen eines Monteurs, denn sie sind
-    dann bereits in die Lohnabrechnung eingegangen."""
+    dann bereits in die Lohnabrechnung eingegangen. Seit 1.9.309 dieselbe Regel wie für Abwesenheiten (darf_im_abschluss_aendern())."""
     user = getattr(request.state, "erp_user", None)
-    if user is None or user.role == "admin":
+    if darf_im_abschluss_aendern(user):
         return
     lock = locked_until(db)
     if lock is not None and any(d is not None and d <= lock for d in work_dates):

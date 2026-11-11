@@ -555,6 +555,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Dialog mit Feld Mitarbeiter (ohne Vorwahl)", await tab.js(
         "[document.getElementById('adMitarbeiterFeld').hidden,document.getElementById('adMitarbeiter').value]"), [False, ""])
     await tab.js(f"document.getElementById('adMitarbeiter').value='{seed['tom_ma']}';auswahlWert(document.getElementById('adKategorie'),'krankheit')")
+    # seit 1.9.309 (Lohn L2a, Punkt 2): zuerst im abgeschlossenen Zeitraum (bis 30.09.2026) -- die Meldung im Dialog, nichts gespeichert
+    vorher = await tab.js("fetch('/api/absence-requests').then(r=>r.json()).then(l=>l.length)")
+    await _eingeben(tab, "adVon", "2026-09-29")
+    await _eingeben(tab, "adBis", "2026-10-01")
+    await tab.js("document.getElementById('adSenden').click()")
+    p.pruefe("Fin: im abgeschlossenen Zeitraum die Meldung, der Dialog bleibt", await tab.warten(
+        "document.getElementById('adStatus').textContent==='Die Zeiterfassung ist bis 30.09.2026 abgeschlossen. Abwesenheiten in diesem Zeitraum nur "
+        "durch einen Administrator.'&&document.getElementById('abwDialog').open&&!document.getElementById('adSenden').disabled", 10), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Fin: im abgeschlossenen Zeitraum nichts gespeichert", await tab.js(
+        "fetch('/api/absence-requests').then(r=>r.json()).then(l=>l.length)"), vorher)
     await _eingeben(tab, "adVon", "2026-10-27")
     await _eingeben(tab, "adBis", "2026-10-28")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('adSenden').click()", "#abwListe")
