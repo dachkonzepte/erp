@@ -29,6 +29,10 @@ und Feiertage beim Umfang „nur Abwesenheiten“; gebuchte Arbeit und eingetrag
 Person ohne Export nennt die Liste nicht); jede Zeile ohne Kennzeichen in der Zuordnung; Arbeit vor dem Eintritt oder nach dem Austritt. Je Art und
 Grund die Zahl der Tage und die Stunden. Zeilen mit 0,00 Stunden fehlen nicht -- es gibt nichts.
 
+Seit 1.9.308 (Lohn L2a, Punkt 1) rechnet berechnen() über die Tagesbilanz (app/tagesbilanz.py): Sollzeit, Arbeit, Feiertag, Kalendertag, Abwesenheit
+und Schlechtwetter je Person und Tag kommen von dort; hier gelten nur noch Export-Umfang, Zuordnung, Mehrarbeit der Azubis und das Format. Die
+Dateien bleiben Byte für Byte gleich (Nachweis: die Vorprobe September und Oktober).
+
 Rollenlos und nur lesend; wer ausgeben darf und ob der Monat abgeschlossen und vollständig ist, prüfen app/time_backoffice.py und der Router.
 """
 
@@ -38,10 +42,9 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Employee, EmployeeAbsence, EmployeePayrollSettings, TimeEntry
 from .rounding import round_hours
 
 NULL = Decimal("0")
@@ -98,78 +101,47 @@ def _stunden_text(wert: Decimal) -> str:
 
 def berechnen(db: Session, erster: date) -> list[Person]:
     """Je Person, die im Monat aktiv ist oder Buchungen bzw. Abwesenheiten hat, ihre Zeilen (sortiert wie in der Datei); Personen mit Umfang
-    „nichts“ ohne Zeilen. Reihenfolge der Personen: nach Personalnummer, ohne Nummer nach Namen dahinter."""
-    from .absence_requests import ABSENCE_CATEGORY_LABELS
-    from .arbeitszeitkalender import abwesenheiten as kalender_abwesenheiten
+    „nichts“ ohne Zeilen. Reihenfolge der Personen: nach Personalnummer, ohne Nummer nach Namen dahinter. Seit 1.9.308 über die Tagesbilanz
+    (app/tagesbilanz.py::bilanz()) -- dieselben Personen, Tage und Stunden wie bis 1.9.307, hier nur Umfang, Zuordnung und Mehrarbeit."""
     from .lohnarten import _alle, fest, kalender, zuordnung
-    from .planning import automatic_public_holidays
-    from .schlechtwetter import SCHLECHTWETTER, ausfall
-    from .sollzeit import abwesenheit_tage, beschaeftigt_am, soll_fuer_personen
+    from .schlechtwetter import SCHLECHTWETTER
+    from .tagesbilanz import bilanz
     from .time_backoffice import effective_datev_personnel_number, export_umfang, load_employee_payroll
-    from .time_tracking import arbeit_des_tags, employee_name
+    from .time_tracking import employee_name
 
     ende = monat_ende(erster)
-    buchungen: dict[tuple[int, date], list[TimeEntry]] = {}
-    for r in db.scalars(select(TimeEntry).where(TimeEntry.work_date >= erster, TimeEntry.work_date <= ende, TimeEntry.status == "booked")):
-        buchungen.setdefault((r.employee_id, r.work_date), []).append(r)
-    abwesend = list(db.scalars(select(EmployeeAbsence).where(EmployeeAbsence.start_date <= ende, EmployeeAbsence.end_date >= erster)
-                               .order_by(EmployeeAbsence.start_date, EmployeeAbsence.id)))
-    mit_daten = {e for e, _ in buchungen} | {a.employee_id for a in abwesend}
-    personen = list(db.scalars(select(Employee).where(or_(Employee.active == True, Employee.id.in_(mit_daten or {0})))))  # noqa: E712
-    payrolls = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings))}
-    # seit 1.9.225 das Bundesland wie „Zeiten“ (ohne Einstellung Nordrhein-Westfalen; bis dahin load_region_settings(), das ohne Zeile wirft)
-    from .zeiten import feiertage_bundesland
-    feiertage = automatic_public_holidays(feiertage_bundesland(db), range(erster.year - 1, erster.year + 2))
-    soll = soll_fuer_personen(db, [e.id for e in personen], erster, ende)
+    b = bilanz(db, erster, ende)
     alle = _alle(db)
     z_arbeit, z_mehr, z_feiertag = fest(db, "arbeit", alle=alle), fest(db, "mehrarbeit_azubi", alle=alle), fest(db, "feiertag", alle=alle)
-    sw_paare = [(a.employee_id, t) for a in abwesend if a.absence_category == SCHLECHTWETTER
-                for t in _tage(max(a.start_date, erster), min(a.end_date, ende))]
-    sw_stunden = ausfall(db, sw_paare)
 
     ergebnis: list[Person] = []
-    for emp in personen:
-        p = payrolls.get(emp.id) or load_employee_payroll(db, emp.id)
+    for emp in b.personen:
+        p = b.payrolls.get(emp.id) or load_employee_payroll(db, emp.id)
         umfang = export_umfang(p)
         person = Person(emp.id, employee_name(emp) or f"#{emp.id}", effective_datev_personnel_number(db, emp, p), umfang, bool(getattr(p, "azubi", False)),
                         emp.last_name or "")
         ergebnis.append(person)
         alles, nichts = umfang == "alles", umfang == "nichts"
-        # Tag -> (Quelle, Stunden, Zuordnung, Bezeichnung) außer der Arbeit; Feiertag und Kalendertag nur für eine Person mit Export (seit 1.9.225 der
-        # Feiertag auch bei „nur Abwesenheiten“ -- er steht dann unter „Nicht in der Datei“)
-        je_tag: dict[date, list[tuple[str, Decimal, dict | None, str]]] = {}
-        soll_p = soll[emp.id]
-        if not nichts:
-            for tag, s in soll_p.items():
-                if tag in feiertage and s > 0:
-                    je_tag.setdefault(tag, []).append(("feiertag", s, z_feiertag, "Feiertag"))
-            for k in kalender_abwesenheiten(db, emp.id, erster, ende):
-                if k["tag"] not in feiertage:
-                    z = kalender(db, k["schluessel"], alle=alle)
-                    je_tag.setdefault(k["tag"], []).append(("kalender", k["stunden"], z if z and z["exportiert"] else None, k["abwesenheit"]))
-        for a in (a for a in abwesend if a.employee_id == emp.id):
-            von, bis = max(a.start_date, erster), min(a.end_date, ende)
-            if a.absence_category == SCHLECHTWETTER:
-                for tag in _tage(von, bis):
-                    if beschaeftigt_am(p, tag):
-                        je_tag.setdefault(tag, []).append(("schlechtwetter", sw_stunden[(emp.id, tag)]["stunden"],
-                                                           zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle),
-                                                           "Schlechtwetter " + ("Winter" if tag.month in (12, 1, 2, 3) else "Sommer")))
-                continue
-            stand = abwesenheit_tage(db, emp.id, von, bis, kategorie=a.absence_category, halber_tag=bool(a.halber_tag), feiertage=feiertage,
-                                     kalendertag_urlaub=a.kalendertag_urlaub)
-            kategorie = ABSENCE_CATEGORY_LABELS.get(a.absence_category, a.absence_category)
-            was = kategorie + (f" ({a.absence_type})" if a.absence_type and a.absence_type.casefold() != kategorie.casefold() else "")
-            for t in stand["je_tag"]:
-                je_tag.setdefault(t["tag"], []).append(("abwesenheit", t["stunden"], zuordnung(db, a.absence_category, a.absence_type, t["tag"],
-                                                                                                  alle=alle), was))
-        gebucht = {t for (e, t) in buchungen if e == emp.id}
         monat: dict[str, Decimal] = {}
-        for tag in sorted(set(je_tag) | gebucht):
-            posten = je_tag.get(tag, [])
-            if tag in gebucht:
-                arbeit = arbeit_des_tags(buchungen[(emp.id, tag)])
-                if not beschaeftigt_am(p, tag):
+        for tag, t in b.tage[emp.id].items():
+            # (Quelle, Stunden, Zuordnung, Bezeichnung) außer der Arbeit; Feiertag und Kalendertag nur für eine Person mit Export (seit 1.9.225 der
+            # Feiertag auch bei „nur Abwesenheiten“ -- er steht dann unter „Nicht in der Datei“)
+            posten: list[tuple[str, Decimal, dict | None, str]] = []
+            for x in t.posten:
+                if x.quelle == "feiertag":
+                    if not nichts:
+                        posten.append(("feiertag", x.stunden, z_feiertag, x.bezeichnung))
+                elif x.quelle == "kalender":
+                    if not nichts:
+                        z = kalender(db, x.kategorie, alle=alle)
+                        posten.append(("kalender", x.stunden, z if z and z["exportiert"] else None, x.bezeichnung))
+                elif x.quelle == "schlechtwetter":
+                    posten.append(("schlechtwetter", x.stunden, zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle), x.bezeichnung))
+                else:
+                    posten.append(("abwesenheit", x.stunden, zuordnung(db, x.kategorie, x.art, tag, alle=alle), x.bezeichnung))
+            if t.gebucht:
+                arbeit = t.arbeit
+                if not t.beschaeftigt:
                     if arbeit > 0:
                         person.nicht_merken("Arbeit", AUSSERHALB, tag, arbeit)
                 elif not alles:
@@ -177,7 +149,7 @@ def berechnen(db: Session, erster: date) -> list[Person]:
                 else:
                     mehr = NULL
                     if person.azubi and z_mehr is not None:
-                        mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z, _w in posten), NULL) - soll_p.get(tag, NULL)))
+                        mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z, _w in posten), NULL) - t.soll))
                     posten = [("arbeit", arbeit - mehr, z_arbeit, "Arbeit"), ("mehrarbeit", mehr, z_mehr, "Mehrarbeit")] + posten
             for quelle, stunden, z, was in sorted(posten, key=lambda x: REIHE.index(x[0])):
                 if stunden <= 0:
@@ -195,13 +167,6 @@ def berechnen(db: Session, erster: date) -> list[Person]:
             person.zeilen.append(Zeile(None, None, lohnart, round_hours(monat[lohnart]), "schlechtwetter"))
     ergebnis.sort(key=lambda x: (x.personalnummer is None, x.personalnummer or "", x.name.casefold()))
     return ergebnis
-
-
-def _tage(von: date, bis: date):
-    tag = von
-    while tag <= bis:
-        yield tag
-        tag += timedelta(days=1)
 
 
 def zeile_text(pnr: str, z: Zeile) -> str:

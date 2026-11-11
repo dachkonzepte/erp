@@ -2148,3 +2148,68 @@ sie in keinem Commit stehen. Aus `lohn_echt` wird nichts committet (Vorgabe Tobi
 
 Neu: `tests/test_v639_lohndatei_statt_lodas.py` (Hinweis nennt die Lohndatei, keine Vorlage nennt LODAS). Gegenproben: Archiv
 `gegenproben-stufe6-r3b.md`. Angepasste Erwartungen: keine.
+
+## Lohn L2a: Fundament der Konten (ab 1.9.308)
+
+Befund L2 (10.11.2026, nur gelesen; `bildgrundlage/befund_l2_2605ab1.txt`, nicht in Git): Urlaubskonto und Arbeitszeitkonto je Mitarbeiter mit Startwerten.
+Die Bausteine gab es (Sollzeit, Abwesenheitstage mit halben Tagen, Arbeit im Lohn, Schlechtwetter-Ausfall); es fehlten Tabellen für Anspruch, Übertrag und
+Startwert, jede Rechnung Ist − Soll und jede Anzeige. Nebenbefunde: Abwesenheiten und Ausfalltage ließen sich nach dem Abschluss noch ändern (7.1); ein von
+Hand eingetragener betriebsfreier Tag zählt im Urlaub als Urlaubstag (7.2); „Monat & Lohn“ zeigte niemanden, der im Monat nur Abwesenheiten hat (7.3);
+Änderungen an Modell und Arbeitszeitkalender wirken rückwirkend (7.4). Umstellung von Time 4 voraussichtlich zum 01.01.2027, die Startwerte (Resturlaub,
+Saldo zum 31.12.2026) liefert das Steuerbüro Ende Dezember.
+
+### Antworten (11.11.2026, Tobias)
+
+- 5 ja: offene Anträge erscheinen im Urlaubskonto als „geplant“ -- kommt mit L2b.
+- 6 ja: halbe Tage bleiben nur für Urlaub und nur für einen einzelnen Tag.
+- 10: live rechnen; Abwesenheiten und Ausfalltage nach dem Abschluss sperren (L2a Punkt 2); den Monatsstand beim Abschluss ablegen kommt mit L2c.
+- 11: Admin und Büro – Finanzen sehen alle, alle anderen nur die eigenen; in der Änderungshistorie für Büro – Auftrag geschwärzt.
+- 12: Stichtag 31.12.2026 (Stand nach dem Tag), Urlaub in Tagen (halbe erlaubt), Saldo in Stunden (zwei Stellen, auch negativ), von Hand im Formular, kein
+  Einleseskript; ändern Admin und Büro – Finanzen, nach dem Abschluss des Januars nur der Admin.
+- 14 ja: „Monat & Lohn“ mit allen, die im Monat Sollzeit haben (L2a Punkt 4).
+- 15 ja: L2a (Fundament) zuerst.
+- Offen, klärt Tobias mit Steuerbüro und Betrieb: 1 Urlaubsanspruch (Tage, Teilzeit, anteilig), 2 Übertrag und Verfall, 3 was gegen den Urlaub zählt,
+  4 betriebsfreier Tag im Urlaub, 7 was im Arbeitszeitkonto neutral, Plus, Minus ist (Fahrzeit), 8 Azubis, 9 für wen ein Arbeitszeitkonto, 13 Korrekturdatei.
+
+### Auftrag L2a (je Punkt eine Version)
+
+1 Tagesbilanz je Person und Tag nach Befund 8, L2a-1; Fahrzeit getrennt ausweisen (Frage 7 offen); Nachweis: die Lohndateien September und Oktober der
+Vorprobe byte-gleich. 2 Sperre nach dem Abschluss auch für Abwesenheiten und Ausfalltage, wie bei den Zeitbuchungen. 3 Tabellen und Migration:
+Urlaubsanspruch je Person und Jahr (Tage, halbe erlaubt, Vorgabe aus den Einstellungen), Übertrag, optional ein Verfallsdatum -- so, dass die offenen
+Antworten zu Fragen 1 und 2 ohne neue Migration passen; Startwert je Person nach Antwort 12 mit Herkunft und „geprüft am / durch“; Pflege in den
+Lohnstammdaten, Rechte `darf_lohnregeln()`, Änderungshistorie. 4 „Monat & Lohn“ zeigt alle mit Sollzeit im Monat (Befund 7.3). Vorweg 1.9.305–1.9.307 zu
+den Fragen der Nachrunde der Geräte-Runde (Archiv `modul-betriebsmittel-und-betriebskosten.md`, „L2a, Vorweg“).
+
+### Umsetzung 1.9.308 (Punkt 1): die Tagesbilanz
+
+- `app/tagesbilanz.py::bilanz(db, von, bis, employee_ids=None)` -> `Bilanz` (Personen, Lohnstammdaten, Feiertage, je Person jeder Tag als `Tag`): `soll`,
+  `beschaeftigt`, `gebucht`, `arbeit` (`arbeit_des_tags()`, alle Zeitarten, 0,25 h), `fahrzeit` (Zeitart „travel“, minutengenau, zwei Stellen),
+  `arbeit_ohne_fahrzeit` (die übrigen, 0,25 h), `feiertag` (Name, auch ohne Sollzeit) und `posten` (`Posten`: Quelle, Stunden, Bezeichnung, Kategorie, Art,
+  Anteil) -- Feiertag mit Sollzeit, Kalendertag (nicht am Feiertag, nicht wo ein Urlaub ihn nimmt), Abwesenheit (Sollzeit × Anteil), Schlechtwetter
+  (Soll − Arbeit, nie unter 0, nur beschäftigt). Ohne `employee_ids` dieselben Personen wie die Lohndatei (aktiv oder mit Buchungen bzw. Abwesenheiten).
+- Abfragen: Buchungen, Abwesenheiten, Personen, Lohnstammdaten, Bundesland, Sollzeit (`soll_fuer_personen()`, das Modell je Kalenderwoche), Kalendertage --
+  fest, unabhängig von Personen, Tagen, Buchungen und Abwesenheiten.
+- Eine Regel: `app/sollzeit.py::abwesenheit_tage()` nimmt seit 1.9.308 optional `soll` und `kalender` des Aufrufers; `app/arbeitszeitkalender.py` rechnet
+  `kalendertage_im_zeitraum()`, `urlaub_ersetzt()` und `abwesenheiten()` über `kalendertage_aus()`, `ersetzt_aus()` und `abwesenheiten_aus()` -- dieselben
+  Funktionen nutzt die Tagesbilanz ohne Abfrage.
+- `app/lohndatei.py::berechnen()` rechnet über die Tagesbilanz: dort bleiben Export-Umfang, Zuordnung, Mehrarbeit der Azubis und das Format. Keine eigene
+  Abfrage nach Buchungen oder Abwesenheiten mehr.
+- Nachweis: `scripts/vorprobe_time4.py` September und Oktober 2026 (Muster, `bildgrundlage/lohn`, wie 1.9.228 mit `--azubis` und `--teilzeit`) vor der
+  Änderung (Stand 1.9.307) und danach -- beide Dateien Byte für Byte gleich (SHA-256 gleich); ebenso die lokale Datei aus echten Buchungen Oktober
+  (`bildgrundlage/lohn_echt`, nicht in Git, keine Werte hier).
+
+#### Festlegungen 1.9.308 (Bitte bestätigen)
+
+1. Je Person und Tag eine Tagesbilanz aus einer Funktion (`app/tagesbilanz.py::bilanz()`): Sollzeit, beschäftigt, Arbeit (alle Zeitarten, 0,25 h), Feiertag und
+   die Posten Feiertag, Kalendertag, Abwesenheit (Kategorie, Art, Anteil, Sollzeit × Anteil) und Schlechtwetter (Soll − Arbeit, nie unter 0).
+2. Die Fahrzeit steht getrennt (minutengenau), dazu die Arbeit ohne Fahrzeit (0,25 h); bis Frage 7 entschieden ist, zählt die Arbeit alle Zeitarten wie bisher.
+3. Die Tagesbilanz hängt nicht an Export-Umfang und Zuordnung -- die gelten erst in der Lohndatei.
+4. Für viele Personen in einer festen Zahl Abfragen, unabhängig von Personen, Tagen, Buchungen und Abwesenheiten.
+5. Die Lohndatei rechnet über die Tagesbilanz; die Dateien bleiben Byte für Byte gleich (Vorprobe September und Oktober).
+6. Abwesenheitstage und Kalendertage bleiben je eine Regel -- die Tagesbilanz rechnet mit denselben Funktionen wie die Abfrage je Person.
+
+#### Tests und Prüfung 1.9.308
+
+Neu: `tests/test_v708_tagesbilanz.py` (ein Monat mit allem, unabhängig von Umfang und Zuordnung, vor dem Eintritt gebucht, nur genannte Personen, eine feste
+Zahl Abfragen, eine Regel gegenüber der Abfrage je Person, die Lohndatei fragt nicht selbst). Unverändert grün: `tests/test_v626_lohndatei.py` und die übrigen
+Tests der Lohndatei. Keine angepasste Erwartung. Kein Klicktest (keine Oberfläche). Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.308“.

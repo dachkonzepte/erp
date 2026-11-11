@@ -167,12 +167,15 @@ def anteil(halber_tag: bool = False) -> Decimal:
 
 
 def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, kategorie: str | None, halber_tag: bool = False,
-                     feiertage: dict | None = None, kalendertag_urlaub: bool | None = None) -> dict:
+                     feiertage: dict | None = None, kalendertag_urlaub: bool | None = None, soll: dict[date, Decimal] | None = None,
+                     kalender: dict | None = None) -> dict:
     """Seit 1.9.171 (Lohn L1a, Punkt 6): wie viele Tage und Stunden eine Abwesenheit zählt -- nur Tage mit Sollzeit, ohne gesetzliche
     Feiertage (dort gilt der Feiertag), je Tag mit ihrem Anteil (anteil(): ein halber Urlaubstag 0,5). Stunden = Sollzeit × Anteil.
     feiertage: {Tag: Name} des Bundeslands, sonst hier gelesen. Für die Anzeige („2,5 Arbeitstage“), das Urlaubskonto (L2) und den Export
     (L1b). kalendertag_urlaub: seit 1.9.176 die Antwort auf die Rückfrage an einem Kalendertag mit Rückfrage (Silvester) -- im Urlaub zählt er
-    als ganzer Tag, außer bei False (frei); leer gilt wie der Vorschlag."""
+    als ganzer Tag, außer bei False (frei); leer gilt wie der Vorschlag. soll und kalender: seit 1.9.308 (Lohn L2a, Punkt 1) die Sollzeit je Tag
+    und die Kalendertage der Person ({Tag: Eintrag}, app/arbeitszeitkalender.py::kalendertage_aus()), wenn der Aufrufer sie schon hat -- dann ohne
+    Abfrage (app/tagesbilanz.py); beide dürfen über den Zeitraum hinausreichen."""
     from .arbeitszeitkalender import als_urlaubstag, kalendertage_im_zeitraum
 
     if feiertage is None:
@@ -181,8 +184,12 @@ def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, 
     # seit 1.9.175 (L1a-Nachtrag, Punkt 2): an einem Tag des Arbeitszeitkalenders gilt seine Abwesenheit (Heiligabend: bezahlte Freistellung) --
     # eine andere Abwesenheit über den Tag zählt ihn nicht, ein Urlaub dort ist kein Urlaubstag; seit 1.9.176 außer an einem Tag mit Rückfrage
     # (Silvester), den der Urlaub als ganzen Urlaubstag nimmt
-    soll = soll_zeitraum(db, employee_id, start, ende)
-    kalender = {t: e for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende, soll=soll)}
+    if soll is None:
+        soll = soll_zeitraum(db, employee_id, start, ende)
+    else:
+        soll = {t: s for t, s in soll.items() if start <= t <= ende}
+    if kalender is None:
+        kalender = {t: e for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende, soll=soll)}
     tage, stunden, je_tag = Decimal("0"), Decimal("0"), []
     for tag, soll_tag in soll.items():
         if soll_tag <= 0 or tag in feiertage:

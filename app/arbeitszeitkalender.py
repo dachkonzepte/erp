@@ -112,19 +112,30 @@ def kalendertage_im_zeitraum(db: Session, employee_id: int, start: date, ende: d
     """Die Kalendertage, die von start bis ende für die Person gelten. Seit 1.9.180 (L1a-Korrekturen, Punkt 1) nur an Tagen, an denen sie
     Sollzeit hat -- wer an dem Wochentag keine hat (Teilzeit), bekommt dort weder Sollzeit noch Freistellung, an Heiligabend wie an Silvester
     (bis 1.9.179 gab Heiligabend ihr dort 7,00 h). soll: die Sollzeit je Tag, wenn der Aufrufer sie schon hat (app/sollzeit.py)."""
-    liste, gruppe = aktive(db), gruppe_von(db, employee_id)
-    ergebnis, tag = [], start
-    while tag <= ende:
-        e = fuer_tag(liste, tag, gruppe)
-        if e is not None:
-            ergebnis.append((tag, e))
-        tag += timedelta(days=1)
+    ergebnis = _kalendertage(aktive(db), gruppe_von(db, employee_id), start, ende)
     if not ergebnis:
         return []
     if soll is None:
         from .sollzeit import soll_zeitraum  # lokal: sollzeit fragt den Kalender nach der Sollzeit
         soll = soll_zeitraum(db, employee_id, ergebnis[0][0], ergebnis[-1][0])
     return [(t, e) for t, e in ergebnis if soll[t] > 0]
+
+
+def _kalendertage(liste: list[ArbeitszeitKalendertag], gruppe: str | None, start: date, ende: date) -> list[tuple[date, ArbeitszeitKalendertag]]:
+    ergebnis, tag = [], start
+    while tag <= ende:
+        e = fuer_tag(liste, tag, gruppe)
+        if e is not None:
+            ergebnis.append((tag, e))
+        tag += timedelta(days=1)
+    return ergebnis
+
+
+def kalendertage_aus(liste: list[ArbeitszeitKalendertag], gruppe: str | None, soll: dict[date, Decimal], start: date,
+                     ende: date) -> list[tuple[date, ArbeitszeitKalendertag]]:
+    """Seit 1.9.308 (Lohn L2a, Punkt 1): dieselbe Regel wie kalendertage_im_zeitraum() ohne Abfrage -- liste (aktive()), die Gruppe der Person und
+    ihre Sollzeit je Tag gibt der Aufrufer (app/tagesbilanz.py, für viele Personen auf einmal)."""
+    return [(t, e) for t, e in _kalendertage(liste, gruppe, start, ende) if soll.get(t, Decimal("0")) > 0]
 
 
 def freistellungen(db: Session, personen, start: date, ende: date) -> dict[tuple[int, date], ArbeitszeitKalendertag]:
@@ -158,14 +169,22 @@ def als_urlaubstag(kalendertag_urlaub: bool | None) -> bool:
 def urlaub_ersetzt(db: Session, employee_id: int, start: date, ende: date) -> set[date]:
     """Seit 1.9.176: die Tage, an denen eine genehmigte Abwesenheit der Kategorie Urlaub mit „ganzer Urlaubstag“ die Freistellung eines Kalendertags
     mit Rückfrage ersetzt (für die Person, von start bis ende)."""
-    tage = {t for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende) if e.im_urlaub == "fragen"}
+    tage = [(t, e) for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende) if e.im_urlaub == "fragen"]
     if not tage:
         return set()
-    ersetzt = set()
-    for a in db.scalars(select(EmployeeAbsence).where(EmployeeAbsence.employee_id == employee_id, EmployeeAbsence.absence_category == "urlaub",
-                                                     EmployeeAbsence.start_date <= ende, EmployeeAbsence.end_date >= start)):
-        if als_urlaubstag(a.kalendertag_urlaub):
-            ersetzt |= {t for t in tage if a.start_date <= t <= a.end_date}
+    return ersetzt_aus(tage, db.scalars(select(EmployeeAbsence).where(
+        EmployeeAbsence.employee_id == employee_id, EmployeeAbsence.absence_category == "urlaub", EmployeeAbsence.start_date <= ende,
+        EmployeeAbsence.end_date >= start)))
+
+
+def ersetzt_aus(tage: list[tuple[date, ArbeitszeitKalendertag]], urlaube) -> set[date]:
+    """Seit 1.9.308: dieselbe Regel wie urlaub_ersetzt() ohne Abfrage -- tage: die Kalendertage der Person (kalendertage_aus()), urlaube: ihre
+    genehmigten Abwesenheiten der Kategorie Urlaub, die den Zeitraum berühren."""
+    fragen = {t for t, e in tage if e.im_urlaub == "fragen"}
+    ersetzt: set[date] = set()
+    for a in urlaube:
+        if fragen and als_urlaubstag(a.kalendertag_urlaub):
+            ersetzt |= {t for t in fragen if a.start_date <= t <= a.end_date}
     return ersetzt
 
 
@@ -178,7 +197,11 @@ def abwesenheiten(db: Session, employee_id: int, start: date, ende: date) -> lis
         return []
     from .sollzeit import soll_zeitraum  # lokal: sollzeit fragt den Kalender nach der Sollzeit
     soll = soll_zeitraum(db, employee_id, tage[0][0], tage[-1][0])
-    ersetzt = urlaub_ersetzt(db, employee_id, start, ende)
+    return abwesenheiten_aus(tage, soll, urlaub_ersetzt(db, employee_id, start, ende))
+
+
+def abwesenheiten_aus(tage: list[tuple[date, ArbeitszeitKalendertag]], soll: dict[date, Decimal], ersetzt: set[date]) -> list[dict]:
+    """Seit 1.9.308: dieselbe Rechnung wie abwesenheiten() ohne Abfrage (app/tagesbilanz.py)."""
     return [{"tag": t, "schluessel": e.schluessel, "name": e.name, "abwesenheit": e.abwesenheit, "stunden": soll[t], "bezahlt": bool(e.bezahlt)}
             for t, e in tage if t not in ersetzt]
 

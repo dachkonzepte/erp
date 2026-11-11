@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.308 – Lohn L2a: die Tagesbilanz je Person und Tag
+
+Erster Punkt von Lohn L2a (Fundament für Urlaubskonto und Arbeitszeitkonto). Neu ist `app/tagesbilanz.py::bilanz()`: eine Rechnung für alles, was je Person und Tag für Lohn und Konten zählt -- Sollzeit, ob beschäftigt, die Arbeit im Lohn (alle Zeitarten, auf 0,25 h), davon die Fahrzeit getrennt (minutengenau) und die Arbeit ohne Fahrzeit (auf 0,25 h), der gesetzliche Feiertag und die Posten des Tags: Feiertag mit Sollzeit, Tag des Arbeitszeitkalenders, jede genehmigte Abwesenheit mit Kategorie, Art und Anteil, der Ausfall eines Schlechtwettertags. Sie hängt nicht an Export-Umfang und Zuordnung und rechnet für viele Personen in einer festen Zahl Abfragen. Die Fahrzeit steht getrennt, weil offen ist, ob sie ins Arbeitszeitkonto zählt (Frage 7 des Befunds L2).
+
+Die Lohndatei (`app/lohndatei.py::berechnen()`) rechnet jetzt über die Tagesbilanz und fragt Buchungen und Abwesenheiten nicht mehr selbst ab. Die Regeln für Abwesenheitstage und Kalendertage stehen weiter je einmal: `app/sollzeit.py::abwesenheit_tage()` nimmt Sollzeit und Kalendertage des Aufrufers, `app/arbeitszeitkalender.py` hat dieselben Rechnungen ohne Abfrage (`kalendertage_aus()`, `ersetzt_aus()`, `abwesenheiten_aus()`). Nachweis: die Lohndateien der Vorprobe September und Oktober 2026 sind vor und nach der Änderung Byte für Byte gleich, ebenso die lokale Datei aus echten Buchungen.
+
+Neu `tests/test_v708_tagesbilanz.py`. Keine Migration.
+
 ## 1.9.307 – Betriebsmittel: Dokumente im Anlegen, Nummer ohne Umbruch
 
 Vorweg zu Lohn L2a, Frage 5 der Nachrunde der Geräte-Runde. In „Betriebsmittel anlegen“ stehen Art, Datei und „+ Vormerken“ der Dokumente unter 900 px jetzt untereinander, Auswahl und Dateifeld so breit wie die Karte -- bis 1.9.306 blieben es auch bei 412 px drei Spalten, und beide schnitten ihren Text ab („Anschaff…“, „Datei auswä…“). Breiter bleibt es eine Zeile. Dazu bricht in der Liste der Betriebsmittel die Nummer nicht mehr um (bei 412 px wie bei 1440 px stand „BM-/12“ auf zwei Zeilen); die Tabelle rollt dort in ihrem Rahmen.
