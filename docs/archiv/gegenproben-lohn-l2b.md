@@ -159,3 +159,16 @@ gegengeprobt (`gegenproben-lohn-l2a.md`); hier zählt das Konto ihre Posten.
 | Nr. 3 – nicht ab 2028 | nach dem Startwert auch ab 2028 (`318_1c`) | 1 rot: v718::test_danach_rest_mit_dem_hinweis |
 
 6 Gegenproben, alle rot (4 über Tests, 2 über `klicktest_urlaubskonto`).
+
+## 1.9.319 (Nachrunde, Punkt C): „danach Rest“ mit den anderen offenen Anträgen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – beim Stellen mit weiteren offenen Anträgen der Zusatz | ohne Zusatz (`319_1a`; Klicktest `319_K1`) | 1 rot: v719::test_mit_weiteren_offenen; Klicktest: „Fin: Tom -- mit den anderen offenen Anträgen“ |
+| Nr. 1 – ohne weitere offene Anträge kein Zusatz | auch ohne (`319_1b`) | 2 rot: v719::test_ohne_weitere_offene_kein_zusatz, test_mit_weiteren_offenen |
+| Nr. 2 – m = Rest nach den offenen Anträgen minus dieser Urlaub | ohne diesen Urlaub (`319_1d`) | 1 rot: v719::test_mit_weiteren_offenen |
+| Nr. 3 – nicht beim Genehmigen | auch beim Genehmigen (`319_1c`) | 1 rot: v719::test_beim_genehmigen_nicht |
+| Nr. 4 – vor dem Hinweis „ohne Übertrag – Startwert folgt“ | der Hinweis vorn (`319_1e`) | 1 rot: v719::test_mit_weiteren_offenen |
+
+6 Gegenproben, alle rot (5 über Tests, eine über `klicktest_urlaubskonto`). Dass Sonderurlaub, entschiedene Anträge und Anträge eines anderen Jahrs nicht
+zählen, ist die Regel „beantragt“ des Kontos (1.9.315, Gegenproben 315_7a/b); v719 prüft es hier mit.

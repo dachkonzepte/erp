@@ -13,6 +13,8 @@ Urlaub Mo 04.–Fr 08.01.2027), Tom (gewerblich, ohne Startwert, offener Antrag 
     Plantafel       „Abwesenheit eintragen“: Mia 01.–05.03.2027 -> „5 Urlaubstage · danach Rest 24,5 Tage“
     Meine Zeiten    Mia: Karte „Abwesenheit“ mit „Urlaub 2027“, Rest 29,5 …; Antrag 01.–05.03.2027 -> „danach Rest 24,5 Tage“; Bilder der Karte und des
                     Antrags bei 412 und 1440 px, hell und dunkel
+    andere offene   (seit 1.9.319) Fin stellt für Tom, dessen Antrag 12.–16.04. noch offen ist: „5 Urlaubstage · danach Rest 25 Tage · mit den anderen
+                    offenen Anträgen 20 Tage · ohne Übertrag – Startwert folgt“; Bild
     ohne Startwert  (seit 1.9.318) Tom in „Meine Zeiten“: das Konto mit „ohne Übertrag – Startwert folgt“, im Antrag „5 Urlaubstage · danach Rest 20 Tage ·
                     ohne Übertrag – Startwert folgt“; Bilder bei 412 px, hell und dunkel
     überall         keine JS-Fehler
@@ -64,7 +66,8 @@ def befuellen(db, k):
     db.add(EmployeeAbsenceRequest(employee_id=tom.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 4, 12),
                                   end_date=date(2027, 4, 16), status="pending"))
     db.commit()
-    return {"anna": k.cookies(anna), "fin": k.cookies(fin), "mia": k.cookies(mia_konto), "tom": k.cookies(tom_konto), "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
+    return {"anna": k.cookies(anna), "fin": k.cookies(fin), "mia": k.cookies(mia_konto), "tom": k.cookies(tom_konto), "mia_id": mia.id, "tom_id": tom.id,
+            "uhr_ms": k.uhr_ms()}
 
 
 async def _eingeben(tab, feld: str, wert: str):
@@ -111,6 +114,12 @@ async def pruefen(tab, seed, p):
     await _eingeben(tab, "adBis", "2027-02-05")
     p.pruefe("Fin: im Dialog „danach Rest“", await tab.warten(
         "!document.getElementById('adRest').hidden&&document.getElementById('adRest').textContent==='5 Urlaubstage · danach Rest 24,5 Tage'", 10), True)
+    # seit 1.9.319 (Nachrunde L2b, Punkt C): Tom hat noch einen offenen Antrag (12.–16.04.) -- „mit den anderen offenen Anträgen“, dazu ohne Startwert
+    await _eingeben(tab, "adMitarbeiter", str(seed["tom_id"]))
+    p.pruefe("Fin: Tom -- mit den anderen offenen Anträgen", await tab.warten(
+        "document.getElementById('adRest').textContent==='5 Urlaubstage · danach Rest 25 Tage · mit den anderen offenen Anträgen 20 Tage · ohne Übertrag – "
+        "Startwert folgt'", 10), True)
+    await tab.bild("zeiten_antrag_mit_anderen_offenen_1440_hell")
     await tab.js("(()=>{const s=document.getElementById('adKategorie');s.value='krankheit';s.dispatchEvent(new Event('change'))})()")
     p.pruefe("Fin: Krankheit -- kein Rest", await tab.warten("document.getElementById('adRest').hidden", 10), True)
     await tab.js("document.getElementById('abwDialog').close()")

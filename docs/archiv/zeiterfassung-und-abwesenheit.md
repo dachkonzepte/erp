@@ -2687,3 +2687,27 @@ hell und dunkel. Angepasste Erwartungen:
   25 Tage“; neu: dazu „ · ohne Übertrag – Startwert folgt“.
 - `klicktest_silvester.py` „Ada: Liste nennt „frei“ und 8 Arbeitstage“ (Mia ohne Startwert) -- alt: „· danach Rest 25 Tage“; neu: dazu der Hinweis.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.318“.
+
+### Umsetzung 1.9.319 (Punkt C): „danach Rest“ mit den anderen offenen Anträgen
+
+- `app/urlaubskonto.py::rest_danach(…, andere_offene=False)`: mit `andere_offene` je Jahr `mit_anderen` = Rest nach den offenen Anträgen minus dieser Urlaub,
+  wenn das Konto im Jahr offene Anträge auf Urlaub hat (`beantragt` > 0; der Antrag, der gerade gestellt wird, ist noch nicht offen). Text danach:
+  „ · mit den anderen offenen Anträgen m Tage“ (über den Jahreswechsel je Jahr mit offenen Anträgen „2027: m Tage“), vor „ · ohne Übertrag – Startwert
+  folgt“. Nur `GET /api/absence-requests/rest-danach` (beim Stellen: Zeiten, Plantafel, „Meine Zeiten“) setzt `andere_offene`; an den offenen Anträgen
+  (`rest_danach_je_antrag()`, beim Genehmigen) nicht.
+
+#### Festlegungen 1.9.319 (Bitte bestätigen)
+
+1. Beim Stellen: gibt es im Jahr weitere offene Urlaubsanträge, dazu „ · mit den anderen offenen Anträgen m Tage“; sonst nicht.
+2. m = Rest nach den offenen Anträgen minus dieser Urlaub (der Rest, wenn alle offenen und dieser genehmigt würden).
+3. Beim Genehmigen nicht.
+4. Der Zusatz steht vor „ · ohne Übertrag – Startwert folgt“; über den Jahreswechsel je Jahr mit offenen Anträgen.
+
+#### Tests und Prüfung 1.9.319
+
+Neu: `tests/test_v719_mit_anderen_antraegen.py` (ohne weitere offene -- auch entschiedene, Sonderurlaub, anderes Jahr --, mit weiteren, mit Hinweis ohne Startwert,
+über den Jahreswechsel, nicht beim Genehmigen). `klicktest_urlaubskonto.py`: Fin stellt für Tom, dessen Antrag noch offen ist -- „5 Urlaubstage · danach Rest
+25 Tage · mit den anderen offenen Anträgen 20 Tage · ohne Übertrag – Startwert folgt“, Bild. Angepasste Erwartung: `tests/test_v716_urlaubskonto_anzeige.py::
+test_rest_danach` -- alt: je Jahr jahr, tage, rest_danach, ohne_startwert; neu: dazu `mit_anderen` (dort leer). Eigener Fehler beim Schreiben des Tests: die
+erste Woche (3.–7. Mai 2027) enthält Christi Himmelfahrt -- 4 statt 5 Urlaubstage; jetzt eine Woche ohne Feiertag.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.319“.

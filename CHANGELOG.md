@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.319 – Lohn L2b Nachrunde: „danach Rest“ mit den anderen offenen Anträgen
+
+Dritter und letzter Punkt der Nachrunde L2b (C, Ergänzung zu 1.9.316 Nr. 1). Gibt es beim Stellen eines Urlaubs im selben Jahr weitere offene Urlaubsanträge, steht hinter „danach Rest“ jetzt „· mit den anderen offenen Anträgen m Tage“ -- der Rest, wenn auch die anderen offenen Anträge genehmigt würden („5 Urlaubstage · danach Rest 25 Tage · mit den anderen offenen Anträgen 20 Tage“). Ohne weitere offene Anträge bleibt es beim bisherigen Satz; beim Genehmigen ändert sich nichts (dort ist der Antrag selbst unter den offenen). Der Hinweis „ohne Übertrag – Startwert folgt“ steht dahinter.
+
+Neu `tests/test_v719_mit_anderen_antraegen.py`; `klicktest_urlaubskonto.py` mit Bild; `tests/test_v716_urlaubskonto_anzeige.py` angepasst. Keine Migration.
+
 ## 1.9.318 – Lohn L2b Nachrunde: „Meine Zeiten“ ohne Startwert
 
 Zweiter Punkt der Nachrunde L2b (B). Fehlt der Startwert, steht „ohne Übertrag – Startwert folgt“ jetzt auch bei „danach Rest“: „5 Urlaubstage · danach Rest 20 Tage · ohne Übertrag – Startwert folgt“ -- im Antrag in „Meine Zeiten“ und, weil es dieselbe Rechnung ist, überall, wo „danach Rest“ steht (Zeiten, Plantafel, offene Anträge). Mit Startwert und ab 2028 steht der Hinweis nicht da; über den Jahreswechsel einmal am Ende. Am Konto in „Meine Zeiten“ stand der Hinweis schon seit 1.9.316 (die Karte zeigt die Hinweise des Kontos); jetzt mit Bildern einer Person ohne Startwert belegt.

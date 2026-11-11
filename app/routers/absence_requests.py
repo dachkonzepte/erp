@@ -68,14 +68,15 @@ def get_rest_danach(employee_id: int, von: date, bis: date, halber_tag: bool = F
                     db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ für einen Urlaub, der gerade beantragt wird
     (app/urlaubskonto.py::rest_danach()) -- für die eigene Person, Admin und Büro – Finanzen für jede (darf_konten_aller(), wie das Konto).
-    null, wenn kein Tag in einem Jahr ab 2027 liegt. Liest nur."""
+    null, wenn kein Tag in einem Jahr ab 2027 liegt. Liest nur. Seit 1.9.319 mit „· mit den anderen offenen Anträgen m Tage“, wenn es im Jahr weitere
+    offene Anträge auf Urlaub gibt (andere_offene)."""
     if not darf_konten_aller(_role) and employee_id != getattr(_role, "employee_id", None):
         raise HTTPException(status_code=403, detail="Den Urlaub einer anderen Person sieht nur der Admin oder Büro – Finanzen.")
     if bis < von:
         raise HTTPException(status_code=422, detail="Enddatum darf nicht vor dem Startdatum liegen.")
     if db.get(Employee, employee_id) is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter wurde nicht gefunden.")
-    return rest_danach(db, employee_id, von, bis, halber_tag=halber_tag, kalendertag_urlaub=kalendertag_urlaub)
+    return rest_danach(db, employee_id, von, bis, halber_tag=halber_tag, kalendertag_urlaub=kalendertag_urlaub, andere_offene=True)
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])

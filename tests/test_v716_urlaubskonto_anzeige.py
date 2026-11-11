@@ -43,7 +43,8 @@ def test_rest_danach(w):
     db, ada = w["db"], w["ada"]
     d = rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 16))  # Rest 30 + 4,5 − 5 = 29,5; minus 5
     assert (d["tage"], d["tage_text"], d["text"], d["jahre"]) == (D("5"), "5 Urlaubstage", "danach Rest 24,5 Tage",
-                                                                   [{"jahr": 2027, "tage": D("5"), "rest_danach": D("24.5"), "ohne_startwert": False}])  # seit 1.9.318 ohne_startwert
+                                                                   [{"jahr": 2027, "tage": D("5"), "rest_danach": D("24.5"), "ohne_startwert": False,
+                                                                    "mit_anderen": None}])  # seit 1.9.318 ohne_startwert, 1.9.319 mit_anderen
     assert rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 12), halber_tag=True)["tage_text"] == "0,5 Urlaubstage"
     assert rest_danach(db, ada.id, date(2027, 4, 12), date(2027, 4, 12))["tage_text"] == "1 Urlaubstag"
     # über den Jahreswechsel: Mo 27.–Do 30.12. und Silvester (Vorschlag ganzer Urlaubstag) = 5; Mo 03.–Fr 07.01.2028 = 5 (Neujahr Feiertag)

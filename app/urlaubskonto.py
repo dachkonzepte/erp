@@ -176,13 +176,15 @@ def tage_wort(wert: Decimal) -> str:
 
 
 def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
-                heute: date | None = None) -> dict | None:
+                heute: date | None = None, andere_offene: bool = False) -> dict | None:
     """Seit 1.9.316 (Lohn L2b, Punkt 4): was ein Urlaub von von bis bis zählt und der Rest danach -- beim Stellen und beim Genehmigen dieselbe
     Rechnung: der Rest des Kontos (Anspruch + Übertrag − genehmigt) minus die Tage dieses Urlaubs; andere offene Anträge zählen nicht mit (die
     zeigt das Konto unter „nach den offenen Anträgen“). Je Jahr ab 2027 {jahr, tage, rest_danach}; ein Urlaub über den Jahreswechsel nennt beide
     Jahre. None, wenn kein Tag in einem Jahr ab 2027 liegt. text: „danach Rest 21,5 Tage“ bzw. „danach Rest 2027: 1 Tag · 2028: 29 Tage“;
     tage_text: „5 Urlaubstage“. Seit 1.9.318 (Nachrunde L2b, Punkt B): fehlt in einem dieser Jahre der Startwert (2027), dazu „ · ohne Übertrag – Startwert
-    folgt“ (ohne_startwert je Jahr) -- überall, wo „danach Rest“ steht."""
+    folgt“ (ohne_startwert je Jahr) -- überall, wo „danach Rest“ steht. Seit 1.9.319 (Nachrunde L2b, Punkt C) beim Stellen (andere_offene): gibt es im
+    Jahr weitere offene Anträge auf Urlaub, dazu „ · mit den anderen offenen Anträgen m Tage“ -- m = Rest nach den offenen Anträgen minus dieser Urlaub
+    (mit_anderen je Jahr; der neue Antrag ist noch nicht offen). Beim Genehmigen nicht (dort ist der Antrag selbst unter den offenen)."""
     from .lohnkonten import ERSTES_JAHR
     from .planning import automatic_public_holidays
     from .sollzeit import abwesenheit_tage
@@ -197,12 +199,17 @@ def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_t
             continue
         tage = abwesenheit_tage(db, employee_id, max(von, date(j, 1, 1)), min(bis, date(j, 12, 31)), kategorie=URLAUB, halber_tag=halber_tag,
                                 feiertage=feiertage, kalendertag_urlaub=kalendertag_urlaub)["tage"]
-        jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage, "ohne_startwert": OHNE_STARTWERT in k[0].hinweise})
+        jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage, "ohne_startwert": OHNE_STARTWERT in k[0].hinweise,
+                      "mit_anderen": k[0].rest_nach_antraegen - tage if andere_offene and k[0].beantragt > 0 else None})
     if not jahre:
         return None
     summe = sum((x["tage"] for x in jahre), NULL)
     text = "danach Rest " + (tage_wort(jahre[0]["rest_danach"]) if len(jahre) == 1 else
                              " · ".join(f"{x['jahr']}: {tage_wort(x['rest_danach'])}" for x in jahre))
+    anderen = [x for x in jahre if x["mit_anderen"] is not None]  # seit 1.9.319
+    if anderen:
+        text += " · mit den anderen offenen Anträgen " + (tage_wort(anderen[0]["mit_anderen"]) if len(jahre) == 1 else
+                                                          " · ".join(f"{x['jahr']}: {tage_wort(x['mit_anderen'])}" for x in anderen))
     if any(x["ohne_startwert"] for x in jahre):  # seit 1.9.318
         text += " · " + OHNE_STARTWERT
     return {"jahre": jahre, "tage": summe, "tage_text": f"{_tage_text(summe)} {'Urlaubstag' if summe == 1 else 'Urlaubstage'}", "text": text}
