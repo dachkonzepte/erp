@@ -17,7 +17,7 @@ from ..models import AppUser, Employee
 from ..lohnkonten import ERSTES_JAHR, standardjahr
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
                            darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
-from ..urlaubskonto import konten as urlaubskonten
+from ..urlaubskonto import konten as urlaubskonten, rest_danach_je_antrag
 from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
@@ -85,7 +85,8 @@ def _antraege(db: Session, user: AppUser) -> list[dict]:
     land = feiertage_bundesland(db)
     rows = _sichtbare_antraege(db, user, "pending")
     aus = _ausfall(db, rows)
-    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id)} for r in rows]
+    rest = rest_danach_je_antrag(db, rows)  # seit 1.9.316: „danach Rest n Tage“ an jedem offenen Antrag auf Urlaub (wer ihn sieht, sieht das Konto)
+    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id), "rest_danach": rest.get(r.id)} for r in rows]
 
 
 def _anzahl(n: int, eins: str, mehr: str) -> str:
@@ -130,7 +131,9 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
         liste = urlaubskonten(db, jahr, ids)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "konten": [k.als_dict() for k in liste]}
+    # seit 1.9.316: die wählbaren Jahre -- ab 2027 bis ein Jahr nach dem laufenden (und das gewählte)
+    jahre = sorted(set(range(ERSTES_JAHR, standardjahr() + 2)) | {jahr})
+    return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "jahre": jahre, "konten": [k.als_dict() for k in liste]}
 
 
 @router.get("/api/zeiten/buchungen")
@@ -171,10 +174,11 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     rows = _sichtbare_antraege(db, user, status or None)
     land = feiertage_bundesland(db)
     aus = _ausfall(db, rows)
+    rest = rest_danach_je_antrag(db, rows)  # seit 1.9.316
     # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
-        "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id),  # seit 1.9.216
+        "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id), "rest_danach": rest.get(r.id),  # seit 1.9.216, 1.9.316
                       "darf_entscheiden": admin and r.status == "pending",
                       "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r),
                       "darf_loeschen": r.status == "approved" and r.approved_absence_id is not None and darf_abwesenheit_loeschen(user)}  # seit 1.9.146

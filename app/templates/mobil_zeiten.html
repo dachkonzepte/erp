@@ -126,6 +126,10 @@
     .mitglied input{width:22px;height:22px;margin:0;accent-color:var(--ds-aktion)}
     #kdMitglieder{display:flex;flex-wrap:wrap;column-gap:28px}  /* seit 1.9.63 nebeneinander: die Vorschau rückt nach oben */
     .antrag{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:56px;border-top:1px solid var(--ds-linie);padding:8px 0}
+    /* seit 1.9.316 (Lohn L2b, Punkt 4): das eigene Urlaubskonto in der Karte „Abwesenheit“; „danach Rest“ im Antrag */
+    .uk-eigen{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;font-size:15px;padding:10px 0;border-top:1px solid var(--ds-linie)}
+    .uk-eigen .r{text-align:right;font-variant-numeric:tabular-nums}.uk-eigen .uk-titel{font-weight:700;grid-column:1/-1}
+    .uk-eigen .uk-hinweis{grid-column:1/-1;font-size:13px;color:var(--ds-warn-text)}.ad-rest{margin:0;font-size:15px;color:var(--ds-text-2)}
     .antrag-text{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px;font-size:15px;overflow-wrap:anywhere}
     .antrag-text span{color:var(--ds-text-2);font-size:14px}
     .antrag-status{font-size:14px;font-weight:600;color:var(--ds-stark)}
@@ -175,6 +179,8 @@
       <section class="zeiten-karte seiten-karte" id="abwesenheitKarte" aria-labelledby="abwTitel">
         <h2 id="abwTitel">Abwesenheit</h2>
         <p id="abwText">Urlaub oder Krankheit beantragen.</p>
+        {# seit 1.9.316 (Lohn L2b, Punkt 4): das eigene Urlaubskonto (nur das eigene, vom Server) #}
+        <div class="uk-eigen" id="ukEigen" hidden></div>
         {# seit 1.9.187 (L1a Stufe 2, Punkt 2): die Freistellungen des Arbeitszeitkalenders im angezeigten Monat, wie die Anträge, ohne Antrag #}
         <div id="abwFrei" hidden></div>
         <button type="button" class="knopf knopf-neutral knopf-breit" id="antragKnopf">+ Antrag</button>
@@ -293,6 +299,7 @@
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     {# seit 1.9.171 (Lohn L1a, Punkt 6): halber Urlaubstag, nur bei Urlaub und einem Tag #}
     <label class="mitglied" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
+    <p class="ad-rest" id="adRest" aria-live="polite" hidden></p>{# keine Statusrolle: Meldungen stehen in der Knopfleiste (test_v491), das hier ist eine Angabe #}
     {# seit 1.9.176 (L1a-Nachtrag, Punkt 3): Silvester im Urlaub -- ganzer Urlaubstag oder frei (_kalendertag_frage.html), erst nach der Rückfrage des Servers #}
     <div class="kt-frage breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     <label class="feld breit" for="adNotiz">Notiz / Grund<textarea id="adNotiz"></textarea></label>
@@ -377,6 +384,7 @@ function zeichnen(d){
   el('pdfKnopf').setAttribute('href','/api/field-view/timesheet.pdf?year='+d.monat.slice(0,4)+'&month='+d.monat.slice(5));
   angeheftetZeichnen(d.angeheftet);
   freistellungenZeichnen(d.freistellungen);
+  ukEigenZeichnen(d.urlaub);  // seit 1.9.316: das eigene Urlaubskonto
   var t=el('tage');t.className='';
   t.innerHTML=d.tage.length?d.tage.map(tagHtml).join(''):'<p class="leer-text" style="margin:0">Keine Buchungen im '+esc(d.monat_name)+'.</p>';
   t.querySelectorAll('.zeile-menue').forEach(function(a){dsMenue(a.querySelector('.knopf-symbol'),a.querySelector('.ds-menue'))});
@@ -444,6 +452,14 @@ function angeheftetZeichnen(a){
 }
 // Seit 1.9.187 (L1a Stufe 2, Punkt 2): die Freistellungen des Arbeitszeitkalenders im angezeigten Monat (Heiligabend, Silvester) -- in der
 // Karte „Abwesenheit“ wie die Anträge, mit den Stunden und „bezahlt“/„unbezahlt“; sie gelten ohne Antrag
+// Seit 1.9.316 (Lohn L2b, Punkt 4): das eigene Urlaubskonto im laufenden Jahr (frühestens 2027) -- Rest groß, darunter wie er entsteht und die Hinweise
+function ukEigenZeichnen(k){
+  var box=el('ukEigen');box.hidden=!k;if(!k){box.innerHTML='';return}
+  var zeile=function(name,w,fett){return '<span>'+esc(name)+'</span><span class="r">'+(fett?'<b>':'')+esc(zahlText(w))+(fett?'</b>':'')+'</span>'};
+  box.innerHTML='<span class="uk-titel">Urlaub '+esc(k.jahr)+'</span>'+zeile('Rest',k.rest,true)+zeile('Anspruch',k.anspruch)+zeile('Übertrag',k.uebertrag)
+    +zeile('Genehmigt',k.genehmigt)+zeile('davon vorbei',k.vorbei)+zeile('Beantragt',k.beantragt)+zeile('Rest nach den offenen Anträgen',k.rest_nach_antraegen)
+    +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('');
+}
 function freistellungenZeichnen(liste){
   var box=el('abwFrei');liste=liste||[];box.hidden=!liste.length;
   box.innerHTML=liste.map(function(f){
@@ -799,22 +815,30 @@ function binden(){
   el('antragKnopf').addEventListener('click',function(){
     auswahlWert(el('adKategorie'),'urlaub');
     abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],'urlaub');
-    el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';el('adHalb').checked=false;adHalbZeigen();
+    el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';el('adHalb').checked=false;adHalbZeigen();adRestLaden();
     ktZuruecksetzen(el('adKalenderFrage'));
     el('adStatus').textContent='';el('adErgebnis').textContent='';ZURUECKZIEHEN=null;antraegeZeichnen();
     el('abwDialog').showModal();
   });
   // seit 1.9.171: „Halber Tag“ nur bei Urlaub und einem Tag
   function adHalbZeigen(){var geht=el('adKategorie').value==='urlaub'&&el('adVon').value&&el('adVon').value===el('adBis').value;el('adHalbFeld').hidden=!geht;if(!geht)el('adHalb').checked=false}
-  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',adHalbZeigen)});
-  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],el('adKategorie').value,true);adHalbZeigen()});
+  // seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ vom Server -- nur Urlaub mit Von bis Bis; sonst ein Lesen ohne Anfrage
+  function adRestLaden(){
+    var von=el('adVon').value,bis=el('adBis').value,geht=!!D&&el('adKategorie').value==='urlaub'&&!!von&&!!bis&&bis>=von;
+    var url='/api/absence-requests/rest-danach?employee_id='+encodeURIComponent(D?D.mitarbeiter_id:'')+'&von='+von+'&bis='+bis+'&halber_tag='+(el('adHalb').checked?'true':'false');
+    return lesen('urlaubrest',()=>geht?api(url):Promise.resolve(null),function(d){el('adRest').hidden=!d;el('adRest').textContent=d?d.tage_text+' · '+d.text:''})
+      .catch(function(){el('adRest').hidden=true});
+  }
+  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',function(){adHalbZeigen();adRestLaden()})});
+  el('adHalb').addEventListener('change',adRestLaden);
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],el('adKategorie').value,true);adHalbZeigen();adRestLaden()});
   el('adSenden').addEventListener('click',function(){
     var knopf=el('adSenden');
     var body={employee_id:D.mitarbeiter_id,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
               end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked,kalendertag_urlaub:ktWahl(el('adKalenderFrage'))};
     el('adStatus').textContent='';el('adErgebnis').textContent='';knopf.disabled=true;
     speichern('antraege',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:antraegeLaden})
-      .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';ktZuruecksetzen(el('adKalenderFrage'));knopf.disabled=false})
+      .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';ktZuruecksetzen(el('adKalenderFrage'));knopf.disabled=false;return laden()})  // seit 1.9.316: das Konto mit dem neuen Antrag
       .catch(function(e){
         // seit 1.9.176: Silvester im Urlaub -- der Server fragt (409 mit rueckfrage), die Antwort geht beim nächsten Senden mit
         if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte prüfen und noch einmal senden.'}

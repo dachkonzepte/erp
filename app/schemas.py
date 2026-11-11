@@ -4045,6 +4045,7 @@ class KontoPersonOut(BaseModel):
     active: bool
     ansprueche: list[UrlaubsanspruchOut]
     startwert: StartwertOut | None = None
+    rest_erstes_jahr: Decimal | None = None  # seit 1.9.316: der Rest des Urlaubskontos 2027 (app/urlaubskonto.py)
 
 
 class KontenOut(BaseModel):

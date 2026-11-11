@@ -87,6 +87,10 @@
     th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
     td{font-size:14px;padding:0 8px;height:48px;border-bottom:1px solid var(--ds-flaeche-2);white-space:nowrap}
     th.r,td.r{text-align:right}
+    /* seit 1.9.316 (Lohn L2b, Punkt 4): das Urlaubskonto -- Hinweise unter dem Namen, inaktive grau; „danach Rest“ im Dialog */
+    .uk-wahl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.uk-zeile td{height:auto;padding:10px 8px;vertical-align:top}
+    .uk-hinweis{display:block;font-size:12px;color:var(--ds-warn-text);white-space:normal}.uk-zeile.inaktiv td{color:var(--ds-text-2)}
+    .ad-rest{margin:0;font-size:14px;color:var(--ds-text-2)}
     td.summe{font-weight:600;border-bottom:0}
     .tabelle-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:14px 10px 0;min-width:0;overflow-x:auto}
     .tabelle-karte .leer{padding:16px 10px 18px;font-size:14px;color:var(--ds-text-2)}
@@ -251,6 +255,16 @@
     <div class="karte-kopf"><h2 id="abwTitel">Anträge</h2><span class="karte-zahl" id="abwZahl"></span></div>
     <div id="abwListe"></div>
   </section>
+  {# seit 1.9.316 (Lohn L2b, Punkt 4): das Urlaubskonto je Person (app/urlaubskonto.py, GET /api/zeiten/urlaubskonto) -- Jahr wählbar, „Inaktive
+     ausblenden“ wie in den Stammdaten (Vorgabe an, gemerkt im Browser, nur Anzeige); Admin und Büro – Finanzen alle, sonst das eigene #}
+  <section class="tabelle-karte" aria-labelledby="ukTitel" id="ukKarte" hidden>
+    <div class="tabelle-kopf"><h2 id="ukTitel">Urlaubskonto</h2>
+      <span class="uk-wahl"><label class="feld-zeile" for="ukJahr">Jahr<select id="ukJahr" style="width:100px"></select></label>
+        <label class="mitglied" for="ukInaktive"><input id="ukInaktive" type="checkbox" checked> Inaktive ausblenden</label><span class="mut num" id="ukInaktivZahl" style="font-size:13px"></span></span></div>
+    <table aria-label="Urlaubskonto je Mitarbeiter"><thead><tr><th>Mitarbeiter</th><th class="r">Anspruch</th><th class="r">Übertrag</th><th class="r">Genehmigt</th>
+      <th class="r">davon vorbei</th><th class="r">künftig</th><th class="r">Beantragt</th><th class="r">Rest</th><th class="r">nach Anträgen</th></tr></thead><tbody id="ukZeilen"></tbody></table>
+    <p class="leer" id="ukLeer" hidden></p>
+  </section>
   {# seit 1.9.175 (L1a-Nachtrag, Punkt 2): die nächsten Tage des Arbeitszeitkalenders -- ihre Abwesenheit gilt von selbst, ohne Antrag #}
   <section class="karte" aria-labelledby="abwKalenderTitel" id="abwKalender" hidden>
     <div class="karte-kopf"><h2 id="abwKalenderTitel">Arbeitszeitkalender</h2></div>
@@ -395,6 +409,7 @@
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     <label class="mitglied breit" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
+    <p class="ad-rest breit num" id="adRest" role="status" hidden></p>
     {# seit 1.9.176 (L1a-Nachtrag, Punkt 3): Silvester im Urlaub -- ganzer Urlaubstag oder frei (_kalendertag_frage.html), erst nach der Rückfrage des Servers #}
     <div class="kt-frage breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     <label class="feld breit" for="adNotiz">Notiz / Grund<input id="adNotiz" type="text" placeholder="optional"></label>
@@ -466,6 +481,7 @@ function reiterZeigen(name){
   if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);
   if(name==='buchungen'&&!B)buchungenLaden();
   if(name==='abwesenheiten'&&!A)abwesenheitenLaden();
+  if(name==='abwesenheiten'&&!UK)urlaubskontoLaden();  // seit 1.9.316
   if(name==='monat'&&!M)monatLaden();
 }
 function zahlSetzen(id,n){var z=el(id);z.hidden=!n;z.textContent=n?String(n):''}
@@ -586,7 +602,7 @@ function beantragtText(a){
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
   var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
-    +(a.ausfall?' · '+a.ausfall:'')+beantragtText(a);
+    +(a.ausfall?' · '+a.ausfall:'')+(a.rest_danach?' · '+a.rest_danach:'')+beantragtText(a);  // seit 1.9.316: „danach Rest n Tage“
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
      +'<button type="button" class="knopf knopf-aktion" data-aktion="antrag" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>':'';
@@ -871,7 +887,7 @@ function antragHervorheben(){
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
   var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
-    +(a.ausfall?' · '+a.ausfall:'')+beantragtText(a);
+    +(a.ausfall?' · '+a.ausfall:'')+(a.rest_danach?' · '+a.rest_danach:'')+beantragtText(a);  // seit 1.9.316
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
     +'<button type="button" class="knopf knopf-neutral" data-aktion="abw-entscheiden" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -910,7 +926,38 @@ function abwesenheitLoeschen(absenceId,knopf){
     .then(function(){LOESCHEN=null;ergebnis('Abwesenheit gelöscht.')})
     .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
 }
-function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),pruefenLaden()])}
+function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),pruefenLaden(),urlaubskontoLaden()])}  // seit 1.9.316 mit dem Konto
+// Seit 1.9.316 (Lohn L2b, Punkt 4): das Urlaubskonto -- Bereich 'urlaubskonto'; Jahre vom Server; „Inaktive ausblenden“ nur Anzeige (eigener Schlüssel)
+var UK=null,UK_JAHR=null,UK_INAKTIVE='erp_urlaubskonto_inaktive';
+function ukInaktiveVersteckt(){var w=null;try{w=localStorage.getItem(UK_INAKTIVE)}catch(e){}return w!=='zeigen'}
+function urlaubskontoLaden(){
+  return lesen('urlaubskonto',()=>api('/api/zeiten/urlaubskonto'+(UK_JAHR?'?jahr='+UK_JAHR:'')),function(d){UK=d;urlaubskontoZeichnen(d)})
+    .catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function urlaubskontoZeichnen(d){
+  el('ukKarte').hidden=false;
+  el('ukJahr').innerHTML=auswahlOptionen(d.jahre,d.jahr,function(j){return String(j)},{wert:function(j){return j},aktiv:function(){return true}});
+  var aus=ukInaktiveVersteckt();el('ukInaktive').checked=aus;
+  el('ukInaktivZahl').textContent=d.konten.filter(function(k){return !k.active}).length+' inaktiv';
+  var liste=aus?d.konten.filter(function(k){return k.active}):d.konten;
+  el('ukZeilen').innerHTML=liste.map(ukZeile).join('');
+  el('ukLeer').hidden=!!liste.length;el('ukLeer').textContent='Kein Urlaubskonto '+d.jahr+'.';
+}
+function ukZeile(k){
+  var zahl=function(w,fett){return '<td class="r num">'+(fett?'<b>':'')+esc(zahlText(w))+(fett?'</b>':'')+'</td>'};
+  return '<tr class="uk-zeile'+(k.active?'':' inaktiv')+'" data-uk="'+k.employee_id+'"><td><span>'+esc(k.name)+'</span>'
+    +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('')+'</td>'
+    +'<td class="r num">'+esc(zahlText(k.anspruch))+(k.anspruch_vorgabe?' <span class="mut">(Vorgabe)</span>':'')+'</td>'
+    +zahl(k.uebertrag)+zahl(k.genehmigt)+zahl(k.vorbei)+zahl(k.kuenftig)+zahl(k.beantragt)+zahl(k.rest,true)+zahl(k.rest_nach_antraegen)+'</tr>';
+}
+// Seit 1.9.316: beim Stellen „5 Urlaubstage · danach Rest 21,5 Tage“ vom Server -- nur Urlaub, eine Person, Von bis Bis; sonst ein Lesen ohne Anfrage
+function adRestLaden(){
+  var wer=A&&A.fuer_andere?el('adMitarbeiter').value:(A&&A.eigener_mitarbeiter),von=el('adVon').value,bis=el('adBis').value;
+  var geht=!!wer&&el('adKategorie').value==='urlaub'&&!(A.fuer_andere&&el('adMehrere').checked)&&!!von&&!!bis&&bis>=von;
+  var url='/api/absence-requests/rest-danach?employee_id='+encodeURIComponent(wer||'')+'&von='+von+'&bis='+bis+'&halber_tag='+(el('adHalb').checked?'true':'false');
+  return lesen('urlaubrest',()=>geht?api(url):Promise.resolve(null),function(d){el('adRest').hidden=!d;el('adRest').textContent=d?d.tage_text+' · '+d.text:''})
+    .catch(function(){el('adRest').hidden=true});
+}
 // Seit 1.9.171: „Halber Tag“ nur bei Urlaub und einem Tag; „Für mehrere Personen“ (Kolonne, Alle, Auswahl) für den, der für andere einträgt
 function adHalbZeigen(){
   var geht=el('adKategorie').value==='urlaub'&&el('adVon').value&&el('adVon').value===el('adBis').value;
@@ -935,7 +982,7 @@ function abwDialogOeffnen(){
   auswahlWert(el('adKategorie'),'urlaub');
   abwArtenFuellen(el('adArt'),d.arten,'urlaub');
   el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
-  el('adStatus').textContent='';el('adSenden').disabled=false;adHalbZeigen();
+  el('adStatus').textContent='';el('adSenden').disabled=false;adHalbZeigen();adRestLaden();
   el('abwDialog').showModal();
 }
 function abwSenden(){
@@ -1233,9 +1280,12 @@ function binden(){
     else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
     else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
   });
-  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true);adHalbZeigen()});
-  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',adHalbZeigen)});
-  el('adMehrere').addEventListener('change',adMehrereZeigen);
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true);adHalbZeigen();adRestLaden()});
+  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',function(){adHalbZeigen();adRestLaden()})});
+  el('adMehrere').addEventListener('change',function(){adMehrereZeigen();adRestLaden()});
+  ['adMitarbeiter','adHalb'].forEach(function(id){el(id).addEventListener('change',adRestLaden)});  // seit 1.9.316
+  el('ukJahr').addEventListener('change',function(){UK_JAHR=Number(el('ukJahr').value);urlaubskontoLaden()});
+  el('ukInaktive').addEventListener('change',function(){try{localStorage.setItem(UK_INAKTIVE,el('ukInaktive').checked?'ausblenden':'zeigen')}catch(e){}if(UK)urlaubskontoZeichnen(UK)});
   el('adKolonne').addEventListener('change',adKolonneGewaehlt);
   el('adAlle').addEventListener('click',function(){document.querySelectorAll('[data-ad-person]').forEach(function(c){c.checked=true});auswahlWert(el('adKolonne'),'')});
   el('adSenden').addEventListener('click',abwSenden);

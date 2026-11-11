@@ -131,9 +131,10 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('kvTage').value,document.getElementById('kvUebertrag').value,document.getElementById('kvVerfall').value,"
         "document.getElementById('kontenJahrKopf').textContent]"), ["30", "von_hand", "", "Urlaub 2027"])
     p.pruefe("Fin: jede Person mit der Vorgabe, ohne Startwert", await tab.js(ZEILEN),
-             [["Bea Büro", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"],
-              ["Kai Kolonne", "30 Tage (Vorgabe) · Übertrag doppelt – prüfen", "—", "—", "—", "Ändern"],
-              ["Mia Monteurin", "30 Tage (Vorgabe)", "—", "—", "—", "Ändern"]])
+             [["Bea Büro", "30 Tage (Vorgabe)", "30 Tage", "—", "—", "—", "Ändern"],  # seit 1.9.316 die Spalte „Rest 2027“
+              ["Kai Kolonne", "30 Tage (Vorgabe) · Übertrag doppelt – prüfen", "30 Tage", "—", "—", "—", "Ändern"],
+              ["Mia Monteurin", "30 Tage (Vorgabe)", "30 Tage", "—", "—", "—", "Ändern"]])
+    p.pruefe("Fin: Kopf „Rest 2027“", await tab.js("document.getElementById('kontenRestKopf').textContent"), "Rest 2027")
     # ---- seit 1.9.312: Inaktive ausblenden -- ein Stand für beide Kästchen, gemerkt im Browser ----------------------------------------------
     p.pruefe("Fin: Inaktive ausgeblendet (Vorgabe)", [await tab.js(KAESTCHEN), await tab.js(PAYROLL)],
              [[True, True, "1 inaktiv", "1 inaktiv"], [["Bea Büro", ""], ["Kai Kolonne", ""], ["Mia Monteurin", ""]]])
@@ -173,7 +174,7 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('kdGeprueftText').innerText,document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden]"),
         ["Geprüft am 11.11.2026 durch Fin Finanzen.", True, True])
     p.pruefe("Fin: Mias Zeile mit dem Übertrag aus dem Startwert", [z for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
-             [["Mia Monteurin", "24 Tage · Übertrag 4,5", "4,5 Tage", "-12,25 h", "Steuerbüro · geprüft 11.11.2026", "Ändern"]])
+             [["Mia Monteurin", "24 Tage · Übertrag 4,5", "28,5 Tage", "4,5 Tage", "-12,25 h", "Steuerbüro · geprüft 11.11.2026", "Ändern"]])
     await tab.js("auswahlWert(document.getElementById('kdJahr'),'2027');document.getElementById('kdJahr').dispatchEvent(new Event('change',{bubbles:true}))")
     p.pruefe("Fin: Dialog 2027 zeigt den Startwert als Übertrag", await tab.js("document.getElementById('kdUebertrag').value"), "4,5")
     await tab.bild("konten_dialog_2027_1440")
@@ -189,7 +190,7 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('kdGeprueft').checked,document.getElementById('kdGeprueftHinweis').hidden]"), [False, False])
     p.pruefe("Fin: ohne Haken gespeichert", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
     p.pruefe("Fin: nicht mehr geprüft", [await tab.js("[document.getElementById('kdGeprueftText').innerText,document.getElementById('kdGeprueft').checked]"),
-                                         [z[4] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"]],
+                                         [z[5] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"]],
              [["Noch nicht geprüft.", False], ["Steuerbüro · nicht geprüft"]])
     await _tippen(tab, "kdHerkunftNotiz", "Liste vom 31.12.2026")
     p.pruefe("Fin: ohne vorherige Prüfung kein Hinweis", await tab.js(
@@ -207,12 +208,12 @@ async def pruefen(tab, seed, p):
     await _setze(tab, {"kdRest": "4,5", "kdSaldo": "-11"})
     p.pruefe("Fin: Saldo geändert ohne „geprüft“", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
     p.pruefe("Fin: die Prüfung ist weg", [await tab.js("document.getElementById('kdGeprueftText').innerText"),
-                                         [z[3:5] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"]],
+                                         [z[4:6] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"]],
              ["Noch nicht geprüft.", [["-11,00 h", "Steuerbüro · nicht geprüft"]]])
     await _setze(tab, {"kdSaldo": "-12,25"})
     await tab.js("document.getElementById('kdGeprueft').checked=true")
     p.pruefe("Fin: wieder geprüft", await _klick_bis(tab, "#kdStartwertKnopf", "kdStartwertStatus", "Gespeichert."), True)
-    p.pruefe("Fin: Zeile wieder geprüft", [z[3:5] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
+    p.pruefe("Fin: Zeile wieder geprüft", [z[4:6] for z in await tab.js(ZEILEN) if z[0] == "Mia Monteurin"],
              [["-12,25 h", "Steuerbüro · geprüft 11.11.2026"]])
     await tab.js("auswahlWert(document.getElementById('kdJahr'),'2028');document.getElementById('kdJahr').dispatchEvent(new Event('change',{bubbles:true}))")
     p.pruefe("Fin: Jahr 2028 leer, Übertrag von Hand frei", await tab.js(
@@ -271,7 +272,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["bea"])
     p.pruefe("Bea: Zeitregeln geladen", await tab.oeffnen("/settings?n=20#time-rules", BEREIT), True)
     await tab.warte_auf_ruhe()
-    p.pruefe("Bea: nur die eigene Zeile, „Ansehen“", await tab.js(ZEILEN), [["Bea Büro", "28,5 Tage (Vorgabe)", "—", "—", "—", "Ansehen"]])
+    p.pruefe("Bea: nur die eigene Zeile, „Ansehen“", await tab.js(ZEILEN), [["Bea Büro", "28,5 Tage (Vorgabe)", "28,5 Tage", "—", "—", "—", "Ansehen"]])
     p.pruefe("Bea: „Inaktive ausblenden“ bleibt bedienbar (nur Anzeige)", await tab.js(
         "[document.getElementById('kontenInaktiveAusblenden').disabled,document.getElementById('lohnInaktiveAusblenden').disabled]"), [False, False])
     p.pruefe("Bea: Vorgaben gesperrt, ohne Knopf", await tab.js(

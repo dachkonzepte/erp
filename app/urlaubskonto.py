@@ -169,3 +169,48 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                 ergebnis.append(k)
             rest_vorjahr = k.rest
     return ergebnis
+
+def tage_wort(wert: Decimal) -> str:
+    """Seit 1.9.316: „1 Tag“, „0,5 Tage“, „21,5 Tage“, „-2 Tage“."""
+    return f"{_tage_text(wert)} {'Tag' if wert == 1 else 'Tage'}"
+
+
+def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
+                heute: date | None = None) -> dict | None:
+    """Seit 1.9.316 (Lohn L2b, Punkt 4): was ein Urlaub von von bis bis zählt und der Rest danach -- beim Stellen und beim Genehmigen dieselbe
+    Rechnung: der Rest des Kontos (Anspruch + Übertrag − genehmigt) minus die Tage dieses Urlaubs; andere offene Anträge zählen nicht mit (die
+    zeigt das Konto unter „nach den offenen Anträgen“). Je Jahr ab 2027 {jahr, tage, rest_danach}; ein Urlaub über den Jahreswechsel nennt beide
+    Jahre. None, wenn kein Tag in einem Jahr ab 2027 liegt. text: „danach Rest 21,5 Tage“ bzw. „danach Rest 2027: 1 Tag · 2028: 29 Tage“;
+    tage_text: „5 Urlaubstage“."""
+    from .lohnkonten import ERSTES_JAHR
+    from .planning import automatic_public_holidays
+    from .sollzeit import abwesenheit_tage
+    from .zeiten import feiertage_bundesland
+
+    # das Bundesland wie die Tagesbilanz: die Einstellung der Plantafel, ohne sie Nordrhein-Westfalen (abwesenheit_tage() läse sie ohne Rückfall)
+    feiertage = automatic_public_holidays(feiertage_bundesland(db), range(von.year, bis.year + 1))
+    jahre = []
+    for j in range(max(von.year, ERSTES_JAHR), bis.year + 1):
+        k = konten(db, j, [employee_id], heute=heute)
+        if not k:
+            continue
+        tage = abwesenheit_tage(db, employee_id, max(von, date(j, 1, 1)), min(bis, date(j, 12, 31)), kategorie=URLAUB, halber_tag=halber_tag,
+                                feiertage=feiertage, kalendertag_urlaub=kalendertag_urlaub)["tage"]
+        jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage})
+    if not jahre:
+        return None
+    summe = sum((x["tage"] for x in jahre), NULL)
+    text = "danach Rest " + (tage_wort(jahre[0]["rest_danach"]) if len(jahre) == 1 else
+                             " · ".join(f"{x['jahr']}: {tage_wort(x['rest_danach'])}" for x in jahre))
+    return {"jahre": jahre, "tage": summe, "tage_text": f"{_tage_text(summe)} {'Urlaubstag' if summe == 1 else 'Urlaubstage'}", "text": text}
+
+
+def rest_danach_je_antrag(db: Session, antraege) -> dict[int, str]:
+    """Seit 1.9.316: je offenem Antrag auf Urlaub „danach Rest …“ (rest_danach()) -- für die Liste, in der genehmigt wird. Andere Anträge fehlen."""
+    ergebnis = {}
+    for r in antraege:
+        if r.status == "pending" and r.absence_category == URLAUB:
+            d = rest_danach(db, r.employee_id, r.start_date, r.end_date, halber_tag=bool(r.halber_tag), kalendertag_urlaub=r.kalendertag_urlaub)
+            if d is not None:
+                ergebnis[r.id] = d["text"]
+    return ergebnis

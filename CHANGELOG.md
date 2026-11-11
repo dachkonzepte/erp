@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.316 – Lohn L2b: das Urlaubskonto auf den Seiten
+
+Fünfter und letzter Punkt von Lohn L2b. „Zeiten → Abwesenheiten“ zeigt die Karte „Urlaubskonto“: je Person Anspruch, Übertrag, genehmigt (davon vorbei, künftig), beantragt, Rest und Rest nach den Anträgen, darunter die Hinweise; das Jahr ist wählbar (2027 bis ein Jahr nach dem laufenden), Inaktive sind mit „Inaktive ausblenden“ ausgeblendet wie in den Stammdaten. Admin und Büro – Finanzen sehen alle, alle anderen das eigene. Nach jeder Entscheidung und jedem neuen Antrag zieht das Konto ohne Neuladen nach.
+
+Am Antrag steht „danach Rest n Tage“ -- beim Stellen im Dialog unter „Zeiten“, auf der Plantafel und in „Meine Zeiten“ („5 Urlaubstage · danach Rest 24,5 Tage“, vom Server), beim Genehmigen an jedem offenen Antrag auf Urlaub in „Prüfen“ und „Abwesenheiten“. Gerechnet wird beides gleich: der Rest des Kontos minus die Tage dieses Urlaubs, über den Jahreswechsel je Jahr. „Meine Zeiten“ zeigt in der Karte „Abwesenheit“ das eigene Konto, die Datengrenze der Monteurin bleibt unverändert. Im Block „Urlaub und Startwerte“ der Einstellungen steht die Spalte „Rest 2027“.
+
+Neu `GET /api/absence-requests/rest-danach`, `tests/test_v716_urlaubskonto_anzeige.py` und `scripts/klicktest_urlaubskonto.py`; `klicktest_konten.py` an die neue Spalte angepasst. Keine Migration.
+
 ## 1.9.315 – Lohn L2b: das Urlaubskonto je Person und Jahr
 
 Vierter Punkt von Lohn L2b (Antworten 1, 3, 4 und 5 des Befunds L2). Neu ist das Urlaubskonto je Person und Jahr ab 2027 (`app/urlaubskonto.py`), eine Rechnung wie die Tagesbilanz in einer festen Zahl Abfragen: Anspruch (Urlaubsanspruch je Jahr oder die Vorgabe), Übertrag (2027 der Startwert „Resturlaub“; ab 2028 nach der Vorgabe von Hand oder der Rest des Vorjahres), genehmigt mit „davon vorbei“ und „künftig“, beantragt (die offenen Anträge), Rest = Anspruch + Übertrag − genehmigt und der Rest nach den offenen Anträgen.

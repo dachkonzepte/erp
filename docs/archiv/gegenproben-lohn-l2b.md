@@ -106,3 +106,28 @@ steht dort; Nr. 8 „keine Migration“ (nichts gebaut, nichts zu prüfen).
 
 21 Gegenproben, alle rot. Die Regeln der Tagesbilanz selbst (Sollzeit der eigenen Woche, Feiertage, Silvester als ganzer Urlaubstag) sind in 1.9.308
 gegengeprobt (`gegenproben-lohn-l2a.md`); hier zählt das Konto ihre Posten.
+
+## 1.9.316 (Punkt 4): das Urlaubskonto auf den Seiten
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Rest minus dieser Urlaub, andere offene Anträge zählen nicht mit | Rest nach den offenen Anträgen (`316_1a`) | 2 rot: v716::test_an_offenen_antraegen, test_rest_danach |
+| Nr. 1 – über den Jahreswechsel je Jahr | nur das erste Jahr (`316_1b`) | 2 rot: v716::test_rest_danach, test_rest_danach_schnittstelle_rechte |
+| Nr. 1 – vor 2027 nichts | auch vor 2027 (`316_1c`) | 2 rot: dieselben |
+| Nr. 1 – „1 Urlaubstag“ | ohne Einzahl (`316_1d`; der erste Versuch zerbrach die Datei -- ERROR, neu gefasst) | 1 rot: v716::test_rest_danach |
+| Nr. 2 – nur die eigene Person, Admin und Büro – Finanzen jede | jeder für jeden (`316_2a`); Klicktest: Mia fragt eine andere Person (403) | 1 rot: v716::test_rest_danach_schnittstelle_rechte |
+| Nr. 2 – Bis vor Von abgelehnt | angenommen (`316_2b`) | 1 rot: v716::test_rest_danach_schnittstelle_rechte |
+| Nr. 3 – an jedem offenen Antrag auf Urlaub | auch an entschiedenen (`316_3a`) | 1 rot: v716::test_an_offenen_antraegen |
+| Nr. 3 – auch in „Prüfen“ | nicht in „Prüfen“ (`316_3b`) | 1 rot: v716::test_an_offenen_antraegen |
+| Nr. 4 – Inaktive ausgeblendet | ohne Filter (`316_4a`) | 1 rot: v716::test_zeiten_karte_mit_inaktiven |
+| Nr. 4 – eigener Schlüssel | der Schlüssel der Mitarbeiterliste (`316_4b`) | 1 rot: v716::test_seiten_aufbau |
+| Nr. 4 – Jahre 2027 bis ein Jahr nach dem laufenden | nur das gewählte (`316_4c`) | 1 rot: v716::test_jahre_meine_zeiten_und_rest_2027 |
+| Nr. 4 – die Karte lädt mit dem Reiter | lädt nicht (`316_K5`, Klicktest) | Klicktest: „Fin: Abwesenheiten mit Konto“ (und folgende) |
+| Nr. 5 – „danach Rest“ nur bei Urlaub | jede Kategorie (`316_K1`, Klicktest Zeiten) | Klicktest: „Fin: Krankheit -- kein Rest“ |
+| Nr. 5 – neu bei jeder Änderung im Dialog | Plantafel ohne (`316_K3`); „Meine Zeiten“ ohne (`316_K4`) | Klicktest: „Anna: Plantafel „danach Rest““; „Mia: im Antrag „danach Rest““ |
+| Nr. 6 – Meine Zeiten nur das eigene | nicht nur das eigene (`316_6b`; blieb zuerst grün -- die richtige Person stand zufällig vorn, Test um die zweite Person ergänzt, dann rot) | 1 rot: v716::test_jahre_meine_zeiten_und_rest_2027 |
+| Nr. 6 – Schlüssel „urlaub“, Datengrenze unverändert | alter Name „urlaubskonto“ (`316_6a`) | 4 rot: v326 (Datengrenze, „skonto“) und v716 |
+| Nr. 7 – Spalte „Rest 2027“ | ohne Rest (`316_7a`) | 1 rot: v716::test_jahre_meine_zeiten_und_rest_2027 |
+| Nr. 8 – nach dem Genehmigen ohne Neuladen | das Konto nicht mitgeladen (`316_K2`, Klicktest) | Klicktest: „Anna: Toms Zeile ohne Neuladen -- genehmigt 5, Rest 25“ |
+
+19 Gegenproben, alle rot (14 über Tests, 5 über `klicktest_urlaubskonto`).

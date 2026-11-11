@@ -2550,3 +2550,59 @@ Teilzeit Mo–Mi --, Silvester frei, offene Anträge auch über den Jahreswechse
 auch unter „automatisch“, vor 2027, feste Zahl Abfragen, Schnittstelle mit Rechten). Eigener Fehler vor dem Festhalten: die Auswahl der Personen nahm Feiertage
 als „Daten im Jahr“ -- eine inaktive Person ohne Austritt stand so 2028 im Konto; gefunden mit dem ergänzten Test, behoben. Keine angepasste Erwartung.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.315“.
+
+### Umsetzung 1.9.316 (Punkt 4): das Urlaubskonto auf den Seiten
+
+- `app/urlaubskonto.py::rest_danach(db, Person, von, bis, halber_tag, kalendertag_urlaub)`: je Jahr ab 2027 die Tage dieses Urlaubs
+  (`abwesenheit_tage()`, Kategorie Urlaub) und der Rest des Kontos minus diese Tage -- beim Stellen und beim Genehmigen dieselbe Rechnung; andere offene
+  Anträge zählen nicht mit (die zeigt das Konto unter „nach Anträgen“). Text „danach Rest 24,5 Tage“, über den Jahreswechsel „danach Rest 2027: … · 2028:
+  …“, dazu „5 Urlaubstage“ (Einzahl „1 Urlaubstag“); vor 2027 nichts. `rest_danach_je_antrag()` für jeden offenen Antrag auf Urlaub einer Liste.
+- `GET /api/absence-requests/rest-danach?employee_id&von&bis&halber_tag&kalendertag_urlaub` (jede Rolle): die eigene Person, Admin und Büro – Finanzen jede
+  (`darf_konten_aller()`, sonst 403); Bis vor Von 422; unbekannte Person 404; vor 2027 `null`. Datengrenze: Testwerte in `QUERY_JE_ROUTE`.
+- `GET /api/zeiten/pruefen` und `/api/zeiten/abwesenheiten`: je Antrag `rest_danach` (nur offen und Urlaub); `GET /api/zeiten/urlaubskonto` nennt `jahre`
+  (2027 bis ein Jahr nach dem laufenden, dazu das gewählte).
+- „Zeiten → Abwesenheiten“ (`zeiten.html`): Karte „Urlaubskonto“ unter den Anträgen (Bereich `urlaubskonto`, geladen mit dem Reiter und nach jedem
+  Speichern an Anträgen über `abwesenheitenUndPruefen()`), Jahr über `auswahlOptionen()`, „Inaktive ausblenden“ (Vorgabe an, `erp_urlaubskonto_inaktive`,
+  nur Anzeige), Hinweise unter dem Namen. Im Dialog „Abwesenheit beantragen“ unter den Daten „5 Urlaubstage · danach Rest …“ (Bereich `urlaubrest`, nur
+  Urlaub, eine Person, Von bis Bis -- sonst ein Lesen ohne Anfrage); an den Anträgen in „Prüfen“ und „Abwesenheiten“ „· danach Rest …“.
+- Plantafel (`planning.html`): derselbe Satz im Dialog „Abwesenheit eintragen“ (`absenceRestLaden()`).
+- „Meine Zeiten“ (`mobil_zeiten.html`, `app/meine_zeiten.py::urlaubskonto()`): in der Karte „Abwesenheit“ das eigene Konto im laufenden Jahr (frühestens
+  2027) -- Rest, Anspruch, Übertrag, genehmigt, davon vorbei, beantragt, Rest nach den Anträgen, Hinweise; im Antrag „danach Rest“; nach dem Senden lädt die
+  Seite neu. Schlüssel `urlaub`: „urlaubskonto“ enthielte „skonto“ -- in der Datengrenze der Monteurin ein verbotener Name (gefunden mit
+  `tests/test_v326_monteur_datengrenze.py`; die Grenze bleibt, der Name ist anders).
+- Einstellungen, Block „Urlaub und Startwerte“: Spalte „Rest 2027“ (`KontoPersonOut.rest_erstes_jahr`, eine Rechnung des Urlaubskontos für alle).
+
+#### Festlegungen 1.9.316 (Bitte bestätigen)
+
+1. „danach Rest“ = Rest des Kontos (Anspruch + Übertrag − genehmigt) minus die Tage dieses Urlaubs -- beim Stellen und beim Genehmigen gleich; andere
+   offene Anträge zählen nicht mit; über den Jahreswechsel je Jahr; vor 2027 nichts.
+2. Die Vorschau beim Stellen nur für die eigene Person; Admin und Büro – Finanzen für jede.
+3. An jedem offenen Antrag auf Urlaub in „Prüfen“ und „Abwesenheiten“ „· danach Rest n Tage“.
+4. Karte „Urlaubskonto“ unter „Zeiten → Abwesenheiten“: Jahr wählbar (2027 bis ein Jahr nach dem laufenden), „Inaktive ausblenden“ (Vorgabe an, eigener
+   Schlüssel, nur Anzeige); Admin und Büro – Finanzen alle, sonst das eigene.
+5. In den Dialogen (Zeiten, Plantafel, „Meine Zeiten“) „n Urlaubstage · danach Rest …“ nur bei Urlaub, einer Person und Von bis Bis; neu bei jeder Änderung.
+6. „Meine Zeiten“ zeigt nur das eigene Konto im laufenden Jahr (frühestens 2027); Schlüssel `urlaub`, die Datengrenze bleibt unverändert.
+7. Einstellungen: Spalte „Rest 2027“ im Block „Urlaub und Startwerte“.
+8. Nach dem Genehmigen, Ablehnen, Zurückziehen oder Stellen zieht das Konto ohne Neuladen nach.
+
+#### Tests und Prüfung 1.9.316
+
+Neu: `tests/test_v716_urlaubskonto_anzeige.py` (`rest_danach()` mit halbem Tag, Einzahl, Jahreswechsel, vor 2027 und ohne andere Anträge; Schnittstelle mit Rechten;
+an offenen Anträgen in beiden Listen; Jahre, „Meine Zeiten“ für zwei Personen, Rest 2027; in node die Karte mit Inaktiven und das eigene Konto; Aufbau der
+Seiten) und `scripts/klicktest_urlaubskonto.py` (Karte, Inaktive, Jahr 2028, „danach Rest“ in Antrag und Dialog, Genehmigen ohne Neuladen, Plantafel, „Meine
+Zeiten“; Bilder bei 1440 und 412 px, hell und dunkel). Erweitert: `tests/test_v326_monteur_datengrenze.py` (`QUERY_JE_ROUTE` für den neuen Endpunkt).
+Angepasste Erwartungen (`klicktest_konten.py`, die Spalte „Rest 2027“ hinter „Urlaub 2027“):
+- „Fin: jede Person mit der Vorgabe, ohne Startwert“ -- alt: 6 Zellen je Zeile; neu: dazu „30 Tage“ je Person; dazu neu „Fin: Kopf „Rest 2027““.
+- „Fin: Mias Zeile mit dem Übertrag aus dem Startwert“ -- alt: ohne Rest; neu: „28,5 Tage“.
+- „Fin: nicht mehr geprüft“, „Fin: die Prüfung ist weg“, „Fin: Zeile wieder geprüft“ -- alt: Spalten 4 bzw. 3–4; neu: 5 bzw. 4–5 (dieselben Werte).
+- „Bea: nur die eigene Zeile, „Ansehen““ -- alt: ohne Rest; neu: „28,5 Tage“.
+Weitere angepasste Erwartungen, gefunden im ersten Lauf vor dem Commit:
+- `tests/test_v712_konten_korrektur.py::test_seite_aufbau` -- alt: die Zellen Anspruch, Startwert, Saldo; neu: dazwischen „Rest 2027“.
+- `klicktest_silvester.py` „Ada: Liste nennt „frei“ und 8 Arbeitstage“ -- alt: ohne; neu: „· danach Rest 25 Tage“ am offenen Antrag (2027: 04.–08.01.).
+- `klicktest_zuordnung_ausgeliefert.py` „Fin: jede Zeile wie ausgeliefert“ -- alt: ohne Sonderurlaub; neu: „kategorie:sonderurlaub“ „nicht exportiert“. Veraltet
+  seit 1.9.313 (die Zeile entsteht mit der Kategorie) -- für 1.9.313 hatte ich diesen Klicktest nicht laufen lassen; auf 1.9.313–1.9.315 war er rot.
+Eigene Fehler vor dem Festhalten: `rest_danach()` las das Bundesland ohne Rückfall (`abwesenheit_tage()` ohne Feiertage) -- ohne Einstellung der Plantafel
+brach „Abwesenheiten“ mit `GrunddatenFehlen` ab (`tests/test_v528_arbeitstage_bundesland.py` rot); jetzt wie die Tagesbilanz über `feiertage_bundesland()`.
+Der Satz „danach Rest“ in „Meine Zeiten“ trug zuerst `role="status"` -- dort gilt das als Meldung, die in die Knopfleiste gehört
+(`tests/test_v491_dialog_knopfleiste.py`); jetzt `aria-live="polite"`. Die Bilder des Antrags mit Rest nimmt der Klicktest jetzt in allen vier Varianten auf.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.316“.

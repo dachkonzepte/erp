@@ -5,6 +5,8 @@ siehe README). Enthaelt 4 Endpunkt(e), unveraendert
 uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
+from datetime import date
+
 from fastapi import APIRouter
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -14,8 +16,9 @@ from ..absence_requests import AbschlussGesperrt, KalendertagFrage, SammelAbgele
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
-from ..models import AppUser, EmployeeAbsenceRequest
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_im_abschluss_aendern, require_min_role
+from ..models import AppUser, Employee, EmployeeAbsenceRequest
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_im_abschluss_aendern, darf_konten_aller, require_min_role
+from ..urlaubskonto import rest_danach
 from ..schemas import AbwesenheitSammel, EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
 router = APIRouter()
@@ -58,6 +61,21 @@ def get_absence_types(alle: bool = False, db: Session = Depends(get_db, scope="f
     """Seit 1.9.153: die aktiven Arten mit den Kategorien, zu denen sie passen (Auswahl „Art“ im Dialog der Plantafel). Seit 1.9.313 mit
     alle=true auch die inaktiven (Einstellungen → Abwesenheitsarten nennt je Art ihre Kategorie, kategorien_text)."""
     return arten_fuer_auswahl(db, nur_aktive=not alle)
+
+
+@router.get("/api/absence-requests/rest-danach")
+def get_rest_danach(employee_id: int, von: date, bis: date, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
+                    db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ für einen Urlaub, der gerade beantragt wird
+    (app/urlaubskonto.py::rest_danach()) -- für die eigene Person, Admin und Büro – Finanzen für jede (darf_konten_aller(), wie das Konto).
+    null, wenn kein Tag in einem Jahr ab 2027 liegt. Liest nur."""
+    if not darf_konten_aller(_role) and employee_id != getattr(_role, "employee_id", None):
+        raise HTTPException(status_code=403, detail="Den Urlaub einer anderen Person sieht nur der Admin oder Büro – Finanzen.")
+    if bis < von:
+        raise HTTPException(status_code=422, detail="Enddatum darf nicht vor dem Startdatum liegen.")
+    if db.get(Employee, employee_id) is None:
+        raise HTTPException(status_code=404, detail="Mitarbeiter wurde nicht gefunden.")
+    return rest_danach(db, employee_id, von, bis, halber_tag=halber_tag, kalendertag_urlaub=kalendertag_urlaub)
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])

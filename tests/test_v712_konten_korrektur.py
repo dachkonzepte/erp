@@ -220,7 +220,9 @@ def test_seite_aufbau():
     assert ".lohn-tabelle td:first-child{box-shadow:inset -1px 0 0 var(--line),inset 0 -1px 0 var(--line)}" in text
     assert ".lohn-tabelle tbody tr:last-child td:first-child{box-shadow:inset -1px 0 0 var(--line)}" in text
     assert ".lohn-tabelle td.nw{white-space:nowrap}" in text
-    assert ('<td class="nw">${esc(kontenAnspruchText(p))}</td><td class="nw">${esc(kontenTage(p.startwert?p.startwert.resturlaub_tage:null))}</td>'
+    # seit 1.9.316 dazwischen die Spalte „Rest 2027“ (ebenfalls ohne Umbruch)
+    assert ('<td class="nw">${esc(kontenAnspruchText(p))}</td><td class="nw" data-rest>${esc(kontenTage(p.rest_erstes_jahr))}</td>'
+            '<td class="nw">${esc(kontenTage(p.startwert?p.startwert.resturlaub_tage:null))}</td>'
             '<td class="nw">${esc(kontenSaldoText(p.startwert))}</td>') in text
     # die Felder des Startwerts melden jede Eingabe
     for feld in ("kdRest", "kdSaldo", "kdHerkunftNotiz"):

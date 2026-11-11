@@ -476,6 +476,8 @@ QUERY_JE_ROUTE = {
     # Vorschau einer Dauer, einzeln und für die Kolonne (seit 1.9.107)
     "/api/time-entries/dauer-vorschau": {"work_date": "@heute", "hours": "2"},
     "/api/time-entry-groups/dauer-vorschau": {"work_date": "@heute", "hours": "2", "team_id": "@team_id", "employee_ids": "@employee_id"},
+    # „danach Rest“ beim Stellen eines Urlaubs (seit 1.9.316): der eigene Mitarbeiter, eine Woche im ersten Jahr der Konten
+    "/api/absence-requests/rest-danach": {"employee_id": "@employee_id", "von": "2027-01-04", "bis": "2027-01-08"},
 }
 
 

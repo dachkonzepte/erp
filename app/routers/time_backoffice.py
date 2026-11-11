@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_im_abschluss_aendern, darf_konten_aller, darf_lohnregeln, require_lohndaten,
                            require_lohnregeln, require_min_role, require_personalnummer_freigeben)
+from ..urlaubskonto import konten as urlaubskonten
 from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
                           vorgaben_setzen)
 from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
@@ -90,8 +91,13 @@ def _konten_personen(user) -> list[int] | None:
 
 @router.get("/api/time-backoffice/konten", response_model=KontenOut)
 def get_konten(db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+    personen = konten(db, _konten_personen(_role))
+    # seit 1.9.316 (Lohn L2b, Punkt 4): je Person der Rest des Urlaubskontos 2027 (Spalte „Rest 2027“) -- eine Rechnung für alle
+    rest = {k.employee_id: k.rest for k in urlaubskonten(db, ERSTES_JAHR, [p["employee_id"] for p in personen])}
+    for p in personen:
+        p["rest_erstes_jahr"] = rest.get(p["employee_id"])
     return {"vorgaben": vorgaben(db), "stichtag": STICHTAG, "erstes_jahr": ERSTES_JAHR, "jahr": standardjahr(), "darf_aendern": darf_lohnregeln(_role),
-            "startwert_gesperrt": startwert_gesperrt(db) and not darf_im_abschluss_aendern(_role), "personen": konten(db, _konten_personen(_role))}
+            "startwert_gesperrt": startwert_gesperrt(db) and not darf_im_abschluss_aendern(_role), "personen": personen}
 
 
 @router.put("/api/time-backoffice/konten/vorgaben", response_model=KontenVorgabenOut)

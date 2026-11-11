@@ -162,4 +162,16 @@ def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> 
         "nachtragen_erlaubt": bool(regeln.allow_manual_entries),  # seit 1.9.61 ohne Standardpause
         "kolonnen": list_crews_for_leader(db, employee_id) if regeln.allow_group_bookings else [],
         "kolonnen_buchungen": gruppen, "abwesenheitsarten": abwesenheitsarten(db),
+        # seit 1.9.316: das eigene Urlaubskonto -- Schlüssel „urlaub“, nicht „urlaubskonto“: darin steckt „skonto“, ein für die Monteurin verbotener
+        # Name (Datengrenze, tests/test_v326_monteur_datengrenze.py)
+        "urlaub": urlaubskonto(db, employee_id),
     }
+
+
+def urlaubskonto(db: Session, employee_id: int) -> dict | None:
+    """Seit 1.9.316 (Lohn L2b, Punkt 4): das eigene Urlaubskonto im laufenden Jahr, frühestens 2027 (app/urlaubskonto.py) -- nur das eigene, wie
+    alles in „Meine Zeiten“."""
+    from .lohnkonten import standardjahr
+    from .urlaubskonto import konten
+    k = konten(db, standardjahr(), [employee_id])
+    return k[0].als_dict() if k else None
