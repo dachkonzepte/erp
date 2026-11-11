@@ -10,7 +10,7 @@ from .models import (
     AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
     Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, OperationalAssetInspection, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
-    QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
+    QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, Urlaubsanspruch, LohnStartwert, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
@@ -35,7 +35,7 @@ TYPE_LABELS = {
     Customer: "Kunde", Property: "Objekt", Project: "Projekt", ProjectDocument: "Projektdatei",
     Quote: "Angebot", QuoteItem: "Angebotsposition", QuoteItemCalculation: "Positionskalkulation",
     QuoteItemMaterialCalculation: "Materialkalkulation", QuoteDocumentMeta: "Angebotskopf",
-    QuoteSection: "LV-Titel", Order: "Auftrag", OrderRevision: "Auftragsrevision", OrderSection: "Auftrags-LV-Titel", OrderItem: "Auftragsposition", WorkPreparation: "Arbeitsvorbereitung", WorkPreparationEmployee: "AV-Mitarbeiter", WorkPreparationTask: "AV-Aufgabe", WorkPreparationMaterial: "AV-Material", WorkPreparationTeamAssignment:"AV-Team", WorkPreparationDeliveryNote:"AV-Lieferschein", WorkPreparationMaterialDeliveryNote:"Material-Lieferschein-Zuordnung", PlanningSlot:"Plantafel-Einsatz", PlanningSettings:"Plantafel-Einstellung", PlanningRegionSettings:"Plantafel-Region", PlanningHoliday:"Feiertag / betriebsfreier Tag", EmployeeAbsence:"Mitarbeiter-Abwesenheit", EmployeeAbsenceRequest:"Abwesenheitsantrag", PlanningSlotCapacity:"Plantafel-Kapazität", PlanningSlotEmployee:"Plantafel-Besetzung", PlanningSlotResource:"Plantafel-Gerät", TimeEntry:"Zeitbuchung", TimeEntryGroup:"Gruppen-Zeitbuchung", TimeEntryGroupMember:"Gruppenbuchungs-Mitglied", TimeTrackingSettings:"Zeiterfassungs-Einstellung", EmployeePayrollSettings:"DATEV-Mitarbeitereinstellung", EmployeeTargetHours:"Eigene Sollzeit", LohnartZuordnung:"Zuordnung DATEV-Export", ArbeitszeitKalendertag:"Arbeitszeitkalender", TimeBackofficeAdvancedSettings:"Zeiterfassungs-Backoffice-Einstellung", WorkTimeModel:"Arbeitszeitmodell", WorkTimeBreakRule:"Arbeitszeitmodell-Pausenregel", EmployeeWorkTimeModel:"Mitarbeiter-Arbeitszeitmodell", Supplier:"Lieferant", OperationalResource:"Ressource", OperationalAsset:"Betriebsmittel", OperationalAssetInspection:"Prüffrist", Team:"Kolonne / Team", Employee: "Mitarbeiter", EmployeeFunction: "Mitarbeiterfunktion",
+    QuoteSection: "LV-Titel", Order: "Auftrag", OrderRevision: "Auftragsrevision", OrderSection: "Auftrags-LV-Titel", OrderItem: "Auftragsposition", WorkPreparation: "Arbeitsvorbereitung", WorkPreparationEmployee: "AV-Mitarbeiter", WorkPreparationTask: "AV-Aufgabe", WorkPreparationMaterial: "AV-Material", WorkPreparationTeamAssignment:"AV-Team", WorkPreparationDeliveryNote:"AV-Lieferschein", WorkPreparationMaterialDeliveryNote:"Material-Lieferschein-Zuordnung", PlanningSlot:"Plantafel-Einsatz", PlanningSettings:"Plantafel-Einstellung", PlanningRegionSettings:"Plantafel-Region", PlanningHoliday:"Feiertag / betriebsfreier Tag", EmployeeAbsence:"Mitarbeiter-Abwesenheit", EmployeeAbsenceRequest:"Abwesenheitsantrag", PlanningSlotCapacity:"Plantafel-Kapazität", PlanningSlotEmployee:"Plantafel-Besetzung", PlanningSlotResource:"Plantafel-Gerät", TimeEntry:"Zeitbuchung", TimeEntryGroup:"Gruppen-Zeitbuchung", TimeEntryGroupMember:"Gruppenbuchungs-Mitglied", TimeTrackingSettings:"Zeiterfassungs-Einstellung", EmployeePayrollSettings:"DATEV-Mitarbeitereinstellung", EmployeeTargetHours:"Eigene Sollzeit", Urlaubsanspruch:"Urlaubsanspruch je Jahr", LohnStartwert:"Startwert der Konten", LohnartZuordnung:"Zuordnung DATEV-Export", ArbeitszeitKalendertag:"Arbeitszeitkalender", TimeBackofficeAdvancedSettings:"Zeiterfassungs-Backoffice-Einstellung", WorkTimeModel:"Arbeitszeitmodell", WorkTimeBreakRule:"Arbeitszeitmodell-Pausenregel", EmployeeWorkTimeModel:"Mitarbeiter-Arbeitszeitmodell", Supplier:"Lieferant", OperationalResource:"Ressource", OperationalAsset:"Betriebsmittel", OperationalAssetInspection:"Prüffrist", Team:"Kolonne / Team", Employee: "Mitarbeiter", EmployeeFunction: "Mitarbeiterfunktion",
     GeneralSettings: "Unternehmenseinstellung", CalculationSettings: "Kalkulationsgrundlage",
     LaborRateSettings: "Verrechnungssatz-Grundlage", LaborRateOverheadSettings: "Gemeinkosten-Grundlage",
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
@@ -69,7 +69,7 @@ AUDITED_TYPES = (
     # seit 1.9.299 (Geräte-Runde, N2): das Betriebsmittel und seine Prüffristen -- bis 1.9.298 stand nur die Ressource in der Historie
     OperationalAsset, OperationalAssetInspection,
     Quote, QuoteItem, QuoteItemCalculation, QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection,
-    QuoteItemLayout, QuoteEmployeeAssignment, Order, OrderRevision, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeeFunction,
+    QuoteItemLayout, QuoteEmployeeAssignment, Order, OrderRevision, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, Urlaubsanspruch, LohnStartwert, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeeFunction,
     GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings, NumberSequence, SettingOptionGroup, SettingOption,
     AppUser, ServiceCalculation, MaterialCalculationOverride,
     # Checklisten (seit 1.8.13): Anlegen, Abschließen, Löschen eines Entwurfs; jedes Foto und jede
@@ -284,6 +284,11 @@ FIELD_LABELS = {
     "monday": "Montag",
     "note": "Notiz",
     "notes": "Notizen",
+    # seit 1.9.310 (Lohn L2a, Punkt 3): Urlaubsanspruch, Startwert der Konten, Vorgaben des Urlaubskontos
+    "jahr": "Jahr", "urlaubstage": "Urlaubstage", "uebertrag": "Übertrag (Tage)", "verfall_am": "Übertrag verfällt am", "notiz": "Notiz", "stichtag": "Stichtag",
+    "resturlaub_tage": "Resturlaub (Tage)", "saldo_stunden": "Saldo Arbeitszeitkonto (Stunden)", "herkunft": "Herkunft", "herkunft_notiz": "Bemerkung zur Herkunft",
+    "geprueft_am": "Geprüft am", "geprueft_von": "Geprüft von", "urlaub_vorgabe_tage": "Urlaubsanspruch je Jahr (Vorgabe)",
+    "urlaub_uebertrag": "Übertrag des Urlaubs ins Folgejahr", "urlaub_verfall": "Übertrag verfällt am (Vorgabe)",
     "operational_asset_id": "Betriebsmittel",
     "order_id": "Auftrag",
     "origin": "Herkunft",
@@ -860,7 +865,32 @@ def redact_wage_snapshot(details_json):
 # Entität (Wartungsvertrag, Projekt, ...) bleibt eine Notiz für buero_auftrag sichtbar, das Feld
 # ist dort nicht sensibel; ein Blanket-Filter über ABSENCE_FIELD_NAMES hinweg wäre deshalb falsch.
 ABSENCE_ENTITY_TYPES = {"Mitarbeiter-Abwesenheit", "Abwesenheitsantrag"}
+# Seit 1.9.310 (Lohn L2a, Antwort 11): die Werte von Urlaubsanspruch und Startwert der Konten sieht Büro – Auftrag in der Historie nicht (geschwärzt wie die
+# Art einer Abwesenheit: geänderte Felder entfallen, angelegt/gelöscht-Schnappschüsse ohne sie) -- auch die eigenen; wer, welches Jahr und wann bleiben.
+KONTEN_ENTITY_TYPES = {"Urlaubsanspruch je Jahr", "Startwert der Konten"}
+KONTEN_FIELD_NAMES = {"urlaubstage", "uebertrag", "verfall_am", "notiz", "stichtag", "resturlaub_tage", "saldo_stunden", "herkunft", "herkunft_notiz",
+                      "geprueft_am", "geprueft_von"}
 ABSENCE_FIELD_NAMES = {"absence_type", "absence_category", "notes"}
+
+
+def redact_konten_snapshot(entity_type, details_json):
+    """Seit 1.9.310: wie redact_absence_snapshot(), für Urlaubsanspruch und Startwert der Konten."""
+    return _ohne_felder(entity_type, details_json, KONTEN_ENTITY_TYPES, KONTEN_FIELD_NAMES)
+
+
+def _ohne_felder(entity_type, details_json, typen, felder):
+    if entity_type not in typen or not details_json:
+        return details_json
+    try:
+        data = json.loads(details_json)
+    except (TypeError, ValueError):
+        return details_json
+    if not isinstance(data, dict):
+        return details_json
+    redacted = {k: v for k, v in data.items() if k not in felder}
+    if len(redacted) == len(data):
+        return details_json
+    return json.dumps(redacted, ensure_ascii=False)
 
 
 def redact_absence_snapshot(entity_type, details_json):

@@ -3983,6 +3983,79 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     azubi: bool | None = None  # seit 1.9.224 (Lohn L1b, Punkt 1)
 
 
+class KontenVorgabenUpdate(PartialUpdate):
+    """Seit 1.9.310 (Lohn L2a, Punkt 3): Vorgaben des Urlaubskontos, Teil-Update (Regel 22). Geprüft in app/lohnkonten.py (422)."""
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"urlaub_vorgabe_tage", "urlaub_uebertrag"})
+    urlaub_vorgabe_tage: Decimal | None = None
+    urlaub_uebertrag: str | None = Field(default=None, max_length=20)
+    urlaub_verfall: str | None = Field(default=None, max_length=20)
+
+
+class UrlaubsanspruchUpdate(PartialUpdate):
+    """Seit 1.9.310: Anspruch einer Person in einem Jahr, Teil-Update; urlaubstage leer = die Vorgabe, uebertrag leer = nicht von Hand."""
+    urlaubstage: Decimal | None = None
+    uebertrag: Decimal | None = None
+    verfall_am: date | None = None
+    notiz: str | None = Field(default=None, max_length=255)
+
+
+class StartwertUpdate(PartialUpdate):
+    """Seit 1.9.310 (Antwort 12): Startwert einer Person, Teil-Update; geprueft True = geprüft heute durch das Konto, False = Prüfung weg."""
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"stichtag", "herkunft"})
+    stichtag: date | None = None
+    resturlaub_tage: Decimal | None = None
+    saldo_stunden: Decimal | None = None
+    herkunft: str | None = Field(default=None, max_length=20)
+    herkunft_notiz: str | None = Field(default=None, max_length=255)
+    geprueft: bool | None = None
+
+
+class KontenVorgabenOut(BaseModel):
+    urlaub_vorgabe_tage: Decimal
+    urlaub_uebertrag: str
+    urlaub_verfall: str | None = None
+
+
+class UrlaubsanspruchOut(BaseModel):
+    jahr: int
+    urlaubstage: Decimal | None = None
+    urlaubstage_wirksam: Decimal
+    vorgabe: bool
+    uebertrag: Decimal | None = None
+    verfall_am: date | None = None
+    notiz: str | None = None
+
+
+class StartwertOut(BaseModel):
+    stichtag: date
+    resturlaub_tage: Decimal | None = None
+    saldo_stunden: Decimal | None = None
+    herkunft: str
+    herkunft_text: str
+    herkunft_notiz: str | None = None
+    geprueft_am: date | None = None
+    geprueft_von: str | None = None
+
+
+class KontoPersonOut(BaseModel):
+    employee_id: int
+    employee_name: str
+    active: bool
+    ansprueche: list[UrlaubsanspruchOut]
+    startwert: StartwertOut | None = None
+
+
+class KontenOut(BaseModel):
+    """Seit 1.9.310: Vorgaben, Stichtag, das erste angezeigte Jahr, ob das Konto ändern darf und ob der Startwert für es gesperrt ist, die Personen
+    (Admin und Büro – Finanzen alle, sonst nur die eigene)."""
+    vorgaben: KontenVorgabenOut
+    stichtag: date
+    jahr: int
+    darf_aendern: bool
+    startwert_gesperrt: bool
+    personen: list[KontoPersonOut]
+
+
 class LohndateiIn(BaseModel):
     """Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei eines Monats erzeugen und ablegen."""
     monat: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")

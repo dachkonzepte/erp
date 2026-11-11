@@ -241,6 +241,8 @@ FESTE_LITERALE = {
     "time_entry_groups.mode": ("manual", "timer"),
     "time_entry_groups.status": ("booked", "running"),
     "time_tracking_settings.datev_target": ("lohn_gehalt", "lodas"),
+    "time_tracking_settings.urlaub_uebertrag": ("von_hand", "automatisch"),  # seit 1.9.310 (app/lohnkonten.py::UEBERTRAG)
+    "lohn_startwerte.herkunft": ("steuerbuero", "time4", "sonstiges"),  # seit 1.9.310 (app/lohnkonten.py::HERKUNFT)
     "work_preparation_materials.status": ("bedarf",),  # sonst vom Client, max_length=40
     "work_preparation_tasks.status": ("offen", "erledigt"),
     "work_preparation_tasks.priority": ("normal",),

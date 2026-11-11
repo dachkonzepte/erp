@@ -40,3 +40,26 @@ dieselben SHA-256. Kein Klicktest (keine Oberfläche).
 14 Gegenproben (10 gegen Tests, 4 gegen Klicktests), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. Ohne eigene Gegenprobe: „zurückziehen
 bleibt frei“ (Nr. 2, zweiter Teil) -- `cancel_request()` prüft nichts und wurde nicht angefasst (der Test `test_offenen_antrag_zurueckziehen_frei_genehmigen_nur_admin`
 hält es fest).
+
+## 1.9.310 (Punkt 3): Urlaubsanspruch und Startwerte
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Verfall „TT.MM.“, nicht der 29.02. | geprüft gegen ein Schaltjahr (`310_1a`) | 1 rot: v710::test_vorgaben_lesen_und_teil_update -- im ersten Lauf GRÜN, siehe unten |
+| Nr. 1 – Vorgabe 30 Tage im Bestand | die Migration mit 25 (`310_1b`) | 2 rot: v710::test_migration_auf_einem_bestand_sqlite, …_postgresql |
+| Nr. 2 – Tage in halben Schritten | ganz beliebige Tage (`310_2a`) | 3 rot: v710::test_anspruch_je_jahr, test_startwert_mit_herkunft_und_pruefung, test_vorgaben_lesen_und_teil_update |
+| Nr. 2 – leer = die Vorgabe | ohne Vorgabe (`310_2b`) | 1 rot: v710::test_anspruch_je_jahr |
+| Nr. 2 – Verfallsdatum im Jahr des Anspruchs | in jedem Jahr (`310_2c`) | 1 rot: v710::test_anspruch_je_jahr |
+| Nr. 3 – Saldo mit höchstens zwei Stellen | drei Stellen erlaubt (`310_3a`) | 1 rot: v710::test_startwert_mit_herkunft_und_pruefung |
+| Nr. 4 – ein geänderter Wert verliert die Prüfung | die Prüfung bleibt (`310_4a`, `310_4b`) | 1 rot: v710::test_startwert_mit_herkunft_und_pruefung; Klicktest: „Fin: die Prüfung ist weg“ |
+| Nr. 5 – Admin und Büro – Finanzen alle, sonst die eigenen | jeder sieht alle (`310_5a`, `310_5b`) | 1 rot: v710::test_wer_sieht_und_aendert_was; Klicktest: „Bea: nur die eigene Zeile“ |
+| Nr. 6 – Startwert nach dem Januar nur der Admin | nie gesperrt (`310_6a`, `310_6b`) | 1 rot: v710::test_startwert_nach_dem_januar_nur_der_admin; Klicktest: „Fin: Startwert gesperrt mit Hinweis …“ |
+| Nr. 7 – für Büro – Auftrag geschwärzt | nicht geschwärzt (`310_7a`) | 1 rot: v710::test_historie_mit_namen_und_fuer_buero_auftrag_geschwaerzt |
+| Nr. 8 – ein Lesepfad legt nichts an | das Lesen legt Ansprüche an (`310_8a`) | 1 rot: v710::test_anspruch_je_jahr |
+| Nr. 9 – downgrade() bricht ab, solange etwas eingetragen ist | ohne Prüfung (`310_9a`) | 2 rot: v710::test_migration_auf_einem_bestand_sqlite, …_postgresql |
+| Nr. 11 – zuerst das laufende Jahr, frühestens 2027 | das laufende Jahr (2026) (`310_11a`, `310_11b`) | 1 rot: v710::test_vorgaben_lesen_und_teil_update; Klicktest: „Fin: Vorgaben 30 Tage …“ (Kopf „Urlaub 2026“), „Fin: Titel, Jahre …“ |
+
+17 Gegenproben (13 gegen Tests, 4 gegen den Klicktest), alle rot; jede Datei byte-genau zurück, kein Marker geblieben. 310_1a war im ersten Lauf GRÜN: die
+Gegenprobe nahm die eigene Prüfung auf den 29.02. weg -- den Tag lehnt aber schon das Jahr der Prüfung ab (2027, kein Schaltjahr). Die eigene Prüfung war
+doppelt; sie ist entfallen, die Stelle sagt jetzt, warum 2027, und die Gegenprobe prüft gegen ein Schaltjahr -- rot. Ohne eigene Gegenprobe: Nr. 3 Herkunft
+und Bemerkung (feste Liste im Code, im Test geprüft), Nr. 10 (Ort auf der Seite, im Klicktest und in `test_seite_block_und_dialog`).

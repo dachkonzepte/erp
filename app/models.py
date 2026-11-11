@@ -2772,6 +2772,13 @@ class TimeTrackingSettings(Base):
     locked_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     locked_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    # Seit 1.9.310 (Lohn L2a, Punkt 3): Vorgaben des Urlaubskontos (app/lohnkonten.py) -- Anspruch je Jahr in Tagen (halbe erlaubt; gilt für jede Person
+    # ohne eigenen Wert im Jahr), Übertrag ins Folgejahr („von_hand“ | „automatisch“) und sein Verfall („TT.MM.“ im Folgejahr, leer = kein Verfall).
+    # Übertrag und Verfall wirken erst mit dem Urlaubskonto (L2b). Gesetzt nur über PUT /api/time-backoffice/konten/vorgaben, nie über das
+    # allgemeine Formular der Zeitregeln.
+    urlaub_vorgabe_tage: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal("30"), server_default="30")
+    urlaub_uebertrag: Mapped[str] = mapped_column(String(20), default="von_hand", server_default="von_hand")
+    urlaub_verfall: Mapped[str | None] = mapped_column(String(6), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -2847,6 +2854,43 @@ class LohnartZuordnung(Base):
     kennzeichen: Mapped[str | None] = mapped_column(String(2), nullable=True)
     lohnart: Mapped[str | None] = mapped_column(String(4), nullable=True)
     monatszeile: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Urlaubsanspruch(Base):
+    """Seit 1.9.310 (Lohn L2a, Punkt 3): der Urlaubsanspruch einer Person in einem Jahr -- Urlaubstage (halbe erlaubt; leer = die Vorgabe der Zeitregeln),
+    Übertrag aus dem Vorjahr (leer = nicht von Hand), Verfallsdatum des Übertrags (leer = die Vorgabe), Notiz. Ohne Zeile gilt die Vorgabe; eine
+    Zeile entsteht erst beim Speichern. Gepflegt und gelesen nur über app/lohnkonten.py; gerechnet wird das Urlaubskonto mit L2b."""
+    __tablename__ = "urlaubsansprueche"
+    __table_args__ = (UniqueConstraint("employee_id", "jahr", name="uq_urlaubsanspruch_person_jahr"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    jahr: Mapped[int] = mapped_column()
+    urlaubstage: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    uebertrag: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    verfall_am: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notiz: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class LohnStartwert(Base):
+    """Seit 1.9.310 (Lohn L2a, Punkt 3, Antwort 12 des Befunds L2): der Startwert der Konten einer Person -- Stichtag (31.12.2026, Stand nach dem Tag),
+    Resturlaub in Tagen (halbe erlaubt, auch negativ), Saldo des Arbeitszeitkontos in Stunden (zwei Stellen, auch negativ), Herkunft (steuerbuero |
+    time4 | sonstiges) mit Bemerkung, geprüft am / durch (fällt weg, wenn sich ein Wert ohne neue Prüfung ändert). Von Hand im Formular; nach dem
+    Abschluss des Monats nach dem Stichtag ändert ihn nur der Admin (app/lohnkonten.py)."""
+    __tablename__ = "lohn_startwerte"
+    __table_args__ = (UniqueConstraint("employee_id", name="uq_lohn_startwert_person"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    stichtag: Mapped[date] = mapped_column(Date)
+    resturlaub_tage: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    saldo_stunden: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
+    herkunft: Mapped[str] = mapped_column(String(20), default="steuerbuero", server_default="steuerbuero")
+    herkunft_notiz: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    geprueft_am: Mapped[date | None] = mapped_column(Date, nullable=True)
+    geprueft_von: Mapped[str | None] = mapped_column(String(160), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

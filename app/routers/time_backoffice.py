@@ -32,7 +32,11 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role, require_personalnummer_freigeben
+from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_im_abschluss_aendern, darf_konten_aller, darf_lohnregeln, require_lohndaten,
+                           require_lohnregeln, require_min_role, require_personalnummer_freigeben)
+from ..lohnkonten import (STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
+                          vorgaben_setzen)
+from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
 from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..dateiauslieferung import datei_antwort
 from ..lohndatei import LohndateiVeraendert, abgelegt_dict, abgelegte, lesen as lohndatei_lesen
@@ -73,6 +77,55 @@ def put_datev_nummern(payload: DatevNummernUpdate, db: Session = Depends(get_db,
     nicht eingetragen), Format geprüft (422, schemas.DatevNummernUpdate). Bewusst nicht im allgemeinen Formular der Zeitregeln, das jedes
     Büro speichert."""
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(set_datev_nummern(db, payload.beraternummer, payload.mandantennummer), db))
+
+
+# --- seit 1.9.310 (Lohn L2a, Punkt 3): Urlaubsanspruch je Person und Jahr, Startwert der Konten, Vorgaben (app/lohnkonten.py) ---------------------
+# Lesen ab Büro – Auftrag: Admin und Büro – Finanzen alle, sonst nur die eigene Person (Antwort 11); ändern darf_lohnregeln(); den Startwert nach dem
+# Abschluss des Monats nach dem Stichtag nur der Admin (darf_im_abschluss_aendern(), dieselbe Regel wie im abgeschlossenen Zeitraum, Antwort 12).
+def _konten_personen(user) -> list[int] | None:
+    if darf_konten_aller(user):
+        return None
+    return [user.employee_id] if user is not None and user.employee_id is not None else []
+
+
+@router.get("/api/time-backoffice/konten", response_model=KontenOut)
+def get_konten(db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+    return {"vorgaben": vorgaben(db), "stichtag": STICHTAG, "jahr": standardjahr(), "darf_aendern": darf_lohnregeln(_role),
+            "startwert_gesperrt": startwert_gesperrt(db) and not darf_im_abschluss_aendern(_role), "personen": konten(db, _konten_personen(_role))}
+
+
+@router.put("/api/time-backoffice/konten/vorgaben", response_model=KontenVorgabenOut)
+def put_konten_vorgaben(payload: KontenVorgabenUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    try:
+        return vorgaben_setzen(db, payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}", response_model=KontoPersonOut)
+def put_urlaubsanspruch(employee_id: int, jahr: int, payload: UrlaubsanspruchUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    try:
+        return anspruch_setzen(db, employee_id, jahr, payload.model_dump(exclude_unset=True))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/api/time-backoffice/konten/{employee_id}/startwert", response_model=KontoPersonOut)
+def put_startwert(employee_id: int, payload: StartwertUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    try:
+        return startwert_setzen(db, employee_id, payload.model_dump(exclude_unset=True), admin=darf_im_abschluss_aendern(_role),
+                                geprueft_von=getattr(_role, "display_name", None) or getattr(_role, "username", None))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StartwertGesperrt as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 ABSCHLUSS_NICHT_GANZ = "Ganz aufheben geht nicht – „Abschluss aufheben“ setzt „Abgeschlossen bis“ auf ein früheres Monatsende."

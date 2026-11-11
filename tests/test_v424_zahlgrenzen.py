@@ -134,6 +134,17 @@ ABGLEICH = [
     Z("settings.html", "id=ptSkontoPercent", ("PaymentTermCreate.skonto_percent", "PaymentTermUpdate.skonto_percent")),
     Z("settings.html", "id=ptSkontoDays", ("PaymentTermCreate.skonto_days", "PaymentTermUpdate.skonto_days")),
     Z("settings.html", "id=tkVatRate", ("TaxKeyCreate.vat_rate", "TaxKeyUpdate.vat_rate"), lesen=("zahlFeld('tkVatRate')",)),
+    # -- seit 1.9.310 (Lohn L2a, Punkt 3): Urlaub und Startwerte -- Tage in halben Schritten, Stunden mit zwei Stellen; geprüft in app/lohnkonten.py
+    Z("settings.html", "id=kvTage", (), code={"min": _g(0), "max": _g(99.5), "stellen": 1, "pflicht": True},
+      beleg=("app/lohnkonten.py", 'halbe_tage(werte["urlaub_vorgabe_tage"], "Urlaubsanspruch je Jahr", Decimal("0"))')),
+    Z("settings.html", "id=kdTage", (), code={"min": _g(0), "max": _g(99.5), "stellen": 1},
+      beleg=("app/lohnkonten.py", 'halbe_tage(werte["urlaubstage"], "Urlaubstage", Decimal("0"))')),
+    Z("settings.html", "id=kdUebertrag", (), code={"min": _g(-99.5), "max": _g(99.5), "stellen": 1},
+      beleg=("app/lohnkonten.py", 'halbe_tage(werte["uebertrag"], "Übertrag", -TAGE_MAX)')),
+    Z("settings.html", "id=kdRest", (), code={"min": _g(-99.5), "max": _g(99.5), "stellen": 1},
+      beleg=("app/lohnkonten.py", 'halbe_tage(werte["resturlaub_tage"], "Resturlaub", -TAGE_MAX)')),
+    Z("settings.html", "id=kdSaldo", (), code={"min": _g(-9999.99), "max": _g(9999.99), "stellen": 2},
+      beleg=("app/lohnkonten.py", 'if abs(d) > STUNDEN_MAX or d != round_half_up(d, HUNDERTSTEL):')),
     *[Z("settings.html", None, (f"DocumentPageMarginsUpdate.{seite}_mm",), lesen=(f"zahlFeld('documentLayoutMargin{art}{name}')",))
       for art in ("First", "Continuation") for name, seite in (("Top", "top"), ("Bottom", "bottom"), ("Left", "left"), ("Right", "right"))],
     Z("settings.html", "id=documentLayoutContinuationY", ("DocumentLayoutBlockUpdate.y_mm",), lesen=("zahlFeld(feld)",)),

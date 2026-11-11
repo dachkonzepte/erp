@@ -2248,3 +2248,60 @@ gesperrt, eine Regel, jeder Router gibt die Rolle mit). Klicktests: `klicktest_z
 bis 30.09.): Meldung im Dialog, nichts gespeichert, danach wie bisher; `klicktest_schlechtwetter.py` -- abgeschlossen bis 30.11.2026, Büro – Finanzen trägt Uwe
 am 30.11. ein: Meldung, keine Rückfrage „trotzdem“, nichts gespeichert (Bild `schlechtwetter_fin_abgeschlossen`). Keine angepasste Erwartung. Gegenproben:
 `gegenproben-lohn-l2a.md`, „1.9.309“.
+
+### Umsetzung 1.9.310 (Punkt 3): Urlaubsanspruch und Startwerte -- Tabellen und Migration
+
+- Modelle (`app/models.py`), Migration `562f81626c3b` (nach `84ee228b331e`):
+  - `Urlaubsanspruch` (`urlaubsansprueche`, eindeutig je Person und Jahr): `urlaubstage` (Numeric(4,1), leer = die Vorgabe), `uebertrag` (leer = nicht von Hand),
+    `verfall_am` (leer = die Vorgabe), `notiz`. Die Spalte heißt `urlaubstage`, nicht `tage` -- „tage“ ist in der Historie schon der Name der Tage eines Geräts
+    am Einsatz (Feldnamen gelten über alle Arten).
+  - `LohnStartwert` (`lohn_startwerte`, eindeutig je Person): `stichtag` (31.12.2026), `resturlaub_tage` (Numeric(4,1)), `saldo_stunden` (Numeric(7,2)),
+    `herkunft` (`steuerbuero` | `time4` | `sonstiges`, Vorgabe Steuerbüro), `herkunft_notiz`, `geprueft_am` (Datum), `geprueft_von` (Name als Schnappschuss).
+  - `TimeTrackingSettings`: `urlaub_vorgabe_tage` (30, NOT NULL mit server_default), `urlaub_uebertrag` (`von_hand`, NOT NULL), `urlaub_verfall` („TT.MM.“).
+  - `downgrade()` bricht ab, solange ein Anspruch oder Startwert eingetragen ist oder eine Vorgabe vom Vorgabewert abweicht (sie gingen verloren).
+- `app/lohnkonten.py`: `vorgaben()`/`vorgaben_setzen()`, `konten(db, employee_ids)` (je Person ihre Ansprüche aller Jahre und ihr Startwert, drei Abfragen),
+  `anspruch_setzen()`, `startwert_setzen()` -- Teil-Updates (Regel 22), erst prüfen, dann schreiben; Tage in halben Schritten (`halbe_tage()`: Anspruch und
+  Vorgabe 0 bis 99,5, Übertrag und Resturlaub -99,5 bis 99,5), Stunden mit höchstens zwei Stellen bis ±9.999,99, Verfall „TT.MM.“ ohne den 29.02. (geprüft an einem Tag des Jahres
+  2027, kein Schaltjahr), ein Verfallsdatum am Anspruch liegt in dessen Jahr. Eine Zeile entsteht erst beim Speichern (Regel 23); ohne Zeile gilt die Vorgabe (`urlaubstage_wirksam`).
+  „geprüft“: `geprueft: true` setzt heute und den Namen des Kontos, `false` nimmt die Prüfung weg, ein geänderter Wert ohne `true` ebenso.
+  `startwert_gesperrt()`: „Abgeschlossen bis“ erreicht das Ende des Monats nach dem Stichtag (31.01.2027).
+- Schnittstelle (`app/routers/time_backoffice.py`): `GET /api/time-backoffice/konten` (ab Büro – Auftrag; Vorgaben, Stichtag, erstes Jahr, ob das Konto ändern
+  darf, ob der Startwert für es gesperrt ist, die Personen -- Admin und Büro – Finanzen alle, sonst die eigene über `darf_konten_aller()`),
+  `PUT …/konten/vorgaben`, `PUT …/konten/{Person}/anspruch/{Jahr}`, `PUT …/konten/{Person}/startwert` (je `require_lohnregeln`; der Startwert nach dem Januar
+  403 außer für den Admin -- dieselbe Regel wie im abgeschlossenen Zeitraum, `darf_im_abschluss_aendern()`). Die Monteurin bekommt hier 403; ihre eigenen
+  Werte zeigt „Meine Zeiten“ mit L2b/L2c.
+- Historie (`app/audit.py`): „Urlaubsanspruch je Jahr“ und „Startwert der Konten“ in `TYPE_LABELS`/`AUDITED_TYPES`, die Felder in `FIELD_LABELS`, Herkunft und Übertrag
+  lesbar (`app/verlauf_namen.py`); für Büro – Auftrag entfallen geänderte Werte, die Schnappschüsse verlieren sie (`KONTEN_ENTITY_TYPES`, `KONTEN_FIELD_NAMES`,
+  `redact_konten_snapshot()`) -- wie die Art einer Abwesenheit; wer, welches Jahr und wann bleiben sichtbar.
+- Seite (`settings.html`, Zeitregeln und DATEV): Block „Urlaub und Startwerte der Konten“ unter „DATEV-Personalnummern, Eintritt und Sollzeit“ -- die Vorgaben
+  (Zahlenfelder über `_zahl.html`, Regel 34; in `ABGLEICH` von `tests/test_v424_zahlgrenzen.py`), je Person eine Zeile (Urlaub des ersten Jahrs, Startwert
+  Resturlaub, Saldo, Herkunft mit „geprüft“), „Ändern“ bzw. „Ansehen“ öffnet den Dialog „Urlaub und Startwert – <Name>“ mit Jahr (gespeicherte, dieses, das
+  nächste), Anspruch und Startwert, je mit eigenem Speichern (Bereich `konten`, Regel 29). Ohne Recht alles gesperrt ohne Knöpfe; nach dem Januar der Hinweis
+  „Der Monat nach dem Stichtag ist abgeschlossen – den Startwert ändert jetzt nur ein Administrator.“
+
+#### Festlegungen 1.9.310 (Bitte bestätigen)
+
+1. Vorgaben des Urlaubskontos in den Zeitregeln: Anspruch je Jahr 30 Tage (halbe erlaubt), Übertrag „von Hand“ oder „automatisch“, Verfall „TT.MM.“ (leer = nie,
+   nicht der 29.02.); Übertrag und Verfall nur vorgemerkt, bis Frage 2 beantwortet ist.
+2. Urlaubsanspruch je Person und Jahr: Urlaubstage (leer = die Vorgabe), Übertrag aus dem Vorjahr (auch negativ), Verfallsdatum im Jahr des Anspruchs, Notiz --
+   Tage in halben Schritten.
+3. Startwert je Person: Stichtag 31.12.2026 (Stand nach dem Tag), Resturlaub in halben Tagen (auch negativ), Saldo in Stunden mit zwei Stellen (auch negativ),
+   Herkunft Steuerbüro, Time 4 oder Sonstiges mit Bemerkung; von Hand, kein Einleseskript.
+4. „geprüft am / durch“ setzt der Haken beim Speichern (heute, das Konto); ändert sich ein Wert ohne neue Prüfung, fällt sie weg.
+5. Lesen: Admin und Büro – Finanzen alle, alle anderen nur die eigenen; die Monteurin sieht ihre erst mit L2b/L2c in „Meine Zeiten“.
+6. Ändern: Admin und Büro – Finanzen; den Startwert nach dem Abschluss des Januars 2027 nur der Admin, der Anspruch bleibt änderbar.
+7. In der Änderungshistorie „Urlaubsanspruch je Jahr“ und „Startwert der Konten“; für Büro – Auftrag ohne die Werte (geschwärzt), auch die eigenen.
+8. Ein Lesepfad legt nichts an; ohne Zeile gilt die Vorgabe.
+9. Die Migration gibt dem Bestand die Vorgaben 30 / von Hand / leer; `downgrade()` bricht ab, solange etwas eingetragen ist.
+10. Gepflegt im Block „Urlaub und Startwerte der Konten“ unter den Lohnstammdaten, je Person ein Dialog.
+11. Die Seite zeigt zuerst das laufende Jahr, frühestens 2027; der Dialog bietet die gespeicherten Jahre, dieses und das nächste.
+
+#### Tests und Prüfung 1.9.310
+
+Neu: `tests/test_v710_urlaub_und_startwerte.py` (Vorgaben, Anspruch, Startwert mit Prüfung, Januar, Rechte, Historie geschwärzt, Migration auf einem Bestand unter
+SQLite und PostgreSQL, Modelle, Seite) und `scripts/klicktest_konten.py` (Büro – Finanzen pflegt Vorgaben, Anspruch und Startwert, ein geänderter Wert verliert
+die Prüfung, Büro – Auftrag sieht nur die eigene Zeile gesperrt, nach dem Januar der Startwert gesperrt; Bilder des Blocks und des Dialogs bei 1440 und 412 px,
+hell und dunkel). Erweitert ohne angepasste Erwartung: `tests/test_v364_feste_werte_spaltenlaenge.py` (Herkunft, Übertrag) und `tests/test_v424_zahlgrenzen.py`
+(fünf Zahlenfelder in `ABGLEICH`). Angepasste Erwartung: `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_router_fully_uses_shared_dependency`
+-- alt: 8 Endpunkte mit `_role_dep`, 12 mit `_regeln_dep`; neu: 9 und 15 (die vier neuen Endpunkte). Die Art heißt „Urlaubsanspruch je Jahr“, nicht
+„Urlaubsanspruch“: ein Name gleich dem Klassennamen gilt in `tests/test_v438_nachrunde.py` als technisch. Gegenproben: `gegenproben-lohn-l2a.md`, „1.9.310“.

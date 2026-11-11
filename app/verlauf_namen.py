@@ -159,6 +159,9 @@ def _werte() -> dict[str, dict[str, str]]:
         "group_key": gruppen,
         "mode": _VON_HAND,
         "datev_target": {"lodas": "LODAS", "lohn_gehalt": "Lohn und Gehalt"},
+        # seit 1.9.310 (Lohn L2a, Punkt 3): Herkunft eines Startwerts, Übertrag des Urlaubs (app/lohnkonten.py)
+        "herkunft": {"steuerbuero": "Steuerbüro", "time4": "Time 4", "sonstiges": "Sonstiges"},
+        "urlaub_uebertrag": {"von_hand": "Von Hand", "automatisch": "Automatisch"},
         # seit 1.9.115: Rechnungen, Einsatzberichte, Termine
         "invoice_type": RECHNUNGSARTEN,
         "report_type": REPORT_TYPE_LABELS,

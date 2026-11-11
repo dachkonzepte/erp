@@ -9,7 +9,8 @@ from fastapi import APIRouter
 from fastapi import Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from ..audit import ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, TASK_ENTITY_TYPE, WAGE_FIELD_NAMES, audit_rows, redact_absence_snapshot, redact_wage_snapshot
+from ..audit import (ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, KONTEN_ENTITY_TYPES, KONTEN_FIELD_NAMES, TASK_ENTITY_TYPE, WAGE_FIELD_NAMES, audit_rows,
+                     redact_absence_snapshot, redact_konten_snapshot, redact_wage_snapshot)
 from ..database import get_db
 from ..models import AppUser
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, has_role, require_min_role
@@ -66,8 +67,11 @@ def sichtbar(db: Session, rows, _role: AppUser) -> list[AuditLogOut]:
             continue
         if row.entity_type in ABSENCE_ENTITY_TYPES and row.field_name in ABSENCE_FIELD_NAMES:
             continue
+        if row.entity_type in KONTEN_ENTITY_TYPES and row.field_name in KONTEN_FIELD_NAMES:  # seit 1.9.310 (Lohn L2a, Antwort 11)
+            continue
         out = AuditLogOut.model_validate(row)
         out.details = redact_wage_snapshot(out.details)
         out.details = redact_absence_snapshot(row.entity_type, out.details)
+        out.details = redact_konten_snapshot(row.entity_type, out.details)
         result.append(out)
     return lesbar_alle(db, result)

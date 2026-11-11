@@ -189,6 +189,12 @@ ABWESENHEIT_LOESCHEN_ROLLEN = frozenset({ROLE_ADMIN})
 ABWESENHEIT_LOESCHEN_NUR_ADMIN = "Eine genehmigte Abwesenheit löscht nur der Admin."
 
 
+def darf_konten_aller(user: AppUser | None) -> bool:
+    """Seit 1.9.310 (Lohn L2a, Antwort 11 des Befunds L2): Urlaubsanspruch, Startwerte und (ab L2b/L2c) die Konten aller sehen -- Admin und Büro –
+    Finanzen; alle anderen nur die eigenen. Ohne Konto (Tests ohne Anmeldung) alle."""
+    return user is None or has_role(user, *ABWESENHEITEN_ALLER_ROLLEN)
+
+
 def darf_im_abschluss_aendern(user: AppUser | None) -> bool:
     """Seit 1.9.309 (Lohn L2a, Punkt 2): im abgeschlossenen Zeitraum („Abgeschlossen bis“) ändert nur der Admin -- Zeitbuchungen seit 1.7.10
     (app/routers/time_tracking.py::_require_open_period()), Abwesenheiten und Ausfalltage seit 1.9.309 (app/absence_requests.py::abschluss_pruefen()).
