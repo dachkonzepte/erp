@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.306 – Auswahlliste „Gerätetypen“
+
+Vorweg zu Lohn L2a, Frage 2 der Nachrunde der Geräte-Runde: die Auswahlliste der Gerätetypen heißt nur noch „Gerätetypen“ (1.9.301–1.9.305 „Gerätetypen · Fuhrpark & Maschinen“). Eine neue Installation legt sie so an; im Bestand stellt die Migration `84ee228b331e` die Bezeichnung um, nur wo genau die bisherige steht (wie `c990522c34ff`), und zurück ebenso. Keine Schemaänderung.
+
+Neu `tests/test_v706_nur_geraetetypen.py` (neue Installation, Migration auf einem Bestand unter SQLite und PostgreSQL, die ganze Kette von vor 1.9.301).
+
 ## 1.9.305 – Plantafel-Gerät: Rest wieder verknüpfen, Rest ohne alles löschen
 
 Vorweg zu Lohn L2a, Frage 1 der Nachrunde der Geräte-Runde. Die Auswahl „Vorhandenes Plantafel-Gerät verknüpfen“ -- auf der Seite eines Geräts und in „Betriebsmittel anlegen“ -- bietet jetzt jedes freie Plantafel-Gerät an, auch ein inaktives, mit „(inaktiv)“. So kommt der Rest, der beim Entfernen des Hakens an einem noch eingeplanten Gerät bleibt, wieder an sein Betriebsmittel; gespeichert gilt der Status des Betriebsmittels für beides (ein aktives macht den Rest wieder aktiv). Bis 1.9.304 standen dort nur aktive.

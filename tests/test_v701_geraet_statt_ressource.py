@@ -98,9 +98,10 @@ def test_neue_texte_stehen():
 
 
 def test_auswahlliste_heisst_geraetetypen(db_session):
-    assert DEFAULT_OPTION_GROUPS["resource_types"]["label"] == NEU
+    # seit 1.9.306 nur „Gerätetypen“ (bis 1.9.305 NEU, „Gerätetypen · Fuhrpark & Maschinen“; tests/test_v706_nur_geraetetypen.py)
+    assert DEFAULT_OPTION_GROUPS["resource_types"]["label"] == "Gerätetypen"
     gruppe = db_session.scalar(select(SettingOptionGroup).where(SettingOptionGroup.group_key == "resource_types"))
-    assert gruppe.label == NEU  # eine neue Installation (Grunddaten beim Start)
+    assert gruppe.label == "Gerätetypen"  # eine neue Installation (Grunddaten beim Start)
 
 
 # --- Meldungen und Historie über die Schnittstelle --------------------------------------------------------------------------------------------

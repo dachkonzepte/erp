@@ -226,3 +226,15 @@ Drei Versionen zu den Fragen der Nachrunde, dann Lohn L2a (Gegenproben dort: `ge
 zweiter Teil (deaktiviert statt gelöscht, die Seite sagt es) -- das Deaktivieren ist das Verhalten von `DELETE /api/resources/{id}` seit 1.9.299 (im
 Test `test_loeschbar_nur_ohne_alles` mit geprüft); die Meldung der Seite braucht eine Belegung zwischen dem Laden der Liste und dem Klick und ist nur im
 Quelltext geprüft (`test_liste_loeschen_nur_wenn_loeschbar`).
+
+## 1.9.306 (Frage 2): nur „Gerätetypen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – eine neue Installation legt „Gerätetypen“ an | die Vorgabe wieder mit Zusatz (`306_1a`) | 1 rot: v706::test_neue_installation |
+| Nr. 1 – der Bestand heißt nach der Migration „Gerätetypen“ | `upgrade()` ohne Wirkung (`306_2a`) | 2 rot: v706::test_migration_auf_einem_bestand_sqlite, …_postgresql |
+| Nr. 2 – nur genau „Gerätetypen · Fuhrpark & Maschinen“, eine andere Bezeichnung bleibt | jede Bezeichnung umgestellt (`306_3a`) | 2 rot: dieselben |
+| Nr. 2 – `downgrade()` stellt zurück | `downgrade()` ohne Wirkung (`306_4a`) | 2 rot: dieselben |
+
+4 Gegenproben gegen den Test, alle rot (der Test unter PostgreSQL lief jedes Mal mit); jede Datei byte-genau zurück, kein Marker geblieben -- auch die
+Migration (Prüfsumme gegen die Ablage verglichen). Kein Klicktest: die Bezeichnung steht nur in den Einstellungen, aus der Datenbank.

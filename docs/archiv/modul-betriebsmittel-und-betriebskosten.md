@@ -1837,3 +1837,22 @@ Neu: `tests/test_v705_wieder_verknuepfen_und_loeschen.py` (löschbar je Fall, Ab
   erwarteten Werte bleiben.
 Neu im Klicktest: „Löschen“ nur am Rüttler bzw. an der Hebebühne (nie am eingeplanten Kran), der Rest des Krans wieder am Kran (aktiv), die Hebebühne gelöscht
 nach der Rückfrage. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.305“.
+
+### Umsetzung 1.9.306 (Frage 2): nur „Gerätetypen“
+
+- `app/option_settings.py`: die Auswahlliste `resource_types` heißt „Gerätetypen“ (1.9.301–1.9.305 „Gerätetypen · Fuhrpark & Maschinen“, bis 1.9.300
+  „Ressourcentypen · Fuhrpark & Maschinen“). „Fuhrpark & Maschinen“ bleibt der Name der Liste bei ausgeschaltetem Modul.
+- Migration `84ee228b331e` (nach `c990522c34ff`): `UPDATE setting_option_groups SET label = 'Gerätetypen' WHERE group_key = 'resource_types' AND label =
+  'Gerätetypen · Fuhrpark & Maschinen'` -- eine andere Bezeichnung bleibt (in den Einstellungen nicht änderbar, nur der Vollständigkeit halber); `downgrade()`
+  zurück, nur wo genau „Gerätetypen“ steht. Ein Bestand von vor 1.9.301 geht über beide Migrationen. Daten, kein Schema; `update.sh` probt sie gegen `spielwiese`.
+
+#### Festlegungen 1.9.306 (Bitte bestätigen)
+
+1. Die Auswahlliste heißt nur „Gerätetypen“ -- in einer neuen Installation wie im Bestand.
+2. Die Migration stellt nur genau „Gerätetypen · Fuhrpark & Maschinen“ um, eine andere Bezeichnung bleibt; `downgrade()` stellt genau „Gerätetypen“ zurück.
+
+#### Tests und Prüfung 1.9.306
+
+Neu: `tests/test_v706_nur_geraetetypen.py`. Angepasste Erwartung: `tests/test_v701_geraet_statt_ressource.py::test_auswahlliste_heisst_geraetetypen` -- alt:
+„Gerätetypen · Fuhrpark & Maschinen“; neu: „Gerätetypen“ (die Migration `c990522c34ff` prüft der Test weiter mit ihren Bezeichnungen). Kein Klicktest: die
+Bezeichnung steht nur in den Einstellungen, aus der Datenbank. Gegenproben: Archiv `gegenproben-geraete.md`, „1.9.306“.

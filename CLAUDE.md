@@ -1421,7 +1421,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   anlegen“, `tests/test_v703_suche_nur_plantafel.py`); seit 1.9.304 sieht „Betriebsmittel anlegen“ aus wie die Seite des Geräts (Beschriftung über dem Feld, dieselbe
   Reihenfolge, „Im Einsatzbericht auswählbar“ und „Bedienungshinweise“ auch beim Anlegen; `tests/test_v704_anlegen_wie_geraeteseite.py`); seit 1.9.305 bietet
   „Vorhandenes Plantafel-Gerät verknüpfen“ auch inaktive freie Geräte an („(inaktiv)“), „Löschen“ an einem Rest „nur Plantafel“, an dem nichts hängt (`loeschbar`,
-  `app/operational_assets.py::loeschbare_ressourcen()`, `tests/test_v705_wieder_verknuepfen_und_loeschen.py`)) --
+  `app/operational_assets.py::loeschbare_ressourcen()`, `tests/test_v705_wieder_verknuepfen_und_loeschen.py`); seit 1.9.306 heißt die Auswahlliste nur „Gerätetypen“
+  (Migration `84ee228b331e`, `tests/test_v706_nur_geraetetypen.py`)) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
   `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`; Gegenproben zu jeder
