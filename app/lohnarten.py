@@ -26,8 +26,10 @@ Seit 1.9.215 (L1a Stufe 6, Punkt 4) gilt für jede Zeile (wirkt() sagt, welcher 
     beides gesetzt                       exportiert mit Lohnart
 Dazu bis L1b die Monatszeile (nur Schlechtwetter, Lohnart ohne Kennzeichen; keine Zeile nutzt sie seit 1.9.214). Bis 1.9.214 galt: zum
 Kennzeichen gehört eine Lohnart, ohne Lohnart nicht exportiert (nur beim Kalendertag durfte das Kennzeichen allein stehen). Unbezahlt und
-Freizeitausgleich bleiben leer (LB1). Seit 1.9.313 die Kategorie Sonderurlaub, leer bis das Steuerbüro die Lohnart nennt -- „Vor dem Abschluss“ nennt
-sie dann (app/lohndatei.py::ohne_zuordnung()). Berater- und Mandantennummer stehen nicht hier.
+Freizeitausgleich bleiben leer (LB1). Seit 1.9.313 die Kategorie Sonderurlaub, leer bis das Steuerbüro die Lohnart nennt. Seit 1.9.317 sperren Tage
+einer Kategorie ohne Kennzeichen (außer Unbezahlt und Freizeitausgleich) die Lohndatei (app/lohndatei.py::ohne_zuordnung(), über datev_fehlt()) -- in
+der Auslieferung sind das Sonderurlaub und Fortbildung (deren Arten Weiterbildung und Berufsschule haben eine eigene). Berater- und Mandantennummer
+stehen nicht hier.
 """
 
 from __future__ import annotations

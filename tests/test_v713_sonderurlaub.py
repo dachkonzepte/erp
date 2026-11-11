@@ -5,8 +5,9 @@
                   (das Urlaubskonto zählt nur „urlaub“, Punkt 3).
     Zuordnung     eine Zeile „Kategorie Sonderurlaub“, leer (die Lohnart nennt das Steuerbüro): nicht in der Lohndatei, unter „Nicht in der Datei“
                   „ohne Kennzeichen in der Zuordnung“; mit Kennzeichen in der Datei
-    Prüfen        „Vor dem Abschluss“ nennt je Kategorie ohne Zuordnung die Tage („Sonderurlaub ohne Zuordnung: 2 Tage nicht in der Lohndatei“, ohne Namen) --
-                  nicht Unbezahlt und Freizeitausgleich (bewusst leer), nicht bei Export-Umfang „nichts“; sperrt nichts (Entscheidung 11.11.2026)
+    Prüfen        „Vor dem Abschluss“ nennt je Kategorie ohne Zuordnung die Tage („Sonderurlaub ohne Zuordnung: 2 Tage nicht in der Lohndatei – keine
+                  Lohndatei, bis die Zuordnung steht“, ohne Namen) -- nicht Unbezahlt und Freizeitausgleich (bewusst leer), nicht bei Export-Umfang „nichts“;
+                  seit 1.9.317 sperrt sie die Lohndatei (bis 1.9.316 nichts; tests/test_v717_lohndatei_vollstaendig.py)
     Seiten        jede Auswahl der Kategorie und jede Liste ihrer Namen kennt jede Kategorie (Wächter gegen eine vergessene Stelle); Einstellungen →
                   Abwesenheitsarten nennt je Art die Kategorie vom Server
 Stehende Uhr 10.11.2026 (fester_tag).
@@ -102,13 +103,13 @@ def test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss(w):
     assert not personen[mia.id].zeilen  # nichts in der Datei
     assert [(n["was"], n["grund"], len(n["tage"])) for n in personen[mia.id].nicht] == [("Sonderurlaub (Hochzeit)", OHNE_KENNZEICHEN, 2)]
     assert ohne_zuordnung(list(personen.values())) == [
-        {"art": "zuordnung", "kategorie": "sonderurlaub", "text": "Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei"}]
+        {"art": "zuordnung", "kategorie": "sonderurlaub", "text": "Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"}]
     assert [x for x in vor_dem_abschluss(db, NOV) if x["art"] == "zuordnung"] == [
-        {"art": "zuordnung", "text": "Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei"}]
+        {"art": "zuordnung", "text": "Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"}]
     # „Prüfen“ (auch Büro – Auftrag): ohne Namen
     daten = w["client"](db, zeiten_router.router, role="buero_auftrag").get("/api/zeiten/pruefen").json()
     zuordnung = [x for x in daten["vor_dem_abschluss"] if x["art"] == "zuordnung"]
-    assert [x["text"] for x in zuordnung] == ["Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei"]
+    assert [x["text"] for x in zuordnung] == ["Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"]
     assert "Mia" not in zuordnung[0]["text"] and "Tom" not in zuordnung[0]["text"]
     # mit Kennzeichen: in der Datei, keine Meldung mehr
     speichern(db, "kategorie:sonderurlaub", "SU", None, False)
@@ -126,7 +127,7 @@ def test_umfang_nichts_und_ein_tag(w):
     abwesend(w, tom, date(2026, 11, 16), date(2026, 11, 17), "sonderurlaub", "Sonderurlaub")
     assert ohne_zuordnung(berechnen(db, NOV)) == []  # wer nicht exportiert wird, zählt nicht
     abwesend(w, mia, date(2026, 11, 18), date(2026, 11, 18), "sonderurlaub", "Sonderurlaub")
-    assert [x["text"] for x in ohne_zuordnung(berechnen(db, NOV))] == ["Sonderurlaub ohne Zuordnung: 1 Tag nicht in der Lohndatei"]
+    assert [x["text"] for x in ohne_zuordnung(berechnen(db, NOV))] == ["Sonderurlaub ohne Zuordnung: 1 Tag nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"]
 
 
 def test_auch_eine_andere_kategorie_ohne_zuordnung(w):
@@ -134,7 +135,7 @@ def test_auch_eine_andere_kategorie_ohne_zuordnung(w):
     db, mia = w["db"], w["mia"]
     abwesend(w, mia, date(2026, 11, 16), date(2026, 11, 16), "fortbildung", "Seminar")
     abwesend(w, mia, date(2026, 11, 17), date(2026, 11, 17), "freizeitausgleich", "Freizeitausgleich")
-    assert [x["text"] for x in ohne_zuordnung(berechnen(db, NOV))] == ["Fortbildung ohne Zuordnung: 1 Tag nicht in der Lohndatei"]
+    assert [x["text"] for x in ohne_zuordnung(berechnen(db, NOV))] == ["Fortbildung ohne Zuordnung: 1 Tag nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"]
 
 
 # --- Seiten --------------------------------------------------------------------------------------------------------------------------------
@@ -163,14 +164,17 @@ def test_einstellungen_nennen_die_kategorie_vom_server():
     assert "if(g.group_key==='absence_types')await ladeArtenKategorien();" in text
 
 
-def test_sperrt_nichts(w):
-    """Eine Kategorie ohne Zuordnung sperrt weder den Abschluss noch die Lohndatei -- sie geht nur nicht hinein (Entscheidung 11.11.2026)."""
-    from app.time_backoffice import abschluss_hindernisse, build_datev_export, datev_fehlt
+def test_sperrt_die_lohndatei_nicht_den_abschluss(w):
+    """Seit 1.9.317 (Nachrunde L2b, Punkt A; bis 1.9.316 „sperrt nichts“): eine Kategorie ohne Zuordnung sperrt die Lohndatei wie eine fehlende
+    Personalnummer -- den Abschluss nicht."""
+    from app.time_backoffice import DatevExportGesperrt, abschluss_hindernisse, build_datev_export, datev_fehlt
     db, mia = w["db"], w["mia"]
     abwesend(w, mia, date(2026, 11, 16), date(2026, 11, 17), "sonderurlaub", "Sonderurlaub")
     ende = date(2026, 11, 30)
-    assert abschluss_hindernisse(db, ende) == [] and datev_fehlt(db, NOV, ende) == []
+    assert abschluss_hindernisse(db, ende) == []
+    assert datev_fehlt(db, NOV, ende) == [{"art": "zuordnung", "kategorie": "sonderurlaub",
+                                           "text": "Sonderurlaub ohne Zuordnung: 2 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"}]
     db.get(TimeTrackingSettings, 1).locked_until = ende
     db.commit()
-    inhalt, _name = build_datev_export(db, NOV, ende)
-    assert b";16;" not in inhalt and inhalt.startswith(b"1234567;12345;11/2026\r\n")
+    with pytest.raises(DatevExportGesperrt, match="Sonderurlaub ohne Zuordnung"):
+        build_datev_export(db, NOV, ende)

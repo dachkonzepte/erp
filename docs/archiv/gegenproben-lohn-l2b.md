@@ -131,3 +131,20 @@ gegengeprobt (`gegenproben-lohn-l2a.md`); hier zählt das Konto ihre Posten.
 | Nr. 8 – nach dem Genehmigen ohne Neuladen | das Konto nicht mitgeladen (`316_K2`, Klicktest) | Klicktest: „Anna: Toms Zeile ohne Neuladen -- genehmigt 5, Rest 25“ |
 
 19 Gegenproben, alle rot (14 über Tests, 5 über `klicktest_urlaubskonto`).
+
+## 1.9.317 (Nachrunde, Punkt A): Lohndatei vollständig
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – sperrt die Lohndatei | nicht in `datev_fehlt()` (`317_1a`; Klicktest `317_K1`) | 3 rot: v713::test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss, test_sperrt_die_lohndatei_nicht_den_abschluss, v717::test_sperrt_wie_eine_fehlende_personalnummer; Klicktest: „Anna: „Vor dem Abschluss“ nennt Sonderurlaub ohne Zuordnung“, „Anna: Fehlt mit der Zuordnung, Zeile mit Weg“ |
+| Nr. 1 – nicht den Abschluss | sperrt auch den Abschluss (`317_1b`) | 2 rot: v713::test_sperrt_die_lohndatei_nicht_den_abschluss, v717::test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 2 – nicht Unbezahlt und Freizeitausgleich | auch sie sperren (`317_2a`) | 2 rot: v717::test_in_der_auslieferung_ohne_zuordnung, test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 2 – nicht bei Export-Umfang „nichts“ | auch „nichts“ (`317_2b`) | 1 rot: v717::test_export_umfang_nichts_sperrt_nicht |
+| Nr. 2 – eine Art mit eigener Zuordnung geht vor | die Zuordnung der Art übergangen (`317_2c`) | 1 rot: v717::test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 3 – der Zusatz „– keine Lohndatei, bis die Zuordnung steht“ | ohne Zusatz (`317_3a`) | 5 rot: v713 (drei Tests), v717 (zwei Tests) |
+| Nr. 3 – einmal je Kategorie in „Vor dem Abschluss“ | doppelt (`317_3b`) | 1 rot: v717::test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 3 – „Fehlt: n Zuordnungen“ | ohne Zahl (`317_3c`) | 1 rot: v717::test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 4 – ohne Zuordnung ausgeliefert: Sonderurlaub und Fortbildung | Fortbildung mit Zuordnung (`317_4a`) | 2 rot: v717::test_in_der_auslieferung_ohne_zuordnung, test_sperrt_wie_eine_fehlende_personalnummer |
+| Nr. 5 – Vorprobe September/Oktober Byte für Byte gleich | die Zuordnung der Art übergangen, Vorprobe September (`317_5a`, Skript) | rot: keine Datei („Kein DATEV-Export: Fortbildung ohne Zuordnung: 16 Tage …“) |
+
+11 Gegenproben, alle rot (9 über Tests, eine über den Klicktest, eine über die Vorprobe).

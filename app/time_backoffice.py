@@ -525,7 +525,8 @@ class DatevExportGesperrt(ValueError):
 
 
 def datev_fehlt(db: Session, start_date: date, end_date: date, *, personen=None) -> list[dict]:
-    """Seit 1.9.92: was dem DATEV-Export für den Monat fehlt -- Personalnummern, Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art
+    """Seit 1.9.92: was dem DATEV-Export für den Monat fehlt -- Personalnummern, seit 1.9.317 Zuordnungen (je Kategorie ohne Zuordnung mit Tagen im Monat,
+    app/lohndatei.py::ohne_zuordnung(), art „zuordnung“), Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art
     und ein Text. Seit 1.9.230 auch eine Personalnummer ohne genau 5 Ziffern (art „personalnummer_format“). Seit 1.9.225 (Lohn L1b, Punkt 2) die Personalnummer von jedem, der eine Zeile in der Lohndatei bekäme (app/lohndatei.py::
     berechnen(), auch nur mit Abwesenheiten, Ausfalltagen, Heiligabend oder Silvester; bis 1.9.224 nur von Personen mit Buchungen und Umfang
     „alles“), nach Nachnamen; seit 1.9.224 ohne die Lohnart je Zeitart. personen: das Ergebnis von berechnen(), wenn der Aufrufer es schon hat."""
@@ -544,6 +545,10 @@ def datev_fehlt(db: Session, start_date: date, end_date: date, *, personen=None)
             # 5d2e8a71c4f3 nicht aufgefüllt) sperrt die Datei wie eine fehlende -- bis 1.9.229 ging sie so hinein
             liste.append({"art": "personalnummer_format", "employee_id": x.employee_id, "name": x.name,
                           "text": f"Personalnummer „{x.personalnummer}“ hat nicht genau 5 Ziffern: {x.name}"})
+    # seit 1.9.317 (Nachrunde L2b, Punkt A): Tage einer Kategorie ohne Zuordnung (außer Unbezahlt und Freizeitausgleich) sperren wie eine fehlende
+    # Personalnummer -- sie gingen sonst still nicht in die Datei
+    from .lohndatei import ohne_zuordnung
+    liste += [{"art": x["art"], "kategorie": x["kategorie"], "text": x["text"]} for x in ohne_zuordnung(personen)]
     fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
     if fehlen:
         liste.append({"art": "datev_nummern", "text": (" und ".join(fehlen) + (" fehlen" if len(fehlen) > 1 else " fehlt"))})

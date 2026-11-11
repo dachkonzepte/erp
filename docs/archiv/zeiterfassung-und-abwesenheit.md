@@ -2396,7 +2396,7 @@ das eigene Konto, im Block „Urlaub und Startwerte“ die Spalte „Rest 2027�
 - 412 px: Zellen der Konten `td.nw` (`white-space:nowrap`, die Tabelle rollt in ihrem Rahmen); die erste Spalte zieht die Trennlinie zwischen den Personen selbst
   (`box-shadow: inset 0 -1px 0`, nicht unter der letzten Zeile) -- ihr deckender Hintergrund verdeckte die Linie der Tabelle.
 
-#### Festlegungen 1.9.312 (Bitte bestätigen)
+#### Festlegungen 1.9.312 (bestätigt am 11.11.2026)
 
 1. „Inaktive ausblenden“ über den Lohnstammdaten und über „Urlaub und Startwerte“: ein Stand für beide, Vorgabe an, im Browser gemerkt (eigener Schlüssel), mit
    „n inaktiv“; nur Anzeige, bedienbar auch ohne Recht zum Ändern; inaktive gezeigt grau.
@@ -2453,13 +2453,14 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.312“.
   „jede Kategorie“), dazu der Satz zu Sonderurlaub; nach „+ Eintrag hinzufügen“ lädt die Seite die Kategorien neu (eigener Bereich `abwesenheitsarten`).
 - Gegen das Urlaubskonto zählt nur „urlaub“ -- gerechnet ab 1.9.315.
 
-#### Festlegungen 1.9.313 (Bitte bestätigen)
+#### Festlegungen 1.9.313 (bestätigt am 11.11.2026, außer Nr. 4 -- siehe 1.9.317)
 
 1. Kategorie „Sonderurlaub“ nach Urlaub in jeder Auswahl; angelegt wie jede andere (Antrag, Eintrag, Plantafel, „Meine Zeiten“), ohne halben Tag.
 2. Ohne Art heißt sie „Sonderurlaub“; eine Art „Sonderurlaub“ passt nur zu ihr; eine selbst angelegte Art passt zu jeder Kategorie (wie bisher).
 3. Zuordnung „Kategorie Sonderurlaub“ leer, bis das Steuerbüro die Lohnart nennt: Sonderurlaub geht nicht in die Lohndatei.
 4. „Vor dem Abschluss“ nennt je Kategorie ohne Zuordnung die Tage des Monats („Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei“) -- ohne Namen,
-   ohne Unbezahlt und Freizeitausgleich, ohne Personen mit Export-Umfang „nichts“; sperrt weder Abschluss noch Lohndatei.
+   ohne Unbezahlt und Freizeitausgleich, ohne Personen mit Export-Umfang „nichts“; sperrt weder Abschluss noch Lohndatei. *Nicht bestätigt (11.11.2026): sie
+   sperren die Lohndatei -- umgesetzt in 1.9.317.*
 5. Sonderurlaub zählt nicht gegen das Urlaubskonto (gerechnet ab 1.9.315).
 6. Einstellungen → Abwesenheitsarten nennt je Art die Kategorie vom Server, auch für inaktive Arten; eine neue Art gleich nach dem Hinzufügen.
 7. Jede Seite mit einer Auswahl oder Liste der Kategorien kennt jede Kategorie (Wächter).
@@ -2489,7 +2490,7 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.313“.
 - Nichts wird abgezogen (Buchung, Tagesbilanz und Lohndatei unverändert), weder `abschluss_hindernisse()` noch `datev_fehlt()` noch „Vor dem Abschluss“
   sehen sie.
 
-#### Festlegungen 1.9.314 (Bitte bestätigen)
+#### Festlegungen 1.9.314 (bestätigt am 11.11.2026)
 
 1. Hinweis an jeder Fahrzeit, die nach der letzten Arbeit ihres Tags beginnt (Beginn nicht vor dem Ende der letzten Buchung einer anderen Zeitart), mit dem
    Text „Fahrzeit nach Arbeitsende – Rückfahrt? Feierabend ist auf der Baustelle.“
@@ -2527,7 +2528,7 @@ dem Löschen weg; Bilder bei 1440 und 412 px, hell und dunkel). Keine angepasste
 - `GET /api/zeiten/urlaubskonto?jahr=` (`app/routers/zeiten.py`, ab Büro – Auftrag): Vorgabe `standardjahr()` (das laufende, frühestens 2027); Admin und
   Büro – Finanzen alle (`darf_konten_aller()`), sonst nur das eigene, ohne Mitarbeiter keins; vor 2027 422. Antwort `{jahr, erstes_jahr, konten}`.
 
-#### Festlegungen 1.9.315 (Bitte bestätigen)
+#### Festlegungen 1.9.315 (bestätigt am 11.11.2026)
 
 1. Anspruch: der Wert je Person und Jahr, sonst die Vorgabe; anteilig bei Eintritt oder Austritt rechnet das ERP nicht -- Hinweis „Anspruch prüfen“.
 2. Übertrag 2027 = Startwert „Resturlaub“; ohne Startwert 0 mit „ohne Übertrag – Startwert folgt“.
@@ -2572,7 +2573,7 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.315“.
   `tests/test_v326_monteur_datengrenze.py`; die Grenze bleibt, der Name ist anders).
 - Einstellungen, Block „Urlaub und Startwerte“: Spalte „Rest 2027“ (`KontoPersonOut.rest_erstes_jahr`, eine Rechnung des Urlaubskontos für alle).
 
-#### Festlegungen 1.9.316 (Bitte bestätigen)
+#### Festlegungen 1.9.316 (bestätigt am 11.11.2026, Nr. 1 ergänzt in 1.9.319)
 
 1. „danach Rest“ = Rest des Kontos (Anspruch + Übertrag − genehmigt) minus die Tage dieses Urlaubs -- beim Stellen und beim Genehmigen gleich; andere
    offene Anträge zählen nicht mit; über den Jahreswechsel je Jahr; vor 2027 nichts.
@@ -2606,3 +2607,58 @@ brach „Abwesenheiten“ mit `GrunddatenFehlen` ab (`tests/test_v528_arbeitstag
 Der Satz „danach Rest“ in „Meine Zeiten“ trug zuerst `role="status"` -- dort gilt das als Meldung, die in die Knopfleiste gehört
 (`tests/test_v491_dialog_knopfleiste.py`); jetzt `aria-live="polite"`. Die Bilder des Antrags mit Rest nimmt der Klicktest jetzt in allen vier Varianten auf.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.316“.
+
+## Lohn L2b, Nachrunde (ab 1.9.317)
+
+### Bestätigt und beantwortet (11.11.2026, Tobias)
+
+L2b ist geprüft (507f0d7). Die 41 Festlegungen 1.9.312–1.9.316 sind bestätigt, bis auf 1.9.313 Nr. 4 (Punkt A) und eine Ergänzung zu 1.9.316 Nr. 1
+(Punkt C). Antworten auf die Fragen des Berichts L2b: 1 „danach Rest“ wie gebaut, dazu Punkt C; 2 keine feste Kategorie je Art, keine Migration; 3 kein
+Quittieren -- reicht; 4 ja, im Dezember schon 2027 (Anträge für 2027 kommen jetzt); 5 klärt Tobias im Bestand über Einstellungen → Abwesenheitsarten,
+das Skript läuft nur, wenn es dort eine Art „Sonderurlaub“ gibt.
+
+### Auftrag Nachrunde (je Punkt eine Version)
+
+A Lohndatei vollständig: Tage einer Kategorie ohne Zuordnung (außer Unbezahlt und Freizeitausgleich) sperren die Lohndatei wie eine fehlende
+Personalnummer; „Vor dem Abschluss“ behält die Meldung, dazu „– keine Lohndatei, bis die Zuordnung steht“; im Bericht, welche Kategorien in der
+Auslieferung heute ohne Zuordnung sind; die Vorprobe September/Oktober bleibt Byte für Byte gleich. B „Meine Zeiten“ ohne Startwert: der Hinweis „ohne
+Übertrag – Startwert folgt“ auch dort, am Konto und bei „danach Rest“ im Antrag; Bilder 412 hell und dunkel. C Zusatz zu „danach Rest“ beim Stellen: gibt es
+weitere offene Urlaubsanträge im selben Jahr, „· mit den anderen offenen Anträgen m Tage“; Bild.
+
+### Umsetzung 1.9.317 (Punkt A): Lohndatei vollständig
+
+- `app/time_backoffice.py::datev_fehlt()` nimmt die Zeilen von `app/lohndatei.py::ohne_zuordnung()` auf (art „zuordnung“, mit Kategorie): Tage einer
+  Kategorie, deren Abwesenheiten mangels Kennzeichen nicht in die Datei gingen -- außer `BEWUSST_LEER` (Unbezahlt, Freizeitausgleich) und außer Personen mit
+  Export-Umfang „nichts“. Damit sperrt `build_datev_export()` wie bei einer fehlenden Personalnummer (`DatevExportGesperrt`, keine Datei). Eine Art mit
+  eigener Zuordnung geht vor (`app/lohnarten.py::zuordnung()`, unverändert). `abschluss_hindernisse()` sieht sie nicht.
+- Text: „<Kategorie> ohne Zuordnung: n Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht“ (`KEINE_LOHNDATEI`); „Vor dem Abschluss“
+  (`app/zeiten.py::vor_dem_abschluss()`) nimmt sie jetzt nur noch über `datev_fehlt()` (1.9.313–1.9.316 kamen sie dort getrennt dazu); „Monat & Lohn“ zeigt
+  sie unter „1 Prüfen“ mit dem Weg „Zeitregeln“ und zählt sie in „Fehlt: …“ (`datev_text()`: „n Zuordnung(en)“).
+- In der Auslieferung (`app/lohnarten.py::START`) ohne Zuordnung: Sonderurlaub und Fortbildung (dazu bewusst Unbezahlt und Freizeitausgleich). Bei
+  Fortbildung haben die Arten Weiterbildung (1 / 1000) und Berufsschule (FE) eine eigene Zuordnung -- eine Fortbildung mit einer anderen Art (z. B.
+  „Sonstiges“ oder selbst angelegt) oder ohne Art sperrt die Lohndatei, bis die Kategorie eine Zuordnung hat.
+- Nachweis: `scripts/vorprobe_time4.py` September und Oktober (Muster, wie 1.9.228) und die lokale Oktober-Datei aus echten Buchungen
+  (`bildgrundlage/lohn_echt`, nichts davon in Git) auf 507f0d7 und mit 1.9.317 -- je Byte für Byte gleich, und gleich den Dateien aus L2a (1.9.308). Die
+  Vorprobe erzeugt über `build_datev_export()`, eine Sperre hätte sie gestoppt (Gegenprobe 317_5a).
+
+#### Festlegungen 1.9.317 (Bitte bestätigen)
+
+1. Tage einer Kategorie ohne Zuordnung (außer Unbezahlt und Freizeitausgleich) sperren die Lohndatei wie eine fehlende Personalnummer; den Abschluss nicht.
+   Ersetzt 1.9.313 Nr. 4.
+2. Eine Art mit eigener Zuordnung geht vor; wer den Export-Umfang „nichts“ hat, zählt nicht.
+3. Die Meldung „… nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht“ steht einmal je Kategorie in „Vor dem Abschluss“ und in „Monat &
+   Lohn“ (mit dem Weg zu den Zeitregeln); „Fehlt: n Zuordnungen“.
+4. In der Auslieferung ohne Zuordnung sind heute Sonderurlaub und Fortbildung.
+5. Die Vorprobe September/Oktober bleibt Byte für Byte gleich (ebenso die lokale Oktober-Datei).
+
+#### Tests und Prüfung 1.9.317
+
+Neu: `tests/test_v717_lohndatei_vollstaendig.py` (Auslieferung, Sperre wie eine Personalnummer mit Art-Zuordnung, Unbezahlt, Freizeitausgleich, einmal in
+„Vor dem Abschluss“, „Fehlt“, mit Zuordnung wieder eine Datei; Export-Umfang „nichts“). `klicktest_sonderurlaub.py`: „Monat & Lohn“ mit „Fehlt: 1 Zuordnung,
+DATEV-Nummern“ und der Zeile mit Weg, Bild. Angepasste Erwartungen:
+- `tests/test_v713_sonderurlaub.py::test_sperrt_nichts` -- alt: weder Abschluss noch Lohndatei gesperrt; neu (umbenannt in
+  `test_sperrt_die_lohndatei_nicht_den_abschluss`): `datev_fehlt()` nennt Sonderurlaub, keine Datei, der Abschluss frei.
+- `tests/test_v713_sonderurlaub.py` (drei Tests: `test_ohne_zuordnung_nicht_in_der_datei_und_vor_dem_abschluss`, `test_umfang_nichts_und_ein_tag`,
+  `test_auch_eine_andere_kategorie_ohne_zuordnung`) -- alt: „… nicht in der Lohndatei“; neu: dazu „– keine Lohndatei, bis die Zuordnung steht“.
+- `klicktest_sonderurlaub.py` „Anna: „Vor dem Abschluss“ nennt Sonderurlaub ohne Zuordnung“ -- alt: ohne Zusatz; neu: mit.
+Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.317“.

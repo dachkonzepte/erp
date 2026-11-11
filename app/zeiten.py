@@ -229,8 +229,10 @@ def datev_text(fehlt: list[dict]) -> str:
     genau 5 Ziffern als fehlende (die Liste darüber sagt, welche)."""
     pnr = sum(1 for x in fehlt if x["art"] in ("personalnummer", "personalnummer_format"))
     lohnart = sum(1 for x in fehlt if x["art"] == "lohnart")
+    zuordnung = sum(1 for x in fehlt if x["art"] == "zuordnung")  # seit 1.9.317
     teile = ([_anzahl(pnr, "Personalnummer", "Personalnummern")] if pnr else []) + \
             ([_anzahl(lohnart, "Lohnart", "Lohnarten")] if lohnart else []) + \
+            ([_anzahl(zuordnung, "Zuordnung", "Zuordnungen")] if zuordnung else []) + \
             (["DATEV-Nummern"] if any(x["art"] == "datev_nummern" for x in fehlt) else [])
     return ", ".join(teile)
 
@@ -238,16 +240,16 @@ def datev_text(fehlt: list[dict]) -> str:
 def vor_dem_abschluss(db: Session, erster: date) -> list[dict]:
     """„Vor dem Abschluss“ auf „Prüfen“: die Lücken der Zeiten als Zahl (wie viele laufen, wie viele Tage passen nicht) und was dem
     DATEV-Export des Monats fehlt, je ein Eintrag mit art und text. Seit 1.9.313 (Lohn L2b, Punkt 1) dazu je Kategorie ohne Zuordnung
-    („Sonderurlaub ohne Zuordnung: 2 Tage …“, app/lohndatei.py::ohne_zuordnung(), sperrt nichts) -- eine Rechnung der Lohndatei für beides."""
-    from .lohndatei import berechnen, ohne_zuordnung
+    („Sonderurlaub ohne Zuordnung: 2 Tage …“, app/lohndatei.py::ohne_zuordnung()) -- seit 1.9.317 als Teil von datev_fehlt() (sperrt die Lohndatei);
+    eine Rechnung der Lohndatei für alles."""
+    from .lohndatei import berechnen
     luecken = [] if _status(erster, load_time_settings(db).locked_until) == "abgeschlossen" else abschluss_hindernisse(db, monat_ende(erster))
     laeuft = sum(1 for x in luecken if x["art"] == "laeuft")
     pause = sum(1 for x in luecken if x["art"] == "pause")
     liste = ([{"art": "laeuft", "text": _anzahl(laeuft, "Zeit läuft noch", "Zeiten laufen noch")}] if laeuft else []) + \
             ([{"art": "pause", "text": _anzahl(pause, "Tag mit unpassender Pause", "Tage mit unpassender Pause")}] if pause else [])
     personen = berechnen(db, erster)
-    return (liste + [{"art": x["art"], "text": x["text"]} for x in datev_fehlt(db, erster, monat_ende(erster), personen=personen)]
-            + [{"art": x["art"], "text": x["text"]} for x in ohne_zuordnung(personen)])
+    return liste + [{"art": x["art"], "text": x["text"]} for x in datev_fehlt(db, erster, monat_ende(erster), personen=personen)]
 
 
 def pruefen(db: Session, heute: date) -> dict:

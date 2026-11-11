@@ -128,9 +128,18 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("Anna: „Vor dem Abschluss“ nennt Sonderurlaub ohne Zuordnung", await tab.js(
         "[...document.querySelectorAll('#abschlussListe li[data-art=zuordnung]')].map(l=>l.textContent.trim())"),
-        ["Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei"])
+        ["Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht"])  # seit 1.9.317 mit dem Zusatz
     await tab.js("document.getElementById('abschlussListe').scrollIntoView({block:'center'})")
     await tab.bild("zeiten_pruefen_sonderurlaub")
+    # seit 1.9.317 (Nachrunde L2b, Punkt A): „Monat & Lohn“ -- die Zuordnung fehlt wie eine Personalnummer, mit dem Weg zu den Zeitregeln
+    p.pruefe("Anna: Monat & Lohn", await tab.oeffnen("/zeiten?n=3#monat", "!!window.M&&document.getElementById('lohnMonat').innerText==='November 2026'"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Anna: Fehlt mit der Zuordnung, Zeile mit Weg", await tab.js(
+        "[document.getElementById('lohnDatevFehlt').innerText,[...document.querySelectorAll('#lohnPruefen li')].filter(l=>l.innerText.includes('Zuordnung'))"
+        ".map(l=>[l.querySelector('.text').innerText,l.querySelector('a').getAttribute('href')])]"),
+        ["Fehlt: 1 Zuordnung, DATEV-Nummern", [["Sonderurlaub ohne Zuordnung: 3 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht",
+                                               "/settings#time-rules"]]])
+    await tab.bild("zeiten_monat_ohne_zuordnung")
     p.pruefe("Anna: keine JS-Fehler", tab.fehler, [])
 
     # ---- Plantafel und Meine Zeiten ------------------------------------------------------------------------------------------------------

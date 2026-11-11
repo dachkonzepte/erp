@@ -178,11 +178,15 @@ def berechnen(db: Session, erster: date) -> list[Person]:
 BEWUSST_LEER = ("unbezahlt", "freizeitausgleich")
 
 
+KEINE_LOHNDATEI = " – keine Lohndatei, bis die Zuordnung steht"
+
+
 def ohne_zuordnung(personen: list[Person]) -> list[dict]:
     """Seit 1.9.313 (Lohn L2b, Punkt 1, Entscheidung 11.11.2026): je Kategorie, deren Abwesenheiten im Monat ohne Kennzeichen in der Zuordnung nicht in
-    die Lohndatei gehen, eine Zeile für „Vor dem Abschluss“ -- „Sonderurlaub ohne Zuordnung: 2 Tage“ (Tage aller Personen zusammen, ohne Namen: „Prüfen“
-    sieht auch Büro – Auftrag). Ohne Unbezahlt und Freizeitausgleich (BEWUSST_LEER); wer den Export-Umfang „nichts“ hat, zählt nicht. Sperrt nichts --
-    weder den Abschluss noch die Lohndatei."""
+    die Lohndatei gehen, eine Zeile -- „Sonderurlaub ohne Zuordnung: 2 Tage nicht in der Lohndatei – keine Lohndatei, bis die Zuordnung steht“ (Tage aller
+    Personen zusammen, ohne Namen: „Prüfen“ sieht auch Büro – Auftrag). Ohne Unbezahlt und Freizeitausgleich (BEWUSST_LEER); wer den Export-Umfang „nichts“
+    hat, zählt nicht. Seit 1.9.317 (Nachrunde L2b, Punkt A) sperrt sie die Lohndatei wie eine fehlende Personalnummer: die Zeilen gehören zu
+    app/time_backoffice.py::datev_fehlt() (bis 1.9.316 nur ein Hinweis in „Vor dem Abschluss“); den Abschluss sperren sie nicht."""
     from .absence_requests import ABSENCE_CATEGORIES, ABSENCE_CATEGORY_LABELS
     tage: dict[str, int] = {}
     for p in personen:
@@ -191,7 +195,7 @@ def ohne_zuordnung(personen: list[Person]) -> list[dict]:
                 tage[kategorie] = tage.get(kategorie, 0) + len(je)
     reihe = list(ABSENCE_CATEGORIES)
     return [{"art": "zuordnung", "kategorie": k,
-             "text": f"{ABSENCE_CATEGORY_LABELS.get(k, k)} ohne Zuordnung: {n} {'Tag' if n == 1 else 'Tage'} nicht in der Lohndatei"}
+             "text": f"{ABSENCE_CATEGORY_LABELS.get(k, k)} ohne Zuordnung: {n} {'Tag' if n == 1 else 'Tage'} nicht in der Lohndatei{KEINE_LOHNDATEI}"}
             for k, n in sorted(tage.items(), key=lambda x: reihe.index(x[0]) if x[0] in reihe else len(reihe))]
 
 
