@@ -2768,7 +2768,7 @@ dieser Runde; Bilder nur für Punkt 2 (1440 und 412, hell und dunkel).
   danach eintritt, hat 2027 den Übertrag 0 ohne Hinweis, „Anspruch prüfen“ (Eintritt im Jahr) bleibt. „danach Rest“ und „Meine Zeiten“ lesen den Hinweis aus
   dem Konto und folgen von selbst. Das Arbeitszeitkonto (1.9.321) nimmt dieselbe Regel.
 
-#### Festlegungen 1.9.320 (Bitte bestätigen)
+#### Festlegungen 1.9.320 (bestätigt am 12.11.2026)
 
 1. „ohne Übertrag – Startwert folgt“ nur bei Personen, die am 31.12.2026 beschäftigt waren: Eintritt leer oder bis 31.12.2026, Austritt leer oder ab
    31.12.2026 (beide Tage eingeschlossen).
@@ -2801,7 +2801,7 @@ Zeiten“). Angepasste Erwartung: `tests/test_v715_urlaubskonto.py::test_hinweis
 - Keine Oberfläche in dieser Runde. Die Lohndatei ist nicht berührt: `scripts/vorprobe_time4.py` September und Oktober 2026 (Muster) und die lokale
   Oktober-Datei aus echten Buchungen (`bildgrundlage/lohn_echt`, keine Werte hier) Byte für Byte gleich wie auf 1.9.316.
 
-#### Festlegungen 1.9.321 (Bitte bestätigen)
+#### Festlegungen 1.9.321 (bestätigt am 12.11.2026, Nr. 2 und Nr. 9 in der Fassung von 1.9.323)
 
 1. Die Regel ist eine Tabelle im Code (`REGEL`): je Quelle der Tagesbilanz und je Kategorie einer Abwesenheit eine Zeile; eine neue braucht eine Zeile (Wächter).
 2. Gutgeschrieben (neutral): Feiertag, Heiligabend und Silvester, Urlaub, Sonderurlaub, Krankheit, Fortbildung, Unbezahlt, Schlechtwetter (Sollzeit − Arbeit),
@@ -2843,7 +2843,7 @@ Oberfläche). Vorprobe September, Oktober und echt Oktober Byte für Byte gleich
 - `zeiten.html`: zwei Karten „Zur Info“ unter „Fahrzeit nach Arbeitsende“ -- „Tage ohne Eintrag“ und „Arbeit an Urlaubs- oder Kranktagen“, je mit der Zahl der
   Tage, je Person eine Zeile (Name · n Tage, die Tage, der Hinweis vom Server); „Nichts zu prüfen“ nur ohne sie.
 
-#### Festlegungen 1.9.322 (Bitte bestätigen)
+#### Festlegungen 1.9.322 (bestätigt am 12.11.2026)
 
 1. „Tag ohne Eintrag – zählt im Konto als Minus“: ein Tag mit Sollzeit einer gewerblichen Person ohne gebuchte und ohne laufende Zeit, ohne Abwesenheit,
    Feiertag, Tag des Arbeitszeitkalenders und Ausfalltag -- auch ein betriebsfreier Tag ohne Urlaub; je Person die Tage und ihre Sollzeit zusammen.
@@ -2891,7 +2891,7 @@ Anträgen; neu: dazu die beiden Listen der Kontohinweise (eine Zeile). Gegenprob
   `GET /api/zeiten/arbeitszeitkonto` gibt dazu `vorlaeufig: true`.
 - Unverändert: die Mehrarbeit der Azubis zählt als Arbeit (sie geht aufs Konto), die Sollzeit kommt aus der Tagesbilanz.
 
-#### Festlegungen 1.9.323 (Bitte bestätigen)
+#### Festlegungen 1.9.323 (bestätigt am 12.11.2026)
 
 1. Die Rechnung ist eine Vorschau: die Schnittstelle sagt „vorläufig – maßgeblich ist die Lohnabrechnung“ und `vorlaeufig: true`; DATEV führt das Konto.
 2. Gutgeschrieben wird, was in der Lohndatei eine Zeile hat -- auch eine Zeile ohne Lohnart (Berufsschule FE, Silvester UU); ein Tag ohne Zeile ist ein Minus:
@@ -2913,3 +2913,40 @@ Angepasste Erwartungen in `tests/test_v721_arbeitszeitkonto.py`:
   Woche −9,75, am Do Gutschrift 0 und Ist 2,00, jeder Posten mit `vermerk`.
 - `test_neutral_und_plus` -- alt: Unbezahlt 0; neu: −8,00.
 Kein Klicktest (keine Oberfläche). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.323“.
+
+### Bestätigt und beantwortet (12.11.2026, Tobias)
+
+Der Nachtrag 1.9.323 ist geprüft (f79b7be) und geht live. Bestätigt sind die 21 Festlegungen 1.9.320–1.9.322 (1.9.321 Nr. 2 und Nr. 9 in der Fassung des
+Nachtrags) und die 5 Festlegungen 1.9.323. Antworten auf die Fragen:
+
+- Silvester „unbezahlt frei“ bleibt neutral (Zeile UU) -- ja; das Steuerbüro zählt FE und UU als erfüllte Sollzeit (damit ist S3 des Befunds beantwortet).
+- Hinweise in „Prüfen“ nur für Admin und Büro – Finanzen -- ja. Beim Deaktivieren auf den Austritt hinweisen -- ja (Punkt B).
+- L2c-2 wird neu geschnitten, nicht erst im Dezember -- Befund D.
+
+### Auftrag Nachrunde L2c-1 (ab 1.9.324, je Punkt eine Version)
+
+A Testnummern: `test_v708` und jede Erzeugung nach „00{100 + i}“ auf erfundene Nummern wie in `test_v721`. B Beim Deaktivieren einer Person ohne Austritt der
+Hinweis „Austritt eintragen – sonst läuft die Sollzeit weiter“ mit Weg zu den Lohnstammdaten, nur Hinweis. C „Vor dem Abschluss“: eine gewerbliche Person mit
+Export-Umfang nicht „alles“ -- Hinweis „DATEV bekommt keine Arbeit – Umfang prüfen“, sperrt nichts. Bilder für B und C bei 1440 und 412, hell und dunkel.
+D Befund, nicht bauen -- L2c-2 neu: statt eines eigenen Monatsstands eine Liste „Nach dem Versand geändert“ (je Person und Tag der Unterschied zwischen der
+abgelegten Lohndatei und der Rechnung von heute, in „Monat & Lohn“, Grundlage fürs Telefonat); geht das ohne neue Tabelle, was fehlt; was braucht das Einlesen
+der Stand-Datei des Steuerbüros (L2c-4), damit deren Stand die Grundlage wird und das ERP nur den laufenden Monat vorläufig dazurechnet.
+
+### Umsetzung 1.9.324 (Punkt A): erzeugte Testnummern aus dem erfundenen Kreis
+
+- `tests/test_v708_tagesbilanz.py`: f"0009{i}" statt f"00{100 + i}" (00091–00096). Gesucht über alle Tests und Skripte (f-Strings mit Ziffern am Anfang vor einem
+  Ausdruck): sonst nur Angebots-, Mitarbeiter- und Kontonummern, keine Personalnummer; `zfill(5)` in den Skripten füllt eingelesene Nummern auf, erzeugt keine.
+- Neu `tests/test_v724_testnummern_erfunden.py`: über jede .py-Datei unter tests/ und scripts/ jeder f-String an `datev_personnel_number`, `personalnummer`, `pnr`
+  oder an der Personalnummer des Testhelfers `person(w, nummer, vorname, pnr)`; beginnt er mit Ziffern, dann mit 0009, 0019 oder 0029. Ein f-String ohne Ziffern
+  am Anfang („D-{nr}“ in `test_v326`) bleibt frei.
+
+#### Festlegungen 1.9.324 (Bitte bestätigen)
+
+1. Erzeugte Personalnummern in Tests und Skripten nur aus den erfundenen Kreisen 0009x, 0019x, 0029x; `test_v708` erzeugt 00091–00096.
+2. Der Wächter `test_v724` prüft jeden f-String an `datev_personnel_number`, `personalnummer`, `pnr` und an der Personalnummer von `person()`; ohne Ziffern am Anfang
+   bleibt er frei; ein Treffer nennt Datei, Zeile und Ausdruck.
+
+#### Tests und Prüfung 1.9.324
+
+Neu: `tests/test_v724_testnummern_erfunden.py` (2 Tests: über alle Dateien; der Wächter findet an Beispielen). Geändert: `tests/test_v708_tagesbilanz.py` (nur die
+erzeugten Nummern, keine Erwartung). Angepasste Erwartungen: keine. Kein Klicktest. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.324“.

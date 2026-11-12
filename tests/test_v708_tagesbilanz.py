@@ -106,7 +106,7 @@ def test_eine_feste_zahl_abfragen(w):
 
     def zwei_personen(n: int):
         for i in range(n, n + 2):
-            e = person(w, f"M-{i}", f"P{i}", f"00{100 + i}")
+            e = person(w, f"M-{i}", f"P{i}", f"0009{i}")  # seit 1.9.324 erfunden (Kreis 0009x, tests/test_v724_testnummern_erfunden.py)
             buchen(w, e, "8.00", tag(1))
             buchen(w, e, "1.00", tag(2), art="travel")
             abwesend(w, e, tag(3), tag(4))

@@ -92,3 +92,14 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 5 – Sollzeit aus der Tagesbilanz | eine feste Sollzeit 8,00 h (`323_5a`) | 3 rot: v723::test_sollzeit_nach_kalenderwoche, test_azubi_mehrarbeit_geht_aufs_konto, test_minus_ohne_zeile_und_winter_mit_vermerk |
 
 11 Gegenproben, alle rot (alle über Tests; keine Oberfläche).
+
+## 1.9.324 (Nachrunde, Punkt A): erzeugte Testnummern aus dem erfundenen Kreis
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – erzeugte Personalnummern nur aus 0009x, 0019x, 0029x (test_v708) | test_v708 erzeugt wieder f"00{100 + i}" (`324_1a`) | 1 rot: v724::test_erzeugte_personalnummern_nur_aus_erfundenen_kreisen |
+| Nr. 2 – der Wächter prüft den Testhelfer person() | person() nicht geprüft (`324_2a`) | 1 rot: v724::test_der_waechter_findet |
+| Nr. 2 – der Wächter prüft datev_personnel_number, personalnummer, pnr | die Schlüsselwörter nicht geprüft (`324_2b`) | 1 rot: v724::test_der_waechter_findet |
+| Nr. 2 – ohne Ziffern am Anfang frei | auch ohne Ziffern am Anfang (`324_2d`) | 2 rot: v724::test_der_waechter_findet, test_erzeugte_… (D-{nr} in test_v326) |
+
+4 Gegenproben, alle rot (alle über Tests; keine Oberfläche).
