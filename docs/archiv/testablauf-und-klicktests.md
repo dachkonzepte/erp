@@ -1430,6 +1430,14 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   zeigte den Baum ab `<Dir Users>`. Behoben über `--confcutdir` auf `tmp_path` im inneren Lauf (`tests/test_v596_reihenfolge.py::_lauf()`): der Baum beginnt
   beim Ordner der Probedateien. Neu `test_sammelt_nur_im_eigenen_ordner` (der Baum hat genau einen Ordner, `tmp_path`); Gegenprobe ohne `--confcutdir`: rot.
   Die übrigen Tests mit innerem pytest (`test_v413`, `test_v416`) sammeln Dateien im Projekt und sind davon nicht betroffen.
+- **`klicktest_checkliste_unterschrift`** -- 12.11.2026, Endlauf von Lohn L2c-3 auf ed2472b (1.9.337, frische Arbeitskopie, zu viert): 16 von 26 -- nach der
+  zweiten Unterschrift der Monteurin (nach „Nein“ bei „Freigegeben“) erschien die Karte „Unterschrieben“ nicht binnen 10 s, alle weiteren Prüfungen folgten
+  daraus. Die Rückfrage vor der ersten Unterschrift war gestellt und bestätigt (`window.__confirms`), das Netzprotokoll des Browsers hatte keine offene
+  Anfrage, und im Verbindungsprotokoll von uvicorn kam zwischen dem `PUT …/answers/1` (200) und dem Wechsel zum Büro nichts an -- die Seite hat die
+  Unterschrift nicht gesendet (kein „Anfrage nie angekommen“). Auf demselben Stand dreimal einzeln 26 von 26; in den beiden vollen Läufen davor (1.9.336,
+  1.9.337) grün. Die Runde änderte an Checkliste, `_speichern.html`, `_unterschrift.html` und dem Klicktest nichts. Ursache offen -- Verdacht: unter
+  Last zeichnet die Checkliste nach dem Speichern von „Nein“ neu, während `_unterschreiben()` schon klickt (das Muster von 1.9.55/1.9.64); nicht nachgestellt.
+  Stand: offen.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
