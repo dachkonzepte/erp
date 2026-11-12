@@ -15,6 +15,8 @@ from ..berlin_time import berlin_today
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
+from ..lohndatei import LohndateiVeraendert
+from ..lohndatei_abgleich import nach_dem_versand
 from ..lohnkonten import ERSTES_JAHR, standardjahr
 from ..permissions import (LOHNDATEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
                            darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role, require_role)
@@ -238,3 +240,12 @@ def _kolonnen(db: Session) -> list[dict]:
 def zeiten_monat(monat_: str | None = Query(None, alias="monat"), db: Session = Depends(get_db, scope="function"), user: AppUser = _lohn_dep):
     """„Monat & Lohn“ -- nur mit den Lohndaten (Admin und Büro – Finanzen)."""
     return {**monat(db, _monat(monat_)), "rechte": _rechte(user)}
+
+
+# Seit 1.9.329 (Lohn L2c-2, Punkt 2): „Nach dem Versand geändert“ -- wie „Monat & Lohn“ nur mit den Lohndaten; schreibt nichts
+@router.get("/api/zeiten/nach-dem-versand")
+def zeiten_nach_dem_versand(monat_: str | None = Query(None, alias="monat"), db: Session = Depends(get_db, scope="function"), user: AppUser = _lohn_dep):
+    try:
+        return nach_dem_versand(db, _monat(monat_))
+    except LohndateiVeraendert as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

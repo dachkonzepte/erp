@@ -3099,3 +3099,46 @@ Rechte; zurücknehmen nur der Admin samt Eintrag; Vermerk, Knopf und Rückfrage 
 Zeit (cdp_klicktest.py, „Feste Uhr“) -- der Vermerk wird deshalb als Muster geprüft. Angepasste Erwartungen: `tests/test_v109_unified_admin_dependency.py::
 test_time_backoffice_router_fully_uses_shared_dependency` -- Routen mit `_lohn_dep` 7 statt 6 (die neue zum Setzen); `scripts/klicktest_zeiten.py`, „Fin: Lohndatei
 abgelegt und heruntergeladen“ -- der Text der abgelegten Datei endet jetzt auf „Herunterladen An das Steuerbüro gesendet“ (bisher „Herunterladen“). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.328“.
+
+### Umsetzung 1.9.329 (Punkt 2): „Nach dem Versand geändert“
+
+- `app/lohndatei_abgleich.py` (neu, nur lesend):
+  - `bezug(db, monat)`: die als gesendet vermerkte Datei des Monats und der Bezug -- die jüngste Abgleich-Zeile, die nach der gesendeten Datei erzeugt wurde, sonst
+    diese. Eine ältere Abgleich-Zeile zählt nicht (sie gehört zu einem früheren Versand).
+  - `datei_lesen()` / `heute_lesen()`: beide Seiten in derselben Form -- je (Person, Tag) {(Kennzeichen, Lohnart): Stunden}, Tag leer = Monatszeile; heute nur Personen
+    mit Zeilen (wie die Datei). Die Person einer Nummer der Datei: die heutige Personalnummer, sonst eine frühere (`PersonalnummerVergabe`), sonst die Nummer für sich.
+  - `gruende(db, seit, …)`: die Einträge der Änderungshistorie seit dem Erzeugen des Bezugs; je Tag „Zeitbuchung“ und „Abwesenheit“ (Person und Tage aus dem
+    Schnappschuss beim Anlegen/Löschen oder dem Datensatz von heute, dazu alter und neuer Wert von Datum, Beginn und Ende), je Person „Lohnstammdaten“, „Eigene
+    Sollzeit“, „Arbeitszeitmodell der Person“, für viele zugleich „Zuordnung DATEV-Export“, „Arbeitszeitkalender“, „Arbeitszeitmodell“, „Pausenregel“, „Feiertage“,
+    „Bundesland“ (`JE_TAG`, `JE_PERSON`, `ALLGEMEIN`). Ein Text je Datensatz und Aktion: „Zeitbuchung geändert · 12.01.2027 10:15 · Anna Admin“.
+  - `nach_dem_versand(db, monat)`: {stand „nichts_versendet“ | „gleich“ | „geaendert“, text, bezug, zeilen, allgemein, anzahl}; je Zeile Person (Name,
+    Personalnummer von heute), Tag (leer: Monatszeile oder Nummer), art „tag“ | „monat“ | „nummer“, vorher, jetzt, gruende (ohne Eintrag „kein Eintrag in der
+    Änderungshistorie“); sortiert nach Name, die Nummer zuerst, dann die Tage, die Monatszeile zuletzt. Eine abgelegte Datei mit falscher Prüfsumme ->
+    `LohndateiVeraendert` (409).
+- `GET /api/zeiten/nach-dem-versand?monat=JJJJ-MM` (`require_lohndaten`), schreibt nichts.
+- `zeiten.html`, „Monat & Lohn“: Karte „Nach dem Versand geändert“ unter den drei Schritten (Bezug, Stand, „Für viele zugleich geändert“, Tabelle Mitarbeiter mit
+  Personalnummer · Tag · In der Datei · Heute · Grund); lädt nach dem Monat im eigenen Bereich `nachVersand` (`monatLaden()`), auch nach „gesendet“ und beim
+  Monatswechsel.
+
+#### Festlegungen 1.9.329 (Bitte bestätigen)
+
+1. Bezug ist die als gesendet vermerkte Datei des Monats; gibt es danach erzeugte Abgleich-Zeilen, die jüngste davon. Ohne gesendete Datei keine Liste, sondern
+   „Noch nichts versendet – vermerke an der Datei „An das Steuerbüro gesendet“.“ (auch wenn Dateien abgelegt sind).
+2. Verglichen wird je Person und Tag (Kennzeichen, Lohnart, Stunden), die Monatszeilen je Person für sich; heute zählen nur Personen mit Zeilen (wie in der Datei).
+3. Eine Person der Datei findet ihre Person über die Personalnummer, auch über eine frühere; ein Nummernwechsel ist eine eigene Zeile „Personalnummer alt → neu“; eine
+   Nummer ohne Person bleibt für sich.
+4. Der Grund: die Einträge der Änderungshistorie seit dem Erzeugen des Bezugs -- je Tag Zeitbuchung und Abwesenheit der Person (auch alter und neuer Tag), je Person
+   Lohnstammdaten, eigene Sollzeit, Arbeitszeitmodell der Person; was viele zugleich trifft (Zuordnung, Arbeitszeitkalender, Arbeitszeitmodell, Pausenregel,
+   Feiertage, Bundesland), als ein Satz oben, nur wenn es Änderungen gibt; ohne passenden Eintrag „kein Eintrag in der Änderungshistorie“.
+5. Nur Admin und Büro – Finanzen; nichts wird gespeichert; eine abgelegte Datei, die nicht zu ihrer Prüfsumme passt, 409.
+6. Die Karte steht in „Monat & Lohn“ unter den drei Schritten und lädt mit dem Monat.
+
+#### Tests und Prüfung 1.9.329
+
+Neu: `tests/test_v729_nach_dem_versand.py` (12 Tests: ohne gesendete Datei; gleich; Änderung je Tag mit Grund -- geändert, gelöscht, angelegt; ohne Eintrag und
+Zuordnung als Satz oben; Nummernwechsel mit Lohnstammdaten; Bezug nach einer Abgleich-Zeile; eine ältere Abgleich-Zeile zählt nicht; verschobene Buchung mit altem und
+neuem Tag; Monatszeilen; Route und Rechte samt Prüfsumme; die Seite in node; das Laden mit dem Monat). Neu `scripts/klicktest_nach_dem_versand.py` (22 Prüfungen:
+Dezember mit vier Änderungen und Grund -- Urlaub kürzer, Krankheit neu, Nummernwechsel, halber Urlaubstag --, November ohne gesendete Datei; Bilder bei 1440 und
+412 px, hell und dunkel). Das Befüllen lädt eine Abwesenheit vor der Änderung neu, wie die Oberfläche -- sonst kennt die Änderungshistorie den alten Wert nicht
+(ein nach dem Commit abgelaufenes Objekt). Angepasste Erwartungen: keine. Gegenproben:
+`gegenproben-lohn-l2c.md`, „1.9.329“.

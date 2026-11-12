@@ -175,3 +175,28 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 
 19 Gegenproben, alle rot (15 über Tests, 4 über `klicktest_lohndatei_gesendet`). Die Rückfrage auf der Seite kam nach dem ersten Lauf dazu (vorher `confirm()`,
 von `tests/test_v518_zeiten_seite.py` abgelehnt) -- danach alle Gegenproben noch einmal, alle rot. Zwei (`328_5a`, `328_5b`) hatten im ersten Anlauf einen Fehler in der Gegenprobe selbst (der Marker als Kommentar verschluckte den Rest der Zeile, nur ERROR) -- der Marker steht jetzt im Text, danach rot.
+
+## 1.9.329 (L2c-2, Punkt 2): „Nach dem Versand geändert“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur die gesendete Datei ist Bezug | jede abgelegte Datei gilt (`329_1a`) | 1 rot: v729::test_ohne_gesendete_datei_keine_liste |
+| Nr. 1 – nach „Besprochen“ die jüngste Abgleich-Zeile | ohne Abgleich (`329_1b`) | 1 rot: v729::test_bezug_ist_die_juengste_abgleich_zeile |
+| Nr. 1 – nur eine Abgleich-Zeile nach der gesendeten Datei | auch eine ältere (`329_1c`) | 1 rot: v729::test_abgleich_vor_der_gesendeten_zaehlt_nicht |
+| Nr. 2 – je Person und Tag mit Stunden | nur Kennzeichen und Lohnart zählen (`329_2a`; Klicktest `329_K3`) | 2 rot: v729::test_aenderung_je_tag_mit_grund, test_bezug_ist_die_juengste_abgleich_zeile; Klicktest im ersten Anlauf GRÜN (kein Fall, in dem sich nur die Stunden ändern) -- nachgezogen (Cems Urlaub wird ein halber Tag), danach rot: „Stand: vier Änderungen“, „je Zeile …“, „der Grund …“ |
+| Nr. 2 – Monatszeilen für sich | ohne Monatszeilen (`329_2b`) | 1 rot: v729::test_monatszeilen_fuer_sich |
+| Nr. 3 – auch über eine frühere Personalnummer | ohne frühere Nummern (`329_3a`) | 1 rot: v729::test_nummernwechsel_und_lohnstammdaten |
+| Nr. 3 – Nummernwechsel als eigene Zeile | keine Zeile (`329_3b`) | 1 rot: v729::test_nummernwechsel_und_lohnstammdaten |
+| Nr. 4 – Grund je Tag | keiner (`329_4a`) | 2 rot: v729::test_aenderung_je_tag_mit_grund, test_verschobene_buchung_alter_und_neuer_tag |
+| Nr. 4 – Grund je Person | keiner (`329_4b`) | 1 rot: v729::test_nummernwechsel_und_lohnstammdaten |
+| Nr. 4 – für viele zugleich als ein Satz oben | nichts oben (`329_4c`) | 1 rot: v729::test_ohne_eintrag_und_allgemein |
+| Nr. 4 – erst seit dem Erzeugen des Bezugs | die ganze Historie (`329_4d`) | 4 rot: v729::test_aenderung_je_tag_mit_grund, test_nummernwechsel_und_lohnstammdaten, test_ohne_eintrag_und_allgemein, test_verschobene_buchung_alter_und_neuer_tag |
+| Nr. 4 – ohne Eintrag „kein Eintrag …“ | leer (`329_4e`) | 1 rot: v729::test_ohne_eintrag_und_allgemein |
+| Nr. 4 – auch alter und neuer Tag | nur der Tag von heute (`329_4f`) | 1 rot: v729::test_verschobene_buchung_alter_und_neuer_tag |
+| Nr. 5 – nur Admin und Büro – Finanzen | auch Büro – Auftrag (`329_5a`) | 1 rot: v729::test_route_und_rechte |
+| Nr. 5 – falsche Prüfsumme 409 | als Fehler (`329_5b`) | 1 rot: v729::test_route_und_rechte |
+| Nr. 5 – schreibt nichts | keine eigene: `test_kein_get_schreibt` (v326) ruft jeden GET-Endpunkt mit Beobachter auf, auch diesen | – |
+| Nr. 6 – lädt mit dem Monat | lädt nicht (`329_6a`; Klicktest `329_K1`) | 1 rot: v729::test_seite_laedt_mit_dem_monat; Klicktest: „dez: 2026-12 geladen“, „Bezug …“, „Stand …“, „Tabelle sichtbar …“ |
+| Nr. 6 – je Zeile der Grund | ohne Grund (`329_6b`; Klicktest `329_K2`) | 1 rot: v729::test_seite_zeilen_und_bezug; Klicktest: „der Grund aus der Änderungshistorie“ |
+
+20 Gegenproben, alle rot (17 über Tests, 3 über `klicktest_nach_dem_versand`; `329_K3` erst nach dem Nachziehen des Klicktests).

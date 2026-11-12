@@ -84,6 +84,11 @@
     .liste .haken{color:var(--ds-ok);flex:none;align-self:center;display:inline-flex}
     #lohnDateien li{flex-wrap:wrap}
     .lohndatei-vermerk{display:block;margin-top:2px;color:var(--ds-ok-text);font-weight:600}  /* seit 1.9.328: „An das Steuerbüro gesendet …“ */
+    /* seit 1.9.329: „Nach dem Versand geändert“ */
+    .nv-text{margin:0 10px 12px;font-size:14px}
+    .nv-allgemein{margin:0 10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+    #nvZeilen td{vertical-align:top}
+    .nv-tag{white-space:nowrap}
     /* Tabellen wie die Vorlage: Kopf in Mono 11 px, Zeilen 48 px */
     table{border-collapse:collapse;width:100%}
     th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
@@ -327,6 +332,14 @@
       <ul class="liste" id="lohnDateien" style="font-size:14px"></ul>
     </section>
   </div>
+  {# seit 1.9.329 (Lohn L2c-2, Punkt 2): was sich seit der gesendeten Datei (bzw. dem letzten „Besprochen“) geändert hat -- je Person und Tag, mit Grund;
+     Grundlage fürs Telefonat mit dem Steuerbüro (alles vom Server, die Seite rechnet nichts nach) #}
+  <section class="tabelle-karte" id="nachVersand" aria-labelledby="nvTitel">
+    <div class="tabelle-kopf"><h2 id="nvTitel">Nach dem Versand geändert</h2><span class="mut" style="font-size:13px" id="nvBezug"></span></div>
+    <p class="nv-text" id="nvText"></p>
+    <div class="nv-allgemein" id="nvAllgemeinKopf" hidden><span style="font-weight:600">Für viele zugleich geändert</span><ul class="liste" id="nvAllgemein"></ul></div>
+    <table id="nvTabelle" hidden><thead><tr><th>Mitarbeiter</th><th>Tag</th><th>In der Datei</th><th>Heute</th><th>Grund</th></tr></thead><tbody id="nvZeilen"></tbody></table>
+  </section>
   <section class="tabelle-karte" aria-labelledby="lohnTabelleTitel">
     <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">Zeitarten minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Lohn, je Tag auf 0,25 h gerundet</span></div>
     <table><thead id="lohnKopf"></thead><tbody id="lohnZeilen"></tbody></table>
@@ -1059,6 +1072,7 @@ function abwSammelSenden(){
 function monatLaden(){
   if(!LOHN_MONAT&&P)LOHN_MONAT=P.monat.monat;  // der erste noch offene Monat
   return lesen('monat',()=>api('/api/zeiten/monat'+(LOHN_MONAT?'?monat='+encodeURIComponent(LOHN_MONAT):'')),function(d){M=d;LOHN_MONAT=d.monat;monatZeichnen(d)})
+    .then(function(){return lesen('nachVersand',()=>api('/api/zeiten/nach-dem-versand?monat='+encodeURIComponent(LOHN_MONAT)),nachVersandZeichnen)})  // seit 1.9.329
     .catch(function(e){el('seitenStatus').textContent=e.message});
 }
 function zeitraum(d){return 'start_date='+encodeURIComponent(d.start)+'&end_date='+encodeURIComponent(d.ende)}
@@ -1119,6 +1133,26 @@ function monatZeichnen(d){
     +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
       +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td>'+swZelle(d.summe.schlechtwetter,'summe')+'</tr>':'');
   el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
+}
+// Seit 1.9.329 (Lohn L2c-2, Punkt 2): „Nach dem Versand geändert“ -- Bezug, Stand, je Zeile Person, Tag, vorher und heute, Grund (alles vom Server)
+function nachVersandBezug(b){
+  if(!b)return '';
+  if(b.art==='abgleich')return 'Bezug: besprochen '+berlinZeitpunkt(b.erzeugt_am)+' · '+(b.erzeugt_von_name||'')+(b.notiz?' – „'+b.notiz+'“':'');
+  return 'Bezug: Datei vom '+berlinZeitpunkt(b.erzeugt_am)+', gesendet '+berlinZeitpunkt(b.versendet_am)+' · '+(b.versendet_von_name||'');
+}
+function nachVersandZeile(z){
+  var tag=z.art==='nummer'?'Personalnummer':z.tag?tagKurz(z.tag):'Monatszeile';
+  function texte(x){return x.length?x.map(esc).join('<br>'):'<span class="mut">–</span>'}
+  return '<tr><td>'+esc(z.name)+'<br><span class="mut num">'+esc(z.personalnummer||'')+'</span></td><td class="nv-tag">'+esc(tag)+'</td><td class="num">'
+    +texte(z.vorher)+'</td><td class="num">'+texte(z.jetzt)+'</td><td>'+z.gruende.map(esc).join('<br>')+'</td></tr>';
+}
+function nachVersandZeichnen(d){
+  el('nvBezug').textContent=nachVersandBezug(d.bezug);
+  el('nvText').textContent=d.text;
+  el('nvAllgemein').innerHTML=(d.allgemein||[]).map(function(t){return '<li><span class="text">'+esc(t)+'</span></li>'}).join('');
+  el('nvAllgemeinKopf').hidden=!(d.allgemein||[]).length;
+  el('nvTabelle').hidden=!d.zeilen.length;
+  el('nvZeilen').innerHTML=d.zeilen.map(nachVersandZeile).join('');
 }
 // Seit 1.9.328 (Lohn L2c-2, Punkt 1): an jeder erzeugten Datei „An das Steuerbüro gesendet“ (Admin, Büro – Finanzen) -- gesendet mit Zeitpunkt und Konto; je
 // Monat eine (danach kein Knopf mehr an den anderen); zurücknehmen nur der Admin, mit Rückfrage auf der Seite (kein Dialog des Browsers, Befund R5)
