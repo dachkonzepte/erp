@@ -38,12 +38,12 @@ from ..urlaubskonto import konten as urlaubskonten
 from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
                           vorgaben_setzen)
 from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
-from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..schemas import AbgleichIn, ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..dateiauslieferung import datei_antwort
 from ..lohndatei import (LohndateiVeraendert, VersandAbgelehnt, abgelegt_dict, abgelegte, lesen as lohndatei_lesen, versendet_setzen,
                          versendet_zuruecknehmen)
 from ..models import Lohndatei
-from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, lohndatei_erzeugen, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..time_backoffice import AbgleichAbgelehnt, DatevExportGesperrt, PersonalnummerGehalten, abgleich_ablegen, abschluss_hindernisse, abschluss_meldung, backoffice_summary, lohndatei_erzeugen, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
 from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
@@ -350,6 +350,22 @@ def lohndatei_erzeugen_route(payload: LohndateiIn, db: Session = Depends(get_db,
                                  user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
     except DatevExportGesperrt as exc:
         return JSONResponse(status_code=409, content={"detail": str(exc), "liste": jsonable_encoder(exc.liste)})
+    return jsonable_encoder(abgelegt_dict(row))
+
+
+# Seit 1.9.330 (Lohn L2c-2, Punkt 3): „Besprochen“ -- die Rechnung von heute als Abgleich-Zeile (Admin, Büro – Finanzen); Notiz Pflicht (422), ohne
+# gesendete Datei oder ohne Änderung 409, sonst dieselben Prüfungen wie das Erzeugen (409 mit Liste)
+@router.post("/api/time-backoffice/lohndateien/abgleich", status_code=201)
+def lohndatei_abgleich_route(payload: AbgleichIn, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+    try:
+        row = abgleich_ablegen(db, date.fromisoformat(payload.monat + "-01"), payload.notiz, user_id=getattr(_role, "id", None),
+                               user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
+    except AbgleichAbgelehnt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except DatevExportGesperrt as exc:
+        return JSONResponse(status_code=409, content={"detail": str(exc), "liste": jsonable_encoder(exc.liste)})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return jsonable_encoder(abgelegt_dict(row))
 
 

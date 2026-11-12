@@ -4066,6 +4066,12 @@ class LohndateiIn(BaseModel):
     monat: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
+class AbgleichIn(BaseModel):
+    """Seit 1.9.330 (Lohn L2c-2, Punkt 3): „Besprochen“ -- die Rechnung von heute als Abgleich-Zeile ablegen, mit Notiz (Pflicht, prüft der Server)."""
+    monat: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    notiz: str = Field(max_length=500)
+
+
 class PersonalnummerEingelesenOut(BaseModel):
     """Seit 1.9.218 (L1a Stufe 7, Punkt 1): eine gemerkte Nummer ohne Person -- nur für den Admin (app/time_backoffice.py::
     eingelesene_personalnummern())."""

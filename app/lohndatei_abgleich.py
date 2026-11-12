@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 KEIN_VERSAND = "Noch nichts versendet – vermerke an der Datei „An das Steuerbüro gesendet“."
+NICHTS_ZU_BESPRECHEN = "Keine Änderung nach dem Versand – nichts zu besprechen."  # seit 1.9.330
 OHNE_GRUND = "kein Eintrag in der Änderungshistorie"
 NULL = Decimal("0")
 
@@ -226,8 +227,9 @@ def nach_dem_versand(db: Session, erster: date) -> dict:
             z["gruende"] = g or [OHNE_GRUND]
         zeilen += eigene
     zeilen.sort(key=lambda z: (z["name"].casefold(), z["personalnummer"] or "", z["art"] != "nummer", z["tag"] is None, z["tag"] or erster))
+    # seit 1.9.330: ist der Bezug eine Abgleich-Zeile („Besprochen“), zählt die Liste ab dort
+    seit = "seit „Besprochen“" if b.art == "abgleich" else "nach dem Versand"
     return {"stand": "geaendert" if zeilen else "gleich",
-            "text": (f"{len(zeilen)} {'Änderung' if len(zeilen) == 1 else 'Änderungen'} nach dem Versand" if zeilen
-                     else "Keine Änderung nach dem Versand."),
+            "text": (f"{len(zeilen)} {'Änderung' if len(zeilen) == 1 else 'Änderungen'} {seit}" if zeilen else f"Keine Änderung {seit}."),
             "bezug": {**abgelegt_dict(b), "gesendet_id": gesendet.id},
             "zeilen": zeilen, "allgemein": allgemein if zeilen else [], "anzahl": len(zeilen)}

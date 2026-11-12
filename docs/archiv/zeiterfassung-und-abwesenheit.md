@@ -3142,3 +3142,34 @@ Dezember mit vier Änderungen und Grund -- Urlaub kürzer, Krankheit neu, Nummer
 412 px, hell und dunkel). Das Befüllen lädt eine Abwesenheit vor der Änderung neu, wie die Oberfläche -- sonst kennt die Änderungshistorie den alten Wert nicht
 (ein nach dem Commit abgelaufenes Objekt). Angepasste Erwartungen: keine. Gegenproben:
 `gegenproben-lohn-l2c.md`, „1.9.329“.
+
+### Umsetzung 1.9.330 (Punkt 3): „Besprochen“
+
+- `app/time_backoffice.py::abgleich_ablegen(db, monat, notiz, user_id, user_name)`: Notiz ohne Leerzeichen am Rand, leer -> ValueError (422: „Notiz fehlt – z. B.
+  „Telefonat 05.02.“.“; höchstens 500 Zeichen, `AbgleichIn`); ohne gesendete Datei -> `AbgleichAbgelehnt` mit dem Text von „Noch nichts versendet …“, ohne Änderung ->
+  „Keine Änderung nach dem Versand – nichts zu besprechen.“ (409); dann `build_datev_export()` wie beim Erzeugen (fehlt etwas: `DatevExportGesperrt`, 409 mit Liste,
+  nichts abgelegt) und `ablegen(…, art="abgleich", notiz=…)`, Dateiname `DATEV_Lohndaten_JJJJ-MM_Abgleich.txt`. Committet.
+- `POST /api/time-backoffice/lohndateien/abgleich` {monat, notiz} (`require_lohndaten`), 201 mit der Zeile wie die Liste.
+- `app/lohndatei_abgleich.py::nach_dem_versand()`: ist der Bezug eine Abgleich-Zeile, heißt der Stand „n Änderungen seit „Besprochen““ bzw. „Keine Änderung seit
+  „Besprochen“.“.
+- `zeiten.html`: unter der Liste das sichtbare Feld „Notiz zum Telefonat“ (kein Popup, Regel 4) und „Besprochen“ -- nur, wenn sich etwas geändert hat; leere Notiz
+  meldet die Seite selbst, ohne Anfrage (die Meldung geht beim Tippen weg); sonst über `abschliessen()` (Regel 29, in `ABSCHLIESSEND`), danach lädt der Monat neu. In der Ablage heißt eine Abgleich-Zeile
+  „Besprochen <Zeitpunkt> · <Konto> – „<Notiz>““.
+
+#### Festlegungen 1.9.330 (Bitte bestätigen)
+
+1. „Besprochen“ legt die Rechnung von heute als Abgleich-Zeile ab (die Bytes, die die Lohndatei heute hätte, mit Notiz); die Liste vergleicht danach gegen sie und
+   ist leer, bis sich wieder etwas ändert -- dann „n Änderungen seit „Besprochen““ mit den Gründen seit dem Abgleich.
+2. Die Notiz ist Pflicht (leer oder nur Leerzeichen 422, höchstens 500 Zeichen) und steht in einem sichtbaren Feld unter der Liste; eine leere meldet die Seite
+   selbst, ohne Anfrage, die Meldung geht beim Tippen weg.
+3. „Besprochen“ geht nur mit einer gesendeten Datei und nur, wenn sich seitdem etwas geändert hat (sonst 409 mit Grund); auf der Seite steht es nur dann.
+4. Dieselben Prüfungen wie beim Erzeugen: fehlt etwas, 409 mit Liste, nichts abgelegt.
+5. Admin und Büro – Finanzen; abschließend (Regel 29); in der Ablage „Besprochen … – „Notiz““, ohne Knopf „An das Steuerbüro gesendet“.
+
+#### Tests und Prüfung 1.9.330
+
+Neu: `tests/test_v730_besprochen.py` (6 Tests: ablegen, danach leer bis zur nächsten Änderung samt Grund nur seit dem Abgleich; Notiz Pflicht; nur mit gesendeter Datei
+und Änderung; dieselben Prüfungen wie das Erzeugen; Rechte; die Seite). `tests/test_v399_abschliessen.py`: `nachVersandBesprochen` in `ABSCHLIESSEND`. Neu
+`scripts/klicktest_besprochen.py` (22 Prüfungen: ohne Notiz, getippte Notiz (die Meldung geht weg), danach leer, Bezug, Ablage; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste
+Erwartung: `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_router_fully_uses_shared_dependency` -- Routen mit `_lohn_dep` 8 statt 7 (die Route
+„Besprochen“). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.330“.

@@ -578,6 +578,35 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     return datei(settings.datev_beraternummer, settings.datev_mandantennummer, start_date, personen), "txt"
 
 
+class AbgleichAbgelehnt(ValueError):
+    """Seit 1.9.330: „Besprochen“ geht so nicht (409) -- nichts versendet oder nichts geändert."""
+
+
+def abgleich_ablegen(db: Session, erster: date, notiz: str | None, *, user_id: int | None, user_name: str | None):
+    """Seit 1.9.330 (Lohn L2c-2, Punkt 3; Antwort 2 des Betriebs zum Befund D): „Besprochen“ nach dem Telefonat mit dem Steuerbüro -- legt die Rechnung
+    von heute als Abgleich-Zeile in der Ablage ab (art „abgleich“, mit Notiz); die Liste „Nach dem Versand geändert“ vergleicht danach gegen sie
+    (app/lohndatei_abgleich.py::bezug()) und ist leer, bis sich wieder etwas ändert. Notiz Pflicht (ValueError -> 422). Nur mit einer gesendeten Datei und
+    nur, wenn sich seitdem etwas geändert hat (AbgleichAbgelehnt -> 409). Dieselben Prüfungen wie das Erzeugen (Entscheidung 12.11.2026): nur über
+    build_datev_export() -- fehlt etwas, DatevExportGesperrt mit Liste, nichts abgelegt. Committet."""
+    from .lohndatei import ablegen, monat_ende
+    from .lohndatei_abgleich import KEIN_VERSAND, NICHTS_ZU_BESPRECHEN, nach_dem_versand
+
+    notiz = (notiz or "").strip()
+    if not notiz:
+        raise ValueError("Notiz fehlt – z. B. „Telefonat 05.02.“.")
+    erster = erster.replace(day=1)
+    stand = nach_dem_versand(db, erster)
+    if stand["stand"] == "nichts_versendet":
+        raise AbgleichAbgelehnt(KEIN_VERSAND)
+    if stand["stand"] == "gleich":
+        raise AbgleichAbgelehnt(NICHTS_ZU_BESPRECHEN)
+    inhalt, ext = build_datev_export(db, erster, monat_ende(erster))
+    row = ablegen(db, erster, inhalt, f"DATEV_Lohndaten_{erster:%Y-%m}_Abgleich.{ext}", user_id=user_id, user_name=user_name, art="abgleich", notiz=notiz)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def lohndatei_erzeugen(db: Session, erster: date, *, user_id: int | None, user_name: str | None):
     """Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei des Monats erzeugen (build_datev_export(), dieselben Prüfungen) und ablegen -- jede erzeugte
     Datei bleibt auf dem Server (app/lohndatei.py::ablegen()); bis 1.9.225 ging sie nur an den Browser. Committet."""

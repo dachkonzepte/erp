@@ -89,12 +89,12 @@ def test_time_backoffice_router_fully_uses_shared_dependency():
     # ändern _regeln_dep): 8 und 12. Seit 1.9.226 die Ablage der Lohndatei (erzeugen, Liste, Herunterladen -- der GET-Export entfällt):
     # 6 mit _lohn_dep. Seit 1.9.310 (Lohn L2a, Punkt 3) Urlaub und Startwerte (lesen _role_dep, Vorgaben, Anspruch und Startwert ändern
     # _regeln_dep): 9 und 15. Seit 1.9.328 (Lohn L2c-2, Punkt 1) „An das Steuerbüro gesendet“ mit _lohn_dep: 7 (zurücknehmen nur der Admin über
-    # require_min_role(ROLE_ADMIN), keine eigene Prüfung).
+    # require_min_role(ROLE_ADMIN), keine eigene Prüfung). Seit 1.9.330 (Punkt 3) „Besprochen“ mit _lohn_dep: 8.
     src = (Path(__file__).parents[1] / "app/routers/time_backoffice.py").read_text(encoding="utf-8")
     assert "def _require_admin" not in src
     assert "_require_admin(request)" not in src
     assert "Depends(require_admin(" not in src
-    assert src.count("_role=_role_dep") >= 9 and src.count("_role=_regeln_dep") == 15 and src.count("_role=_lohn_dep") == 7
+    assert src.count("_role=_role_dep") >= 9 and src.count("_role=_regeln_dep") == 15 and src.count("_role=_lohn_dep") == 8
 
 
 def test_all_local_relative_imports_in_routers_resolve():

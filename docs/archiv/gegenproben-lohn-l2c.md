@@ -200,3 +200,25 @@ von `tests/test_v518_zeiten_seite.py` abgelehnt) -- danach alle Gegenproben noch
 | Nr. 6 – je Zeile der Grund | ohne Grund (`329_6b`; Klicktest `329_K2`) | 1 rot: v729::test_seite_zeilen_und_bezug; Klicktest: „der Grund aus der Änderungshistorie“ |
 
 20 Gegenproben, alle rot (17 über Tests, 3 über `klicktest_nach_dem_versand`; `329_K3` erst nach dem Nachziehen des Klicktests).
+
+## 1.9.330 (L2c-2, Punkt 3): „Besprochen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – legt eine Abgleich-Zeile ab, danach Bezug | als Datei statt Abgleich (`330_1a`; Klicktest `330_K3`) | 1 rot: v730::test_besprochen_legt_ab_danach_leer_bis_zur_naechsten_aenderung; Klicktest: „danach: keine Änderung …“, „Bezug: besprochen, mit Notiz“, „Ablage …“ |
+| Nr. 1 – „… seit „Besprochen““ | immer „nach dem Versand“ (`330_1b`) | 1 rot: v730::test_besprochen_legt_ab_… |
+| Nr. 1 – die Rechnung von heute (mit den Prüfungen) | andere Bytes, ohne Prüfungen (`330_4a`) | 2 rot: v730::test_besprochen_legt_ab_…, test_dieselben_pruefungen_wie_das_erzeugen |
+| Nr. 2 – Notiz Pflicht | ohne Notiz (`330_2a`) | 1 rot: v730::test_notiz_pflicht |
+| Nr. 2 – höchstens 500 Zeichen | beliebig lang (`330_2b`) | 1 rot: v730::test_notiz_pflicht |
+| Nr. 2 – leere Notiz meldet die Seite selbst | geht an den Server (`330_2c`) | 1 rot: v730::test_seite (der Klicktest sähe denselben Text vom Server -- deshalb keine Klick-Gegenprobe) |
+| Nr. 2 – die Meldung geht beim Tippen weg | bleibt (`330_2d`; Klicktest `330_K4`) | 1 rot: v730::test_seite; Klicktest: „getippt: die Meldung ist weg“ |
+| Nr. 3 – nur mit gesendeter Datei | auch ohne (`330_3a`) | 1 rot: v730::test_nur_mit_gesendeter_datei_und_aenderung |
+| Nr. 3 – nur mit Änderung | auch ohne (`330_3b`) | 1 rot: v730::test_nur_mit_gesendeter_datei_und_aenderung |
+| Nr. 3 – auf der Seite nur bei Änderungen | immer sichtbar (`330_3c`; Klicktest `330_K1`) | 1 rot: v730::test_seite; Klicktest: „danach: keine Änderung, keine Tabelle, kein „Besprochen““ |
+| Nr. 4 – dieselben Prüfungen wie das Erzeugen | ohne Prüfungen (`330_4a`, siehe oben) | 2 rot (siehe oben) |
+| Nr. 5 – nur Admin und Büro – Finanzen | auch Büro – Auftrag (`330_5a`) | 1 rot: v730::test_rechte |
+| Nr. 5 – abschließend | über speichern() (`330_5b`) | 2 rot: v399::test_final_actions_and_only_those_go_through_abschliessen[zeiten.html], v730::test_seite |
+| Nr. 5 – in der Ablage „Besprochen …“ | immer „Abgelegt“ (`330_5c`; Klicktest `330_K2`) | 1 rot: v730::test_seite; Klicktest: „Ablage: die Abgleich-Zeile oben, ohne Knopf …“ |
+| Nr. 5 – ohne Knopf „An das Steuerbüro gesendet“ | keine eigene: unverändert seit 1.9.328 (`lohndateiKnopf()` gibt an einem Abgleich nichts; `328_6a`/v728 und die Prüfung „Ablage …“ im Klicktest decken es) | – |
+
+17 Gegenproben, alle rot (13 über Tests, 4 über `klicktest_besprochen`).

@@ -89,6 +89,8 @@
     .nv-allgemein{margin:0 10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
     #nvZeilen td{vertical-align:top}
     .nv-tag{white-space:nowrap}
+    .nv-besprochen{margin:0 10px 14px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end}  /* seit 1.9.330 */
+    .nv-besprochen label{display:flex;flex-direction:column;gap:4px;font-size:14px;flex:1 1 260px;max-width:420px}
     /* Tabellen wie die Vorlage: Kopf in Mono 11 px, Zeilen 48 px */
     table{border-collapse:collapse;width:100%}
     th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
@@ -339,6 +341,13 @@
     <p class="nv-text" id="nvText"></p>
     <div class="nv-allgemein" id="nvAllgemeinKopf" hidden><span style="font-weight:600">Für viele zugleich geändert</span><ul class="liste" id="nvAllgemein"></ul></div>
     <table id="nvTabelle" hidden><thead><tr><th>Mitarbeiter</th><th>Tag</th><th>In der Datei</th><th>Heute</th><th>Grund</th></tr></thead><tbody id="nvZeilen"></tbody></table>
+    {# seit 1.9.330 (Lohn L2c-2, Punkt 3): nach dem Telefonat „Besprochen“ -- legt die Rechnung von heute als Abgleich-Zeile ab (Notiz Pflicht, sichtbares Feld statt
+       Popup, Regel 4); danach vergleicht die Liste gegen sie #}
+    <div class="nv-besprochen" id="nvBesprochen" hidden>
+      <label for="nvNotiz">Notiz zum Telefonat<input type="text" id="nvNotiz" maxlength="500" placeholder="z. B. Telefonat 05.02."></label>
+      <button type="button" class="knopf knopf-aktion" id="nvBesprochenKnopf">Besprochen</button>
+      <p class="fehlt" id="nvFehlt" style="flex-basis:100%"></p>
+    </div>
   </section>
   <section class="tabelle-karte" aria-labelledby="lohnTabelleTitel">
     <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">Zeitarten minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Lohn, je Tag auf 0,25 h gerundet</span></div>
@@ -1108,8 +1117,9 @@ function monatZeichnen(d){
   el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
   // seit 1.9.226: die abgelegten Lohndateien des Monats -- Zeitpunkt in Berlin, wer, Anfang der Prüfsumme, „Herunterladen“ aus der Ablage
   var gesendet=(d.lohndateien||[]).some(function(f){return !!f.versendet_am});  // seit 1.9.328: je Monat eine versendete
-  el('lohnDateien').innerHTML=(d.lohndateien||[]).map(function(f){return '<li data-lohndatei="'+f.id+'" data-art="'+esc(f.art)+'"><span class="text">Abgelegt '
-    +esc(berlinZeitpunkt(f.erzeugt_am))+' · '+esc(f.erzeugt_von_name)+' · Prüfsumme <span class="num" title="'+esc(f.sha256)+'">'+esc(f.sha256.slice(0,12))
+  // seit 1.9.330: eine Abgleich-Zeile heißt „Besprochen …“ und trägt ihre Notiz
+  el('lohnDateien').innerHTML=(d.lohndateien||[]).map(function(f){return '<li data-lohndatei="'+f.id+'" data-art="'+esc(f.art)+'"><span class="text">'
+    +(f.art==='abgleich'?'Besprochen ':'Abgelegt ')+esc(berlinZeitpunkt(f.erzeugt_am))+' · '+esc(f.erzeugt_von_name)+(f.art==='abgleich'&&f.notiz?' – „'+esc(f.notiz)+'“':'')+' · Prüfsumme <span class="num" title="'+esc(f.sha256)+'">'+esc(f.sha256.slice(0,12))
     +'…</span>'+lohndateiVermerk(f)+'</span><a href="/api/time-backoffice/lohndateien/'+f.id+'/datei">Herunterladen</a>'+lohndateiKnopf(f,gesendet)+'</li>'}).join('');
   el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
   // seit 1.9.225 (Lohn L1b, Punkt 2): je Person, was nicht in die Datei geht, mit Grund -- die Texte vom Server
@@ -1153,6 +1163,19 @@ function nachVersandZeichnen(d){
   el('nvAllgemeinKopf').hidden=!(d.allgemein||[]).length;
   el('nvTabelle').hidden=!d.zeilen.length;
   el('nvZeilen').innerHTML=d.zeilen.map(nachVersandZeile).join('');
+  el('nvBesprochen').hidden=d.stand!=='geaendert';  // seit 1.9.330: nur, wenn sich etwas geändert hat
+  el('nvFehlt').textContent='';
+}
+// Seit 1.9.330 (Lohn L2c-2, Punkt 3): „Besprochen“ ist abschließend (Regel 29) -- der Server prüft wie beim Erzeugen; abgelehnt nennt er den Grund
+function nachVersandBesprochen(){
+  var knopf=el('nvBesprochenKnopf'),notiz=el('nvNotiz').value.trim();
+  if(!notiz){el('nvFehlt').textContent='Notiz fehlt – z. B. „Telefonat 05.02.“.';el('nvNotiz').focus();return Promise.resolve()}
+  knopf.disabled=true;
+  return abschliessen('monat',()=>api('/api/time-backoffice/lohndateien/abgleich',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({monat:LOHN_MONAT,notiz:notiz})}),{neuLaden:monatLaden})
+    .then(function(){el('nvNotiz').value='';ergebnis('Besprochen – der Stand von heute ist abgelegt.')})
+    .catch(function(e){el('nvFehlt').textContent=e.message})
+    .finally(function(){knopf.disabled=false});
 }
 // Seit 1.9.328 (Lohn L2c-2, Punkt 1): an jeder erzeugten Datei „An das Steuerbüro gesendet“ (Admin, Büro – Finanzen) -- gesendet mit Zeitpunkt und Konto; je
 // Monat eine (danach kein Knopf mehr an den anderen); zurücknehmen nur der Admin, mit Rückfrage auf der Seite (kein Dialog des Browsers, Befund R5)
@@ -1397,6 +1420,8 @@ function binden(){
     el('lohnVor').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,1);ergebnis('');monatLaden()});
     el('lohnAbschliessen').addEventListener('click',monatAbschliessen);
     el('lohnDatev').addEventListener('click',lohndateiErzeugen);  // seit 1.9.226
+    el('nvBesprochenKnopf').addEventListener('click',nachVersandBesprochen);  // seit 1.9.330
+    el('nvNotiz').addEventListener('input',function(){el('nvFehlt').textContent=''});  // die Meldung „Notiz fehlt“ geht beim Tippen weg
     el('lohnDateien').addEventListener('click',function(ev){  // seit 1.9.328
       var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
       if(b.dataset.aktion==='lohndatei-gesendet')lohndateiGesendet(b.dataset.id,b);

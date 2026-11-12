@@ -345,6 +345,7 @@ ABSCHLIESSEND = {
     ("zeiten.html", "monatAbschliessen"): "Monat der Zeiterfassung abschließen",  # seit 1.9.97 (Seite „Zeiten“, Monat & Lohn)
     ("zeiten.html", "lohndateiErzeugen"): "Lohndatei erzeugen und ablegen",  # seit 1.9.226 (Lohn L1b, Punkt 3)
     ("zeiten.html", "lohndateiGesendet"): "Lohndatei als an das Steuerbüro gesendet vermerken",  # seit 1.9.328 (Lohn L2c-2, Punkt 1)
+    ("zeiten.html", "nachVersandBesprochen"): "„Besprochen“: die Rechnung von heute als Abgleich-Zeile ablegen",  # seit 1.9.330 (Lohn L2c-2, Punkt 3)
     ("_abnahme.html", "saveAcceptance"): "Abnahme erfassen",
     ("_auftragsstatus.html", "statusDialogSenden"): "Status des Auftrags ändern (pausieren, fortsetzen, abschließen, stornieren; seit 1.9.131 Storno zurücknehmen)",  # 1.9.124
     ("_abnahme.html", "runProtocolAcceptance"): "Abnahme aus dem Protokoll anlegen",
