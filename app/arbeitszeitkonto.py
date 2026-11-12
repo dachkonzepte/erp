@@ -1,7 +1,9 @@
 """Das Arbeitszeitkonto -- seit 1.9.321 (Lohn L2c-1, Punkt 1; Befund L2c, Abschnitte 2 und 11; Antworten B1–B8, B11, B16 des Betriebs, 12.11.2026).
 
-Eine Übersicht: maßgeblich bleibt der Stand laut Lohnabrechnung (DATEV, Entscheidung L0) -- die Lohndatei schickt DATEV nur Ist-Stunden je Tag, nie
-eine Sollzeit oder einen Stand. Je Person und Tag aus der Tagesbilanz (app/tagesbilanz.py):
+Eine Vorschau: DATEV führt das Arbeitszeitkonto (Entscheidung L0, bestätigt vom Steuerbüro im Nachtrag vom 12.11.2026) -- die Lohndatei schickt nur
+Ist-Stunden je Tag, nie eine Sollzeit oder einen Stand; den Stand schickt das Steuerbüro künftig als Datei zurück (Format offen, L2c-4). Bis dahin heißt
+die Rechnung hier „vorläufig – maßgeblich ist die Lohnabrechnung“ (VORLAEUFIG). Je Person und Tag aus der Tagesbilanz (app/tagesbilanz.py; die Sollzeit
+wechselt wie in DATEV nach Kalenderwoche, KW 18–48 8,00 h, KW 49–17 7,50 h):
 
     soll        die Sollzeit des Tags (app/sollzeit.py; vor dem Eintritt und nach dem Austritt 0)
     arbeit      die Arbeit des Tags im Lohn: alle Zeitarten, auch Fahrzeit (Antwort 7 aus L2b), je Tag auf 0,25 h -- nur zwischen Eintritt und Austritt
@@ -10,12 +12,16 @@ eine Sollzeit oder einen Stand. Je Person und Tag aus der Tagesbilanz (app/tages
     saldo       ist − soll
 Je Monat die Summen; Stand = Startwert (LohnStartwert.saldo_stunden, Stand nach dem 31.12.2026) + die Salden ab dem 01.01.2027 (KONTOBEGINN).
 
-Die Regel (REGEL, Antwort B1: wie die Tabelle in Abschnitt 2 des Befunds) -- was ein Posten der Tagesbilanz im Konto tut:
+Die Regel (REGEL, Antwort B1, seit 1.9.323 nach den Antworten des Steuerbüros) -- was ein Posten der Tagesbilanz im Konto tut:
     gutschrift  zählt mit seinen Stunden zum Ist: der Tag ist neutral, Arbeit daneben ein Plus (B4)
     keine       zählt nicht: die Sollzeit bleibt offen, ein Minus
-Feiertag, Tag des Arbeitszeitkalenders (Heiligabend, Silvester), Urlaub, Sonderurlaub, Krankheit, Fortbildung, Unbezahlt (B2) und Schlechtwetter (Sollzeit −
-Arbeit; B6, B7: bis zur Antwort des Steuerbüros) schreiben gut; Freizeitausgleich nicht (B3: Minus der Sollzeit). Ein betriebsfreier Tag ist kein Posten:
-ohne Urlaub und ohne Arbeit ein Minus (B5). Eine neue Kategorie oder Quelle der Tagesbilanz braucht hier eine Zeile (tests/test_v721_arbeitszeitkonto.py).
+Wie DATEV: gutgeschrieben wird, was in der Lohndatei eine Zeile hat; ein Tag ohne Zeile ist ein Minus (Steuerbüro, Nachtrag 12.11.2026). Gutgeschrieben:
+Feiertag, Tag des Arbeitszeitkalenders (Heiligabend FR, Silvester UU), Urlaub, Sonderurlaub (U/8000, trägt der Betrieb ein), Krankheit, Fortbildung (Arten
+Weiterbildung und Berufsschule), Schlechtwetter Winter (WA, Sollzeit − Arbeit -- neutral mit Vermerk: DATEV löst ein Guthaben selbst auf, VERMERK). Ein Minus:
+Freizeitausgleich (B3), Unbezahlt (bis 1.9.322 neutral, B2), Schlechtwetter Sommer (bis 1.9.322 neutral, B7), der Altbestand ohne Kategorie -- keine Zeile.
+Die Mehrarbeit der Azubis (AA/1900) geht aufs Konto: sie ist Arbeit wie jede andere. Ein betriebsfreier Tag ist kein Posten: ohne Urlaub und ohne Arbeit ein
+Minus (B5). Eine neue Kategorie oder Quelle der Tagesbilanz braucht hier eine Zeile (tests/test_v721_arbeitszeitkonto.py); dass die Regel zur Lohndatei
+passt, prüft tests/test_v723_arbeitszeitkonto_nachtrag.py an der ausgelieferten Zuordnung.
 
 Wer und wann: nur gewerbliche Mitarbeiter (Employee.employee_group, B8 -- auch Azubis), nur Tage zwischen Eintritt und Austritt, nur Tage vor heute (der
 laufende Tag ist nicht fertig). „ohne Startwert – Startwert folgt“ nur, wer am 31.12.2026 beschäftigt war und keinen Saldo hat
@@ -39,30 +45,40 @@ KONTOBEGINN = date(2027, 1, 1)  # der Tag nach dem Stichtag der Startwerte (app/
 GEWERBLICH = "gewerblich"
 GUTSCHRIFT, KEINE = "gutschrift", "keine"
 OHNE_STARTWERT = "ohne Startwert – Startwert folgt"
-MASSGEBLICH = "Übersicht -- maßgeblich ist der Stand laut Lohnabrechnung (DATEV)."
+VORLAEUFIG = "vorläufig – maßgeblich ist die Lohnabrechnung"  # seit 1.9.323 (bis 1.9.322 „Übersicht -- maßgeblich ist der Stand laut Lohnabrechnung (DATEV).“)
+WINTER_VERMERK = "in der Vorschau neutral – DATEV löst ein Guthaben selbst auf"
+WINTER_HINWEIS = "Schlechtwetter Winter neutral gerechnet – DATEV löst ein Guthaben selbst auf"
 
-# Die Regel je Quelle der Tagesbilanz, eine Abwesenheit je Kategorie („abwesenheit:<kategorie>“)
+# Die Regel je Quelle der Tagesbilanz, Schlechtwetter je Jahreszeit („schlechtwetter:winter|sommer“ wie die Zuordnung), eine Abwesenheit je Kategorie
+# („abwesenheit:<kategorie>“). Seit 1.9.323: gutgeschrieben, was in der Lohndatei eine Zeile hat (Steuerbüro, Nachtrag 12.11.2026)
 REGEL = {
-    "feiertag": GUTSCHRIFT,  # gesetzlicher Feiertag mit Sollzeit
-    "kalender": GUTSCHRIFT,  # Heiligabend (bezahlt frei), Silvester (unbezahlt frei, „Arbeitszeitkonto neutral“ seit 1.9.176)
-    "schlechtwetter": GUTSCHRIFT,  # Ausfall = Sollzeit − Arbeit (B6, B7)
-    "abwesenheit:urlaub": GUTSCHRIFT,
-    "abwesenheit:sonderurlaub": GUTSCHRIFT,
-    "abwesenheit:krankheit": GUTSCHRIFT,
-    "abwesenheit:fortbildung": GUTSCHRIFT,  # auch Weiterbildung und Berufsschule
-    "abwesenheit:unbezahlt": GUTSCHRIFT,  # B2: neutral -- die Sollzeit entfällt mit dem Lohn
-    "abwesenheit:freizeitausgleich": KEINE,  # B3: baut das Konto ab (L0), nur ganze Tage
-    "abwesenheit:unbekannt": GUTSCHRIFT,  # Altbestand ohne Kategorie (vor 1.9.153, nur über die Migration) -- wie eine bezahlte Abwesenheit
+    "feiertag": GUTSCHRIFT,  # F / 1012
+    "kalender": GUTSCHRIFT,  # Heiligabend FR / 1080, Silvester UU (unbezahlt frei, „Arbeitszeitkonto neutral“ seit 1.9.176)
+    "schlechtwetter:winter": GUTSCHRIFT,  # WA / 8195, Ausfall = Sollzeit − Arbeit -- neutral mit Vermerk (DATEV löst ein Guthaben selbst auf)
+    "schlechtwetter:sommer": KEINE,  # seit 1.9.323 ein Minus: keine Zeile (bis 1.9.322 neutral, B7)
+    "abwesenheit:urlaub": GUTSCHRIFT,  # U / 8000
+    "abwesenheit:sonderurlaub": GUTSCHRIFT,  # U / 8000 (Steuerbüro; trägt der Betrieb in der Zuordnung ein -- bis dahin sperrt er die Lohndatei)
+    "abwesenheit:krankheit": GUTSCHRIFT,  # K / 1650
+    "abwesenheit:fortbildung": GUTSCHRIFT,  # Weiterbildung 1 / 1000, Berufsschule FE (jede andere Art sperrt die Lohndatei)
+    "abwesenheit:unbezahlt": KEINE,  # seit 1.9.323 ein Minus: keine Zeile (bis 1.9.322 neutral, B2)
+    "abwesenheit:freizeitausgleich": KEINE,  # B3: baut das Konto ab (L0), keine Zeile
+    "abwesenheit:unbekannt": KEINE,  # Altbestand ohne Kategorie (vor 1.9.153, nur über die Migration): keine Zeile (bis 1.9.322 gutgeschrieben)
 }
+VERMERK = {"schlechtwetter:winter": WINTER_VERMERK}
 
 
-def regel_schluessel(posten) -> str:
-    return f"abwesenheit:{posten.kategorie}" if posten.quelle == "abwesenheit" else posten.quelle
+def regel_schluessel(posten, tag: date) -> str:
+    from .lohnarten import schlechtwetter_schluessel
+    if posten.quelle == "abwesenheit":
+        return f"abwesenheit:{posten.kategorie}"
+    if posten.quelle == "schlechtwetter":
+        return schlechtwetter_schluessel(tag)  # dieselbe Jahreszeit wie die Lohndatei (Dezember bis März Winter)
+    return posten.quelle
 
 
-def wirkung(posten) -> str:
-    """GUTSCHRIFT oder KEINE für einen Posten der Tagesbilanz (REGEL)."""
-    return REGEL[regel_schluessel(posten)]
+def wirkung(posten, tag: date) -> str:
+    """GUTSCHRIFT oder KEINE für einen Posten der Tagesbilanz an seinem Tag (REGEL)."""
+    return REGEL[regel_schluessel(posten, tag)]
 
 
 @dataclass
@@ -136,8 +152,9 @@ def tag_saldo(t) -> TagSaldo:
     arbeit = t.arbeit if t.beschaeftigt else NULL
     posten, gutschrift = [], NULL
     for p in t.posten:
-        gut = wirkung(p) == GUTSCHRIFT
-        posten.append({"bezeichnung": p.bezeichnung, "stunden": p.stunden, "gutgeschrieben": gut})
+        schluessel = regel_schluessel(p, t.tag)
+        gut = REGEL[schluessel] == GUTSCHRIFT
+        posten.append({"bezeichnung": p.bezeichnung, "stunden": p.stunden, "gutgeschrieben": gut, "vermerk": VERMERK.get(schluessel)})
         if gut:
             gutschrift += p.stunden
     return TagSaldo(t.tag, t.soll, arbeit, gutschrift, posten)
@@ -187,6 +204,8 @@ def konten(db: Session, von: date, bis: date, employee_ids=None, *, heute: date 
             m = monate[t.replace(day=1)]
             m.soll, m.arbeit, m.gutschrift = m.soll + ts.soll, m.arbeit + ts.arbeit, m.gutschrift + ts.gutschrift
         k.stand_vorher, k.stand = vorher, stand
+        if any(p["vermerk"] == WINTER_VERMERK and p["stunden"] > 0 for ts in k.tage for p in ts.posten):  # seit 1.9.323
+            k.hinweise.append(WINTER_HINWEIS)
         laufend = vorher
         for m in monate.values():
             laufend += m.saldo

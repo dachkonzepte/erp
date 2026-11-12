@@ -1948,7 +1948,7 @@ Stand der Fragen aus L0 (Bericht `bildgrundlage/bericht_lohn_l0_11b0a63.txt`, Ab
 | LB6 Azubis: Sollzeit, Berufsschule | teilweise | Mehrarbeit AA / 1900 je Tag (Lohnbüro, Notiz 1.9.214); Berufsschule FE (Lohnbüro); Mehrarbeit wie Festlegung 1.9.224 Nr. 10 (Steuerbüro, 06.11.2026, endgültig) | Sollzeit der Azubis (das ERP: Tarif) |
 | LB7 Startwerte (Arbeitszeitkonto, Urlaub) | offen | kommen Ende Dezember (Steuerbüro, 06.11.2026) | ja (L2) |
 | LB8 Viertelstunde oder exakt | beantwortet (Tobias) | die Tagessumme Arbeit nach der Pause kaufmännisch auf 0,25 h, die Buchungen minutengenau (Tobias, 05.11.2026; 1.9.223) | ob das Lohnbüro es so will, ist nicht vermerkt |
-| LB9 Korrekturen nach dem Import | beantwortet (06.11.2026), nicht gebaut | eine neue Datei, am liebsten nur für die betroffene Person (Steuerbüro); jede erzeugte Datei bleibt seit 1.9.226 abgelegt | Umsetzung später, nicht in R3b |
+| LB9 Korrekturen nach dem Import | beantwortet (06.11.2026), nicht gebaut -- entfällt (12.11.2026: Korrekturen bespricht der Betrieb telefonisch, keine Korrekturdatei) | eine neue Datei, am liebsten nur für die betroffene Person (Steuerbüro); jede erzeugte Datei bleibt seit 1.9.226 abgelegt | Umsetzung später, nicht in R3b |
 | LB10 Testmandant für die Dezember-Datei | beantwortet (06.11.2026) | ein Testeinlesen ist möglich (Steuerbüro); erste Testdatei Oktober 2026 aus Time-4-Buchungen (R3b, Punkt 0c, nur lokal) | nein |
 
 ### Festlegungen der Stufe 7 bestätigt, Begründung 1.9.219 Nr. 2 berichtigt
@@ -2735,11 +2735,12 @@ Tag ohne Urlaub); das Urlaubskonto zeigte „ohne Übertrag – Startwert folgt�
 ### Antworten des Betriebs (12.11.2026, Tobias)
 
 - B1 Regel wie die Tabelle in Abschnitt 2 des Befunds: Ist = Arbeit + gutgeschriebene Posten (alle außer Freizeitausgleich), Saldo = Ist − Soll.
-- B2 Unbezahlt neutral.
+- B2 Unbezahlt neutral. *Geändert im Nachtrag (12.11.2026, 1.9.323): ein Minus -- keine Zeile in der Lohndatei.*
 - B3 Freizeitausgleich nur ganze Tage, Minus der Sollzeit.
 - B4 Arbeit an Feiertag, Urlaubs- oder Kranktag ist Plus; an Urlaubs- und Kranktag dazu ein Hinweis in „Prüfen“.
 - B5 Betriebsfreier Tag ohne Urlaub ist Minus.
-- B6, B7 Schlechtwetter (Winter und Sommer) neutral bis zur Antwort des Steuerbüros.
+- B6, B7 Schlechtwetter (Winter und Sommer) neutral bis zur Antwort des Steuerbüros. *Beantwortet im Nachtrag (12.11.2026, 1.9.323): Winter neutral mit
+  Vermerk (DATEV löst ein Guthaben selbst auf), Sommer ein Minus.*
 - B8 An der Gruppe gewerblich festmachen.
 - B9 Grenzen: zwei Felder, leer = kein Hinweis.
 - B10 Auszahlen erst nach der Antwort S6.
@@ -2804,7 +2805,8 @@ Zeiten“). Angepasste Erwartung: `tests/test_v715_urlaubskonto.py::test_hinweis
 
 1. Die Regel ist eine Tabelle im Code (`REGEL`): je Quelle der Tagesbilanz und je Kategorie einer Abwesenheit eine Zeile; eine neue braucht eine Zeile (Wächter).
 2. Gutgeschrieben (neutral): Feiertag, Heiligabend und Silvester, Urlaub, Sonderurlaub, Krankheit, Fortbildung, Unbezahlt, Schlechtwetter (Sollzeit − Arbeit),
-   der Altbestand ohne Kategorie; nicht gutgeschrieben: Freizeitausgleich (Minus der Sollzeit).
+   der Altbestand ohne Kategorie; nicht gutgeschrieben: Freizeitausgleich (Minus der Sollzeit). *Geändert in 1.9.323: ein Minus auch Unbezahlt, Schlechtwetter
+   Sommer und der Altbestand ohne Kategorie -- gutgeschrieben, was in der Lohndatei eine Zeile hat.*
 3. Ist = Arbeit (alle Zeitarten, auch Fahrzeit, je Tag 0,25 h) + Gutschrift, Saldo = Ist − Soll -- Arbeit neben einem gutgeschriebenen Tag, am Samstag oder
    Sonntag ist ein Plus, ein Tag mit Sollzeit ohne jeden Eintrag (auch ein betriebsfreier) ein Minus.
 4. Nur gewerbliche Personen (Gruppe, auch Azubis), nur Tage zwischen Eintritt und Austritt -- Arbeit davor oder danach zählt nicht.
@@ -2814,7 +2816,7 @@ Zeiten“). Angepasste Erwartung: `tests/test_v715_urlaubskonto.py::test_hinweis
 7. „ohne Startwert – Startwert folgt“ nur, wenn der Saldo fehlt und die Person am 31.12.2026 beschäftigt war.
 8. Eine feste Zahl Abfragen, unabhängig von Personen, Tagen, Buchungen und Abwesenheiten.
 9. `GET /api/zeiten/arbeitszeitkonto`: nur lesend, nur Admin und Büro – Finanzen (auch das eigene nicht für andere Rollen), vor Januar 2027 422; die Antwort sagt,
-   dass der Stand laut Lohnabrechnung (DATEV) maßgeblich ist.
+   dass der Stand laut Lohnabrechnung (DATEV) maßgeblich ist. *Geändert in 1.9.323: „vorläufig – maßgeblich ist die Lohnabrechnung“, dazu `vorlaeufig`.*
 10. Ohne Monat zeigt die Schnittstelle den laufenden, frühestens Januar 2027.
 11. Die Lohndatei bleibt unverändert (Vorprobe September und Oktober Byte für Byte gleich).
 
@@ -2860,3 +2862,54 @@ mit Rollen, ohne Zahl am Reiter und ohne Sperre des Abschlusses). Neu `scripts/k
 Finanzen, verborgen für Büro – Auftrag, nach dem Löschen einer Buchung nur noch der Kranktag; Bilder bei 1440 und 412 px, hell und dunkel, 412 ohne Überlauf).
 Angepasste Erwartung: `tests/test_v714_rueckfahrt.py::test_seite_aufbau` -- alt: die Bedingung für „Nichts zu prüfen“ mit Zeiten, Pausen, Rückfahrten und
 Anträgen; neu: dazu die beiden Listen der Kontohinweise (eine Zeile). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.322“.
+
+### Nachtrag: Antworten von Betrieb und Steuerbüro (12.11.2026, Tobias)
+
+- DATEV führt das Arbeitszeitkonto. Das ERP liefert nur die Stunden; das Steuerbüro schickt künftig eine Datei mit dem Stand zurück (Format offen, kommt
+  später -- L2c-4). Die Rechnung im ERP ist eine Vorschau: „vorläufig – maßgeblich ist die Lohnabrechnung“. (S7)
+- Soll wie bisher aus der Tagesbilanz: DATEV wechselt wie das ERP nach Kalenderwoche (KW 18–48 8,00 h, KW 49–17 7,50 h). (S1)
+- Tage ohne Zeile in der Lohndatei sind ein Minus: Freizeitausgleich, Unbezahlt, Schlechtwetter Sommer -- ändert B2 und B7. (S2)
+- Schlechtwetter Winter: DATEV löst ein Guthaben selbst auf -- in der Vorschau neutral, mit Vermerk. (S4)
+- Die Mehrarbeit der Azubis (AA/1900) geht aufs Konto. (S5)
+- Korrekturen bespricht der Betrieb telefonisch: keine Korrekturdatei, LB9 entfällt. (S11)
+- Sonderurlaub: U/8000, trägt der Betrieb in der Zuordnung ein (Einstellungen → Zeitregeln und DATEV) -- kein Vorgabewert im Code.
+- Vorgemerkt für eine spätere Runde (Urlaub): anteiliger Anspruch = Anspruch ÷ 12 × Beschäftigungsmonate, auf halbe Tage gerundet; Übertrag bis 31.03.
+- Vorgemerkt für L2c-3: beim Antrag auf Freizeitausgleich oder Unbezahlt ein Hinweis, wenn der vorläufige Stand nicht reicht.
+- Offen beim Steuerbüro aus dem Befund L2c: S3 (Kennzeichen ohne Lohnart -- so gerechnet, dass eine Zeile auch ohne Lohnart zählt, Festlegung 1.9.323 Nr. 2),
+  S6 (Auszahlung von Stunden), S8 (Korrektur des Startwerts), S9 (Grenzen), S10 (Austritt).
+
+### Umsetzung 1.9.323 (Nachtrag zu Punkt 1): die Regel wie DATEV
+
+- `app/arbeitszeitkonto.py`: `REGEL` folgt der Lohndatei -- gutgeschrieben, was dort eine Zeile hat: Feiertag (F), Heiligabend (FR) und Silvester (UU),
+  Urlaub (U), Sonderurlaub (U/8000, trägt der Betrieb ein), Krankheit (K), Fortbildung (Weiterbildung 1/1000, Berufsschule FE), Schlechtwetter Winter (WA);
+  ein Minus (keine Zeile): Freizeitausgleich, Unbezahlt, Schlechtwetter Sommer, der Altbestand ohne Kategorie. Schlechtwetter je Jahreszeit
+  (`schlechtwetter:winter|sommer` über `app/lohnarten.py::schlechtwetter_schluessel()`, dieselbe Grenze wie die Lohndatei); `regel_schluessel()` und
+  `wirkung()` nehmen dafür den Tag.
+- Schlechtwetter Winter: am Posten `vermerk` = „in der Vorschau neutral – DATEV löst ein Guthaben selbst auf“, am Konto der Hinweis „Schlechtwetter Winter
+  neutral gerechnet – DATEV löst ein Guthaben selbst auf“ (wenn im Zeitraum ein Ausfall im Winter Stunden hat).
+- `VORLAEUFIG` = „vorläufig – maßgeblich ist die Lohnabrechnung“ (bis 1.9.322 „Übersicht -- maßgeblich ist der Stand laut Lohnabrechnung (DATEV).“);
+  `GET /api/zeiten/arbeitszeitkonto` gibt dazu `vorlaeufig: true`.
+- Unverändert: die Mehrarbeit der Azubis zählt als Arbeit (sie geht aufs Konto), die Sollzeit kommt aus der Tagesbilanz.
+
+#### Festlegungen 1.9.323 (Bitte bestätigen)
+
+1. Die Rechnung ist eine Vorschau: die Schnittstelle sagt „vorläufig – maßgeblich ist die Lohnabrechnung“ und `vorlaeufig: true`; DATEV führt das Konto.
+2. Gutgeschrieben wird, was in der Lohndatei eine Zeile hat -- auch eine Zeile ohne Lohnart (Berufsschule FE, Silvester UU); ein Tag ohne Zeile ist ein Minus:
+   Freizeitausgleich, Unbezahlt, Schlechtwetter Sommer, der Altbestand ohne Kategorie. Ein Wächter prüft das an der ausgelieferten Zuordnung (mit Sonderurlaub
+   U/8000) gegen die Lohndatei.
+3. Schlechtwetter je Jahreszeit wie die Lohndatei (Dezember bis März Winter); der Winter ist neutral mit Vermerk am Tag und Hinweis am Konto „Schlechtwetter
+   Winter neutral gerechnet – DATEV löst ein Guthaben selbst auf“.
+4. Die Mehrarbeit der Azubis (AA/1900) zählt im Konto wie jede Arbeit.
+5. Die Sollzeit bleibt die der Tagesbilanz (nach Kalenderwoche, wie DATEV).
+
+#### Tests und Prüfung 1.9.323
+
+Neu: `tests/test_v723_arbeitszeitkonto_nachtrag.py` (5 Tests: gutgeschrieben genau mit einer Zeile in der Lohndatei -- 15 Tage mit Posten in Februar, Mai und
+Dezember 2027; Minus ohne Zeile und Winter mit Vermerk; die Mehrarbeit der Azubis aufs Konto; die Sollzeit nach Kalenderwoche; „vorläufig“ an der Schnittstelle).
+Angepasste Erwartungen in `tests/test_v721_arbeitszeitkonto.py`:
+- `test_regel_ist_eine_tabelle_fuer_jede_kategorie_und_quelle` -- alt: Schlüssel „schlechtwetter“, nur Freizeitausgleich ein Minus; neu: Schlechtwetter je
+  Jahreszeit, ein Minus sind Freizeitausgleich, Unbezahlt, Schlechtwetter Sommer und der Altbestand ohne Kategorie.
+- `test_beispielwoche` -- alt: Do 0, Woche −3,75, am Do Gutschrift 6,00 und Ist 8,00, Posten ohne Vermerk; neu: Do −6,00 (der Ausfall im Sommer ist ein Minus),
+  Woche −9,75, am Do Gutschrift 0 und Ist 2,00, jeder Posten mit `vermerk`.
+- `test_neutral_und_plus` -- alt: Unbezahlt 0; neu: −8,00.
+Kein Klicktest (keine Oberfläche). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.323“.

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
-from ..arbeitszeitkonto import KONTOBEGINN, MASSGEBLICH, gezaehlt_bis, konten as arbeitszeitkonten
+from ..arbeitszeitkonto import KONTOBEGINN, VORLAEUFIG, gezaehlt_bis, konten as arbeitszeitkonten
 from ..arbeitszeitkalender import naechste as naechste_kalendertage
 from ..berlin_time import berlin_today
 from ..database import get_db
@@ -147,7 +147,7 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
 @router.get("/api/zeiten/arbeitszeitkonto")
 def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_length=7), mitarbeiter: int | None = None,
                             db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
-    """Seit 1.9.321 (Lohn L2c-1, Punkt 1): das Arbeitszeitkonto eines Monats (Vorgabe: der laufende, frühestens Januar 2027) -- je gewerblicher Person
+    """Seit 1.9.321 (Lohn L2c-1, Punkt 1; seit 1.9.323 eine Vorschau: „vorläufig – maßgeblich ist die Lohnabrechnung“, vorlaeufig): das Arbeitszeitkonto eines Monats (Vorgabe: der laufende, frühestens Januar 2027) -- je gewerblicher Person
     die Tage (Soll, Arbeit, Gutschrift, Saldo, Posten), der Monat und der Stand ab dem Startwert (app/arbeitszeitkonto.py), gezählt bis gestern. Nur
     lesend, nur Admin und Büro – Finanzen (Antwort B11 -- „Meine Zeiten“ erst mit L2c-4, auch nicht über diese Schnittstelle); mitarbeiter: nur diese
     Person. Vor Januar 2027 422."""
@@ -157,7 +157,8 @@ def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_
         raise HTTPException(status_code=422, detail=f"Das Arbeitszeitkonto beginnt am {KONTOBEGINN:%d.%m.%Y}.")
     ende = monat_ende(erster)
     liste = arbeitszeitkonten(db, erster, ende, None if mitarbeiter is None else [mitarbeiter], heute=heute)
-    return {"monat": erster.strftime("%Y-%m"), "kontobeginn": KONTOBEGINN, "gezaehlt_bis": min(ende, gezaehlt_bis(heute)), "hinweis": MASSGEBLICH,
+    return {"monat": erster.strftime("%Y-%m"), "kontobeginn": KONTOBEGINN, "gezaehlt_bis": min(ende, gezaehlt_bis(heute)), "vorlaeufig": True,
+            "hinweis": VORLAEUFIG,
             "konten": [k.als_dict() for k in liste]}
 
 

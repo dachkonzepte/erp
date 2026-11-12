@@ -73,3 +73,22 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 6 – „Nichts zu prüfen“ nur ohne sie | die Bedingung wie bis 1.9.321 (`322_K3`) | Klicktest: „Anna: beide Karten zur Info, keine Zahl am Reiter“ |
 
 16 Gegenproben, alle rot (12 über Tests, 4 über `klicktest_konto_hinweise`).
+
+## 1.9.323 (Nachtrag zu Punkt 1): die Regel wie DATEV
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „vorläufig – maßgeblich ist die Lohnabrechnung“ | der Text bis 1.9.322 (`323_4a`) | 1 rot: v723::test_schnittstelle_vorlaeufig |
+| Nr. 1 – `vorlaeufig: true` | ohne das Feld (`323_4b`) | 1 rot: v723::test_schnittstelle_vorlaeufig |
+| Nr. 2 – Unbezahlt ein Minus | wie bis 1.9.322 neutral (`323_1a`) | 4 rot: v721::test_regel_…, test_neutral_und_plus; v723::test_gutgeschrieben_genau_mit_einer_zeile_in_der_lohndatei, test_minus_ohne_zeile_und_winter_mit_vermerk |
+| Nr. 2 – Schlechtwetter Sommer ein Minus | wie bis 1.9.322 neutral (`323_1b`) | 4 rot: v721::test_regel_…, test_beispielwoche; v723::test_gutgeschrieben_…, test_minus_ohne_zeile_… |
+| Nr. 2 – Altbestand ohne Kategorie ein Minus | gutgeschrieben (`323_1c`) | 1 rot: v721::test_regel_… |
+| Nr. 2 – Freizeitausgleich ein Minus; eine Zeile ohne Lohnart zählt | keine eigene: unverändert seit 1.9.321 (Gegenprobe `321_1a`); FE und UU prüft der Wächter v723 (Berufsschule, Silvester) | grün ohne Gegenprobe; rot würde v723::test_gutgeschrieben_… |
+| Nr. 3 – Schlechtwetter je Jahreszeit wie die Lohndatei | immer Winter (`323_1d`) | 3 rot: v721::test_beispielwoche; v723::test_gutgeschrieben_…, test_minus_ohne_zeile_… |
+| Nr. 3 – Winter neutral | Winter als Minus (`323_2a`) | 3 rot: v721::test_regel_…; v723::test_gutgeschrieben_…, test_minus_ohne_zeile_… |
+| Nr. 3 – Vermerk am Tag | ohne Vermerk (`323_2b`) | 1 rot: v723::test_minus_ohne_zeile_und_winter_mit_vermerk |
+| Nr. 3 – Hinweis am Konto | ohne Hinweis (`323_2c`) | 1 rot: v723::test_minus_ohne_zeile_und_winter_mit_vermerk |
+| Nr. 4 – Mehrarbeit der Azubis aufs Konto | Arbeit nur bis zur Sollzeit (`323_3a`) | 3 rot: v721::test_beispielwoche, test_neutral_und_plus; v723::test_azubi_mehrarbeit_geht_aufs_konto |
+| Nr. 5 – Sollzeit aus der Tagesbilanz | eine feste Sollzeit 8,00 h (`323_5a`) | 3 rot: v723::test_sollzeit_nach_kalenderwoche, test_azubi_mehrarbeit_geht_aufs_konto, test_minus_ohne_zeile_und_winter_mit_vermerk |
+
+11 Gegenproben, alle rot (alle über Tests; keine Oberfläche).

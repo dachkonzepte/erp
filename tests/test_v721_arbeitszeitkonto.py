@@ -1,13 +1,14 @@
 """Version 1.9.321 (Lohn L2c-1, Punkt 1): das Arbeitszeitkonto (app/arbeitszeitkonto.py; Befund L2c, Abschnitte 2 und 11; Antworten B1–B8, B11, B16).
 
     Regel       Ist = Arbeit + gutgeschriebene Posten, Saldo = Ist − Soll; gutgeschrieben alles außer Freizeitausgleich (REGEL, eine Tabelle) -- Urlaub,
-                Krankheit, Feiertag, Sonderurlaub, Fortbildung, Unbezahlt, Heiligabend, Silvester, Schlechtwetter neutral; Arbeit daneben, am Samstag oder
+                Krankheit, Feiertag, Sonderurlaub, Fortbildung, Heiligabend, Silvester, Schlechtwetter Winter neutral (seit 1.9.323: Unbezahlt und
+                Schlechtwetter Sommer ein Minus -- keine Zeile in der Lohndatei, tests/test_v723_arbeitszeitkonto_nachtrag.py); Arbeit daneben, am Samstag oder
                 Sonntag ein Plus; ein betriebsfreier Tag ohne Urlaub ein Minus
     wer, wann   nur gewerbliche, nur zwischen Eintritt und Austritt, nur Tage vor heute, ab dem 01.01.2027
     Stand       Startwert (Saldo zum 31.12.2026) + Salden; „ohne Startwert“ nur, wer am Stichtag beschäftigt war
     Abfragen    eine feste Zahl
     Schnittstelle  GET /api/zeiten/arbeitszeitkonto -- nur Admin und Büro – Finanzen (auch nicht die eigene für andere Rollen), vor 2027 422
-Die Beispielwoche ist die aus Abschnitt 2 des Befunds (Sommer, Sollzeit 8,00 h): −3,75 h.
+Die Beispielwoche ist die aus Abschnitt 2 des Befunds (Sommer, Sollzeit 8,00 h): −3,75 h, seit 1.9.323 −9,75 h (der Ausfall im Sommer ist ein Minus).
 """
 
 from datetime import date
@@ -34,14 +35,18 @@ def saldi(k) -> dict:
 
 
 def test_regel_ist_eine_tabelle_fuer_jede_kategorie_und_quelle():
-    erwartet = {f"abwesenheit:{k}" for k in (*ABSENCE_CATEGORIES, ABSENCE_CATEGORY_UNKNOWN) if k != "schlechtwetter"} | {q for q in QUELLEN if q != "abwesenheit"}
+    erwartet = ({f"abwesenheit:{k}" for k in (*ABSENCE_CATEGORIES, ABSENCE_CATEGORY_UNKNOWN) if k != "schlechtwetter"}
+                | {q for q in QUELLEN if q not in ("abwesenheit", "schlechtwetter")} | {"schlechtwetter:winter", "schlechtwetter:sommer"})  # seit 1.9.323 je Jahreszeit
     assert set(REGEL) == erwartet
-    assert [k for k, v in REGEL.items() if v == KEINE] == ["abwesenheit:freizeitausgleich"]  # B1, B3: nur Freizeitausgleich ist ein Minus
+    # B1, B3; seit 1.9.323 (Steuerbüro): ein Minus ist, was in der Lohndatei keine Zeile hat (bis 1.9.322 nur Freizeitausgleich)
+    assert sorted(k for k, v in REGEL.items() if v == KEINE) == ["abwesenheit:freizeitausgleich", "abwesenheit:unbekannt", "abwesenheit:unbezahlt",
+                                                                 "schlechtwetter:sommer"]
     assert set(REGEL.values()) == {GUTSCHRIFT, KEINE}
 
 
 def test_beispielwoche(w):
-    """Abschnitt 2 des Befunds: Mo +1,25, Di 0, Mi −8,00, Do 0, Fr −1,00, Sa +4,00 = −3,75 (KW 23, Sollzeit 8,00 h)."""
+    """Abschnitt 2 des Befunds: Mo +1,25, Di 0, Mi −8,00, Do 0, Fr −1,00, Sa +4,00 = −3,75 (KW 23, Sollzeit 8,00 h) -- seit 1.9.323 Do −6,00 (der
+    Ausfall im Sommer hat keine Zeile in der Lohndatei: ein Minus), zusammen −9,75."""
     db = w["db"]
     a = person(w, "M-1", "Ada", "00091", eintritt=date(2027, 6, 7))  # vorher keine Sollzeit -- die Woche steht für sich
     buchen(w, a, "8.25", date(2027, 6, 7))
@@ -56,14 +61,14 @@ def test_beispielwoche(w):
     buchen(w, a, "3.00", date(2027, 6, 11))
     buchen(w, a, "4.00", date(2027, 6, 12))
     k = konto(w, a, date(2027, 6, 7), date(2027, 6, 13), heute=date(2027, 6, 14))
-    assert saldi(k) == {date(2027, 6, 7): D("1.25"), date(2027, 6, 8): D("0"), date(2027, 6, 9): D("-8"), date(2027, 6, 10): D("0"),
+    assert saldi(k) == {date(2027, 6, 7): D("1.25"), date(2027, 6, 8): D("0"), date(2027, 6, 9): D("-8"), date(2027, 6, 10): D("-6"),
                         date(2027, 6, 11): D("-1"), date(2027, 6, 12): D("4"), date(2027, 6, 13): D("0")}
-    assert (k.stand, k.startwert, k.hinweise) == (D("-3.75"), None, [])  # Eintritt 2027: kein Startwert, kein Hinweis
+    assert (k.stand, k.startwert, k.hinweise) == (D("-9.75"), None, [])  # Eintritt 2027: kein Startwert, kein Hinweis
     mi = next(t for t in k.tage if t.tag == date(2027, 6, 9))
     assert (mi.soll, mi.arbeit, mi.gutschrift, mi.posten) == (D("8.00"), D("0"), D("0"), [{"bezeichnung": "Freizeitausgleich", "stunden": D("8.00"),
-                                                                                            "gutgeschrieben": False}])
+                                                                                            "gutgeschrieben": False, "vermerk": None}])  # seit 1.9.323 mit Vermerk
     do = next(t for t in k.tage if t.tag == date(2027, 6, 10))
-    assert (do.arbeit, do.gutschrift, do.ist) == (D("2.00"), D("6.00"), D("8.00"))  # Schlechtwetter: Ausfall 6,00 gutgeschrieben
+    assert (do.arbeit, do.gutschrift, do.ist) == (D("2.00"), D("0"), D("2.00"))  # Schlechtwetter Sommer: Ausfall 6,00 nicht gutgeschrieben (1.9.323)
 
 
 def test_neutral_und_plus(w):
@@ -76,7 +81,7 @@ def test_neutral_und_plus(w):
     abwesend(w, b, date(2027, 5, 20), kategorie="sonderurlaub", art="Sonderurlaub")
     abwesend(w, b, date(2027, 5, 21), kategorie="fortbildung", art="Weiterbildung")
     buchen(w, b, "4.00", date(2027, 5, 23))  # Sonntag: +4
-    abwesend(w, b, date(2027, 5, 24), kategorie="unbezahlt", art="Unbezahlt")  # B2: neutral
+    abwesend(w, b, date(2027, 5, 24), kategorie="unbezahlt", art="Unbezahlt")  # seit 1.9.323 ein Minus (bis 1.9.322 neutral, B2)
     db.add(PlanningHoliday(holiday_date=date(2027, 5, 25), name="Brückentag", active=True))  # betriebsfrei, nichts eingetragen: −8 (B5)
     db.commit()
     abwesend(w, b, date(2027, 5, 26), kategorie="schlechtwetter", art="Schlechtwetter")
@@ -85,7 +90,7 @@ def test_neutral_und_plus(w):
     assert {t: s[t] for t in (date(2027, 5, 6), date(2027, 5, 17), date(2027, 5, 18), date(2027, 5, 19), date(2027, 5, 20), date(2027, 5, 21),
                               date(2027, 5, 23), date(2027, 5, 24), date(2027, 5, 25), date(2027, 5, 26))} == {
         date(2027, 5, 6): D("3.00"), date(2027, 5, 17): D("0"), date(2027, 5, 18): D("2.00"), date(2027, 5, 19): D("0"), date(2027, 5, 20): D("0"),
-        date(2027, 5, 21): D("0"), date(2027, 5, 23): D("4.00"), date(2027, 5, 24): D("0"), date(2027, 5, 25): D("-8.00"), date(2027, 5, 26): D("1.00")}
+        date(2027, 5, 21): D("0"), date(2027, 5, 23): D("4.00"), date(2027, 5, 24): D("-8.00"), date(2027, 5, 25): D("-8.00"), date(2027, 5, 26): D("1.00")}
     # 17.05. Pfingstmontag: Feiertag neutral
 
 
