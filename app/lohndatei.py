@@ -48,6 +48,8 @@ from sqlalchemy.orm import Session
 from .rounding import round_hours
 
 NULL = Decimal("0")
+# seit 1.9.327 (Lohn L2c-2, Punkt 0): was eine Zeile der Ablage ist -- die erzeugte Datei (zum Versand oder Nachsehen) oder der Abgleich nach dem Telefonat
+ARTEN = ("datei", "abgleich")
 # Reihenfolge der Zeilen eines Tags
 REIHE = ("arbeit", "mehrarbeit", "feiertag", "kalender", "abwesenheit", "schlechtwetter")
 UMFANG_NICHTS = "Export-Umfang „nichts“"
@@ -224,14 +226,18 @@ class LohndateiVeraendert(ValueError):
     """Die abgelegten Bytes passen nicht zu ihrer Prüfsumme -- ausgeliefert wird dann nichts (409)."""
 
 
-def ablegen(db: Session, erster: date, inhalt: bytes, dateiname: str, *, user_id: int | None, user_name: str | None):
-    """Legt eine erzeugte Datei ab (flush, kein Commit -- der Aufrufer committet). Jede erzeugte Datei, auch eine zweite für denselben Monat."""
+def ablegen(db: Session, erster: date, inhalt: bytes, dateiname: str, *, user_id: int | None, user_name: str | None, art: str = "datei",
+            notiz: str | None = None):
+    """Legt eine erzeugte Datei ab (flush, kein Commit -- der Aufrufer committet). Jede erzeugte Datei, auch eine zweite für denselben Monat. Seit 1.9.327
+    mit art (ARTEN) und notiz; versendet ist eine neue Zeile nie."""
+    if art not in ARTEN:
+        raise ValueError(f"Unbekannte Art der Ablage: {art}")
     import hashlib
 
     from .models import Lohndatei
 
     row = Lohndatei(monat=erster.replace(day=1), dateiname=dateiname, inhalt=inhalt, sha256=hashlib.sha256(inhalt).hexdigest(), groesse=len(inhalt),
-                    erzeugt_von_user_id=user_id, erzeugt_von_name=user_name or "System")
+                    erzeugt_von_user_id=user_id, erzeugt_von_name=user_name or "System", art=art, notiz=notiz)
     db.add(row)
     db.flush()
     return row
@@ -271,4 +277,6 @@ def personalnummern_der_ablage(db: Session) -> dict[str, str]:
 
 def abgelegt_dict(row) -> dict:
     return {"id": row.id, "monat": row.monat, "dateiname": row.dateiname, "sha256": row.sha256, "groesse": row.groesse, "erzeugt_am": row.erzeugt_am,
-            "erzeugt_von_name": row.erzeugt_von_name}
+            "erzeugt_von_name": row.erzeugt_von_name,
+            # seit 1.9.327 (Lohn L2c-2, Punkt 0)
+            "art": row.art, "versendet_am": row.versendet_am, "versendet_von_name": row.versendet_von_name, "notiz": row.notiz}

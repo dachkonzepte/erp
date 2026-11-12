@@ -69,6 +69,7 @@ FESTE_WERTE = {
     # seit 1.9.235 (Stufe 6, R3a, Punkt 4): vorlaeufig | fest, am Server erzwungen; bis 1.9.234 in FESTE_LITERALE („geplant“, sonst vom Client)
     "planning_slots.status": [("app.planning", "mod.EINSATZ_STATUS")],
     "planning_slots.art": [("app.planning", "mod.EINSATZ_ARTEN")],  # seit 1.9.240
+    "lohndateien.art": [("app.lohndatei", "mod.ARTEN")],  # seit 1.9.327 (Lohn L2c-2, Punkt 0): datei | abgleich
     "employee_planning_settings.plantafel": [("app.employees", "mod.PLANTAFEL")],  # seit 1.9.253
     "order_status_changes.old_status": [("app.auftragsstatus", "mod.STATUS")],
     "order_status_changes.new_status": [("app.auftragsstatus", "mod.STATUS")],

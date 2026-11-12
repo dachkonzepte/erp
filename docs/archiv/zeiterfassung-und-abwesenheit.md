@@ -2940,7 +2940,7 @@ der Stand-Datei des Steuerbüros (L2c-4), damit deren Stand die Grundlage wird u
   oder an der Personalnummer des Testhelfers `person(w, nummer, vorname, pnr)`; beginnt er mit Ziffern, dann mit 0009, 0019 oder 0029. Ein f-String ohne Ziffern
   am Anfang („D-{nr}“ in `test_v326`) bleibt frei.
 
-#### Festlegungen 1.9.324 (Bitte bestätigen)
+#### Festlegungen 1.9.324 (bestätigt am 12.11.2026)
 
 1. Erzeugte Personalnummern in Tests und Skripten nur aus den erfundenen Kreisen 0009x, 0019x, 0029x; `test_v708` erzeugt 00091–00096.
 2. Der Wächter `test_v724` prüft jeden f-String an `datev_personnel_number`, `personalnummer`, `pnr` und an der Personalnummer von `person()`; ohne Ziffern am Anfang
@@ -2964,7 +2964,7 @@ erzeugten Nummern, keine Erwartung). Angepasste Erwartungen: keine. Kein Klickte
   das Ziel mit, „Urlaub und Startwerte“ nicht); beim ersten Zeichnen ist ihre Zeile hervorgehoben (`lohn-ziel`) und der Cursor steht in ihrem Feld „Austritt“
   (`lohnZielZeigen()`). Nur die Anzeige.
 
-#### Festlegungen 1.9.325 (Bitte bestätigen)
+#### Festlegungen 1.9.325 (bestätigt am 12.11.2026)
 
 1. Der Hinweis „Austritt eintragen – sonst läuft die Sollzeit weiter“ kommt, wenn das Speichern eine Person von aktiv auf inaktiv setzt und in den Lohnstammdaten kein
    Austritt steht (auch ohne Lohnstammdaten); sonst nicht (mit Austritt, schon inaktiv, aktiv bleiben, wieder aktivieren).
@@ -2988,7 +2988,7 @@ mit Austritt ohne Hinweis). Angepasste Erwartungen: keine. Gegenproben: `gegenpr
   `umfang_hinweise` („Monat & Lohn“, „1 Prüfen“ mit dem Weg „Lohnstammdaten“ zu `/settings#time-rules`). Nicht in `datev_fehlt()`: sperrt weder Abschluss noch
   Lohndatei, zählt nicht in „Fehlt“.
 
-#### Festlegungen 1.9.326 (Bitte bestätigen)
+#### Festlegungen 1.9.326 (bestätigt am 12.11.2026)
 
 1. „Name: DATEV bekommt keine Arbeit – Umfang prüfen“ für jede gewerbliche Person der Lohndatei des Monats, die im Monat beschäftigt ist und deren Export-Umfang nicht
    „alles“ ist; nicht für kaufmännische, nicht bei „alles“, nicht wer nur außerhalb des Monats beschäftigt ist.
@@ -3011,3 +3011,55 @@ eingetreten; in „Vor dem Abschluss“ und „Monat & Lohn“ ohne Sperre; die 
 - Die Stand-Datei des Steuerbüros (L2c-4) braucht eine neue Tabelle (je Datei die Bytes, je Person und Stichtag der Stand), das Format (offen), eine Vorschau vor dem
   Übernehmen; `konten()` startet dann beim jüngsten Stand laut DATEV und rechnet nur die Tage danach vorläufig; je Monat die Änderung laut DATEV gegen den Saldo des ERP.
 - Vorschlag: L2c-2 „Nach dem Versand geändert“ vor dem ersten Abschluss 2027, L2c-3 Anzeige und Grenzen, L2c-4 Stand-Datei, sobald das Format da ist.
+
+### Bestätigt und beantwortet (12.11.2026, Tobias)
+
+Die Nachrunde ist geprüft (5f6e786) und geht live. Bestätigt sind die 9 Festlegungen 1.9.324–1.9.326. Antworten des Betriebs zum Befund D:
+
+1. „Versendet“ wird an der Datei gesetzt, nicht die erste angenommen: ein Klick „An das Steuerbüro gesendet“ je Datei (Admin, Büro – Finanzen), mit Datum und Konto.
+   Zum Nachsehen kann es eine zweite Datei geben.
+2. „Besprochen“ als Abgleich-Zeile in der Ablage -- ja, mit Notiz.
+3. Eine Zahl in „Prüfen“ bei Unterschieden -- ja, ohne Namen.
+
+Die Fragen zur Stand-Datei klärt der Betrieb mit dem Steuerbüro.
+
+### Auftrag L2c-2 (ab 1.9.327, je Punkt eine Version)
+
+0 Migration: an der Ablage der Lohndatei „art“ (Datei | Abgleich), „versendet am / von“ und „Notiz“; bestehende Dateien: Datei, nicht versendet. 1 „Monat & Lohn“: an
+jeder abgelegten Datei „An das Steuerbüro gesendet“; je Monat nur eine versendete, zurücknehmen nur der Admin. 2 Liste „Nach dem Versand geändert“ wie D.2, mit dem
+Grund aus der Änderungshistorie (D.3 Nr. 3); Bezug: die jüngste Abgleich-Zeile, sonst die versendete Datei; ohne versendete Datei keine Liste, sondern „noch nichts
+versendet“. 3 „Besprochen“: legt die Rechnung von heute als Abgleich-Zeile ab (Notiz Pflicht, z. B. „Telefonat 05.02.“); danach ist die Liste leer, bis sich wieder
+etwas ändert. 4 „Prüfen“: „n Änderungen nach dem Versand“ ohne Namen, mit Weg zu „Monat & Lohn“. Bilder 1440 und 412, hell und dunkel: Datei mit „versendet“, Liste
+mit Änderungen und Grund, Stand nach „Besprochen“, Prüfen mit der Zahl.
+
+### Entschieden vor dem Bau (12.11.2026, Tobias, auf Rückfrage)
+
+- Die Ablage war seit 1.9.226 unveränderlich, „versendet“ ändert eine Zeile: **die Sperre nur für den Versand lockern** -- Bytes, Prüfsumme, Monat, Art und Notiz
+  bleiben gesperrt; nur „versendet am / von“ dürfen sich ändern (setzen ab Büro – Finanzen, zurücknehmen nur der Admin). Jedes Setzen und Zurücknehmen steht
+  zusätzlich in der Änderungshistorie.
+- „Besprochen“ legt eine Abgleich-Zeile ab: **dieselben Prüfungen wie beim Erzeugen** -- nur, wenn die Rechnung von heute eine vollständige Lohndatei ergäbe; sonst
+  eine Meldung mit dem, was fehlt.
+
+### Umsetzung 1.9.327 (Punkt 0): Ablage mit Art, Versand und Notiz
+
+- `Lohndatei` (`app/models.py`): `art` (String 10, NOT NULL, Vorgabe „datei“; `app/lohndatei.py::ARTEN` = „datei“, „abgleich“), `versendet_am` (naives UTC),
+  `versendet_von_user_id`, `versendet_von_name` (Schnappschuss wie „erzeugt von“), `notiz` (bis 500 Zeichen, Pflicht bei „abgleich“ -- geprüft mit Punkt 3). Die
+  ORM-Sperre lässt nur noch Änderungen an `LOHNDATEI_VERSAND_FELDER` durch („versendet am / von“); jedes andere Feld und das Löschen bleiben
+  `ArchiveImmutableError`. Eindeutiger Index `uq_lohndatei_versendet_je_monat` über `monat` nur für Zeilen mit `versendet_am` (PostgreSQL und SQLite).
+- `app/lohndatei.py::ablegen(…, art="datei", notiz=None)`: eine unbekannte Art -> ValueError; versendet ist eine neue Zeile nie. `abgelegt_dict()` gibt Art,
+  „versendet am / von“ und Notiz mit.
+- Migration `517c94f6dbcf` (nach `562f81626c3b`): fünf Spalten, der Index; der Bestand wird „datei“, nicht versendet. `downgrade()` bricht ab, solange eine
+  Abgleich-Zeile, eine versendete Datei oder eine Notiz da ist.
+
+#### Festlegungen 1.9.327 (Bitte bestätigen)
+
+1. Eine Zeile der Ablage ist „datei“ oder „abgleich“; jede bisherige ist „datei“; eine neue Zeile ist nie versendet.
+2. Änderbar sind nur „versendet am / von“ (setzen, zurücknehmen); Bytes, Prüfsumme, Monat, Art, Notiz und „erzeugt“ bleiben fest, gelöscht wird nie.
+3. Je Monat höchstens eine versendete Zeile -- auch in der Datenbank (eindeutiger Index nur über die versendeten Zeilen).
+4. `downgrade()` bricht ab, solange eine Abgleich-Zeile, eine versendete Datei oder eine Notiz da ist.
+
+#### Tests und Prüfung 1.9.327
+
+Neu: `tests/test_v727_lohndatei_versand_spalten.py` (5 Tests: neue Zeile, nur „versendet“ änderbar, je Monat eine, Migration auf einem Bestand unter SQLite und
+PostgreSQL). `tests/test_v364_feste_werte_spaltenlaenge.py`: `lohndateien.art` mit `ARTEN`. Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`,
+„1.9.327“.

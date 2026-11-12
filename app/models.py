@@ -1,6 +1,6 @@
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event, inspect
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event, inspect, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
@@ -2826,8 +2826,14 @@ class Lohndatei(Base):
     """Seit 1.9.226 (Lohn L1b, Punkt 3): jede erzeugte Lohndatei für DATEV Lohn und Gehalt bleibt auf dem Server -- genau die Bytes, die an den
     Browser gingen, mit SHA-256, Monat, Zeitpunkt (naives UTC) und Konto (app/lohndatei.py::ablegen()). Unveränderlich: kein Ändern, kein
     Löschen (ORM-Sperre unten, ArchiveImmutableError). Ohne Fremdschlüssel auf das Konto (wie SentDocument), der Name als Schnappschuss. Die Bytes
-    stehen in der Datenbank (wenige KB je Datei) und werden mit ihr gesichert."""
+    stehen in der Datenbank (wenige KB je Datei) und werden mit ihr gesichert.
+
+    Seit 1.9.327 (Lohn L2c-2, Punkt 0; Entscheidung 12.11.2026): art „datei“ (erzeugt zum Versand oder Nachsehen) oder „abgleich“ (die Rechnung von heute,
+    abgelegt mit „Besprochen“ nach dem Telefonat, mit Notiz); „versendet am / von“ (Klick „An das Steuerbüro gesendet“) -- als einzige Felder änderbar
+    (setzen, zurücknehmen), alles andere bleibt fest. Je Monat höchstens eine versendete Datei, auch in der Datenbank (uq_lohndatei_versendet_je_monat)."""
     __tablename__ = "lohndateien"
+    __table_args__ = (Index("uq_lohndatei_versendet_je_monat", "monat", unique=True, postgresql_where=text("versendet_am IS NOT NULL"),
+                            sqlite_where=text("versendet_am IS NOT NULL")),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     monat: Mapped[date] = mapped_column(Date, index=True)  # der Erste des Monats
@@ -2838,6 +2844,11 @@ class Lohndatei(Base):
     erzeugt_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     erzeugt_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
     erzeugt_von_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    art: Mapped[str] = mapped_column(String(10), default="datei", server_default="datei")  # seit 1.9.327: datei | abgleich (app/lohndatei.py::ARTEN)
+    versendet_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # naives UTC
+    versendet_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    versendet_von_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    notiz: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Pflicht bei „abgleich“ („Telefonat 05.02.“)
 
 
 class LohnartZuordnung(Base):
@@ -6176,10 +6187,15 @@ def _sent_document_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein abgelegtes Dokument wird nie gelöscht.")
 
 
-# Seit 1.9.226 (Lohn L1b, Punkt 3): eine abgelegte Lohndatei wie ein abgelegtes Dokument -- nie geändert, nie gelöscht
+# Seit 1.9.226 (Lohn L1b, Punkt 3): eine abgelegte Lohndatei wie ein abgelegtes Dokument -- nie geändert, nie gelöscht. Seit 1.9.327 (Lohn L2c-2,
+# Punkt 0; Entscheidung 12.11.2026: „Sperre nur für den Versand lockern“) dürfen sich genau „versendet am / von“ ändern -- setzen und zurücknehmen;
+# Bytes, Prüfsumme, Monat, Art, Notiz und „erzeugt“ bleiben fest.
+LOHNDATEI_VERSAND_FELDER = {"versendet_am", "versendet_von_user_id", "versendet_von_name"}
+
+
 @event.listens_for(Lohndatei, "before_update")
 def _lohndatei_no_update(mapper, connection, target):
-    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+    if {attr.key for attr in inspect(target).attrs if attr.history.has_changes()} - LOHNDATEI_VERSAND_FELDER:
         raise ArchiveImmutableError("Eine abgelegte Lohndatei ist unveränderlich.")
 
 

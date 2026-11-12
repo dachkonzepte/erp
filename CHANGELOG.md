@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.327 – Lohn L2c-2: Ablage der Lohndatei mit Art, Versand und Notiz
+
+Punkt 0 der Runde L2c-2 („Nach dem Versand geändert“). Die Ablage der Lohndatei (`lohndateien`, seit 1.9.226) bekommt fünf Spalten: `art` -- „datei“ (eine erzeugte Datei, zum Versand oder zum Nachsehen) oder „abgleich“ (die Rechnung von heute, abgelegt mit „Besprochen“ nach dem Telefonat mit dem Steuerbüro) --, `versendet_am`, `versendet_von_user_id`, `versendet_von_name` und `notiz`. Jede bisher abgelegte Datei ist „datei“ und nicht versendet. Die Ablage war unveränderlich; auf Entscheidung des Betriebs dürfen sich jetzt genau „versendet am / von“ ändern (setzen und zurücknehmen) -- Bytes, Prüfsumme, Monat, Art, Notiz und „erzeugt“ bleiben fest, gelöscht wird nie. Je Monat höchstens eine versendete Datei, auch in der Datenbank (eindeutiger Index nur über die versendeten Zeilen).
+
+Migration `517c94f6dbcf` (unter SQLite und PostgreSQL auf einem Bestand geprobt; `downgrade()` bricht ab, solange eine Abgleich-Zeile, eine versendete Datei oder eine Notiz da ist). Neu `tests/test_v727_lohndatei_versand_spalten.py`. Noch nichts auf der Oberfläche -- der Knopf „An das Steuerbüro gesendet“ folgt mit 1.9.328.
+
 ## 1.9.326 – Lohn L2c-1, Nachrunde: „DATEV bekommt keine Arbeit – Umfang prüfen“
 
 Punkt C der Nachrunde L2c-1. Hat eine gewerbliche Person den Export-Umfang „nur Abwesenheiten“ oder „nichts“, geht ihre Arbeit nicht in die Lohndatei -- DATEV rechnet ihr Arbeitszeitkonto dann ohne sie. „Vor dem Abschluss“ (Reiter „Prüfen“) und „1 Prüfen“ in „Monat & Lohn“ nennen jetzt je solcher Person „Name: DATEV bekommt keine Arbeit – Umfang prüfen“, in „Monat & Lohn“ mit dem Weg zu den Lohnstammdaten. Gezählt wird jede gewerbliche Person der Lohndatei des Monats, die im Monat beschäftigt ist (`app/zeiten.py::umfang_hinweise()`). Nur ein Hinweis: er sperrt weder den Abschluss noch die Lohndatei und zählt nicht in „Fehlt“.

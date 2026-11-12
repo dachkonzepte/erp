@@ -135,3 +135,19 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 3 – sperrt den Abschluss nicht, zählt nicht in „Fehlt“ | keine eigene: es gibt keinen Code, der ihn dort einträgt; v726 und der Klicktest prüfen beides | – |
 
 9 Gegenproben, alle rot (7 über Tests, 2 über `klicktest_umfang_hinweis`).
+
+## 1.9.327 (L2c-2, Punkt 0): Ablage mit Art, Versand und Notiz
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Bestand ist „datei“ | Migration mit Vorgabe „abgleich“ (`327_1a`) | 1 rot: v727::test_migration_auf_einem_bestand_sqlite |
+| Nr. 1 – nur „datei“ oder „abgleich“ | ablegen() nimmt jede Art (`327_1b`) | 1 rot: v727::test_neue_zeile |
+| Nr. 1 – eine neue Zeile ist nie versendet | ablegen() setzt „versendet am“ (`327_1c`) | 1 rot: v727::test_neue_zeile |
+| Nr. 2 – nur „versendet am / von“ änderbar | auch die Notiz änderbar (`327_2a`) | 1 rot: v727::test_nur_versendet_laesst_sich_aendern |
+| Nr. 2 – „versendet am / von“ änderbar | auch sie gesperrt, wie bis 1.9.326 (`327_2b`) | 1 rot: v727::test_nur_versendet_laesst_sich_aendern |
+| Nr. 2 – Art und Monat fest | Art und Monat änderbar (`327_2c`) | 1 rot: v727::test_nur_versendet_laesst_sich_aendern |
+| Nr. 3 – je Monat höchstens eine versendete (Modell) | kein eindeutiger Index (`327_3a`) | 1 rot: v727::test_je_monat_hoechstens_eine_versendete |
+| Nr. 3 – je Monat höchstens eine versendete (Migration) | die Migration legt den Index nicht an (`327_3b`) | 1 rot: v727::test_migration_auf_einem_bestand_sqlite |
+| Nr. 4 – downgrade bricht ab | kein Abbruch (`327_4a`) | 1 rot: v727::test_migration_auf_einem_bestand_sqlite |
+
+9 Gegenproben, alle rot (alle über Tests; die Oberfläche ändert sich in 1.9.327 nicht).
