@@ -34,6 +34,8 @@ JE_PERSON = {"DATEV-Mitarbeitereinstellung": "Lohnstammdaten", "Eigene Sollzeit"
 ALLGEMEIN = {"Zuordnung DATEV-Export": "Zuordnung DATEV-Export", "Arbeitszeitkalender": "Arbeitszeitkalender", "Arbeitszeitmodell": "Arbeitszeitmodell",
              "Arbeitszeitmodell-Pausenregel": "Pausenregel", "Feiertag / betriebsfreier Tag": "Feiertage", "Plantafel-Region": "Bundesland"}
 TAG_FELDER = {"work_date", "start_date", "end_date"}
+# seit 1.9.331: wie weit „Prüfen“ zurückschaut -- die Monate mit gesendeter Datei der letzten zwölf Monate
+MONATE_ZURUECK = 12
 
 
 @dataclass
@@ -233,3 +235,29 @@ def nach_dem_versand(db: Session, erster: date) -> dict:
             "text": (f"{len(zeilen)} {'Änderung' if len(zeilen) == 1 else 'Änderungen'} {seit}" if zeilen else f"Keine Änderung {seit}."),
             "bezug": {**abgelegt_dict(b), "gesendet_id": gesendet.id},
             "zeilen": zeilen, "allgemein": allgemein if zeilen else [], "anzahl": len(zeilen)}
+
+def aenderungen_je_monat(db: Session, heute: date) -> list[dict]:
+    """Seit 1.9.331 (Lohn L2c-2, Punkt 4; Antwort 3 des Betriebs zum Befund D): für „Prüfen“ je Monat mit gesendeter Datei (die letzten MONATE_ZURUECK
+    Monate bis heute) die Zahl der Änderungen danach -- ohne Namen: {monat „JJJJ-MM“, titel, anzahl, text „Dezember 2026: 3 Änderungen nach dem Versand“};
+    nur Monate mit Änderungen, ältester zuerst. Eine abgelegte Datei, die nicht zu ihrer Prüfsumme passt, steht mit ihrer Meldung da (anzahl 0). Der Router
+    gibt sie nur Admin und Büro – Finanzen."""
+    from .lohndatei import LohndateiVeraendert
+    from .models import Lohndatei
+    from .zeiten import monat_titel
+
+    j, m = heute.year, heute.month - MONATE_ZURUECK + 1
+    while m < 1:
+        j, m = j - 1, m + 12
+    monate = sorted(set(db.scalars(select(Lohndatei.monat).where(Lohndatei.art == "datei", Lohndatei.versendet_am.is_not(None),
+                                                                   Lohndatei.monat >= date(j, m, 1), Lohndatei.monat <= heute))))
+    ergebnis = []
+    for erster in monate:
+        titel = monat_titel(erster)
+        try:
+            d = nach_dem_versand(db, erster)
+        except LohndateiVeraendert as exc:
+            ergebnis.append({"monat": f"{erster:%Y-%m}", "titel": titel, "anzahl": 0, "text": f"{titel}: {exc}"})
+            continue
+        if d["anzahl"]:
+            ergebnis.append({"monat": f"{erster:%Y-%m}", "titel": titel, "anzahl": d["anzahl"], "text": f"{titel}: {d['text']}"})
+    return ergebnis

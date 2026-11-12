@@ -222,3 +222,23 @@ von `tests/test_v518_zeiten_seite.py` abgelehnt) -- danach alle Gegenproben noch
 | Nr. 5 – ohne Knopf „An das Steuerbüro gesendet“ | keine eigene: unverändert seit 1.9.328 (`lohndateiKnopf()` gibt an einem Abgleich nichts; `328_6a`/v728 und die Prüfung „Ablage …“ im Klicktest decken es) | – |
 
 17 Gegenproben, alle rot (13 über Tests, 4 über `klicktest_besprochen`).
+
+## 1.9.331 (L2c-2, Punkt 4): „Nach dem Versand geändert“ in „Prüfen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die letzten zwölf Monate | zwei Jahre (`331_1a`) | 1 rot: v731::test_je_monat_ohne_namen |
+| Nr. 1 – nur Monate mit Änderungen | auch ohne (`331_1b`) | 1 rot: v731::test_je_monat_ohne_namen |
+| Nr. 1 – bis heute | auch ein Monat nach heute (`331_1c`) | 1 rot: v731::test_je_monat_ohne_namen |
+| Nr. 1 – ohne Namen | mit dem ersten Namen (`331_1d`) | 1 rot: v731::test_je_monat_ohne_namen |
+| Nr. 1 – nach „Besprochen“ „… seit „Besprochen““ | keine eigene: derselbe Text wie die Liste (`330_1b` macht v730 rot); v731 prüft ihn mit | – |
+| Nr. 1 – falsche Prüfsumme steht mit Meldung da | bricht ab (`331_1e`) | 1 rot: v731::test_falsche_pruefsumme |
+| Nr. 2 – der Weg in diesen Monat | ohne Monat (`331_2a`) | 1 rot: v731::test_seite |
+| Nr. 2 – „Monat & Lohn“ öffnet diesen Monat | lohnmonat nicht gelesen (`331_2b`; Klicktest `331_K1`) | 1 rot: v731::test_seite; Klicktest: „der Weg öffnet „Monat & Lohn“ im Dezember mit der Liste“ |
+| Nr. 3 – nur Admin und Büro – Finanzen | für jede Rolle (`331_3a`; Klicktest `331_K2`) | 1 rot: v731::test_pruefen_nur_admin_und_finanzen; Klicktest: „Bea: keine Karte“ |
+| Nr. 3 – „Alles erledigt“ nur ohne sie | ohne nv (`331_3b`; Klicktest `331_K3`) | 1 rot: v714::test_seite_aufbau; Klicktest im ersten Anlauf GRÜN („Alles erledigt“ war schon wegen „Tage ohne Eintrag“ verborgen) -- nachgezogen (Uhr Mo 04.01.2027: keine Tage ohne Eintrag, die Karte ist der einzige Hinweis), danach rot: „Fiona: die Karte ist der einzige Hinweis …“ |
+| Nr. 3 – die Karte erscheint | nie sichtbar (Klicktest `331_K4`) | Klicktest: „Fiona: die Karte mit der Zahl …“, „Fiona: die Karte ist der einzige Hinweis …“ |
+| Nr. 3 – sperrt nichts, zählt nicht am Reiter | keine eigene: es gibt keinen Code, der sie in den Abschluss oder die Zahl am Reiter einträgt | – |
+
+13 Gegenproben, alle rot (9 über Tests, 4 über `klicktest_nach_dem_versand_pruefen`; `331_K3` erst nach dem Nachziehen des Klicktests, danach K1, K2 und K4
+noch einmal, rot).

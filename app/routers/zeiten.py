@@ -16,7 +16,7 @@ from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
 from ..lohndatei import LohndateiVeraendert
-from ..lohndatei_abgleich import nach_dem_versand
+from ..lohndatei_abgleich import aenderungen_je_monat, nach_dem_versand
 from ..lohnkonten import ERSTES_JAHR, standardjahr
 from ..permissions import (LOHNDATEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
                            darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role, require_role)
@@ -116,6 +116,9 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     # und Krankheit, die Büro – Auftrag nur bei sich selbst sieht); nur Hinweise, sie zählen nicht am Reiter
     daten["konto"] = (konto_hinweise(db, pruef_beginn(db, heute), heute) if darf_konten_aller(user)
                       else {"ohne_eintrag": [], "arbeit_bei_abwesenheit": []})
+    # seit 1.9.331 (Lohn L2c-2, Punkt 4): je Monat die Zahl der Änderungen nach dem Versand -- ohne Namen, nur Admin und Büro – Finanzen (die Liste dahinter
+    # sehen nur sie); nur ein Hinweis, zählt nicht am Reiter
+    daten["nach_dem_versand"] = aenderungen_je_monat(db, heute) if darf_lohndaten(user) else []
     # seit 1.9.101: „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht; „Anträge entschieden“ nur, wenn keiner offen ist
     # (auch keiner, den das Konto nicht sieht -- Büro – Auftrag sieht nur die eigenen)
     if daten["antraege"]:

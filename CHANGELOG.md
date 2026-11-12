@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.331 – Lohn L2c-2: „Nach dem Versand geändert“ in „Prüfen“
+
+Punkt 4 der Runde L2c-2. „Zeiten → Prüfen“ hat eine Karte „Nach dem Versand geändert“ (zur Info): je Monat mit gesendeter Datei der letzten zwölf Monate, in dem sich seither etwas geändert hat, eine Zeile „Dezember 2026: 3 Änderungen nach dem Versand“ -- ohne Namen -- mit dem Weg „Monat & Lohn“, der diesen Monat öffnet (`/zeiten?lohnmonat=2026-12#monat`). Nur Admin und Büro – Finanzen bekommen sie (die Liste dahinter sehen nur sie); nur ein Hinweis, er sperrt nichts und zählt nicht am Reiter. Nach „Besprochen“ zählt der Monat ab dort („… seit „Besprochen““).
+
+`app/lohndatei_abgleich.py::aenderungen_je_monat()`, Schlüssel `nach_dem_versand` in `GET /api/zeiten/pruefen`. Neu `tests/test_v731_nach_dem_versand_pruefen.py` und `scripts/klicktest_nach_dem_versand_pruefen.py` (Bilder bei 1440 und 412 px, hell und dunkel). `tests/test_v714_rueckfahrt.py`: „Alles erledigt“ auch mit der neuen Karte. Keine Migration.
+
 ## 1.9.330 – Lohn L2c-2: „Besprochen“
 
 Punkt 3 der Runde L2c-2. Hat sich nach dem Versand etwas geändert, steht unter der Liste „Nach dem Versand geändert“ ein Feld „Notiz zum Telefonat“ und der Knopf „Besprochen“. Er legt die Rechnung von heute als Abgleich-Zeile in der Ablage ab (art „abgleich“, mit Notiz, z. B. „Telefonat 05.02.“); die Liste vergleicht danach gegen sie und ist leer („Keine Änderung seit „Besprochen“.“), bis sich wieder etwas ändert. Die Notiz ist Pflicht. „Besprochen“ geht nur mit einer gesendeten Datei und nur, wenn sich seitdem etwas geändert hat (sonst 409 mit Grund), und mit denselben Prüfungen wie das Erzeugen der Lohndatei (Entscheidung 12.11.2026): fehlt etwas, entsteht keine Zeile, die Meldung nennt, was fehlt. Die Abgleich-Zeile steht in der Ablage als „Besprochen <Zeitpunkt> · <Konto> – „<Notiz>““, ohne Knopf „An das Steuerbüro gesendet“. „Besprochen“ ist eine abschließende Aktion (Regel 29).

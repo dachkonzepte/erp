@@ -3173,3 +3173,26 @@ und Änderung; dieselben Prüfungen wie das Erzeugen; Rechte; die Seite). `tests
 `scripts/klicktest_besprochen.py` (22 Prüfungen: ohne Notiz, getippte Notiz (die Meldung geht weg), danach leer, Bezug, Ablage; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste
 Erwartung: `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_router_fully_uses_shared_dependency` -- Routen mit `_lohn_dep` 8 statt 7 (die Route
 „Besprochen“). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.330“.
+
+### Umsetzung 1.9.331 (Punkt 4): „Nach dem Versand geändert“ in „Prüfen“
+
+- `app/lohndatei_abgleich.py::aenderungen_je_monat(db, heute)`: je Monat mit gesendeter Datei von `MONATE_ZURUECK` (12) Monaten vor heute bis heute
+  `nach_dem_versand()`; nur Monate mit Änderungen, ältester zuerst: {monat „JJJJ-MM“, titel, anzahl, text „<Monat>: <Stand>“} -- ohne Namen. Eine Datei mit falscher
+  Prüfsumme steht mit ihrer Meldung da (anzahl 0).
+- `GET /api/zeiten/pruefen`: `nach_dem_versand` nur für Admin und Büro – Finanzen (`darf_lohndaten()`), sonst leer; zählt nicht am Reiter.
+- `zeiten.html`, „Prüfen“: Karte „Nach dem Versand geändert“ (zur Info) mit der Summe und je Monat der Zeile und dem Weg „Monat & Lohn“
+  (`/zeiten?lohnmonat=JJJJ-MM#monat`); `binden()` liest `lohnmonat` (nur JJJJ-MM) als Monat von „Monat & Lohn“. „Alles erledigt“ nur ohne sie.
+
+#### Festlegungen 1.9.331 (Bitte bestätigen)
+
+1. „Prüfen“ nennt je Monat mit gesendeter Datei der letzten zwölf Monate bis heute, in dem sich seither etwas geändert hat, „<Monat>: n Änderungen nach dem Versand“
+   (nach „Besprochen“: „… seit „Besprochen““) -- ohne Namen.
+2. Mit dem Weg „Monat & Lohn“, der diesen Monat öffnet (`?lohnmonat=JJJJ-MM#monat`).
+3. Nur Admin und Büro – Finanzen bekommen sie; nur ein Hinweis -- sperrt nichts, zählt nicht am Reiter; „Alles erledigt“ steht nur ohne sie.
+
+#### Tests und Prüfung 1.9.331
+
+Neu: `tests/test_v731_nach_dem_versand_pruefen.py` (4 Tests: je Monat ohne Namen, das Fenster von zwölf Monaten, nach „Besprochen“; falsche Prüfsumme; nur Admin und
+Büro – Finanzen; die Seite). Neu `scripts/klicktest_nach_dem_versand_pruefen.py` (14 Prüfungen, stehende Uhr Mo 04.01.2027: die Karte als einziger
+Hinweis, Weg in den Dezember, Büro – Auftrag ohne Karte; Bilder bei 1440 und 412 px, hell und dunkel). Der Link „Monat & Lohn“ bricht nicht um (`#nachVersandListe a`). Angepasste Erwartung: `tests/test_v714_rueckfahrt.py::test_seite_aufbau` -- die Bedingung von „Alles erledigt“ endet jetzt auf `||nv.length` (bisher
+`||ke.arbeit_bei_abwesenheit.length`). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.331“.
