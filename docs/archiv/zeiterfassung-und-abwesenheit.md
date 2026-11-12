@@ -3281,3 +3281,32 @@ statt „Lohndatei an das Steuerbüro gesendet“ bzw. „Vermerk zurückgenomme
 
 Neu: `tests/test_v733_messung_pruefen.py` (das Skript läuft mit einem Aufruf je Fall, legt den Bestand vollständig an, gibt je Tag und Fenster eine Zeile aus --
 ohne Dauer als Schranke). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.333“.
+
+### Umsetzung 1.9.334 (Punkt 1): das Arbeitszeitkonto in „Monat & Lohn“
+
+- `zeiten.html`, „Monat & Lohn“: unter „Stunden je Mitarbeiter“ die Karte „Arbeitszeitkonto“ (`kontoKarte`), geladen im eigenen Bereich `konto` nach dem Monat
+  und „Nach dem Versand geändert“ (`monatLaden()`) aus `GET /api/zeiten/arbeitszeitkonto?monat=` (seit 1.9.321, nur Admin und Büro – Finanzen) -- vor dem
+  Kontobeginn (`KONTO_AB` = `app/arbeitszeitkonto.py::KONTOBEGINN`) ein Lesen ohne Anfrage, die Karte bleibt versteckt.
+- Darüber der Hinweis des Servers („vorläufig – maßgeblich ist die Lohnabrechnung“). Je gewerblicher Person (wie das Konto: nur gewerbliche) Soll im Monat,
+  Saldo des Monats (mit Vorzeichen) und der Stand am Ende des Monats; im laufenden Monat heißt die Spalte „Stand bis <gestern>“, daneben „gezählt bis gestern,
+  <Tag>“. Ohne Startwert (Hinweis `OHNE_STARTWERT`) statt des Stands „Startwert folgt“.
+- Befund L2c, 10.6 (zwei Zahlen für „die Stunden des Monats“): Soll und Saldo tragen unter der Überschrift „Konto · 0,25 je Tag“, der Stand „ab dem
+  Startwert“; ein Satz über der Tabelle: „Konto: je Tag auf 0,25 h gerundet wie „Zusammen“ – Arbeit und gutgeschriebene Abwesenheiten gegen die Sollzeit.
+  Die Zeitarten in „Stunden je Mitarbeiter“ sind minutengenau.“ Die Tabelle „Stunden je Mitarbeiter“ bleibt, wie sie ist (ihr Satz sagt schon „minutengenau“).
+
+#### Festlegungen 1.9.334 (Bitte bestätigen)
+
+1. Die Karte „Arbeitszeitkonto“ steht in „Monat & Lohn“ unter „Stunden je Mitarbeiter“ und lädt mit dem Monat; je gewerblicher Person Soll im Monat, Saldo des
+   Monats und Stand am Monatsende -- die Zahlen des Servers, die Seite rechnet nichts.
+2. Darüber „vorläufig – maßgeblich ist die Lohnabrechnung“.
+3. Ohne Startwert steht statt des Stands „Startwert folgt“ (der Saldo des Monats steht da).
+4. Vor Januar 2027 keine Karte und keine Anfrage.
+5. Im laufenden Monat heißt die Spalte „Stand bis <gestern>“ („gezählt bis gestern“).
+6. Soll und Saldo tragen „Konto · 0,25 je Tag“, dazu der Satz, dass die Zeitarten in „Stunden je Mitarbeiter“ minutengenau sind.
+
+#### Tests und Prüfung 1.9.334
+
+Neu: `tests/test_v734_konto_monat.py` (4 Tests: Kontobeginn und „ohne Startwert“ wie der Server; Zeilen und Stand in node; laufender Monat und vor 2027; die
+Seite). Neu `scripts/klicktest_konto_monat.py` (22 Prüfungen, stehende Uhr 03.02.2027: Januar mit Ada -- Saldo +1,50 h, Stand +14,00 h -- und Bo ohne
+Startwert, Kai kaufmännisch ohne Zeile; Dezember 2026 ohne Karte und Anfrage; Februar „bis gestern“; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste
+Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.334“.

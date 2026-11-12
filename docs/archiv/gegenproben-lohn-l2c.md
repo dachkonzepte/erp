@@ -263,3 +263,17 @@ noch einmal, rot).
 | Nr. 2 – es misst je Tag beide Fenster | ohne das Fenster von drei Monaten (`333_2b`) | 1 rot: v733::test_messung_laeuft |
 
 2 Gegenproben, beide rot (über Tests).
+
+## 1.9.334 (L2c-3, Punkt 1): das Arbeitszeitkonto in „Monat & Lohn“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Karte lädt mit dem Monat | lädt das Konto nicht (`334_1a`; Klicktest `334_K1`) | 1 rot: v734::test_seite; Klicktest: „jan: Konto gezeichnet“, „Januar: die Karte mit „vorläufig““, „Januar: Soll, Saldo und Stand …“, „Februar: bis gestern gezählt“ u. a. |
+| Nr. 1 – Soll, Saldo, Stand je gewerblicher Person, vom Server | keine eigene: die Zahlen kommen unverändert aus `konten()` (v721); die Seite rechnet nichts -- `334_2a`/`334_K2` zeigen, dass die Zeile die Werte des Servers zeichnet | – |
+| Nr. 2 – „vorläufig – maßgeblich ist die Lohnabrechnung“ darüber | ohne (`334_5a`) | 1 rot: v734::test_zeilen_und_stand |
+| Nr. 3 – ohne Startwert „Startwert folgt“ | der Stand statt „Startwert folgt“ (`334_2a`; Klicktest `334_K2`) | 1 rot: v734::test_zeilen_und_stand; Klicktest: „Januar: Soll, Saldo und Stand je gewerblicher Person“ |
+| Nr. 4 – vor Januar 2027 keine Karte und keine Anfrage | auch vor 2027 (`334_1b`; Klicktest `334_K3`) | 1 rot: v734::test_kontobeginn_und_startwert_wie_der_server; Klicktest im ersten Anlauf GRÜN (die Anfrage scheiterte am Server, die Karte blieb versteckt) -- nachgezogen (keine Anfrage ans Konto, keine Meldung), danach rot: „Dezember 2026: keine Karte, keine Anfrage …“ |
+| Nr. 5 – laufender Monat „Stand bis <gestern>“ | immer „Stand am Monatsende“ (`334_3a`) | 1 rot: v734::test_laufender_monat_bis_gestern_und_vor_2027_nichts |
+| Nr. 6 – Spalten „Konto · 0,25 je Tag“ | ohne Einheit (`334_4a`) | 1 rot: v734::test_seite |
+
+9 Gegenproben, alle rot (6 über Tests, 3 über `klicktest_konto_monat`; `334_K3` erst nach dem Nachziehen des Klicktests, danach K1 und K2 noch einmal, rot).

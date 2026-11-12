@@ -89,6 +89,9 @@
     .nv-allgemein{margin:0 10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
     #nvZeilen td{vertical-align:top}
     .nv-tag{white-space:nowrap}
+    /* seit 1.9.334: das Arbeitszeitkonto in „Monat & Lohn“ */
+    .konto-vorlaeufig{margin:0 10px 6px;font-size:14px;font-weight:600;color:var(--ds-warn-text)}
+    .konto-kopf-einheit{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ds-text-2);font-size:11px}
     #nachVersandListe a{white-space:nowrap}  /* seit 1.9.331: „Monat & Lohn“ auf einer Zeile */
     .nv-besprochen{margin:0 10px 14px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end}  /* seit 1.9.330 */
     .nv-besprochen label{display:flex;flex-direction:column;gap:4px;font-size:14px;flex:1 1 260px;max-width:420px}
@@ -362,6 +365,19 @@
     <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">Zeitarten minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Lohn, je Tag auf 0,25 h gerundet</span></div>
     <table><thead id="lohnKopf"></thead><tbody id="lohnZeilen"></tbody></table>
     <p class="leer" id="lohnLeer" hidden></p>
+  </section>
+  {# seit 1.9.334 (Lohn L2c-3, Punkt 1): das Arbeitszeitkonto des Monats -- je gewerblicher Person Soll, Saldo des Monats und Stand am Monatsende; eine Vorschau
+     (DATEV führt das Konto), erst ab Januar 2027; die Stunden je Tag auf 0,25 h wie „Zusammen“, nicht minutengenau wie die Zeitarten (Befund L2c, 10.6) #}
+  <section class="tabelle-karte" id="kontoKarte" aria-labelledby="kontoTitel" hidden>
+    <div class="tabelle-kopf"><h2 id="kontoTitel">Arbeitszeitkonto</h2><span class="mut" style="font-size:13px" id="kontoGezaehlt"></span></div>
+    <p class="konto-vorlaeufig" id="kontoVorlaeufig"></p>
+    <p class="nv-text">Konto: je Tag auf 0,25 h gerundet wie „Zusammen“ – Arbeit und gutgeschriebene Abwesenheiten gegen die Sollzeit. Die Zeitarten in „Stunden je
+      Mitarbeiter“ sind minutengenau.</p>
+    <table><thead><tr><th>Mitarbeiter</th><th class="r">Soll im Monat<span class="konto-kopf-einheit">Konto · 0,25 je Tag</span></th>
+      <th class="r">Saldo des Monats<span class="konto-kopf-einheit">Konto · 0,25 je Tag</span></th>
+      <th class="r"><span id="kontoStandKopf">Stand am Monatsende</span><span class="konto-kopf-einheit">ab dem Startwert</span></th></tr></thead>
+      <tbody id="kontoZeilen"></tbody></table>
+    <p class="leer" id="kontoLeer" hidden>Keine gewerbliche Person im Monat.</p>
   </section>
 </section>
 {% endif %}
@@ -1097,6 +1113,7 @@ function monatLaden(){
   if(!LOHN_MONAT&&P)LOHN_MONAT=P.monat.monat;  // der erste noch offene Monat
   return lesen('monat',()=>api('/api/zeiten/monat'+(LOHN_MONAT?'?monat='+encodeURIComponent(LOHN_MONAT):'')),function(d){M=d;LOHN_MONAT=d.monat;monatZeichnen(d)})
     .then(function(){return lesen('nachVersand',()=>api('/api/zeiten/nach-dem-versand?monat='+encodeURIComponent(LOHN_MONAT)),nachVersandZeichnen)})  // seit 1.9.329
+    .then(function(){return lesen('konto',()=>LOHN_MONAT<KONTO_AB?null:api('/api/zeiten/arbeitszeitkonto?monat='+encodeURIComponent(LOHN_MONAT)),kontoZeichnen)})  // seit 1.9.334
     .catch(function(e){el('seitenStatus').textContent=e.message});
 }
 function zeitraum(d){return 'start_date='+encodeURIComponent(d.start)+'&end_date='+encodeURIComponent(d.ende)}
@@ -1158,6 +1175,26 @@ function monatZeichnen(d){
     +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
       +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td>'+swZelle(d.summe.schlechtwetter,'summe')+'</tr>':'');
   el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
+}
+// Seit 1.9.334 (Lohn L2c-3, Punkt 1): das Arbeitszeitkonto des Monats -- erst ab Januar 2027 (app/arbeitszeitkonto.py::KONTOBEGINN), davor keine Karte;
+// alles vom Server, die Seite rechnet nichts nach. Ohne Startwert „Startwert folgt“ statt des Stands.
+var KONTO_AB='2027-01',KONTO=null;
+function kontoStunden(w){return (w>0?'+':'')+zahlText(w,2)+' h'}
+function kontoZeile(k){
+  var m=k.monate[0]||{soll:0,saldo:0,stand:0},ohne=k.hinweise.indexOf('ohne Startwert – Startwert folgt')>=0;
+  return '<tr data-konto="'+k.employee_id+'"><td>'+esc(k.name)+'</td><td class="r num">'+esc(stunden(m.soll))+'</td><td class="r num">'+esc(kontoStunden(m.saldo))
+    +'</td><td class="r num">'+(ohne?'<span class="chip chip-warn">Startwert folgt</span>':esc(kontoStunden(m.stand)))+'</td></tr>';
+}
+function kontoZeichnen(d){
+  KONTO=d;
+  el('kontoKarte').hidden=!d;
+  if(!d)return;
+  el('kontoVorlaeufig').textContent=d.hinweis;
+  var fertig=d.gezaehlt_bis>=M.ende;
+  el('kontoStandKopf').textContent=fertig?'Stand am Monatsende':'Stand bis '+tagLang(d.gezaehlt_bis).slice(3);
+  el('kontoGezaehlt').textContent=fertig?'':'gezählt bis gestern, '+tagLang(d.gezaehlt_bis).slice(3);
+  el('kontoZeilen').innerHTML=d.konten.map(kontoZeile).join('');
+  el('kontoLeer').hidden=!!d.konten.length;
 }
 // Seit 1.9.329 (Lohn L2c-2, Punkt 2): „Nach dem Versand geändert“ -- Bezug, Stand, je Zeile Person, Tag, vorher und heute, Grund (alles vom Server)
 function nachVersandBezug(b){
