@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.320 – Lohn L2c-1: „ohne Startwert“ nur für am Stichtag Beschäftigte
+
+Vorweg der Runde L2c-1 (Antwort B16 des Befunds L2c). Das Urlaubskonto 2027 zeigte „ohne Übertrag – Startwert folgt“ bei jeder Person ohne Startwert -- auch bei einer, die erst 2027 eintritt und für die nie ein Startwert kommt; der Hinweis wäre dort für immer stehen geblieben, auch hinter „danach Rest“. Jetzt nur noch bei Personen, die am 31.12.2026 beschäftigt waren (`app/lohnkonten.py::am_stichtag_beschaeftigt()`: Eintritt bis zum Stichtag, Austritt ab dem Stichtag, beide Tage eingeschlossen; ohne Lohnstammdaten oder ohne Eintritt gilt die Person als beschäftigt). Wer später eintritt, startet mit Übertrag 0, es bleibt „Anspruch prüfen“.
+
+Im Archiv dazu: die Bestätigung der Nachrunde L2b mit den Antworten auf ihre Fragen, die Antworten des Betriebs zum Befund L2c und der Auftrag L2c-1. Neu `tests/test_v720_startwert_nur_am_stichtag.py`, `tests/test_v715_urlaubskonto.py::test_hinweise` angepasst. Keine Migration.
+
 ## 1.9.319 – Lohn L2b Nachrunde: „danach Rest“ mit den anderen offenen Anträgen
 
 Dritter und letzter Punkt der Nachrunde L2b (C, Ergänzung zu 1.9.316 Nr. 1). Gibt es beim Stellen eines Urlaubs im selben Jahr weitere offene Urlaubsanträge, steht hinter „danach Rest“ jetzt „· mit den anderen offenen Anträgen m Tage“ -- der Rest, wenn auch die anderen offenen Anträge genehmigt würden („5 Urlaubstage · danach Rest 25 Tage · mit den anderen offenen Anträgen 20 Tage“). Ohne weitere offene Anträge bleibt es beim bisherigen Satz; beim Genehmigen ändert sich nichts (dort ist der Antrag selbst unter den offenen). Der Hinweis „ohne Übertrag – Startwert folgt“ steht dahinter.

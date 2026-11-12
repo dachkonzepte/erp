@@ -2641,7 +2641,7 @@ weitere offene Urlaubsanträge im selben Jahr, „· mit den anderen offenen Ant
   (`bildgrundlage/lohn_echt`, nichts davon in Git) auf 507f0d7 und mit 1.9.317 -- je Byte für Byte gleich, und gleich den Dateien aus L2a (1.9.308). Die
   Vorprobe erzeugt über `build_datev_export()`, eine Sperre hätte sie gestoppt (Gegenprobe 317_5a).
 
-#### Festlegungen 1.9.317 (Bitte bestätigen)
+#### Festlegungen 1.9.317 (bestätigt am 12.11.2026)
 
 1. Tage einer Kategorie ohne Zuordnung (außer Unbezahlt und Freizeitausgleich) sperren die Lohndatei wie eine fehlende Personalnummer; den Abschluss nicht.
    Ersetzt 1.9.313 Nr. 4.
@@ -2671,7 +2671,7 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.317“.
   „ · ohne Übertrag – Startwert folgt“ an den Text. Dieselbe Rechnung gilt beim Stellen (Zeiten, Plantafel, „Meine Zeiten“) und an offenen Anträgen -- der
   Hinweis steht deshalb überall, wo „danach Rest“ steht. Mit Startwert nicht, ab 2028 nicht (dort ist der Übertrag kein Startwert).
 
-#### Festlegungen 1.9.318 (Bitte bestätigen)
+#### Festlegungen 1.9.318 (bestätigt am 12.11.2026)
 
 1. Das Konto in „Meine Zeiten“ zeigt „ohne Übertrag – Startwert folgt“, wenn der Startwert fehlt (wie unter „Zeiten“).
 2. „danach Rest“ trägt dann „ · ohne Übertrag – Startwert folgt“ -- im Antrag in „Meine Zeiten“ und überall sonst, wo „danach Rest“ steht.
@@ -2696,7 +2696,7 @@ Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.318“.
   folgt“. Nur `GET /api/absence-requests/rest-danach` (beim Stellen: Zeiten, Plantafel, „Meine Zeiten“) setzt `andere_offene`; an den offenen Anträgen
   (`rest_danach_je_antrag()`, beim Genehmigen) nicht.
 
-#### Festlegungen 1.9.319 (Bitte bestätigen)
+#### Festlegungen 1.9.319 (bestätigt am 12.11.2026)
 
 1. Beim Stellen: gibt es im Jahr weitere offene Urlaubsanträge, dazu „ · mit den anderen offenen Anträgen m Tage“; sonst nicht.
 2. m = Rest nach den offenen Anträgen minus dieser Urlaub (der Rest, wenn alle offenen und dieser genehmigt würden).
@@ -2711,3 +2711,72 @@ Neu: `tests/test_v719_mit_anderen_antraegen.py` (ohne weitere offene -- auch ent
 test_rest_danach` -- alt: je Jahr jahr, tage, rest_danach, ohne_startwert; neu: dazu `mit_anderen` (dort leer). Eigener Fehler beim Schreiben des Tests: die
 erste Woche (3.–7. Mai 2027) enthält Christi Himmelfahrt -- 4 statt 5 Urlaubstage; jetzt eine Woche ohne Feiertag.
 Gegenproben: `gegenproben-lohn-l2b.md`, „1.9.319“.
+
+### Bestätigt und beantwortet (12.11.2026, Tobias)
+
+Die Nachrunde ist live (fee47a0). Die 12 Festlegungen 1.9.317–1.9.319 sind bestätigt. Antworten auf die Fragen des Berichts der Nachrunde:
+
+1. Fortbildung bekommt keine eigene Zuordnung. Fortbildungen werden mit der Art Weiterbildung oder Berufsschule eingetragen; die Sperre (1.9.317) fängt
+   den Rest.
+2. Sonderurlaub: die Lohnart kommt vom Steuerbüro, der Betrieb trägt sie dann in der Zuordnung ein (Einstellungen → Zeitregeln und DATEV). Bis dahin sperrt
+   ein Sonderurlaub im Monat die Lohndatei.
+
+Aus L2b, Frage 5: im Bestand gibt es keine Art „Sonderurlaub“ -- das Prüfskript für die Umstellung entfällt.
+
+## Lohn L2c: Arbeitszeitkonto (ab 1.9.320)
+
+Befund L2c (12.11.2026, nur gelesen; `bildgrundlage/befund_l2c_fee47a0.txt`, nicht in Git): die Tagesbilanz (1.9.308) trägt das Konto, der Startwert hat sein
+Feld (`LohnStartwert.saldo_stunden`); es fehlten die Regel „was zählt wie“, die Rechnung Ist − Soll, der Monatsstand und jede Anzeige. Die Lohndatei schickt
+DATEV nur Ist-Stunden je Tag, nie Sollzeit oder Stand -- DATEV rechnet das Konto selbst (L0: maßgeblich bleibt DATEV); abweichen kann das ERP vor allem bei
+der Sollzeit, bei Tagen ohne Zeile und bei Änderungen nach der Lohndatei, ohne Rückfluss aus DATEV merkt es niemand. Schlechtwetter ist im ERP immer neutral
+(Sollzeit − Arbeit). Auszahlen gibt es nur für Azubis (AA/1900). Nebenbefunde u. a.: ein Tag ohne jeden Eintrag ist ein stilles Minus (auch ein betriebsfreier
+Tag ohne Urlaub); das Urlaubskonto zeigte „ohne Übertrag – Startwert folgt“ auch bei Eintritt 2027.
+
+### Antworten des Betriebs (12.11.2026, Tobias)
+
+- B1 Regel wie die Tabelle in Abschnitt 2 des Befunds: Ist = Arbeit + gutgeschriebene Posten (alle außer Freizeitausgleich), Saldo = Ist − Soll.
+- B2 Unbezahlt neutral.
+- B3 Freizeitausgleich nur ganze Tage, Minus der Sollzeit.
+- B4 Arbeit an Feiertag, Urlaubs- oder Kranktag ist Plus; an Urlaubs- und Kranktag dazu ein Hinweis in „Prüfen“.
+- B5 Betriebsfreier Tag ohne Urlaub ist Minus.
+- B6, B7 Schlechtwetter (Winter und Sommer) neutral bis zur Antwort des Steuerbüros.
+- B8 An der Gruppe gewerblich festmachen.
+- B9 Grenzen: zwei Felder, leer = kein Hinweis.
+- B10 Auszahlen erst nach der Antwort S6.
+- B11 Admin und Büro – Finanzen sehen alle. „Meine Zeiten“ zeigt den Stand erst, wenn der Abgleich mit DATEV steht (L2c-4) -- bis dahin nicht, auch
+  nicht über die Schnittstelle.
+- B12 Monatsstand beim Abschluss ablegen, „neu ablegen“ nur der Admin mit Begründung: ja. B13 Rückfahrt: der Hinweis reicht. B14 Austritt: den Stand nur
+  anzeigen. B15 Azubi und Gruppe ohne Datum: der Monatsstand reicht. B16 „ohne Startwert“ nur für Personen, die am 31.12.2026 beschäftigt waren: ja.
+- S1–S11 gehen ans Steuerbüro: Sollzeit in DATEV, Tage ohne Zeile, Kennzeichen ohne Lohnart, Schlechtwetter und Guthaben, Mehrarbeit der Azubis
+  (AA/1900), Auszahlung, Stand je Person nach der Abrechnung, Startwert, Grenzen, Austritt, Korrekturdatei.
+
+### Auftrag L2c-1 (je Punkt eine Version)
+
+0 Vorweg (B16): „ohne Übertrag – Startwert folgt“ nur für Personen, die am 31.12.2026 beschäftigt waren. 1 Rechnung: `app/arbeitszeitkonto.py` wie Abschnitt
+11 des Befunds -- Soll, Ist, gutgeschriebene Posten, Saldo je Tag; Summe je Monat; Stand ab dem Startwert; die Regel als eine Tabelle im Code; nur
+gewerbliche, nur zwischen Eintritt und Austritt; eine feste Zahl Abfragen; Schnittstelle nur lesend, nur Admin und Büro – Finanzen; Nachweis: die
+Beispielwoche als Test, die Vorprobe bleibt Byte für Byte gleich. 2 Hinweise in „Zeiten → Prüfen“, erst ab 01.01.2027 (Kontobeginn), je Person
+zusammengefasst: ein Arbeitstag einer gewerblichen Person mit Sollzeit, ohne Buchung und ohne Abwesenheit, bis gestern („Tag ohne Eintrag – zählt im
+Konto als Minus“, deckt den betriebsfreien Tag mit ab); Arbeit an einem Urlaubs- oder Kranktag (B4); nur Hinweis, keine Sperre. Keine Anzeige des Kontos in
+dieser Runde; Bilder nur für Punkt 2 (1440 und 412, hell und dunkel).
+
+### Umsetzung 1.9.320 (Punkt 0): „ohne Startwert“ nur, wer am Stichtag beschäftigt war
+
+- `app/lohnkonten.py::am_stichtag_beschaeftigt(payroll)`: am 31.12.2026 beschäftigt (`app/sollzeit.py::beschaeftigt_am()`, beide Tage eingeschlossen; ohne
+  Lohnstammdaten oder ohne Datum beschäftigt). Das Urlaubskonto (`app/urlaubskonto.py::konten()`) setzt „ohne Übertrag – Startwert folgt“ nur noch dann; wer
+  danach eintritt, hat 2027 den Übertrag 0 ohne Hinweis, „Anspruch prüfen“ (Eintritt im Jahr) bleibt. „danach Rest“ und „Meine Zeiten“ lesen den Hinweis aus
+  dem Konto und folgen von selbst. Das Arbeitszeitkonto (1.9.321) nimmt dieselbe Regel.
+
+#### Festlegungen 1.9.320 (Bitte bestätigen)
+
+1. „ohne Übertrag – Startwert folgt“ nur bei Personen, die am 31.12.2026 beschäftigt waren: Eintritt leer oder bis 31.12.2026, Austritt leer oder ab
+   31.12.2026 (beide Tage eingeschlossen).
+2. Wer danach eintritt: Übertrag 2027 = 0 ohne Hinweis; „Anspruch prüfen“ bleibt.
+3. Ohne Lohnstammdaten oder ohne Eintritt gilt die Person als beschäftigt -- der Hinweis bleibt, solange der Startwert fehlt.
+4. Die Regel steht an einer Stelle (`am_stichtag_beschaeftigt()`); Urlaubskonto, „danach Rest“ und „Meine Zeiten“ folgen ihr, das Arbeitszeitkonto ebenso.
+
+#### Tests und Prüfung 1.9.320
+
+Neu: `tests/test_v720_startwert_nur_am_stichtag.py` (die Regel an ihren Grenzen, der Hinweis je Person, Austritt vor und am Stichtag, „danach Rest“ und „Meine
+Zeiten“). Angepasste Erwartung: `tests/test_v715_urlaubskonto.py::test_hinweise` -- alt: Bo (Eintritt 01.03.2027) mit „ohne Übertrag – Startwert folgt“ und
+„Anspruch prüfen“; neu: nur „Anspruch prüfen“. Klicktests unverändert (keine Person mit Eintritt 2027). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.320“.

@@ -140,6 +140,14 @@ def startwert_gesperrt(db: Session) -> bool:
     return bis is not None and bis >= grenze
 
 
+def am_stichtag_beschaeftigt(payroll) -> bool:
+    """Seit 1.9.320 (Lohn L2c-1, Punkt 0; Antwort B16 des Befunds L2c): war die Person am Stichtag (31.12.2026) beschäftigt? Nur zu ihr gehört ein
+    Startwert, und nur bei ihr sagen die Konten, dass er noch folgt. Wer danach eintritt, startet ohne (0, kein Hinweis). Eintritt und Austritt aus den
+    Lohnstammdaten (app/sollzeit.py::beschaeftigt_am(), beide Tage eingeschlossen); ohne Lohnstammdaten oder ohne Datum gilt sie als beschäftigt."""
+    from .sollzeit import beschaeftigt_am
+    return beschaeftigt_am(payroll, STICHTAG)
+
+
 def uebertrag_quelle(jahr: int, modus: str) -> str:
     """Seit 1.9.312 (Lohn L2b, Punkt 0): woher der Übertrag eines Jahres kommt -- im ersten Jahr der Konten (2027) aus dem Startwert „Resturlaub“
     („startwert“, kein zweites Feld), ab dem Jahr danach nach der Vorgabe „Übertrag ins Folgejahr“: „von_hand“ das Feld am Anspruch, „automatisch“ der

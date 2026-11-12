@@ -101,7 +101,7 @@ def test_hinweise(w):
     k = konto(w, ada)
     assert (k.anspruch, k.anspruch_vorgabe, k.uebertrag, k.rest) == (D("2.0"), False, D("4.5"), D("-3.5"))  # der doppelte zählt nicht
     assert k.hinweise == [DOPPELT, "Verfall des Übertrags vorgemerkt am 31.03.2027 – nichts verfällt von selbst", "Rest unter 0 (-3,5 Tage)"]
-    assert konto(w, bo).hinweise == [OHNE_STARTWERT, ANSPRUCH_PRUEFEN]
+    assert konto(w, bo).hinweise == [ANSPRUCH_PRUEFEN]  # seit 1.9.320 ohne „Startwert folgt“: Eintritt 2027, kein Startwert (Antwort B16)
 
 
 def test_ab_2028_von_hand_und_automatisch(w):

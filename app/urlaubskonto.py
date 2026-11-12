@@ -5,7 +5,8 @@ Je Person und Jahr (ab ERSTES_JAHR, 2027; app/lohnkonten.py):
     anspruch      die Urlaubstage des Jahrs (Urlaubsanspruch je Jahr, leer = die Vorgabe der Zeitregeln) -- der Betrieb trägt sie je Person ein
                   (Antwort 1: Fachkräfte 30, Helfer und Azubis 26; Teilzeit in Tagen der eigenen Woche); anteilig bei Eintritt oder Austritt
                   rechnet das ERP nicht -- dann der Hinweis „Anspruch prüfen“
-    uebertrag     2027 der Startwert „Resturlaub“ (fehlt er: 0 und der Hinweis „ohne Übertrag – Startwert folgt“); ab 2028 nach der Vorgabe
+    uebertrag     2027 der Startwert „Resturlaub“ (fehlt er: 0 und der Hinweis „ohne Übertrag – Startwert folgt“ -- seit 1.9.320 nur, wer am
+                  31.12.2026 beschäftigt war, app/lohnkonten.py::am_stichtag_beschaeftigt(); wer danach eintritt: 0 ohne Hinweis); ab 2028 nach der Vorgabe
                   „Übertrag ins Folgejahr“: „von Hand“ der Wert am Anspruch (leer = 0), „automatisch“ der Rest des Vorjahres
                   (app/lohnkonten.py::uebertrag_quelle()); ein Übertrag am Anspruch, wo er nicht gilt, zählt nicht -- Hinweis „Übertrag doppelt – prüfen“
     genehmigt     die genehmigten Urlaubstage des Jahrs, davon vorbei (bis heute) und künftig -- nur die Kategorie Urlaub (Antwort 3: Sonderurlaub
@@ -93,7 +94,7 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
     """Das Urlaubskonto im Jahr je Person -- employee_ids: genau diese; ohne Angabe die Personen der Tagesbilanz des Jahrs (aktiv oder mit
     Buchungen bzw. Abwesenheiten im Jahr). heute: Grenze zwischen vorbei und künftig (Vorgabe Berlin). ValueError vor 2027."""
     from .berlin_time import berlin_today
-    from .lohnkonten import ERSTES_JAHR, uebertrag_quelle
+    from .lohnkonten import ERSTES_JAHR, am_stichtag_beschaeftigt, uebertrag_quelle
     from .models import EmployeeAbsenceRequest, LohnStartwert, TimeTrackingSettings, Urlaubsanspruch
     from .sollzeit import abwesenheit_tage
     from .tagesbilanz import bilanz
@@ -135,7 +136,8 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
             if quelle == "startwert":
                 s = startwerte.get(emp.id)
                 if s is None or s.resturlaub_tage is None:
-                    k.hinweise.append(OHNE_STARTWERT)
+                    if am_stichtag_beschaeftigt(p):  # seit 1.9.320 (Antwort B16): wer danach eintritt, bekommt keinen Startwert
+                        k.hinweise.append(OHNE_STARTWERT)
                 else:
                     k.uebertrag = s.resturlaub_tage
             elif quelle == "automatisch":
