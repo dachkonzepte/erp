@@ -40,7 +40,8 @@ from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, anspruch_set
 from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
 from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..dateiauslieferung import datei_antwort
-from ..lohndatei import LohndateiVeraendert, abgelegt_dict, abgelegte, lesen as lohndatei_lesen
+from ..lohndatei import (LohndateiVeraendert, VersandAbgelehnt, abgelegt_dict, abgelegte, lesen as lohndatei_lesen, versendet_setzen,
+                         versendet_zuruecknehmen)
 from ..models import Lohndatei
 from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, lohndatei_erzeugen, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
@@ -362,6 +363,32 @@ def lohndateien_liste(monat: str | None = None, db: Session = Depends(get_db, sc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="Monat im Format JJJJ-MM.") from exc
     return jsonable_encoder([abgelegt_dict(r) for r in abgelegte(db, erster)])
+
+
+# Seit 1.9.328 (Lohn L2c-2, Punkt 1): „An das Steuerbüro gesendet“ -- setzen Admin und Büro – Finanzen, zurücknehmen nur der Admin; je Monat eine (409)
+@router.post("/api/time-backoffice/lohndateien/{lohndatei_id}/versendet")
+def lohndatei_versendet(lohndatei_id: int, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+    try:
+        row = versendet_setzen(db, lohndatei_id, user_id=getattr(_role, "id", None),
+                               user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VersandAbgelehnt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return jsonable_encoder(abgelegt_dict(row))
+
+
+@router.delete("/api/time-backoffice/lohndateien/{lohndatei_id}/versendet")
+def lohndatei_versendet_zuruecknehmen(lohndatei_id: int, db: Session = Depends(get_db, scope="function"),
+                                      _role=Depends(require_min_role(ROLE_ADMIN, message="Den Vermerk „gesendet“ nimmt nur ein Administrator zurück."))):
+    try:
+        row = versendet_zuruecknehmen(db, lohndatei_id, user_id=getattr(_role, "id", None),
+                                      user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VersandAbgelehnt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return jsonable_encoder(abgelegt_dict(row))
 
 
 @router.get("/api/time-backoffice/lohndateien/{lohndatei_id}/datei")

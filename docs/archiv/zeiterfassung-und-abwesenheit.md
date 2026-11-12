@@ -3063,3 +3063,39 @@ mit Änderungen und Grund, Stand nach „Besprochen“, Prüfen mit der Zahl.
 Neu: `tests/test_v727_lohndatei_versand_spalten.py` (5 Tests: neue Zeile, nur „versendet“ änderbar, je Monat eine, Migration auf einem Bestand unter SQLite und
 PostgreSQL). `tests/test_v364_feste_werte_spaltenlaenge.py`: `lohndateien.art` mit `ARTEN`. Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`,
 „1.9.327“.
+
+### Umsetzung 1.9.328 (Punkt 1): „An das Steuerbüro gesendet“
+
+- `app/lohndatei.py::versendet_setzen(db, id, user_id, user_name)`: die Zeile unter der Sperre (FOR UPDATE unter PostgreSQL); nur art „datei“ (sonst
+  `VersandAbgelehnt` „Ein Abgleich geht nicht an das Steuerbüro – nur eine erzeugte Datei.“), nicht schon vermerkt („Diese Datei ist schon als gesendet vermerkt
+  (<Zeitpunkt> von <Konto>).“), keine andere des Monats vermerkt („Für MM/JJJJ ist schon die Datei vom <erzeugt> als gesendet vermerkt – je Monat eine; zurücknehmen
+  kann nur ein Administrator.“). Setzt `versendet_am` (`datetime.utcnow()`, naives UTC wie `erzeugt_am` und die Änderungshistorie), Konto und Name, schreibt im
+  selben Commit einen Eintrag der Änderungshistorie (Art „Lohndatei“, Feld „An das Steuerbüro gesendet“, alt „nein“, neu „<Zeitpunkt in Berlin> von <Konto>“, Konto
+  aus der Anfrage). Klicken zwei zugleich auf zwei Dateien desselben Monats, lehnt der eindeutige Index die zweite ab -- `IntegrityError` wird zur selben Art
+  Meldung (409), kein 500.
+- `versendet_zuruecknehmen()`: leert die drei Felder, Eintrag „Vermerk „gesendet“ zurückgenommen“ mit dem bisherigen Vermerk; nicht vermerkt -> 409.
+- Routen: `POST /api/time-backoffice/lohndateien/{id}/versendet` (`require_lohndaten`: Admin, Büro – Finanzen), `DELETE …/versendet` (nur Admin); unbekannt 404,
+  abgelehnt 409; Antwort wie die Liste (`abgelegt_dict()`).
+- `zeiten.html`, „Monat & Lohn“: unter jeder Datei der Vermerk (`lohndateiVermerk()`), daneben der Knopf (`lohndateiKnopf()`): „An das Steuerbüro gesendet“ an
+  jeder Datei, solange im Monat keine gesendet ist; an der gesendeten „Zurücknehmen“ nur für den Admin (`RECHTE.admin`); an einem Abgleich nichts. Setzen über
+  `abschliessen()` (Regel 29, in `ABSCHLIESSEND`), Zurücknehmen nach der Rückfrage auf der Seite (`LD_ZURUECK`, wie „Antrag zurückziehen?“ -- kein Dialog des
+  Browsers, `tests/test_v518_zeiten_seite.py`) über `speichern()`; abgelehnt steht der Grund unter „Ausgeben“.
+
+#### Festlegungen 1.9.328 (Bitte bestätigen)
+
+1. „An das Steuerbüro gesendet“ setzen Admin und Büro – Finanzen, nur an einer erzeugten Datei (nicht an einem Abgleich), mit Zeitpunkt und Konto.
+2. Je Monat eine gesendete Datei: eine zweite 409 mit Grund (auch bei zwei Klicks zugleich, dann über den Index -- Meldung statt 500); schon vermerkt 409.
+3. Zurücknehmen nur der Admin; danach geht wieder jede Datei des Monats.
+4. Jedes Setzen und Zurücknehmen ein Eintrag in der Änderungshistorie (Art „Lohndatei“, mit Konto, alter und neuer Vermerk); abgelehnt kein Eintrag.
+5. „Monat & Lohn“: der Vermerk „An das Steuerbüro gesendet <Zeitpunkt> · <Konto>“ unter der Datei; der Knopf an jeder Datei, solange im Monat keine gesendet ist;
+   „Zurücknehmen“ nur für den Admin, mit Rückfrage auf der Seite (kein Dialog des Browsers); „gesendet“ vermerken ist abschließend (Regel 29).
+
+#### Tests und Prüfung 1.9.328
+
+Neu: `tests/test_v728_lohndatei_gesendet.py` (7 Tests: setzen mit Zeitpunkt, Konto und Eintrag; je Monat eine, nur Dateien, schon vermerkt, 404; zwei zugleich;
+Rechte; zurücknehmen nur der Admin samt Eintrag; Vermerk, Knopf und Rückfrage in node; abschließend und verdrahtet). `tests/test_v399_abschliessen.py`:
+`lohndateiGesendet` in `ABSCHLIESSEND`. Neu `scripts/klicktest_lohndatei_gesendet.py` (31 Prüfungen: Fiona setzt, Anna nimmt zurück -- Rückfrage,
+„Abbrechen“, „Zurücknehmen“ --, Fiona setzt die andere; Bilder bei 1440 und 412 px, hell und dunkel). Im Klicktest laufen gespeicherte Zeitstempel mit der echten
+Zeit (cdp_klicktest.py, „Feste Uhr“) -- der Vermerk wird deshalb als Muster geprüft. Angepasste Erwartungen: `tests/test_v109_unified_admin_dependency.py::
+test_time_backoffice_router_fully_uses_shared_dependency` -- Routen mit `_lohn_dep` 7 statt 6 (die neue zum Setzen); `scripts/klicktest_zeiten.py`, „Fin: Lohndatei
+abgelegt und heruntergeladen“ -- der Text der abgelegten Datei endet jetzt auf „Herunterladen An das Steuerbüro gesendet“ (bisher „Herunterladen“). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.328“.

@@ -243,6 +243,73 @@ def ablegen(db: Session, erster: date, inhalt: bytes, dateiname: str, *, user_id
     return row
 
 
+class VersandAbgelehnt(ValueError):
+    """Seit 1.9.328: der Vermerk „An das Steuerbüro gesendet“ geht so nicht (409) -- ein Abgleich, schon vermerkt, im Monat schon eine andere."""
+
+
+def _vermerk_text(row) -> str:
+    from .berlin_time import to_berlin
+    return f"{to_berlin(row.versendet_am):%d.%m.%Y %H:%M} von {row.versendet_von_name or 'unbekannt'}"
+
+
+def versendet_setzen(db: Session, lohndatei_id: int, *, user_id: int | None, user_name: str | None):
+    """Seit 1.9.328 (Lohn L2c-2, Punkt 1; Antwort 1 des Betriebs zum Befund D): „An das Steuerbüro gesendet“ an einer abgelegten Datei -- mit Zeitpunkt
+    (naives UTC) und Konto. Nur eine Datei (art „datei“), kein Abgleich; je Monat höchstens eine (auch der eindeutige Index uq_lohndatei_versendet_je_monat
+    sichert das, ein gleichzeitiger zweiter Klick endet hier mit derselben Meldung); im selben Commit ein Eintrag in der Änderungshistorie. Wer setzen darf,
+    prüft der Router (Admin, Büro – Finanzen). Committet. LookupError, wenn es die Zeile nicht gibt."""
+    from datetime import datetime
+
+    from sqlalchemy.exc import IntegrityError
+
+    from .audit import record_audit_entry
+    from .berlin_time import to_berlin
+    from .models import Lohndatei
+
+    row = db.get(Lohndatei, lohndatei_id, with_for_update=True)
+    if row is None:
+        raise LookupError("Die Lohndatei gibt es nicht.")
+    if row.art != "datei":
+        raise VersandAbgelehnt("Ein Abgleich geht nicht an das Steuerbüro – nur eine erzeugte Datei.")
+    if row.versendet_am is not None:
+        raise VersandAbgelehnt(f"Diese Datei ist schon als gesendet vermerkt ({_vermerk_text(row)}).")
+    andere = db.scalar(select(Lohndatei).where(Lohndatei.monat == row.monat, Lohndatei.versendet_am.is_not(None)))
+    if andere is not None:
+        raise VersandAbgelehnt(f"Für {row.monat:%m/%Y} ist schon die Datei vom {to_berlin(andere.erzeugt_am):%d.%m.%Y %H:%M} als gesendet vermerkt – je Monat "
+                               "eine; zurücknehmen kann nur ein Administrator.")
+    row.versendet_am, row.versendet_von_user_id, row.versendet_von_name = datetime.utcnow(), user_id, user_name or "System"
+    record_audit_entry(db, action="Lohndatei an das Steuerbüro gesendet", entity_type="Lohndatei", entity_id=row.id,
+                       entity_label=f"Lohndatei {row.monat:%m/%Y}", field_name="versendet_am", field_label="An das Steuerbüro gesendet",
+                       old_value="nein", new_value=_vermerk_text(row), actor_user_id=user_id, actor_name=user_name)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise VersandAbgelehnt(f"Für {row.monat:%m/%Y} ist schon eine Datei als gesendet vermerkt – je Monat eine.") from exc
+    db.refresh(row)
+    return row
+
+
+def versendet_zuruecknehmen(db: Session, lohndatei_id: int, *, user_id: int | None, user_name: str | None):
+    """Seit 1.9.328: den Vermerk „gesendet“ zurücknehmen -- nur der Admin (der Router prüft); im selben Commit ein Eintrag in der Änderungshistorie mit dem
+    bisherigen Vermerk. Committet."""
+    from .audit import record_audit_entry
+    from .models import Lohndatei
+
+    row = db.get(Lohndatei, lohndatei_id, with_for_update=True)
+    if row is None:
+        raise LookupError("Die Lohndatei gibt es nicht.")
+    if row.versendet_am is None:
+        raise VersandAbgelehnt("Diese Datei ist nicht als gesendet vermerkt.")
+    alt = _vermerk_text(row)
+    row.versendet_am = row.versendet_von_user_id = row.versendet_von_name = None
+    record_audit_entry(db, action="Vermerk „gesendet“ zurückgenommen", entity_type="Lohndatei", entity_id=row.id, entity_label=f"Lohndatei {row.monat:%m/%Y}",
+                       field_name="versendet_am", field_label="An das Steuerbüro gesendet", old_value=alt, new_value="nein", actor_user_id=user_id,
+                       actor_name=user_name)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def abgelegte(db: Session, erster: date | None = None) -> list:
     """Die abgelegten Dateien (eines Monats), die jüngste zuerst."""
     from .models import Lohndatei

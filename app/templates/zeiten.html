@@ -82,6 +82,8 @@
     .liste{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px}
     .liste li{display:flex;gap:10px;align-items:baseline}
     .liste .haken{color:var(--ds-ok);flex:none;align-self:center;display:inline-flex}
+    #lohnDateien li{flex-wrap:wrap}
+    .lohndatei-vermerk{display:block;margin-top:2px;color:var(--ds-ok-text);font-weight:600}  /* seit 1.9.328: „An das Steuerbüro gesendet …“ */
     /* Tabellen wie die Vorlage: Kopf in Mono 11 px, Zeilen 48 px */
     table{border-collapse:collapse;width:100%}
     th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
@@ -1091,9 +1093,10 @@ function monatZeichnen(d){
   var datev=zu&&!d.datev_fehlt.length;
   el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
   // seit 1.9.226: die abgelegten Lohndateien des Monats -- Zeitpunkt in Berlin, wer, Anfang der Prüfsumme, „Herunterladen“ aus der Ablage
-  el('lohnDateien').innerHTML=(d.lohndateien||[]).map(function(f){return '<li data-lohndatei="'+f.id+'"><span class="text">Abgelegt '
+  var gesendet=(d.lohndateien||[]).some(function(f){return !!f.versendet_am});  // seit 1.9.328: je Monat eine versendete
+  el('lohnDateien').innerHTML=(d.lohndateien||[]).map(function(f){return '<li data-lohndatei="'+f.id+'" data-art="'+esc(f.art)+'"><span class="text">Abgelegt '
     +esc(berlinZeitpunkt(f.erzeugt_am))+' · '+esc(f.erzeugt_von_name)+' · Prüfsumme <span class="num" title="'+esc(f.sha256)+'">'+esc(f.sha256.slice(0,12))
-    +'…</span></span><a href="/api/time-backoffice/lohndateien/'+f.id+'/datei">Herunterladen</a></li>'}).join('');
+    +'…</span>'+lohndateiVermerk(f)+'</span><a href="/api/time-backoffice/lohndateien/'+f.id+'/datei">Herunterladen</a>'+lohndateiKnopf(f,gesendet)+'</li>'}).join('');
   el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
   // seit 1.9.225 (Lohn L1b, Punkt 2): je Person, was nicht in die Datei geht, mit Grund -- die Texte vom Server
   var nicht=d.nicht_in_der_datei||[];
@@ -1116,6 +1119,36 @@ function monatZeichnen(d){
     +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
       +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td>'+swZelle(d.summe.schlechtwetter,'summe')+'</tr>':'');
   el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
+}
+// Seit 1.9.328 (Lohn L2c-2, Punkt 1): an jeder erzeugten Datei „An das Steuerbüro gesendet“ (Admin, Büro – Finanzen) -- gesendet mit Zeitpunkt und Konto; je
+// Monat eine (danach kein Knopf mehr an den anderen); zurücknehmen nur der Admin, mit Rückfrage auf der Seite (kein Dialog des Browsers, Befund R5)
+var LD_ZURUECK=null;  // die Datei, an der „Vermerk „gesendet“ zurücknehmen?“ gerade steht
+function lohndateiVermerk(f){
+  return f.art==='datei'&&f.versendet_am?'<span class="lohndatei-vermerk" data-gesendet="'+f.id+'">An das Steuerbüro gesendet '+esc(berlinZeitpunkt(f.versendet_am))
+    +' · '+esc(f.versendet_von_name||'')+'</span>':'';
+}
+function lohndateiKnopf(f,gesendet){
+  if(f.art!=='datei')return '';
+  if(f.versendet_am)return !RECHTE.admin?'':LD_ZURUECK===String(f.id)
+    ?'<span class="rueckfrage">Vermerk „gesendet“ zurücknehmen?</span><button type="button" class="knopf knopf-neutral" data-aktion="lohndatei-nein" data-id="'+f.id+'">Abbrechen</button>'
+      +'<button type="button" class="knopf knopf-gefahr" data-aktion="lohndatei-zuruecknehmen" data-id="'+f.id+'">Zurücknehmen</button>'
+    :'<button type="button" class="knopf knopf-neutral" data-aktion="lohndatei-fragen" data-id="'+f.id+'">Zurücknehmen</button>';
+  return gesendet?'':'<button type="button" class="knopf knopf-neutral" data-aktion="lohndatei-gesendet" data-id="'+f.id+'">An das Steuerbüro gesendet</button>';
+}
+// „gesendet“ vermerken ist abschließend (Regel 29): erst wenn jedes Speichern der Seite zurück ist; abgelehnt (409) nennt der Server den Grund
+function lohndateiGesendet(id,knopf){
+  knopf.disabled=true;
+  return abschliessen('monat',()=>api('/api/time-backoffice/lohndateien/'+Number(id)+'/versendet',{method:'POST'}),{neuLaden:monatLaden})
+    .then(function(){ergebnis('Als an das Steuerbüro gesendet vermerkt.')})
+    .catch(function(e){el('lohnDatevFehlt').textContent=e.message})
+    .finally(function(){knopf.disabled=false});
+}
+function lohndateiZuruecknehmen(id,knopf){
+  knopf.disabled=true;
+  return speichern('monat',()=>api('/api/time-backoffice/lohndateien/'+Number(id)+'/versendet',{method:'DELETE'}),{neuLaden:monatLaden})
+    .then(function(){LD_ZURUECK=null;ergebnis('Vermerk zurückgenommen.')})
+    .catch(function(e){el('lohnDatevFehlt').textContent=e.message})
+    .finally(function(){knopf.disabled=false});
 }
 // Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei erzeugen ist abschließend (Regel 29) -- sie wird abgelegt und bleibt; danach aus der Ablage
 // herunterladen und den Monat neu laden (die Liste der abgelegten Dateien). Fehlt etwas (409), nennt die Zeile „Fehlt“ den Grund.
@@ -1330,6 +1363,13 @@ function binden(){
     el('lohnVor').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,1);ergebnis('');monatLaden()});
     el('lohnAbschliessen').addEventListener('click',monatAbschliessen);
     el('lohnDatev').addEventListener('click',lohndateiErzeugen);  // seit 1.9.226
+    el('lohnDateien').addEventListener('click',function(ev){  // seit 1.9.328
+      var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
+      if(b.dataset.aktion==='lohndatei-gesendet')lohndateiGesendet(b.dataset.id,b);
+      else if(b.dataset.aktion==='lohndatei-zuruecknehmen')lohndateiZuruecknehmen(b.dataset.id,b);
+      else if(b.dataset.aktion==='lohndatei-fragen'){LD_ZURUECK=b.dataset.id;monatZeichnen(M)}
+      else if(b.dataset.aktion==='lohndatei-nein'){LD_ZURUECK=null;monatZeichnen(M)}
+    });
   }
   var aufh=el('abschlussAufheben');if(aufh)aufh.addEventListener('click',aufhebenOeffnen);
   el('ahAufheben').addEventListener('click',aufheben);

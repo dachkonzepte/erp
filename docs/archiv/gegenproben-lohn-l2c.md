@@ -151,3 +151,27 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 4 – downgrade bricht ab | kein Abbruch (`327_4a`) | 1 rot: v727::test_migration_auf_einem_bestand_sqlite |
 
 9 Gegenproben, alle rot (alle über Tests; die Oberfläche ändert sich in 1.9.327 nicht).
+
+## 1.9.328 (L2c-2, Punkt 1): „An das Steuerbüro gesendet“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur Admin und Büro – Finanzen | jede Rolle darf setzen (`328_1a`) | 1 rot: v728::test_rechte |
+| Nr. 1 – mit Zeitpunkt und Konto | ohne Konto („System“) (`328_1b`) | 1 rot: v728::test_setzen_mit_zeitpunkt_und_konto |
+| Nr. 1 – nur an einer Datei | auch an einem Abgleich (`328_3a`) | 1 rot: v728::test_je_monat_eine_nur_dateien |
+| Nr. 2 – je Monat eine, zweite 409 mit Grund | keine Prüfung je Monat (`328_2a`) | 1 rot: v728::test_je_monat_eine_nur_dateien |
+| Nr. 2 – auch zwei zugleich: Meldung statt 500 | der Index schlägt als Fehler durch (`328_2b`) | 1 rot: v728::test_zwei_zugleich_dieselbe_meldung |
+| Nr. 2 – schon vermerkt 409 | nicht erkannt (`328_3b`) | 1 rot: v728::test_je_monat_eine_nur_dateien |
+| Nr. 3 – zurücknehmen nur der Admin | auch Büro – Finanzen (`328_4a`) | 1 rot: v728::test_zuruecknehmen_nur_der_admin |
+| Nr. 4 – Eintrag beim Setzen | keiner (`328_5a`) | 2 rot: v728::test_setzen_mit_zeitpunkt_und_konto, test_zuruecknehmen_nur_der_admin |
+| Nr. 4 – Eintrag beim Zurücknehmen | keiner (`328_5b`) | 1 rot: v728::test_zuruecknehmen_nur_der_admin |
+| Nr. 4 – mit dem Konto | Eintrag ohne Konto (`328_5c`) | 1 rot: v728::test_setzen_mit_zeitpunkt_und_konto |
+| Nr. 4 – abgelehnt kein Eintrag | keine eigene: abgelehnt wird vor dem Eintrag (409 vor record_audit_entry); v728 prüft es (test_je_monat_eine_nur_dateien, test_zwei_zugleich_dieselbe_meldung) | – |
+| Nr. 5 – Knopf nur, solange im Monat keine gesendet ist | Knopf trotz gesendeter (`328_6a`; Klicktest `328_K1`) | 1 rot: v728::test_seite_vermerk_und_knopf; Klicktest: „Fiona: kein Knopf mehr im Monat …“, „Anna: „Zurücknehmen“ nur an der gesendeten“, „Anna: „Abbrechen“ lässt den Vermerk stehen“ |
+| Nr. 5 – „Zurücknehmen“ nur für den Admin | für jeden (`328_6b`; Klicktest `328_K2`) | 1 rot: v728::test_seite_vermerk_und_knopf; Klicktest: „Fiona: kein Knopf mehr im Monat …“ |
+| Nr. 5 – der Vermerk an der Datei | kein Vermerk (`328_6d`; Klicktest `328_K3`) | 1 rot: v728::test_seite_vermerk_und_knopf; Klicktest: „Fiona: die ältere trägt den Vermerk …“, „Anna: „Abbrechen“ lässt den Vermerk stehen“, „Fiona: Vermerk an der jüngeren“ |
+| Nr. 5 – „Zurücknehmen“ mit Rückfrage auf der Seite | ohne Rückfrage, gleich zurückgenommen (`328_6e`; Klicktest `328_K4`) | 1 rot: v728::test_seite_abschliessend_und_verdrahtet; Klicktest: „Anna: die Rückfrage auf der Seite“ |
+| Nr. 5 – „gesendet“ vermerken ist abschließend | über speichern() (`328_6c`) | 2 rot: v399::test_final_actions_and_only_those_go_through_abschliessen[zeiten.html], v728::test_seite_abschliessend_und_verdrahtet |
+
+19 Gegenproben, alle rot (15 über Tests, 4 über `klicktest_lohndatei_gesendet`). Die Rückfrage auf der Seite kam nach dem ersten Lauf dazu (vorher `confirm()`,
+von `tests/test_v518_zeiten_seite.py` abgelehnt) -- danach alle Gegenproben noch einmal, alle rot. Zwei (`328_5a`, `328_5b`) hatten im ersten Anlauf einen Fehler in der Gegenprobe selbst (der Marker als Kommentar verschluckte den Rest der Zeile, nur ERROR) -- der Marker steht jetzt im Text, danach rot.

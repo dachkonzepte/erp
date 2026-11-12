@@ -676,7 +676,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Lohndatei abgelegt und heruntergeladen", [[d["name"] for d in tab.downloads[marke:]], await tab.js(
         "[...document.querySelectorAll('#lohnDateien li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim().replace(/\\d\\d\\.\\d\\d\\.\\d{4} \\d\\d:\\d\\d/,'…')"
         ".replace(/Prüfsumme [0-9a-f]{12}…/,'Prüfsumme …'))")],
-        [["DATEV_Lohndaten_2026-10.txt"], ["Abgelegt … · Fin Finanzen · Prüfsumme … Herunterladen"]])
+        # seit 1.9.328 (Lohn L2c-2, Punkt 1) an der Datei der Knopf „An das Steuerbüro gesendet“
+        [["DATEV_Lohndaten_2026-10.txt"], ["Abgelegt … · Fin Finanzen · Prüfsumme … Herunterladen An das Steuerbüro gesendet"]])
     # seit 1.9.224 die Lohndatei für DATEV Lohn und Gehalt (ASCII, Kopf Berater;Mandant;MM/JJJJ), seit 1.9.226 aus der Ablage
     datei = await tab.js("fetch(document.querySelector('#lohnDateien a').href).then(r=>r.text().then(t=>[r.status,r.headers.get('content-disposition'),t.split(String.fromCharCode(13,10))[0]]))")
     p.pruefe("Fin: DATEV-Datei", datei, [200, 'attachment; filename="DATEV_Lohndaten_2026-10.txt"', "12345;678;10/2026"])
