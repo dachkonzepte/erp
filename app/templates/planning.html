@@ -358,6 +358,8 @@ td.zug-antrag .zug-anzeige{background:var(--ds-flaeche-2)}
     <div class="kt-frage feld breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     {# seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ vom Server #}
     <p class="feld breit klein" id="absenceRest" role="status" hidden></p>
+    {# seit 1.9.337 (Lohn L2c-3, Punkt 4): bei Freizeitausgleich und Unbezahlt „Stand vorläufig x h · danach y h“ -- nur Admin und Büro – Finanzen #}
+    <p class="feld breit klein" id="absenceKonto" role="status" hidden></p>
   </div>
   <div class="ds-status" id="absenceStatus" role="status"></div>
   <div id="absenceRows"></div></div>
@@ -925,7 +927,9 @@ async function openAbsences(){try{const zeigen=()=>{const r=board.rechte||{},eig
 function artNachKategorie(){abwArtenFuellen(document.getElementById('absenceType'),absenceTypes,document.getElementById('absenceCategory').value,true)}
 // Seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ vom Server (das Konto der Person, die Tage dieses Urlaubs) -- nur Urlaub mit
 // Von bis Bis; sonst ein Lesen ohne Anfrage
-function absenceRestLaden(){const wer=document.getElementById('absenceEmployee').value,von=document.getElementById('absenceStart').value,bis=document.getElementById('absenceEnd').value,p=document.getElementById('absenceRest');const geht=!!wer&&document.getElementById('absenceCategory').value==='urlaub'&&!!von&&!!bis&&bis>=von;return lesen('urlaubrest',()=>geht?api(`/api/absence-requests/rest-danach?employee_id=${encodeURIComponent(wer)}&von=${von}&bis=${bis}`):Promise.resolve(null),d=>{p.hidden=!d;p.textContent=d?d.tage_text+' · '+d.text:''}).catch(()=>{p.hidden=true})}
+// Seit 1.9.337: wie unter „Zeiten“ -- nur wer das Konto sieht (board.rechte.konto_stand), bei Freizeitausgleich und Unbezahlt; nur ein Hinweis
+function absenceKontoLaden(){const wer=document.getElementById('absenceEmployee').value,von=document.getElementById('absenceStart').value,bis=document.getElementById('absenceEnd').value,p=document.getElementById('absenceKonto');const geht=!!(board.rechte||{}).konto_stand&&!!wer&&['freizeitausgleich','unbezahlt'].indexOf(document.getElementById('absenceCategory').value)>=0&&!!von&&!!bis&&bis>=von;return lesen('kontodanach',()=>geht?api(`/api/zeiten/konto-danach?employee_id=${encodeURIComponent(wer)}&von=${von}&bis=${bis}`):Promise.resolve(null),d=>{p.hidden=!d;p.textContent=d?d.text+(d.hinweis?' · '+d.hinweis:''):''}).catch(()=>{p.hidden=true})}
+function absenceRestLaden(){absenceKontoLaden();const wer=document.getElementById('absenceEmployee').value,von=document.getElementById('absenceStart').value,bis=document.getElementById('absenceEnd').value,p=document.getElementById('absenceRest');const geht=!!wer&&document.getElementById('absenceCategory').value==='urlaub'&&!!von&&!!bis&&bis>=von;return lesen('urlaubrest',()=>geht?api(`/api/absence-requests/rest-danach?employee_id=${encodeURIComponent(wer)}&von=${von}&bis=${bis}`):Promise.resolve(null),d=>{p.hidden=!d;p.textContent=d?d.tage_text+' · '+d.text:''}).catch(()=>{p.hidden=true})}
 function renderAbsences(){
   // absence_category/absence_type/notes fehlen in der Antwort, wenn die eigene Rolle nur buero_auftrag ist (Krankheitssichtbarkeit) -- "reason" bleibt dann "Abwesend"
   const rows=(board.absences||[]).slice().sort((a,b)=>a.start_date.localeCompare(b.start_date));

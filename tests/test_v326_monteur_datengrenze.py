@@ -96,6 +96,8 @@ VERBOTENE_WORTTEILE = (
     # "Wichtige Infos" am Mitarbeiter (EmployeeProfile.important_info, seit 1.8.27): Freitext, im
     # Formular für Gesundheitliches gedacht (Allergien, Einschränkungen) -- nie an den Monteur.
     "important", "wichtig",
+    # Stand des Arbeitszeitkontos beim Antrag (seit 1.9.337): die Monteurin sieht keine Zahl des Kontos (B11) -- weder auf der Seite noch über die Schnittstelle.
+    "konto_danach",
 )
 # Überall richtig: Objektzugang und Ansprechpartner vor Ort (PropertyAccessOut, seit 1.3.53 eigens
 # für den Einsatz gebaut) und der Kundenname (OrderFieldAccessOut, Objektsuche seit 1.3.65).
@@ -478,6 +480,8 @@ QUERY_JE_ROUTE = {
     "/api/time-entry-groups/dauer-vorschau": {"work_date": "@heute", "hours": "2", "team_id": "@team_id", "employee_ids": "@employee_id"},
     # „danach Rest“ beim Stellen eines Urlaubs (seit 1.9.316): der eigene Mitarbeiter, eine Woche im ersten Jahr der Konten
     "/api/absence-requests/rest-danach": {"employee_id": "@employee_id", "von": "2027-01-04", "bis": "2027-01-08"},
+    # „Stand vorläufig · danach“ beim Antrag auf Freizeitausgleich oder Unbezahlt (seit 1.9.337): die Monteurin bekommt 403
+    "/api/zeiten/konto-danach": {"employee_id": "@employee_id", "von": "2027-01-04", "bis": "2027-01-08"},
 }
 
 

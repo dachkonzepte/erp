@@ -169,7 +169,7 @@ def test_beantragt_von_in_der_zeile():
     antrag = {"id": 4, "employee_name": "Tom Monteur", "absence_type": "Krankheit", "absence_category": "krankheit", "start_date": "2026-11-02",
               "end_date": "2026-11-02", "arbeitstage": 1, "created_at": "2026-10-20T08:00:00", "notes": None, "review_notes": None,
               "status": "pending", "darf_entscheiden": False, "darf_zurueckziehen": True, "beantragt_von": "Fin Finanzen"}
-    html = _node(("beantragtText", "abwesenheitHtml", "antragHtml"),
+    html = _node(("beantragtText", "kontoDanachZeile", "abwesenheitHtml", "antragHtml"),
                  f"return [abwesenheitHtml({json.dumps(antrag)}),antragHtml({json.dumps(antrag)})]", vorweg=vorweg)
     assert all("Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.2026" in _text(h) for h in html)
 

@@ -19,7 +19,7 @@ from ..absence_requests import AbschlussGesperrt, KalendertagFrage, abwesenheit_
 from ..meldungen import KEIN_MITARBEITER
 from ..auftragsstatus import einsatz_gesperrt
 from ..models import AppUser, Employee, EmployeeAbsence, Order, PlanningHoliday
-from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen, darf_im_abschluss_aendern,
+from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen, darf_im_abschluss_aendern, darf_konten_aller,
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
@@ -110,6 +110,7 @@ def _tafel_rechte(db: Session, role: AppUser) -> dict:
     eigener = db.get(Employee, role.employee_id) if role.employee_id else None
     aller = darf_abwesenheiten_aller(role)
     return {"abwesenheit_fuer_andere": aller, "abwesenheit_loeschen": darf_abwesenheit_loeschen(role),
+            "konto_stand": darf_konten_aller(role),  # seit 1.9.337: „Stand vorläufig · danach“ beim Freizeitausgleich und Unbezahlt (nur Admin, Büro – Finanzen)
             "eigener_mitarbeiter": {"id": eigener.id, "name": f"{eigener.first_name} {eigener.last_name}".strip()} if eigener else None,
             "hinweis": None if aller or eigener else KEIN_MITARBEITER}
 

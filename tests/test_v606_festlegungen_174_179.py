@@ -186,7 +186,7 @@ def test_beide_listen_unter_zeiten_nennen_die_antwort():
               "status": "pending", "darf_entscheiden": False, "darf_zurueckziehen": False, "beantragt_von": None, "halber_tag": False}
     for antwort, text in ((True, "Kalendertag als Urlaubstag"), (False, "Kalendertag frei, kein Urlaubstag"), (None, None)):
         a = {**antrag, "kalendertag_urlaub": antwort}
-        zeilen = [_text(h) for h in _node(("beantragtText", "abwesenheitHtml", "antragHtml"),
+        zeilen = [_text(h) for h in _node(("beantragtText", "kontoDanachZeile", "abwesenheitHtml", "antragHtml"),
                                           f"return [abwesenheitHtml({json.dumps(a)}),antragHtml({json.dumps(a)})]", vorweg=vorweg)]
         if text is None:
             assert not any("Kalendertag" in z for z in zeilen), zeilen

@@ -5,11 +5,14 @@ Büro – Finanzen, require_lohndaten). Geschrieben wird über die bestehenden E
 die ihre Rechte selbst prüfen; was das Konto davon darf, steht hier je Antwort unter „rechte“ und je Zeit unter „darf_…“ -- dieselben
 Regeln wie dort (app/permissions.py), die Seite bietet nur das an."""
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
-from ..arbeitszeitkonto import KONTOBEGINN, OHNE_STARTWERT, VORLAEUFIG, grenze_text, grenzen, grenzen_hinweise, gezaehlt_bis, konten as arbeitszeitkonten
+from ..arbeitszeitkonto import (KONTOBEGINN, OHNE_STARTWERT, STAND_KATEGORIEN, VORLAEUFIG, grenze_text, grenzen, grenzen_hinweise, gezaehlt_bis,
+                                konten as arbeitszeitkonten, stand_danach)
 from ..arbeitszeitkalender import naechste as naechste_kalendertage
 from ..berlin_time import berlin_today
 from ..database import get_db
@@ -91,7 +94,24 @@ def _antraege(db: Session, user: AppUser) -> list[dict]:
     rows = _sichtbare_antraege(db, user, "pending")
     aus = _ausfall(db, rows)
     rest = rest_danach_je_antrag(db, rows)  # seit 1.9.316: „danach Rest n Tage“ an jedem offenen Antrag auf Urlaub (wer ihn sieht, sieht das Konto)
-    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id), "rest_danach": rest.get(r.id)} for r in rows]
+    stand = _konto_danach(db, user, rows)  # seit 1.9.337
+    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id), "rest_danach": rest.get(r.id),
+             "konto_danach": stand.get(r.id)} for r in rows]
+
+
+def _konto_danach(db: Session, user: AppUser, rows) -> dict:
+    """Seit 1.9.337 (Lohn L2c-3, Punkt 4): je offenem Antrag auf Freizeitausgleich oder Unbezahlt „Stand vorläufig x h · danach y h“
+    (app/arbeitszeitkonto.py::stand_danach()) -- nur für Admin und Büro – Finanzen (das Konto sehen nur sie, B11); sonst nichts, auch kein Schlüssel-Inhalt.
+    {Antrag-ID: {stand, danach, reicht_nicht, text, hinweis}}."""
+    if not darf_konten_aller(user):
+        return {}
+    ergebnis = {}
+    for r in rows:
+        if r.status == "pending" and r.absence_category in STAND_KATEGORIEN:
+            s = stand_danach(db, r.employee_id, r.start_date, r.end_date)
+            if s is not None:
+                ergebnis[r.id] = s
+    return ergebnis
 
 
 def _anzahl(n: int, eins: str, mehr: str) -> str:
@@ -170,6 +190,16 @@ def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_
             "konten": [{**k.als_dict(), "grenze": None if OHNE_STARTWERT in k.hinweise else grenze_text(k.stand, plus, minus)} for k in liste]}
 
 
+# Seit 1.9.337 (Lohn L2c-3, Punkt 4): beim Stellen eines Antrags auf Freizeitausgleich oder Unbezahlt „Stand vorläufig x h · danach y h“ -- nur Admin und
+# Büro – Finanzen (wie das Konto, B11; die Monteurin bekommt hier 403, „Meine Zeiten“ zeigt den Stand erst mit L2c-4). Ohne Konto (keine gewerbliche Person,
+# ganz vor dem Kontobeginn) null.
+@router.get("/api/zeiten/konto-danach")
+def zeiten_konto_danach(employee_id: int, von: date, bis: date, db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
+    if bis < von:
+        raise HTTPException(status_code=422, detail="Bis liegt vor Von.")
+    return stand_danach(db, employee_id, von, bis)
+
+
 @router.get("/api/zeiten/buchungen")
 def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="monat"), mitarbeiter: int | None = None, auftrag: int | None = None,
                      zeitart: str | None = Query(None, max_length=40), zeitraum: str | None = Query(None, max_length=10),
@@ -209,10 +239,12 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     land = feiertage_bundesland(db)
     aus = _ausfall(db, rows)
     rest = rest_danach_je_antrag(db, rows)  # seit 1.9.316
+    stand = _konto_danach(db, user, rows)  # seit 1.9.337
     # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
         "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id), "rest_danach": rest.get(r.id),  # seit 1.9.216, 1.9.316
+                      "konto_danach": stand.get(r.id),  # seit 1.9.337
                       "darf_entscheiden": admin and r.status == "pending",
                       "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r),
                       "darf_loeschen": r.status == "approved" and r.approved_absence_id is not None and darf_abwesenheit_loeschen(user)}  # seit 1.9.146

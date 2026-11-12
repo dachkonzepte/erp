@@ -156,11 +156,11 @@ def test_beide_listen_zeichnen_die_stunden():
               "start_date": "2026-12-07", "end_date": "2026-12-07", "arbeitstage": 1, "created_at": "2026-12-01T08:00:00", "notes": None,
               "review_notes": None, "status": "pending", "darf_entscheiden": False, "darf_zurueckziehen": False, "beantragt_von": None,
               "ausfall": "Ausfall 5,50 h (Sollzeit 7,50 h − gebucht 2,00 h)"}
-    html = _node(("beantragtText", "abwesenheitHtml", "antragHtml"),
+    html = _node(("beantragtText", "kontoDanachZeile", "abwesenheitHtml", "antragHtml"),
                  f"return [abwesenheitHtml({json.dumps(antrag)}),antragHtml({json.dumps(antrag)})]", vorweg=vorweg)
     assert all("Mo 07.12.2026 · 1 Arbeitstag · Ausfall 5,50 h (Sollzeit 7,50 h − gebucht 2,00 h) · beantragt am 01.12.2026" in _text(h)
                for h in html), [_text(h) for h in html]
-    ohne = _node(("beantragtText", "abwesenheitHtml", "antragHtml"),
+    ohne = _node(("beantragtText", "kontoDanachZeile", "abwesenheitHtml", "antragHtml"),
                  f"return [abwesenheitHtml({json.dumps({**antrag, 'ausfall': None})}),antragHtml({json.dumps({**antrag, 'ausfall': None})})]",
                  vorweg=vorweg)
     assert all("Ausfall" not in _text(h) for h in ohne)

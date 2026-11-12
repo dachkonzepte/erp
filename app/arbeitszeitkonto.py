@@ -259,3 +259,41 @@ def grenzen_hinweise(db: Session, heute: date | None = None) -> list[dict]:
         if text:
             ergebnis.append({"employee_id": k.employee_id, "name": k.name, "stand": k.stand, "text": f"{k.name}: {text}"})
     return ergebnis
+
+# --- Stand beim Antrag (seit 1.9.337, Lohn L2c-3, Punkt 4) ----------------------------------------------------------------------------------------
+
+STAND_KATEGORIEN = ("freizeitausgleich", "unbezahlt")  # ein Minus im Konto (REGEL KEINE) -- nur bei ihnen „Stand vorläufig · danach“
+REICHT_NICHT = "Plusstunden reichen nicht"
+
+
+
+def stand_danach(db: Session, employee_id: int, von: date, bis: date, *, heute: date | None = None) -> dict | None:
+    """Seit 1.9.337 (Lohn L2c-3, Punkt 4): für einen Antrag auf Freizeitausgleich oder Unbezahlt der Stand des Kontos heute (bis gestern, vorläufig) und danach --
+    der Stand minus, was die Tage des Antrags ab heute im Konto kosten (je Tag Sollzeit minus Gutschrift, z. B. ein Feiertag kostet nichts; wie ein Tag
+    ohne Arbeit). Tage vor heute stehen schon im Stand. None ohne Konto (keine gewerbliche Person) oder wenn der Antrag ganz vor dem Kontobeginn liegt.
+    Ohne Startwert (am Stichtag beschäftigt): nur „Startwert folgt“, kein danach. Nur ein Hinweis -- „Plusstunden reichen nicht“, wenn danach unter 0;
+    gesperrt wird nichts. Wer es sieht, entscheidet der Router (Admin und Büro – Finanzen, B11)."""
+    from .berlin_time import berlin_today
+    from .tagesbilanz import bilanz
+
+    heute = heute or berlin_today()
+    if bis < KONTOBEGINN:
+        return None
+    gestern = gezaehlt_bis(heute)
+    ks = konten(db, gestern, gestern, [employee_id], heute=heute)
+    if not ks:
+        return None
+    k = ks[0]
+    if OHNE_STARTWERT in k.hinweise:
+        return {"stand": None, "danach": None, "reicht_nicht": False, "text": "Stand vorläufig: Startwert folgt", "hinweis": None}
+    kosten = NULL
+    erster = max(von, heute, KONTOBEGINN)
+    if erster <= bis:
+        b = bilanz(db, erster, bis, [employee_id])
+        for t, tag in b.tage.get(employee_id, {}).items():
+            if erster <= t <= bis:
+                ts = tag_saldo(tag)
+                kosten += max(NULL, ts.soll - ts.gutschrift)
+    danach = k.stand - kosten
+    return {"stand": k.stand, "danach": danach, "reicht_nicht": danach < 0,
+            "text": f"Stand vorläufig {_h_text(k.stand)} · danach {_h_text(danach)}", "hinweis": REICHT_NICHT if danach < 0 else None}

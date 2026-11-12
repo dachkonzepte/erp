@@ -192,7 +192,7 @@ def _abwesenheit(zurueck=None, **anders):
               f"var ZURUECK={json.dumps(zurueck)};")
     text = _skript()
     js = (_baustein("_abwesenheit.html") + "\n" + _baustein("_zahl.html") + "\n" + re.search(r"var WOCHENTAG=.*?;\n", text)[0] + vorweg + "\n"
-          + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagLang", "beantragtText", "abwesenheitHtml"))
+          + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagLang", "beantragtText", "kontoDanachZeile", "abwesenheitHtml"))
           + f"\nprocess.stdout.write(JSON.stringify(abwesenheitHtml({json.dumps({**ANTRAG, **anders})})));")
     return node_ausfuehren(js)
 

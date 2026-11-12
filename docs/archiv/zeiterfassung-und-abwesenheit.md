@@ -3387,3 +3387,42 @@ Angepasste Erwartungen: `tests/test_v710_urlaub_und_startwerte.py::test_vorgaben
 `||nv.length`); `scripts/klicktest_konten.py`, „Fin: Vorgaben auf dem Server“ -- die Vorgaben haben dazu die beiden Grenzen (leer). Im ersten Lauf waren
 `tests/test_v436` und `tests/test_v438` rot: die neuen Felder hatten keinen Namen in der Historie (`app/audit.py::FIELD_LABELS`) -- ergänzt. Gegenproben:
 `gegenproben-lohn-l2c.md`, „1.9.336“.
+
+### Umsetzung 1.9.337 (Punkt 4): Stand beim Antrag auf Freizeitausgleich oder Unbezahlt
+
+- `app/arbeitszeitkonto.py::stand_danach(db, employee_id, von, bis, heute)`: der Stand bis gestern (`konten()` bis gestern, vorläufig) und danach -- minus
+  die Kosten der Antragstage ab heute: je Tag aus der Tagesbilanz Sollzeit minus Gutschrift, nie unter 0 (ein Feiertag oder ein Tag des Arbeitszeitkalenders
+  kostet nichts; ein schon genehmigter Freizeitausgleich wird nicht gutgeschrieben, kostet also wie ein offener). Tage vor heute stehen schon im Stand (ein Tag
+  ohne Eintrag ist dort schon ein Minus). `{stand, danach, reicht_nicht, text „Stand vorläufig +2,50 h · danach -12,50 h“, hinweis}`; danach unter 0 ->
+  „Plusstunden reichen nicht“ (`REICHT_NICHT`), nur ein Hinweis. Ohne Startwert (am Stichtag beschäftigt): `text` „Stand vorläufig: Startwert folgt“, kein danach.
+  None ohne Konto (nicht gewerblich) oder wenn der Antrag ganz vor dem Kontobeginn liegt. Halbe Tage gibt es bei Freizeitausgleich und Unbezahlt nicht (seit
+  1.9.171 nur bei Urlaub).
+- Beim Stellen: `GET /api/zeiten/konto-danach?employee_id&von&bis` (nur Admin und Büro – Finanzen, `_konto_dep`; die Monteurin und Büro – Auftrag 403). Die
+  Dialoge fragen nur bei den Kategorien Freizeitausgleich und Unbezahlt, nur wer das Konto sieht (unter „Zeiten“ `RECHTE.lohndaten`, auf der Plantafel
+  `rechte.konto_stand` aus `_tafel_rechte()`), dieselben Anlässe wie „danach Rest“ beim Urlaub (Bereich `kontodanach`).
+- Beim Genehmigen: `_antraege()` und `GET /api/zeiten/abwesenheiten` geben an jedem offenen Antrag dieser Kategorien `konto_danach` -- nur für Admin und Büro –
+  Finanzen (`darf_konten_aller()`), sonst `null`. Die Zeile zeigt den Text, den Hinweis als Kennzeichen.
+- Die Monteurin: keine Zahl auf der Seite („Meine Zeiten“ fragt nicht) und über die Schnittstelle (403; ihre Anträge, „Meine Zeiten“ ohne `konto_danach`).
+  `tests/test_v326_monteur_datengrenze.py` verbietet den Schlüssel `konto_danach` in jeder Antwort an sie.
+
+#### Festlegungen 1.9.337 (Bitte bestätigen)
+
+1. „Stand vorläufig x h · danach y h“ für Anträge auf Freizeitausgleich oder Unbezahlt: danach = Stand bis gestern minus Sollzeit minus Gutschrift je Antragstag ab
+   heute (ein Feiertag kostet nichts); Tage vor heute stehen schon im Stand.
+2. Danach unter 0: „Plusstunden reichen nicht“ -- nur ein Hinweis, keine Sperre.
+3. Ohne Startwert nur „Stand vorläufig: Startwert folgt“; ohne Konto (nicht gewerblich, ganz vor dem Kontobeginn) nichts.
+4. Er steht beim Stellen (Zeiten → Abwesenheit beantragen, Plantafel → Abwesenheit eintragen) und beim Genehmigen (Prüfen → Anträge, Abwesenheiten) -- nur für
+   Admin und Büro – Finanzen; Büro – Auftrag sieht keine Zahl (wie das Konto, B11).
+5. Die Monteurin sieht keine Zahl: die Schnittstelle 403, ihre Anträge und „Meine Zeiten“ ohne `konto_danach`; die Datengrenze verbietet den Schlüssel.
+
+#### Tests und Prüfung 1.9.337
+
+Neu: `tests/test_v737_konto_beim_antrag.py` (7 Tests: Rechnung -- Stand, Kosten ab heute, Feiertag; ohne Startwert und ohne Konto; beim Stellen nur Admin und Büro –
+Finanzen; beim Genehmigen -- Büro – Auftrag mit Mitarbeiter sieht ihre Anträge ohne Zahl -- und nie für die Monteurin; die Seiten unter „Zeiten“, auf der Plantafel und der Monteurin; die Rechte der Plantafel).
+`tests/test_v326_monteur_datengrenze.py`: `konto_danach` in den verbotenen Wortteilen. Neu `scripts/klicktest_konto_antrag.py` (23 Prüfungen: Anna in „Prüfen“ und
+„Abwesenheiten“, Fiona beim Stellen, Mia ohne Zahl und ohne Anfrage; Bilder „Genehmigen mit Stand“ und „Antrag der Monteurin ohne Zahl“ bei 1440 und 412 px, hell und
+dunkel). `tests/test_v326_monteur_datengrenze.py` dazu: Testwerte für `GET /api/zeiten/konto-danach` (`QUERY_WERTE`). Angepasste Erwartungen (nur Aufbau, das Soll ist unverändert): `antragHtml()` und `abwesenheitHtml()` brauchen in node jetzt auch
+`kontoDanachZeile()` -- `tests/test_v518_zeiten_seite.py::test_antraege_entscheidet_nur_der_admin`,
+`tests/test_v519_zeiten_abwesenheiten_monat.py::test_antrag_knoepfe_nach_dem_server`, `tests/test_v523_abwesenheiten_rechte.py::test_beantragt_von_in_der_zeile`,
+`tests/test_v606_festlegungen_174_179.py::test_beide_listen_unter_zeiten_nennen_die_antwort`, `tests/test_v621_schlechtwetter_stunden.py::test_beide_listen_zeichnen_die_stunden`
+(die vier letzten waren im ersten Lauf rot -- ReferenceError; ich hatte nur v518 nachgezogen, nicht nach allen Tests gesucht, die die beiden Funktionen herausziehen). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.337“.

@@ -94,6 +94,7 @@
     .kt-vermerk{color:var(--ds-text-2);font-size:13px}  /* seit 1.9.335: „Tage ansehen“ */
     .kt-summe td{font-weight:600;border-top:1px solid var(--ds-linie)}
     .konto-grenze{display:block;font-size:12px;font-weight:600;color:var(--ds-warn-text)}  /* seit 1.9.336 */
+    #adKonto.reicht-nicht{color:var(--ds-warn-text);font-weight:600}  /* seit 1.9.337 */
     .konto-kopf-einheit{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ds-text-2);font-size:11px}
     #nachVersandListe a{white-space:nowrap}  /* seit 1.9.331: „Monat & Lohn“ auf einer Zeile */
     .nv-besprochen{margin:0 10px 14px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end}  /* seit 1.9.330 */
@@ -482,6 +483,8 @@
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     <label class="mitglied breit" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
     <p class="ad-rest breit num" id="adRest" role="status" hidden></p>
+    {# seit 1.9.337 (Lohn L2c-3, Punkt 4): bei Freizeitausgleich und Unbezahlt „Stand vorläufig x h · danach y h“ -- nur Admin und Büro – Finanzen #}
+    <p class="ad-rest breit num" id="adKonto" role="status" hidden></p>
     {# seit 1.9.176 (L1a-Nachtrag, Punkt 3): Silvester im Urlaub -- ganzer Urlaubstag oder frei (_kalendertag_frage.html), erst nach der Rückfrage des Servers #}
     <div class="kt-frage breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     <label class="feld breit" for="adNotiz">Notiz / Grund<input id="adNotiz" type="text" placeholder="optional"></label>
@@ -711,15 +714,22 @@ function beantragtText(a){
   return a.created_at||a.beantragt_von?' · beantragt'+(a.beantragt_von?' von '+a.beantragt_von:'')+(a.created_at?' am '+berlinZeitpunkt(a.created_at,'datum'):''):'';
 }
 // seit 1.9.216 (L1a Stufe 6, Punkt 5): bei Schlechtwetter die Stunden des Ausfalltags (Text vom Server, a.ausfall: Sollzeit minus gebuchte Arbeit)
+// Seit 1.9.337: am offenen Antrag auf Freizeitausgleich oder Unbezahlt „Stand vorläufig x h · danach y h“ (vom Server, nur für Admin und Büro – Finanzen),
+// unter 0 „Plusstunden reichen nicht“ als Kennzeichen -- nur ein Hinweis
+function kontoDanachZeile(a){
+  var s=a.konto_danach;
+  return s?'<span class="zeile-unter konto-danach">'+esc(s.text)+(s.hinweis?' <span class="chip chip-warn">'+esc(s.hinweis)+'</span>':'')+'</span>':'';
+}
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
   var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
     +(a.ausfall?' · '+a.ausfall:'')+(a.rest_danach?' · '+a.rest_danach:'')+beantragtText(a);  // seit 1.9.316: „danach Rest n Tage“
+  var konto=kontoDanachZeile(a);  // seit 1.9.337
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
      +'<button type="button" class="knopf knopf-aktion" data-aktion="antrag" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>':'';
   return '<div class="zeile" data-antrag="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+art)+'</span>'
-    +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')+'</div>'+knoepfe+'</div>';
+    +'<span class="zeile-unter">'+esc(unter)+'</span>'+konto+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')+'</div>'+knoepfe+'</div>';
 }
 function offeneZeit(id){return (P&&P.offene_zeiten||[]).find(function(z){return String(z.id)===String(id)})||null}
 // Vorschau vom Server bei jeder Eingabe in „Ende um“ -- ohne Uhrzeit ein Lesen ohne Anfrage (Regel 29)
@@ -1014,7 +1024,7 @@ function abwesenheitHtml(a){
       +'<button type="button" class="knopf knopf-gefahr" data-aktion="abwl-ja" data-id="'+a.approved_absence_id+'">Löschen</button>'
     :'<button type="button" class="knopf knopf-neutral" data-aktion="abwl-fragen" data-id="'+a.id+'">Löschen</button>';
   return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+abwArtText(art,a.absence_type))+'</span>'
-    +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
+    +'<span class="zeile-unter">'+esc(unter)+'</span>'+kontoDanachZeile(a)+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
     +(a.vermerk?'<span class="zeile-unter">Vermerk: '+esc(a.vermerk)+'</span>':'')
     +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
     +'<span class="chip '+esc(st[1])+'">'+esc(st[0])+'</span>'+knoepfe+'</div>';
@@ -1062,8 +1072,21 @@ function ukZeile(k){
     +'<td class="r num">'+esc(zahlText(k.anspruch))+(k.anspruch_vorgabe?' <span class="mut">(Vorgabe)</span>':'')+'</td>'
     +zahl(k.uebertrag)+zahl(k.genehmigt)+zahl(k.vorbei)+zahl(k.kuenftig)+zahl(k.beantragt)+zahl(k.rest,true)+zahl(k.rest_nach_antraegen)+'</tr>';
 }
+// Seit 1.9.337 (Lohn L2c-3, Punkt 4): bei Freizeitausgleich und Unbezahlt „Stand vorläufig x h · danach y h“ vom Server, unter 0 „Plusstunden reichen nicht“ --
+// nur wer das Konto sieht (RECHTE.lohndaten: Admin, Büro – Finanzen), eine Person, Von bis Bis; sonst ein Lesen ohne Anfrage. Nur ein Hinweis, keine Sperre.
+var STAND_KATEGORIEN=['freizeitausgleich','unbezahlt'];
+function kontoDanachText(s){return s?s.text+(s.hinweis?' · '+s.hinweis:''):''}
+function adKontoLaden(){
+  var wer=A&&A.fuer_andere?el('adMitarbeiter').value:(A&&A.eigener_mitarbeiter),von=el('adVon').value,bis=el('adBis').value;
+  var geht=RECHTE.lohndaten&&!!wer&&STAND_KATEGORIEN.indexOf(el('adKategorie').value)>=0&&!(A.fuer_andere&&el('adMehrere').checked)&&!!von&&!!bis&&bis>=von;
+  var url='/api/zeiten/konto-danach?employee_id='+encodeURIComponent(wer||'')+'&von='+von+'&bis='+bis;
+  return lesen('kontodanach',()=>geht?api(url):Promise.resolve(null),function(d){el('adKonto').hidden=!d;el('adKonto').textContent=kontoDanachText(d);
+      el('adKonto').classList.toggle('reicht-nicht',!!(d&&d.reicht_nicht))})
+    .catch(function(){el('adKonto').hidden=true});
+}
 // Seit 1.9.316: beim Stellen „5 Urlaubstage · danach Rest 21,5 Tage“ vom Server -- nur Urlaub, eine Person, Von bis Bis; sonst ein Lesen ohne Anfrage
 function adRestLaden(){
+  adKontoLaden();  // seit 1.9.337: dieselben Anlässe
   var wer=A&&A.fuer_andere?el('adMitarbeiter').value:(A&&A.eigener_mitarbeiter),von=el('adVon').value,bis=el('adBis').value;
   var geht=!!wer&&el('adKategorie').value==='urlaub'&&!(A.fuer_andere&&el('adMehrere').checked)&&!!von&&!!bis&&bis>=von;
   var url='/api/absence-requests/rest-danach?employee_id='+encodeURIComponent(wer||'')+'&von='+von+'&bis='+bis+'&halber_tag='+(el('adHalb').checked?'true':'false');

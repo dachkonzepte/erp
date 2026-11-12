@@ -314,3 +314,26 @@ noch einmal, rot).
 15 Gegenproben, alle rot (12 über Tests, 3 über `klicktest_konto_grenzen`). Im ersten Anlauf: `336_1b` mit mehrdeutigem Anker (dreimal in der Datei), `336_4a` und `336_K2`
 mit dem Marker als Kommentar, der den Rest der Zeile verschluckte (Syntaxfehler, kein Beleg) -- beide umgeschrieben, danach rot; `336_2c` grün, Test nachgezogen.
 Die Namen in der Historie (Nr. 7) fehlten im ersten Lauf -- v436 und v438 waren rot, danach ergänzt und `336_6a` dazu.
+
+## 1.9.337 (L2c-3, Punkt 4): Stand beim Antrag auf Freizeitausgleich oder Unbezahlt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ein Feiertag kostet nichts (Sollzeit minus Gutschrift) | jeder Tag kostet seine Sollzeit (`337_1a`) | 1 rot: v737::test_rechnung |
+| Nr. 1 – nur Tage ab heute kosten (frühere stehen schon im Stand) | auch Tage vor heute (`337_1b`) | 1 rot: v737::test_rechnung |
+| Nr. 2 – unter 0 „Plusstunden reichen nicht“ | nie der Hinweis (`337_2a`; an der Zeile ohne Hinweis: Klicktest `337_K3`) | 1 rot: v737::test_rechnung; Klicktest: „Anna, Prüfen: an jedem Antrag …“, „Anna, Abwesenheiten: dieselben Zeilen“ |
+| Nr. 2 – keine Sperre | keine eigene: es gibt keinen Code, der den Stand beim Stellen, Genehmigen oder Speichern prüft | – |
+| Nr. 3 – ohne Startwert nur „Startwert folgt“ | ohne Startwert wie mit (`337_3a`) | 1 rot: v737::test_ohne_startwert_und_ohne_konto |
+| Nr. 4 – beim Genehmigen nur Admin und Büro – Finanzen | für jede Rolle (`337_4a`) | im ersten Anlauf GRÜN (der Test fragte Büro – Auftrag ohne Mitarbeiter -- sie sah keinen Antrag, die Prüfung lief über eine leere Liste) -- Test nachgezogen (mit Mitarbeiter, ihre Anträge müssen in der Liste stehen), danach 1 rot: v737::test_beim_genehmigen_und_nie_fuer_die_monteurin |
+| Nr. 4 – beim Stellen nur Admin und Büro – Finanzen (Schnittstelle) | auch Büro – Auftrag (`337_4b`) | 1 rot: v737::test_beim_stellen_nur_admin_und_finanzen |
+| Nr. 4 – der Dialog unter „Zeiten“ fragt nur mit Recht | ohne Rechte (`337_4c`) | 1 rot: v737::test_seite_zeiten |
+| Nr. 4 – die Plantafel meldet das Recht nur Admin und Büro – Finanzen | jede Rolle (`337_4d`) | 1 rot: v737::test_plantafel_rechte |
+| Nr. 4 – der Dialog der Plantafel fragt nur mit Recht | ohne Rechte (`337_4e`) | 1 rot: v737::test_seite_plantafel_und_monteurin |
+| Nr. 4 – die Zeile am Antrag in „Prüfen“ und „Abwesenheiten“ | keine Zeile (Klicktest `337_K1`) | Klicktest: „Anna, Prüfen: an jedem Antrag …“, „Anna, Abwesenheiten: dieselben Zeilen“ |
+| Nr. 4 – beim Stellen „Stand vorläufig · danach“ | fragt nie (Klicktest `337_K2`) | Klicktest: „Fiona, beim Stellen: Stand und danach“ |
+| Nr. 5 – die Monteurin: Schnittstelle 403 | jede Rolle, auch die Monteurin (`337_5a`) | 1 rot: v737::test_beim_stellen_nur_admin_und_finanzen |
+| Nr. 5 – ihre Anträge und „Meine Zeiten“ ohne `konto_danach` | keine eigene neben `337_4a` (derselbe Weg `_konto_danach()`; ihre Anträge kommen nicht über ihn) -- dazu die Datengrenze `test_v326` mit dem verbotenen Schlüssel `konto_danach` | – |
+
+13 Gegenproben, alle rot (10 über Tests, 3 über `klicktest_konto_antrag`). Im ersten Anlauf blieb `337_4a` grün: der Test fragte Büro – Auftrag ohne Mitarbeiter --
+sie sieht dann keinen Antrag, „alle ohne Zahl“ galt für eine leere Liste. Nachgezogen: Büro – Auftrag mit Mitarbeiter, ihre beiden Anträge müssen in der Liste
+stehen, beide ohne Zahl; danach rot.
