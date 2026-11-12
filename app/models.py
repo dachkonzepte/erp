@@ -2779,6 +2779,11 @@ class TimeTrackingSettings(Base):
     urlaub_vorgabe_tage: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal("30"), server_default="30")
     urlaub_uebertrag: Mapped[str] = mapped_column(String(20), default="von_hand", server_default="von_hand")
     urlaub_verfall: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    # Seit 1.9.336 (Lohn L2c-3, Punkt 3; Antwort B9): Grenzen des Arbeitszeitkontos -- „Hinweis ab Plus … h“ und „Hinweis ab Minus … h“ (beide als Betrag größer 0,
+    # leer = kein Hinweis); nur Hinweise in „Prüfen“ und an der Person (app/arbeitszeitkonto.py::grenze_text()), nie eine Sperre. Gesetzt nur über
+    # PUT /api/time-backoffice/konten/vorgaben (darf_lohnregeln()).
+    konto_hinweis_plus: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    konto_hinweis_minus: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

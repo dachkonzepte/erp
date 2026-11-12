@@ -289,6 +289,8 @@ FIELD_LABELS = {
     "resturlaub_tage": "Resturlaub (Tage)", "saldo_stunden": "Saldo Arbeitszeitkonto (Stunden)", "herkunft": "Herkunft", "herkunft_notiz": "Bemerkung zur Herkunft",
     "geprueft_am": "Geprüft am", "geprueft_von": "Geprüft von", "urlaub_vorgabe_tage": "Urlaubsanspruch je Jahr (Vorgabe)",
     "urlaub_uebertrag": "Übertrag des Urlaubs ins Folgejahr", "urlaub_verfall": "Übertrag verfällt am (Vorgabe)",
+    # seit 1.9.336 (Lohn L2c-3, Punkt 3): die Grenzen des Arbeitszeitkontos in den Zeitregeln
+    "konto_hinweis_plus": "Arbeitszeitkonto: Hinweis ab Plus", "konto_hinweis_minus": "Arbeitszeitkonto: Hinweis ab Minus",
     "operational_asset_id": "Betriebsmittel",
     "order_id": "Auftrag",
     "origin": "Herkunft",

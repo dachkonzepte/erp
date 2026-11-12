@@ -103,7 +103,26 @@ def verfall_text(wert: str | None) -> str | None:
 
 def vorgaben(db: Session) -> dict:
     row = _einstellungen(db)
-    return {"urlaub_vorgabe_tage": row.urlaub_vorgabe_tage, "urlaub_uebertrag": row.urlaub_uebertrag, "urlaub_verfall": row.urlaub_verfall}
+    return {"urlaub_vorgabe_tage": row.urlaub_vorgabe_tage, "urlaub_uebertrag": row.urlaub_uebertrag, "urlaub_verfall": row.urlaub_verfall,
+            # seit 1.9.336 (Lohn L2c-3, Punkt 3): die Grenzen des Arbeitszeitkontos
+            "konto_hinweis_plus": row.konto_hinweis_plus, "konto_hinweis_minus": row.konto_hinweis_minus}
+
+
+GRENZE_HOECHSTENS = Decimal("9999.99")  # Numeric(6, 2)
+
+
+def grenze_wert(wert, was: str) -> Decimal | None:
+    """Seit 1.9.336: eine Grenze des Arbeitszeitkontos -- leer = kein Hinweis, sonst ein Betrag in Stunden größer 0 (zwei Stellen, kaufmännisch)."""
+    from .rounding import round_hours
+    if wert is None or wert == "":
+        return None
+    try:
+        zahl = round_hours(Decimal(str(wert)))
+    except (ArithmeticError, ValueError) as exc:
+        raise ValueError(f"{was}: bitte eine Zahl in Stunden angeben (leer = kein Hinweis).") from exc
+    if zahl <= 0 or zahl > GRENZE_HOECHSTENS:
+        raise ValueError(f"{was}: größer als 0 und höchstens 9.999,99 Stunden (leer = kein Hinweis).")
+    return zahl
 
 
 def vorgaben_setzen(db: Session, werte: dict) -> dict:
@@ -119,6 +138,10 @@ def vorgaben_setzen(db: Session, werte: dict) -> dict:
         neu["urlaub_uebertrag"] = werte["urlaub_uebertrag"]
     if "urlaub_verfall" in werte:
         neu["urlaub_verfall"] = verfall_text(werte["urlaub_verfall"])
+    if "konto_hinweis_plus" in werte:  # seit 1.9.336
+        neu["konto_hinweis_plus"] = grenze_wert(werte["konto_hinweis_plus"], "Hinweis ab Plus")
+    if "konto_hinweis_minus" in werte:
+        neu["konto_hinweis_minus"] = grenze_wert(werte["konto_hinweis_minus"], "Hinweis ab Minus")
     row = _einstellungen(db)
     for feld, wert in neu.items():
         setattr(row, feld, wert)

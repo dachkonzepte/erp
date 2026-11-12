@@ -122,5 +122,5 @@ def test_seite_aufbau():
     # seit 1.9.322 dazu die Hinweise zum Arbeitszeitkonto
     # seit 1.9.331 dazu die Änderungen nach dem Versand (nv)
     assert ("el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length||ke.ohne_eintrag.length"
-            "||ke.arbeit_bei_abwesenheit.length||nv.length);") in text
+            "||ke.arbeit_bei_abwesenheit.length||nv.length||kg.length);") in text  # seit 1.9.336 dazu die Grenzen des Kontos (kg)
     assert "else if(a==='rueckfahrt-aendern'){var r=P.rueckfahrten[Number(b.dataset.i)];if(r)buchungDialogOeffnen(r)}" in text

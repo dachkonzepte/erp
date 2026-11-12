@@ -137,6 +137,9 @@ ABGLEICH = [
     # -- seit 1.9.310 (Lohn L2a, Punkt 3): Urlaub und Startwerte -- Tage in halben Schritten, Stunden mit zwei Stellen; geprüft in app/lohnkonten.py
     Z("settings.html", "id=kvTage", (), code={"min": _g(0), "max": _g(99.5), "stellen": 1, "pflicht": True},
       beleg=("app/lohnkonten.py", 'halbe_tage(werte["urlaub_vorgabe_tage"], "Urlaubsanspruch je Jahr", Decimal("0"))')),
+    # -- seit 1.9.336 (Lohn L2c-3, Punkt 3): Grenzen des Arbeitszeitkontos -- zwei Stellen; größer 0 und höchstens 9.999,99 prüft der Server
+    Z("settings.html", "id=kvPlus", (), code={"stellen": 2}, beleg=("app/lohnkonten.py", 'grenze_wert(werte["konto_hinweis_plus"], "Hinweis ab Plus")')),
+    Z("settings.html", "id=kvMinus", (), code={"stellen": 2}, beleg=("app/lohnkonten.py", 'grenze_wert(werte["konto_hinweis_minus"], "Hinweis ab Minus")')),
     Z("settings.html", "id=kdTage", (), code={"min": _g(0), "max": _g(99.5), "stellen": 1},
       beleg=("app/lohnkonten.py", 'halbe_tage(werte["urlaubstage"], "Urlaubstage", Decimal("0"))')),
     Z("settings.html", "id=kdUebertrag", (), code={"min": _g(-99.5), "max": _g(99.5), "stellen": 1},

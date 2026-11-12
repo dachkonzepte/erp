@@ -3990,6 +3990,8 @@ class KontenVorgabenUpdate(PartialUpdate):
     urlaub_vorgabe_tage: Decimal | None = None
     urlaub_uebertrag: str | None = Field(default=None, max_length=20)
     urlaub_verfall: str | None = Field(default=None, max_length=20)
+    konto_hinweis_plus: Decimal | None = None  # seit 1.9.336: leer = kein Hinweis, sonst größer 0 (app/lohnkonten.py::grenze_wert())
+    konto_hinweis_minus: Decimal | None = None
 
 
 class UrlaubsanspruchUpdate(PartialUpdate):
@@ -4015,6 +4017,8 @@ class KontenVorgabenOut(BaseModel):
     urlaub_vorgabe_tage: Decimal
     urlaub_uebertrag: str
     urlaub_verfall: str | None = None
+    konto_hinweis_plus: Decimal | None = None  # seit 1.9.336
+    konto_hinweis_minus: Decimal | None = None
 
 
 class UrlaubsanspruchOut(BaseModel):

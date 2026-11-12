@@ -5,7 +5,8 @@ Versand geändert“ -- je Monat eine volle Rechnung der Lohndatei. Dieses Skrip
 
 Testbestand (nur erfunden, Wegwerf-Datenbank -- nie die echte, Regel 16): 15 gewerbliche Personen (Personalnummern aus dem erfundenen Kreis), je Arbeitstag
 von Januar bis Dezember 2027 eine Buchung von 8,00 h, je Person und Monat ein Urlaubstag (genehmigt); je Monat die Lohndatei erzeugt und als gesendet
-vermerkt, danach je Monat zwei geänderte Buchungen (von Anna Admin, in der Änderungshistorie). „Abgeschlossen bis“ 31.12.2027.
+vermerkt, danach je Monat zwei geänderte Buchungen (von Anna Admin, in der Änderungshistorie). „Abgeschlossen bis“ 31.12.2027. Seit 1.9.336 mit Grenzen des
+Arbeitszeitkontos (Plus 40, Minus 20 h) -- „Prüfen“ rechnet dann auch das Konto über das ganze Jahr.
 
 Zwei Tage:
     31.12.2027  alle zwölf gesendeten Monate liegen im Fenster (der Dezember am letzten Tag gesendet -- der ungünstigste Fall)
@@ -74,6 +75,8 @@ def befuellen(db) -> int:
     db.add(anna)
     s = db.get(TimeTrackingSettings, 1)
     s.datev_beraternummer, s.datev_mandantennummer, s.locked_until = "1234567", "12345", date(2027, 12, 31)
+    # seit 1.9.336: mit Grenzen rechnet „Prüfen“ auch das Konto aller gewerblichen Personen über das ganze Jahr (app/arbeitszeitkonto.py::grenzen_hinweise())
+    s.konto_hinweis_plus, s.konto_hinweis_minus = Decimal("40"), Decimal("20")
     db.commit()
     personen = []
     for i, nummer in enumerate(NUMMERN):

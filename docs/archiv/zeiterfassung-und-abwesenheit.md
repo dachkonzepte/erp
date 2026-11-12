@@ -3335,3 +3335,55 @@ Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.334“.
 Neu: `tests/test_v735_konto_tage.py` (3 Tests: Vermerk je Tag, Zeilen ohne leere Tage, die Seite). Neu `scripts/klicktest_konto_tage.py` (25 Prüfungen: Adas
 Tage -- Neujahr gutgeschrieben, ein Arbeitstag +0,50, Urlaub gutgeschrieben, Freizeitausgleich zählt nicht, kein Wochenende --, die Summe; Bos Tag ohne Eintrag
 und „Startwert folgt“; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.335“.
+
+### Umsetzung 1.9.336 (Punkt 3): Grenzen des Arbeitszeitkontos
+
+- `TimeTrackingSettings.konto_hinweis_plus` und `konto_hinweis_minus` (Numeric(6, 2), leer; Migration `7c2e4a9b1d53`): beide als Betrag, leer = kein Hinweis.
+  Gesetzt nur über `PUT /api/time-backoffice/konten/vorgaben` (Teil-Update, `darf_lohnregeln()`), geprüft in `app/lohnkonten.py::grenze_wert()`: leer ->
+  kein Hinweis, sonst größer 0 und höchstens 9.999,99, zwei Stellen kaufmännisch (422 sonst). In den Zeitregeln zwei Zahlenfelder im Block „Urlaub und Startwerte
+  der Konten“ (`kvPlus`, `kvMinus`, gespeichert mit „Vorgaben speichern“).
+- `app/arbeitszeitkonto.py`: `grenzen()`, `grenze_text(stand, plus, minus)` -- ab der Plus-Grenze (Stand ≥ Plus) „Stand +42,50 h – Hinweis ab Plus 40,00 h“, ab
+  der Minus-Grenze (Stand ≤ −Minus) entsprechend, sonst nichts; `grenzen_hinweise(db, heute)` -- je gewerblicher Person mit Startwert, deren Stand bis gestern
+  eine Grenze erreicht; ohne gesetzte Grenze und vor dem Kontobeginn keine Rechnung.
+- „Prüfen“ (`GET /api/zeiten/pruefen`, Schlüssel `konto_grenzen`): nur Admin und Büro – Finanzen (`darf_konten_aller()`), Karte „Arbeitszeitkonto an der Grenze“
+  (zur Info, zählt nicht am Reiter; „Alles erledigt“ nur ohne sie). „Monat & Lohn“: `GET /api/zeiten/arbeitszeitkonto` gibt je Konto `grenze` (am Stand am
+  Ende des Monats bzw. bis gestern) und `grenzen`; die Zeile zeigt „Hinweis ab Plus 40,00 h“ unter dem Stand.
+- Messung danach (`scripts/messe_pruefen.py`, derselbe Bestand wie 1.9.333, dazu Grenzen gesetzt -- die Rechnung des Kontos über das ganze Jahr kommt in
+  „Prüfen“ dazu):
+
+| Datenbank | heute | Fenster | Monate | Prüfen (Median / größter) | davon „nach dem Versand“ |
+  |---|---|---|---|---|---|
+  | SQLite | 31.12.2027 | 12 | 12 | 0,500 s / 0,513 s | 0,250 s |
+  | SQLite | 31.12.2027 | 3 | 3 | 0,242 s / 0,319 s | 0,060 s |
+  | SQLite | 17.01.2028 | 12 | 11 | 0,427 s / 0,487 s | 0,226 s |
+  | SQLite | 17.01.2028 | 3 | 2 | 0,223 s / 0,303 s | 0,042 s |
+  | PostgreSQL | 31.12.2027 | 12 | 12 | 0,542 s / 0,561 s | 0,259 s |
+  | PostgreSQL | 31.12.2027 | 3 | 3 | 0,261 s / 0,356 s | 0,065 s |
+  | PostgreSQL | 17.01.2028 | 12 | 11 | 0,528 s / 0,537 s | 0,231 s |
+  | PostgreSQL | 17.01.2028 | 3 | 2 | 0,247 s / 0,331 s | 0,048 s |
+
+  Mit Grenzen kommen rund 0,15–0,25 s dazu (die Rechnung des Kontos aller gewerblichen Personen ab dem Kontobeginn); ohne gesetzte Grenze rechnet „Prüfen“ das
+  Konto nicht. Der ungünstigste Fall bleibt unter 1 s (0,54 s unter PostgreSQL) -- auf dem Server (2 Kerne) entsprechend mehr.
+
+#### Festlegungen 1.9.336 (Bitte bestätigen)
+
+1. In den Zeitregeln „Arbeitszeitkonto: Hinweis ab Plus (h)“ und „… ab Minus (h)“; leer = kein Hinweis, sonst ein Betrag größer 0 (höchstens 9.999,99); ändern
+   darf, wer die Lohnregeln ändert (Admin, Büro – Finanzen).
+2. Der Hinweis gilt ab der Grenze: Stand ≥ Plus bzw. Stand ≤ −Minus -- „Stand +42,50 h – Hinweis ab Plus 40,00 h“; ohne Startwert keiner.
+3. „Prüfen“ nennt jede gewerbliche Person, deren Stand bis gestern eine Grenze erreicht (Karte „Arbeitszeitkonto an der Grenze“) -- nur Admin und Büro –
+   Finanzen; ohne gesetzte Grenze keine Rechnung; zählt nicht am Reiter, „Alles erledigt“ nur ohne sie.
+4. In „Monat & Lohn“ steht der Hinweis an der Person, am Stand am Ende des Monats (bzw. bis gestern).
+5. Nur Hinweise: keine Sperre von Buchung, Antrag, Abschluss oder Lohndatei.
+6. `downgrade()` bricht ab, solange eine Grenze gesetzt ist.
+7. In der Änderungshistorie heißen die Felder „Arbeitszeitkonto: Hinweis ab Plus“ und „… ab Minus“.
+
+#### Tests und Prüfung 1.9.336
+
+Neu: `tests/test_v736_konto_grenzen.py` (8 Tests: Wert der Grenze; Text an der Grenze; speichern und leeren, Teil-Update, Rechte; Hinweise in „Prüfen“ samt Rechten;
+an der Person; die Seiten; Migration unter SQLite und PostgreSQL). Neu `scripts/klicktest_konto_grenzen.py` (24 Prüfungen: „0“ abgelehnt, 10 und 5 getippt und
+gespeichert, nach dem Neuladen da; „Prüfen“ mit Ada, ohne Bo; „Monat & Lohn“ an Ada; Bilder der Zeitregeln und von „Prüfen“ bei 1440 und 412 px, hell und dunkel).
+Angepasste Erwartungen: `tests/test_v710_urlaub_und_startwerte.py::test_vorgaben_lesen_und_teil_update` -- die Vorgaben haben dazu `konto_hinweis_plus` und
+`konto_hinweis_minus` (leer); `tests/test_v714_rueckfahrt.py::test_seite_aufbau` -- die Bedingung von „Alles erledigt“ endet auf `||kg.length` (bisher
+`||nv.length`); `scripts/klicktest_konten.py`, „Fin: Vorgaben auf dem Server“ -- die Vorgaben haben dazu die beiden Grenzen (leer). Im ersten Lauf waren
+`tests/test_v436` und `tests/test_v438` rot: die neuen Felder hatten keinen Namen in der Historie (`app/audit.py::FIELD_LABELS`) -- ergänzt. Gegenproben:
+`gegenproben-lohn-l2c.md`, „1.9.336“.

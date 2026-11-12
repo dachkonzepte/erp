@@ -291,3 +291,26 @@ noch einmal, rot).
 | Nr. 3 – Stand, ohne Startwert „Startwert folgt“; keine Anfrage | keine eigene: Kopf und Stand nehmen dieselben Werte wie die Zeile der Karte (`334_2a`); dass der Dialog nicht fragt, prüft v735::test_seite (kein `api(` in `kontoTageOeffnen`) -- es gibt keinen Schutz im Code, den eine Gegenprobe aushebeln könnte | – |
 
 9 Gegenproben, alle rot (6 über Tests, 3 über `klicktest_konto_tage`).
+
+## 1.9.336 (L2c-3, Punkt 3): Grenzen des Arbeitszeitkontos
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – größer 0 | auch 0 (`336_1a`) | 2 rot: v736::test_grenze_wert, test_vorgaben_speichern_und_leer |
+| Nr. 1 – leer = kein Hinweis | leer ist ein Fehler (`336_1b`) | 1 rot: v736::test_grenze_wert |
+| Nr. 1 – gespeichert über die Vorgaben, nach dem Neuladen da | die Seite schickt die Grenzen nicht (Klicktest `336_K3`) | Klicktest: „„0“ abgelehnt“, „nach dem Neuladen stehen sie da“, „Prüfen: die Karte …“, „Monat & Lohn: an Ada der Hinweis“ |
+| Nr. 2 – ab der Plus-Grenze (≥) | erst darüber (`336_2a`) | 1 rot: v736::test_grenze_text |
+| Nr. 2 – ab der Minus-Grenze (≤ −Minus) | erst darunter (`336_2b`) | 1 rot: v736::test_grenze_text |
+| Nr. 2 – ohne Startwert kein Hinweis (Prüfen) | auch ohne Startwert (`336_2c`) | im ersten Anlauf GRÜN (im Test lag die Person ohne Startwert an keiner Grenze) -- Test nachgezogen (Minus-Grenze 5 h), danach 1 rot: v736::test_hinweise_in_pruefen |
+| Nr. 2 – ohne Startwert kein Hinweis (an der Person) | auch ohne Startwert (`336_4b`) | 1 rot: v736::test_an_der_person |
+| Nr. 3 – nur Admin und Büro – Finanzen | für jede Rolle (`336_3a`) | 1 rot: v736::test_hinweise_in_pruefen |
+| Nr. 3 – die Karte in „Prüfen“ | nie sichtbar (`336_3b`; Klicktest `336_K1`) | 1 rot: v736::test_seite; Klicktest: „Prüfen: die Karte mit Ada, ohne Bo“ |
+| Nr. 3 – „Alles erledigt“ nur ohne sie | ohne `kg` (`336_3c`) | 1 rot: v714::test_seite_aufbau |
+| Nr. 4 – der Hinweis an der Person | keiner (`336_4a`; Klicktest `336_K2`) | 1 rot: v736::test_an_der_person; Klicktest: „Monat & Lohn: an Ada der Hinweis“ |
+| Nr. 5 – keine Sperre | keine eigene: es gibt keinen Code, der eine Grenze in Buchung, Antrag, Abschluss oder Lohndatei prüft | – |
+| Nr. 6 – downgrade bricht ab | kein Abbruch (`336_5a`) | 2 rot: v736::test_migration_sqlite, test_migration_postgresql |
+| Nr. 7 – lesbare Namen in der Änderungshistorie | ohne Namen (`336_6a`) | 2 rot: v436::test_jedes_protokollierte_feld_hat_einen_namen, v438::test_namen_der_historie_sind_lesbar |
+
+15 Gegenproben, alle rot (12 über Tests, 3 über `klicktest_konto_grenzen`). Im ersten Anlauf: `336_1b` mit mehrdeutigem Anker (dreimal in der Datei), `336_4a` und `336_K2`
+mit dem Marker als Kommentar, der den Rest der Zeile verschluckte (Syntaxfehler, kein Beleg) -- beide umgeschrieben, danach rot; `336_2c` grün, Test nachgezogen.
+Die Namen in der Historie (Nr. 7) fehlten im ersten Lauf -- v436 und v438 waren rot, danach ergänzt und `336_6a` dazu.

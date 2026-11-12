@@ -65,10 +65,13 @@ def _person(antwort, emp) -> dict:
 def test_vorgaben_lesen_und_teil_update(w):
     c = _als(w, "buero_finanzen")
     r = c.get(K).json()
-    assert r["vorgaben"] == {"urlaub_vorgabe_tage": "30.0", "urlaub_uebertrag": "von_hand", "urlaub_verfall": None}
+    # seit 1.9.336 dazu die Grenzen des Arbeitszeitkontos (leer)
+    assert r["vorgaben"] == {"urlaub_vorgabe_tage": "30.0", "urlaub_uebertrag": "von_hand", "urlaub_verfall": None, "konto_hinweis_plus": None,
+                             "konto_hinweis_minus": None}
     assert (r["stichtag"], r["jahr"], r["darf_aendern"], r["startwert_gesperrt"]) == ("2026-12-31", 2027, True, False)
     assert c.put(f"{K}/vorgaben", json={"urlaub_verfall": "31.3"}).json() == {"urlaub_vorgabe_tage": "30.0", "urlaub_uebertrag": "von_hand",
-                                                                               "urlaub_verfall": "31.03."}
+                                                                               "urlaub_verfall": "31.03.", "konto_hinweis_plus": None,
+                                                                               "konto_hinweis_minus": None}
     assert c.put(f"{K}/vorgaben", json={"urlaub_vorgabe_tage": 28.5, "urlaub_uebertrag": "automatisch"}).json()["urlaub_verfall"] == "31.03."
     for body, meldung in (({"urlaub_vorgabe_tage": 28.3}, "in halben Tagen"), ({"urlaub_uebertrag": "immer"}, "„von Hand“ oder „automatisch“"),
                           ({"urlaub_verfall": "29.02."}, "nicht der 29.02."), ({"urlaub_verfall": "31.04."}, "TT.MM."),

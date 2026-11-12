@@ -153,7 +153,8 @@ async def pruefen(tab, seed, p):
     await _setze(tab, {"kvTage": "28,5", "kvVerfall": "31.03."})
     p.pruefe("Fin: Vorgaben gespeichert", await _klick_bis(tab, "[data-klick=konten-vorgaben]", "kontenVorgabenStatus", "Gespeichert."), True)
     p.pruefe("Fin: Vorgaben auf dem Server", (await _api(tab, "/api/time-backoffice/konten"))["vorgaben"],
-             {"urlaub_vorgabe_tage": "28.5", "urlaub_uebertrag": "von_hand", "urlaub_verfall": "31.03."})
+             {"urlaub_vorgabe_tage": "28.5", "urlaub_uebertrag": "von_hand", "urlaub_verfall": "31.03.",
+              "konto_hinweis_plus": None, "konto_hinweis_minus": None})  # seit 1.9.336 dazu die Grenzen des Arbeitszeitkontos (leer)
 
     p.pruefe("Fin: Dialog an Mia", await _oeffnen(tab, mia), True)
     p.pruefe("Fin: Titel, Jahre, leer mit der Vorgabe", await tab.js(

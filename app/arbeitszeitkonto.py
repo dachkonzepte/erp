@@ -213,3 +213,49 @@ def konten(db: Session, von: date, bis: date, employee_ids=None, *, heute: date 
         k.monate = list(monate.values())
         ergebnis.append(k)
     return ergebnis
+
+# --- Grenzen (seit 1.9.336, Lohn L2c-3, Punkt 3; Antwort B9) ----------------------------------------------------------------------------------------
+
+def _h_text(wert: Decimal) -> str:
+    """„+42,50 h“ -- mit Vorzeichen, zwei Stellen (die Werte sind schon auf 0,25 bzw. zwei Stellen gerundet)."""
+    return f"{wert:+.2f}".replace(".", ",") + " h"
+
+
+def _betrag_text(wert: Decimal) -> str:
+    return f"{wert:.2f}".replace(".", ",") + " h"
+
+
+def grenzen(db: Session) -> tuple[Decimal | None, Decimal | None]:
+    """(Hinweis ab Plus, Hinweis ab Minus) aus den Zeitregeln; leer = kein Hinweis."""
+    from .models import TimeTrackingSettings
+    s = db.get(TimeTrackingSettings, 1)
+    return (s.konto_hinweis_plus, s.konto_hinweis_minus) if s is not None else (None, None)
+
+
+def grenze_text(stand: Decimal, plus: Decimal | None, minus: Decimal | None) -> str | None:
+    """Der Hinweis an einem Stand: ab der Plus-Grenze (Stand ≥ Plus) bzw. ab der Minus-Grenze (Stand ≤ −Minus), sonst None. Nur ein Hinweis, nie eine Sperre."""
+    if plus is not None and stand >= plus:
+        return f"Stand {_h_text(stand)} – Hinweis ab Plus {_betrag_text(plus)}"
+    if minus is not None and stand <= -minus:
+        return f"Stand {_h_text(stand)} – Hinweis ab Minus {_betrag_text(minus)}"
+    return None
+
+
+def grenzen_hinweise(db: Session, heute: date | None = None) -> list[dict]:
+    """Für „Prüfen“: je gewerblicher Person mit Startwert, deren Stand (bis gestern, vorläufig) eine Grenze erreicht, {employee_id, name, stand, text
+    „Name: Stand +42,50 h – Hinweis ab Plus 40,00 h“}. Ohne gesetzte Grenze und vor dem Kontobeginn nichts (keine Rechnung). Wer ohne Startwert ist, fehlt:
+    sein Stand steht noch nicht fest. Der Router gibt es nur Admin und Büro – Finanzen (B11)."""
+    from .berlin_time import berlin_today
+    plus, minus = grenzen(db)
+    if plus is None and minus is None:
+        return []
+    heute = heute or berlin_today()
+    gestern = gezaehlt_bis(heute)
+    if gestern < KONTOBEGINN:
+        return []
+    ergebnis = []
+    for k in konten(db, gestern, gestern, heute=heute):
+        text = None if OHNE_STARTWERT in k.hinweise else grenze_text(k.stand, plus, minus)
+        if text:
+            ergebnis.append({"employee_id": k.employee_id, "name": k.name, "stand": k.stand, "text": f"{k.name}: {text}"})
+    return ergebnis

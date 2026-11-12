@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
-from ..arbeitszeitkonto import KONTOBEGINN, VORLAEUFIG, gezaehlt_bis, konten as arbeitszeitkonten
+from ..arbeitszeitkonto import KONTOBEGINN, OHNE_STARTWERT, VORLAEUFIG, grenze_text, grenzen, grenzen_hinweise, gezaehlt_bis, konten as arbeitszeitkonten
 from ..arbeitszeitkalender import naechste as naechste_kalendertage
 from ..berlin_time import berlin_today
 from ..database import get_db
@@ -119,6 +119,8 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     # seit 1.9.331 (Lohn L2c-2, Punkt 4): je Monat die Zahl der Änderungen nach dem Versand -- ohne Namen, nur Admin und Büro – Finanzen (die Liste dahinter
     # sehen nur sie); nur ein Hinweis, zählt nicht am Reiter
     daten["nach_dem_versand"] = aenderungen_je_monat(db, heute) if darf_lohndaten(user) else []
+    # seit 1.9.336 (Lohn L2c-3, Punkt 3): Stand an einer Grenze des Kontos -- nur Admin und Büro – Finanzen (wie das Konto, B11); nur ein Hinweis
+    daten["konto_grenzen"] = grenzen_hinweise(db, heute) if darf_konten_aller(user) else []
     # seit 1.9.101: „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht; „Anträge entschieden“ nur, wenn keiner offen ist
     # (auch keiner, den das Konto nicht sieht -- Büro – Auftrag sieht nur die eigenen)
     if daten["antraege"]:
@@ -162,9 +164,10 @@ def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_
         raise HTTPException(status_code=422, detail=f"Das Arbeitszeitkonto beginnt am {KONTOBEGINN:%d.%m.%Y}.")
     ende = monat_ende(erster)
     liste = arbeitszeitkonten(db, erster, ende, None if mitarbeiter is None else [mitarbeiter], heute=heute)
+    plus, minus = grenzen(db)  # seit 1.9.336: der Hinweis an der Person -- am Stand am Ende des Monats (bzw. bis gestern), ohne Startwert keiner
     return {"monat": erster.strftime("%Y-%m"), "kontobeginn": KONTOBEGINN, "gezaehlt_bis": min(ende, gezaehlt_bis(heute)), "vorlaeufig": True,
-            "hinweis": VORLAEUFIG,
-            "konten": [k.als_dict() for k in liste]}
+            "hinweis": VORLAEUFIG, "grenzen": {"plus": plus, "minus": minus},
+            "konten": [{**k.als_dict(), "grenze": None if OHNE_STARTWERT in k.hinweise else grenze_text(k.stand, plus, minus)} for k in liste]}
 
 
 @router.get("/api/zeiten/buchungen")
