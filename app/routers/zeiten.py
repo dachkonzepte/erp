@@ -9,24 +9,27 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
+from ..arbeitszeitkonto import KONTOBEGINN, MASSGEBLICH, gezaehlt_bis, konten as arbeitszeitkonten
 from ..arbeitszeitkalender import naechste as naechste_kalendertage
 from ..berlin_time import berlin_today
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
 from ..lohnkonten import ERSTES_JAHR, standardjahr
-from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
-                           darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
+from ..permissions import (LOHNDATEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
+                           darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role, require_role)
 from ..urlaubskonto import konten as urlaubskonten, rest_danach_je_antrag
 from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
-from ..zeiten import buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
+from ..zeiten import buchungen, feiertage_bundesland, monat, monat_ende, monat_lesen, pruefen
 
 router = APIRouter()
 
 _buero_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Die Seite „Zeiten“ ist nur für das Büro."))
 _lohn_dep = Depends(require_lohndaten)
+# seit 1.9.321 (Lohn L2c-1, Antwort B11): das Arbeitszeitkonto sehen nur Admin und Büro – Finanzen -- dieselben Rollen wie die Lohndaten, eine eigene Meldung
+_konto_dep = Depends(require_role(*LOHNDATEN_ROLLEN, message="Das Arbeitszeitkonto sehen nur Admin und Büro – Finanzen."))
 
 
 def _rechte(user: AppUser) -> dict:
@@ -134,6 +137,23 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
     # seit 1.9.316: die wählbaren Jahre -- ab 2027 bis ein Jahr nach dem laufenden (und das gewählte)
     jahre = sorted(set(range(ERSTES_JAHR, standardjahr() + 2)) | {jahr})
     return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "jahre": jahre, "konten": [k.als_dict() for k in liste]}
+
+
+@router.get("/api/zeiten/arbeitszeitkonto")
+def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_length=7), mitarbeiter: int | None = None,
+                            db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
+    """Seit 1.9.321 (Lohn L2c-1, Punkt 1): das Arbeitszeitkonto eines Monats (Vorgabe: der laufende, frühestens Januar 2027) -- je gewerblicher Person
+    die Tage (Soll, Arbeit, Gutschrift, Saldo, Posten), der Monat und der Stand ab dem Startwert (app/arbeitszeitkonto.py), gezählt bis gestern. Nur
+    lesend, nur Admin und Büro – Finanzen (Antwort B11 -- „Meine Zeiten“ erst mit L2c-4, auch nicht über diese Schnittstelle); mitarbeiter: nur diese
+    Person. Vor Januar 2027 422."""
+    heute = berlin_today()
+    erster = _monat(monat_) if monat_ else max(heute.replace(day=1), KONTOBEGINN)
+    if erster < KONTOBEGINN:
+        raise HTTPException(status_code=422, detail=f"Das Arbeitszeitkonto beginnt am {KONTOBEGINN:%d.%m.%Y}.")
+    ende = monat_ende(erster)
+    liste = arbeitszeitkonten(db, erster, ende, None if mitarbeiter is None else [mitarbeiter], heute=heute)
+    return {"monat": erster.strftime("%Y-%m"), "kontobeginn": KONTOBEGINN, "gezaehlt_bis": min(ende, gezaehlt_bis(heute)), "hinweis": MASSGEBLICH,
+            "konten": [k.als_dict() for k in liste]}
 
 
 @router.get("/api/zeiten/buchungen")

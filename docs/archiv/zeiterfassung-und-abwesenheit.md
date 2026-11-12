@@ -2780,3 +2780,48 @@ dieser Runde; Bilder nur für Punkt 2 (1440 und 412, hell und dunkel).
 Neu: `tests/test_v720_startwert_nur_am_stichtag.py` (die Regel an ihren Grenzen, der Hinweis je Person, Austritt vor und am Stichtag, „danach Rest“ und „Meine
 Zeiten“). Angepasste Erwartung: `tests/test_v715_urlaubskonto.py::test_hinweise` -- alt: Bo (Eintritt 01.03.2027) mit „ohne Übertrag – Startwert folgt“ und
 „Anspruch prüfen“; neu: nur „Anspruch prüfen“. Klicktests unverändert (keine Person mit Eintritt 2027). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.320“.
+
+### Umsetzung 1.9.321 (Punkt 1): die Rechnung des Arbeitszeitkontos
+
+- `app/arbeitszeitkonto.py::konten(db, von, bis, employee_ids=None, *, heute=None)` -> je gewerblicher Person ein `Konto`: Startwert, Stand vor dem Zeitraum,
+  Stand am letzten gezählten Tag, je Monat des Zeitraums `MonatSaldo` (Soll, Arbeit, Gutschrift, Saldo, Stand am Monatsende) und je Tag `TagSaldo` (Soll,
+  Arbeit, Gutschrift, Ist, Saldo, die Posten mit „gutgeschrieben“), Hinweise. Über die Tagesbilanz ab dem Kontobeginn (01.01.2027) bis zum Ende des Zeitraums;
+  gezählt bis gestern (`gezaehlt_bis()`); Arbeit nur zwischen Eintritt und Austritt (`beschaeftigt`). Personen wie die Tagesbilanz (aktiv oder mit Daten),
+  davon nur die Gruppe „gewerblich“ (B8), nach Namen.
+- Die Regel: `REGEL` -- je Quelle der Tagesbilanz (Feiertag, Kalendertag, Schlechtwetter) und je Kategorie einer Abwesenheit („abwesenheit:<kategorie>“)
+  `GUTSCHRIFT` oder `KEINE`; nur Freizeitausgleich ist `KEINE` (B3). `wirkung(posten)` liest sie. Die Kategorie „unbekannt“ (Altbestand vor 1.9.153, nur über
+  die Migration) schreibt gut wie eine bezahlte Abwesenheit.
+- „ohne Startwert – Startwert folgt“, wenn der Saldo fehlt (kein Startwert oder einer ohne Saldo) und die Person am 31.12.2026 beschäftigt war
+  (`app/lohnkonten.py::am_stichtag_beschaeftigt()`, 1.9.320).
+- `GET /api/zeiten/arbeitszeitkonto?monat=JJJJ-MM&mitarbeiter=<id>` (`app/routers/zeiten.py`): ohne Monat der laufende, frühestens Januar 2027; vor Januar
+  2027 422; nur Admin und Büro – Finanzen (eigene Rollenprüfung mit der Meldung „Das Arbeitszeitkonto sehen nur Admin und Büro – Finanzen.“, dieselben Rollen
+  wie die Lohndaten) -- auch das eigene Konto nicht für andere Rollen (B11). Antwort: Monat, Kontobeginn, gezählt bis, der Hinweis „maßgeblich ist der Stand
+  laut Lohnabrechnung (DATEV)“, die Konten mit Tagen.
+- Keine Oberfläche in dieser Runde. Die Lohndatei ist nicht berührt: `scripts/vorprobe_time4.py` September und Oktober 2026 (Muster) und die lokale
+  Oktober-Datei aus echten Buchungen (`bildgrundlage/lohn_echt`, keine Werte hier) Byte für Byte gleich wie auf 1.9.316.
+
+#### Festlegungen 1.9.321 (Bitte bestätigen)
+
+1. Die Regel ist eine Tabelle im Code (`REGEL`): je Quelle der Tagesbilanz und je Kategorie einer Abwesenheit eine Zeile; eine neue braucht eine Zeile (Wächter).
+2. Gutgeschrieben (neutral): Feiertag, Heiligabend und Silvester, Urlaub, Sonderurlaub, Krankheit, Fortbildung, Unbezahlt, Schlechtwetter (Sollzeit − Arbeit),
+   der Altbestand ohne Kategorie; nicht gutgeschrieben: Freizeitausgleich (Minus der Sollzeit).
+3. Ist = Arbeit (alle Zeitarten, auch Fahrzeit, je Tag 0,25 h) + Gutschrift, Saldo = Ist − Soll -- Arbeit neben einem gutgeschriebenen Tag, am Samstag oder
+   Sonntag ist ein Plus, ein Tag mit Sollzeit ohne jeden Eintrag (auch ein betriebsfreier) ein Minus.
+4. Nur gewerbliche Personen (Gruppe, auch Azubis), nur Tage zwischen Eintritt und Austritt -- Arbeit davor oder danach zählt nicht.
+5. Gezählt ab 01.01.2027 bis gestern; der laufende Tag zählt nicht.
+6. Stand = Startwert (Saldo zum 31.12.2026, ohne Startwert 0) + die Salden; je Monat Soll, Arbeit, Gutschrift, Saldo und Stand am Monatsende, dazu der Stand vor
+   dem Zeitraum.
+7. „ohne Startwert – Startwert folgt“ nur, wenn der Saldo fehlt und die Person am 31.12.2026 beschäftigt war.
+8. Eine feste Zahl Abfragen, unabhängig von Personen, Tagen, Buchungen und Abwesenheiten.
+9. `GET /api/zeiten/arbeitszeitkonto`: nur lesend, nur Admin und Büro – Finanzen (auch das eigene nicht für andere Rollen), vor Januar 2027 422; die Antwort sagt,
+   dass der Stand laut Lohnabrechnung (DATEV) maßgeblich ist.
+10. Ohne Monat zeigt die Schnittstelle den laufenden, frühestens Januar 2027.
+11. Die Lohndatei bleibt unverändert (Vorprobe September und Oktober Byte für Byte gleich).
+
+#### Tests und Prüfung 1.9.321
+
+Neu: `tests/test_v721_arbeitszeitkonto.py` (8 Tests) -- die Regel als Tabelle für jede Kategorie und Quelle, die Beispielwoche aus Abschnitt 2 des Befunds (Mo +1,25,
+Di 0, Mi −8,00, Do 0, Fr −1,00, Sa +4,00 = −3,75), neutral und Plus (Feiertag mit und ohne Arbeit, Krankheit mit Arbeit, Sonderurlaub, Fortbildung, Sonntag,
+Unbezahlt, betriebsfreier Tag ohne Eintrag −8,00, Ausfalltag mit mehr Arbeit als Sollzeit), Heiligabend und Silvester, nur gewerbliche und zwischen Eintritt und
+Austritt, Stand ab dem Startwert und nur bis gestern, eine feste Zahl Abfragen, die Schnittstelle mit Rollen. Angepasste Erwartungen: keine. Kein Klicktest (keine
+Oberfläche). Vorprobe September, Oktober und echt Oktober Byte für Byte gleich. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.321“.

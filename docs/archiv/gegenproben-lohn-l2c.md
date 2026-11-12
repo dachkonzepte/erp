@@ -16,3 +16,36 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 4 – eine Stelle, „danach Rest“ und „Meine Zeiten“ folgen | keine eigene: dieselbe Regel ausgehebelt (`320_1a`) macht v720::test_danach_rest_und_meine_zeiten rot -- beide lesen den Hinweis aus dem Konto | rot (siehe `320_1a`) |
 
 5 Gegenproben, alle rot (alle über Tests; kein Klicktest berührt eine Person mit Eintritt 2027).
+
+## 1.9.321 (L2c-1, Punkt 1): die Rechnung des Arbeitszeitkontos
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – eine Zeile je Kategorie und Quelle | die Zeile Sonderurlaub entfernt (`321_1f`) | 2 rot: v721::test_regel_ist_eine_tabelle_fuer_jede_kategorie_und_quelle, test_neutral_und_plus |
+| Nr. 2 – Freizeitausgleich nicht gutgeschrieben | Freizeitausgleich gutgeschrieben (`321_1a`) | 2 rot: v721::test_regel_…, test_beispielwoche |
+| Nr. 2 – Unbezahlt gutgeschrieben | Unbezahlt als Minus (`321_1b`) | 2 rot: v721::test_regel_…, test_neutral_und_plus |
+| Nr. 2 – Schlechtwetter gutgeschrieben | Schlechtwetter als Minus (`321_1c`) | 2 rot: v721::test_regel_…, test_beispielwoche |
+| Nr. 2 – Heiligabend und Silvester gutgeschrieben | Kalendertag als Minus (`321_1d`) | 2 rot: v721::test_regel_…, test_heiligabend_und_silvester |
+| Nr. 2 – Feiertag gutgeschrieben | Feiertag als Minus (`321_1e`) | 3 rot: v721::test_regel_…, test_neutral_und_plus, test_stand_ab_dem_startwert_und_nur_bis_gestern |
+| Nr. 2 – Krankheit gutgeschrieben | Krankheit als Minus (`321_1h`) | 2 rot: v721::test_regel_…, test_neutral_und_plus |
+| Nr. 2 – Fortbildung gutgeschrieben | Fortbildung als Minus (`321_1i`) | 2 rot: v721::test_regel_…, test_neutral_und_plus |
+| Nr. 2 – Altbestand ohne Kategorie gutgeschrieben | als Minus (`321_1g`) | 1 rot: v721::test_regel_… |
+| Nr. 2 – Urlaub und Sonderurlaub gutgeschrieben | keine eigene: Urlaub trägt die Beispielwoche (Di, halber Fr), Sonderurlaub `321_1f` | rot (siehe `321_1f`, `321_1a`) |
+| Nr. 3 – Arbeit mit Fahrzeit | Fahrzeit zählt nicht (`321_2a`) | 1 rot: v721::test_beispielwoche |
+| Nr. 3 – Arbeit neben einem gutgeschriebenen Tag ein Plus | Arbeit an einem Tag mit Posten zählt nicht (`321_2b`) | 3 rot: v721::test_beispielwoche, test_heiligabend_und_silvester, test_neutral_und_plus |
+| Nr. 3 – ein Tag ohne Eintrag ein Minus | keine eigene: die Rechnung Ist − Soll selbst; jede Gegenprobe der Regel ändert sie | v721::test_neutral_und_plus (betriebsfreier Tag −8,00), test_stand_… (−150,00) |
+| Nr. 4 – nur gewerbliche | auch kaufmännische (`321_3a`) | 1 rot: v721::test_nur_gewerbliche_und_zwischen_eintritt_und_austritt |
+| Nr. 4 – nur zwischen Eintritt und Austritt | Arbeit auch außerhalb (`321_4a`) | 1 rot: v721::test_nur_gewerbliche_und_zwischen_eintritt_und_austritt |
+| Nr. 5 – bis gestern | heute zählt mit (`321_5a`) | 1 rot: v721::test_stand_ab_dem_startwert_und_nur_bis_gestern |
+| Nr. 5 – ab 01.01.2027 | der Dezember 2026 zählt mit (`321_5b`) | 1 rot: v721::test_stand_… |
+| Nr. 6 – Stand ab dem Startwert | ohne Startwert (`321_6a`) | 1 rot: v721::test_stand_… |
+| Nr. 7 – nur am Stichtag beschäftigt | der Hinweis auch nach dem Stichtag (`321_7a`) | 2 rot: v721::test_beispielwoche, test_stand_… |
+| Nr. 7 – wenn der Saldo fehlt | ein Startwert ohne Saldo zählt als da (`321_7b`) | 1 rot: v721::test_stand_… |
+| Nr. 8 – eine feste Zahl Abfragen | eine Abfrage je Person für den Startwert (`321_8a`) | 1 rot: v721::test_eine_feste_zahl_abfragen |
+| Nr. 9 – nur Admin und Büro – Finanzen | auch Büro – Auftrag (`321_9a`) | 1 rot: v721::test_schnittstelle |
+| Nr. 9 – vor Januar 2027 422 | auch vor 2027 (`321_9b`) | 1 rot: v721::test_schnittstelle |
+| Nr. 9 – „maßgeblich ist DATEV“ in der Antwort | ohne Hinweis (`321_9c`) | 1 rot: v721::test_schnittstelle |
+| Nr. 10 – ohne Monat der laufende, frühestens Januar 2027 | ohne Monat der laufende, auch vor 2027 (`321_10a`) | 1 rot: v721::test_schnittstelle |
+| Nr. 11 – die Lohndatei bleibt unverändert | keine möglich: die Runde ändert die Lohndatei nicht; Nachweis über die Vorprobe | September, Oktober und echt Oktober Byte für Byte gleich wie auf 1.9.316 |
+
+23 Gegenproben, alle rot (alle über Tests; keine Oberfläche, kein Klicktest).
