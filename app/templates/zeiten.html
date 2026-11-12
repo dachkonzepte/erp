@@ -207,6 +207,19 @@
       <div id="rueckfahrtListe"></div>
       <p class="fuss">Nichts wird abgezogen, die Lohndatei bleibt frei. Korrigiere die Buchung oder lass sie stehen.</p>
     </section>
+    {# seit 1.9.322 (Lohn L2c-1, Punkt 2): Hinweise zum Arbeitszeitkonto -- ab 01.01.2027, je Person zusammengefasst, nur Admin und Büro – Finanzen; nur Hinweise #}
+    <section class="karte" id="ohneEintragKarte" aria-labelledby="ohneEintragTitel" hidden>
+      <div class="karte-kopf"><span class="eb">Zur Info</span><span class="karte-zahl" id="ohneEintragZahl"></span></div>
+      <h2 id="ohneEintragTitel" style="margin-bottom:6px">Tage ohne Eintrag</h2>
+      <div id="ohneEintragListe"></div>
+      <p class="fuss">Ein Arbeitstag mit Sollzeit ohne Buchung und ohne Abwesenheit – auch ein betriebsfreier Tag ohne Urlaub. Nichts wird gesperrt.</p>
+    </section>
+    <section class="karte" id="abwArbeitKarte" aria-labelledby="abwArbeitTitel" hidden>
+      <div class="karte-kopf"><span class="eb">Zur Info</span><span class="karte-zahl" id="abwArbeitZahl"></span></div>
+      <h2 id="abwArbeitTitel" style="margin-bottom:6px">Arbeit an Urlaubs- oder Kranktagen</h2>
+      <div id="abwArbeitListe"></div>
+      <p class="fuss">Die Arbeit zählt neben dem Urlaubs- oder Kranktag. Stimmt die Abwesenheit? Nichts wird gesperrt.</p>
+    </section>
     <section class="karte" id="antragKarte" aria-labelledby="antragTitel" hidden>
       <div class="karte-kopf"><h2 id="antragTitel">Anträge</h2><span class="karte-zahl" id="antragZahl"></span></div>
       <div id="antragListe"></div>
@@ -511,11 +524,20 @@ function pruefenZeichnen(d){
   el('rueckfahrtKarte').hidden=!d.rueckfahrten.length;
   el('rueckfahrtZahl').textContent=d.rueckfahrten.length+(d.rueckfahrten.length===1?' Fahrzeit':' Fahrzeiten');
   el('rueckfahrtListe').innerHTML=d.rueckfahrten.map(rueckfahrtHtml).join('');
+  // seit 1.9.322: Hinweise zum Arbeitszeitkonto (zur Info, zählen nicht am Reiter; nur Admin und Büro – Finanzen bekommen sie)
+  var ke=d.konto||{ohne_eintrag:[],arbeit_bei_abwesenheit:[]};
+  var tageZahl=function(liste){var n=liste.reduce(function(s,x){return s+x.tage.length},0);return n+(n===1?' Tag':' Tage')};
+  el('ohneEintragKarte').hidden=!ke.ohne_eintrag.length;
+  el('ohneEintragZahl').textContent=tageZahl(ke.ohne_eintrag);
+  el('ohneEintragListe').innerHTML=ke.ohne_eintrag.map(ohneEintragHtml).join('');
+  el('abwArbeitKarte').hidden=!ke.arbeit_bei_abwesenheit.length;
+  el('abwArbeitZahl').textContent=tageZahl(ke.arbeit_bei_abwesenheit);
+  el('abwArbeitListe').innerHTML=ke.arbeit_bei_abwesenheit.map(abwArbeitHtml).join('');
   // Anträge
   el('antragKarte').hidden=!d.antraege.length;
   el('antragZahl').textContent=d.antraege.length+' offen';
   el('antragListe').innerHTML=d.antraege.map(antragHtml).join('');
-  el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length);
+  el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length||ke.ohne_eintrag.length||ke.arbeit_bei_abwesenheit.length);
   // der Monat rechts
   var m=d.monat;
   el('monatTitel').textContent=m.titel;
@@ -563,6 +585,17 @@ function rueckfahrtHtml(r,i){
   return '<div class="zeile" data-rueckfahrt="'+r.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(r.name+' · '+tagKurz(r.tag))+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span><span class="zeile-unter">'+esc(r.text)+'</span></div>'
     +(r.darf_aendern?'<button type="button" class="knopf knopf-neutral" data-aktion="rueckfahrt-aendern" data-i="'+i+'">Ändern</button>':'')+'</div>';
+}
+// Seit 1.9.322: je Person die Tage ohne Eintrag mit ihrer Sollzeit, bzw. die Tage mit Arbeit an einem Urlaubs- oder Kranktag -- der Hinweis vom Server
+function anzahlTage(n){return n+(n===1?' Tag':' Tage')}
+function ohneEintragHtml(x){
+  return '<div class="zeile" data-ohne-eintrag="'+x.employee_id+'"><div class="zeile-text"><span class="zeile-name">'+esc(x.name+' · '+anzahlTage(x.tage.length))+'</span>'
+    +'<span class="zeile-unter">'+esc(x.tage.map(tagKurz).join(', ')+' · Sollzeit '+stunden(x.soll))+'</span><span class="zeile-unter">'+esc(x.text)+'</span></div></div>';
+}
+function abwArbeitHtml(x){
+  var tage=x.tage.map(function(t){return t.art+' '+tagKurz(t.tag)+' · '+stunden(t.arbeit)+' gebucht'}).join('; ');
+  return '<div class="zeile" data-abw-arbeit="'+x.employee_id+'"><div class="zeile-text"><span class="zeile-name">'+esc(x.name+' · '+anzahlTage(x.tage.length))+'</span>'
+    +'<span class="zeile-unter">'+esc(tage)+'</span><span class="zeile-unter">'+esc(x.text)+'</span></div></div>';
 }
 function pauseHtml(t,i){
   var schluessel=t.employee_id+'/'+t.tag,plan=t.buchungen.length>0;

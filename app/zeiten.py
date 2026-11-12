@@ -172,6 +172,54 @@ def rueckfahrten(db: Session, ab: date, bis: date) -> list[dict]:
              "text": RUECKFAHRT} for r, ende in treffer]
 
 
+# Seit 1.9.322 (Lohn L2c-1, Punkt 2; Antworten B4 und B5 des Befunds L2c): Hinweise zum Arbeitszeitkonto in „Prüfen“
+TAG_OHNE_EINTRAG = "Tag ohne Eintrag – zählt im Konto als Minus"
+ARBEIT_BEI_ABWESENHEIT = "Arbeit an einem Urlaubs- oder Kranktag – zählt im Konto als Plus"
+MIT_HINWEIS = {"urlaub": "Urlaub", "krankheit": "Krankheit"}  # B4: nur an diesen Abwesenheiten ein Hinweis (Arbeit am Feiertag ist ein Plus ohne Hinweis)
+
+
+def konto_hinweise(db: Session, ab: date, heute: date) -> dict:
+    """Seit 1.9.322 (Lohn L2c-1, Punkt 2): die Hinweise zum Arbeitszeitkonto in „Prüfen“, je Person zusammengefasst (nach Namen) -- erst ab dem
+    Kontobeginn (01.01.2027), von ab (pruef_beginn()) bis gestern, nur gewerbliche Personen (die mit Konto, app/arbeitszeitkonto.py):
+        ohne_eintrag            Tage mit Sollzeit ohne gebuchte und ohne laufende Zeit und ohne jeden Posten der Tagesbilanz (keine Abwesenheit, kein
+                                Feiertag, kein Tag des Arbeitszeitkalenders, kein Ausfalltag) -- auch ein betriebsfreier Tag ohne Urlaub (B5); je Person die
+                                Tage und ihre Sollzeit zusammen, der Hinweis TAG_OHNE_EINTRAG
+        arbeit_bei_abwesenheit  Tage mit gebuchter Arbeit an einem ganzen Urlaubs- oder Kranktag (B4; ein halber Urlaubstag mit Arbeit ist gewollt, andere
+                                Abwesenheiten und Feiertage nennt er nicht) -- je Person die Tage mit Art und Arbeit, der Hinweis ARBEIT_BEI_ABWESENHEIT
+    Nur Hinweise: nichts gesperrt (weder Abschluss noch Lohndatei), keine Zahl am Reiter. Wer sie sieht, entscheidet der Router (Admin und Büro – Finanzen,
+    wie das Konto -- sie nennen Urlaub und Krankheit). Eine Rechnung mit dem Konto: die Tagesbilanz (eine feste Zahl Abfragen) und eine Abfrage für die
+    laufenden Zeiten."""
+    from .arbeitszeitkonto import GEWERBLICH, KONTOBEGINN, gezaehlt_bis
+    from .tagesbilanz import bilanz
+
+    ergebnis: dict[str, list] = {"ohne_eintrag": [], "arbeit_bei_abwesenheit": []}
+    von, bis = max(ab, KONTOBEGINN), gezaehlt_bis(heute)
+    if bis < von:
+        return ergebnis
+    b = bilanz(db, von, bis)
+    laufend = set(db.execute(select(TimeEntry.employee_id, TimeEntry.work_date).where(
+        TimeEntry.status == "running", TimeEntry.work_date >= von, TimeEntry.work_date <= bis)).all())
+    personen = sorted((e for e in b.personen if e.employee_group == GEWERBLICH),
+                      key=lambda e: ((e.last_name or "").casefold(), (e.first_name or "").casefold(), e.id))
+    for emp in personen:
+        name = employee_name(emp) or f"#{emp.id}"
+        ohne, mit_arbeit = [], []
+        for t, tag in sorted(b.tage[emp.id].items()):
+            if tag.soll > 0 and not tag.gebucht and not tag.posten and (emp.id, t) not in laufend:
+                ohne.append(tag)
+            if tag.gebucht and tag.arbeit > 0:
+                art = next((MIT_HINWEIS[p.kategorie] for p in tag.posten
+                            if p.quelle == "abwesenheit" and p.kategorie in MIT_HINWEIS and p.anteil == 1), None)
+                if art:
+                    mit_arbeit.append({"tag": t, "art": art, "arbeit": tag.arbeit})
+        if ohne:
+            ergebnis["ohne_eintrag"].append({"employee_id": emp.id, "name": name, "tage": [x.tag for x in ohne],
+                                             "soll": sum((x.soll for x in ohne), Decimal("0")), "text": TAG_OHNE_EINTRAG})
+        if mit_arbeit:
+            ergebnis["arbeit_bei_abwesenheit"].append({"employee_id": emp.id, "name": name, "tage": mit_arbeit, "text": ARBEIT_BEI_ABWESENHEIT})
+    return ergebnis
+
+
 def feiertage_bundesland(db: Session) -> str:
     """Seit 1.9.108 (Nachrunde 2, Punkt 2): das Bundesland der Feiertage für „Arbeitstage“ -- die Einstellung „Bundesland“ der Plantafel
     (PlanningRegionSettings, eine Quelle), ohne Einstellung oder ohne Wert Nordrhein-Westfalen. Nur lesen."""

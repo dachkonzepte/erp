@@ -22,7 +22,7 @@ from ..urlaubskonto import konten as urlaubskonten, rest_danach_je_antrag
 from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
-from ..zeiten import buchungen, feiertage_bundesland, monat, monat_ende, monat_lesen, pruefen
+from ..zeiten import buchungen, feiertage_bundesland, konto_hinweise, monat, monat_ende, monat_lesen, pruef_beginn, pruefen
 
 router = APIRouter()
 
@@ -99,8 +99,9 @@ def _anzahl(n: int, eins: str, mehr: str) -> str:
 @router.get("/api/zeiten/pruefen")
 def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="function"), user: AppUser = _buero_dep):
     """„Prüfen“: Zeiten von früher (je mit darf_schliessen), Tage mit unpassender Pause (je mit darf_buchen), offene Anträge, der Monat mit
-    Stunden je Mitarbeiter und „Vor dem Abschluss“; dazu die Zahlen an den Reitern."""
-    daten = pruefen(db, berlin_today())
+    Stunden je Mitarbeiter und „Vor dem Abschluss“; dazu die Zahlen an den Reitern. Seit 1.9.322 die Hinweise zum Arbeitszeitkonto (konto)."""
+    heute = berlin_today()
+    daten = pruefen(db, heute)
     lock = locked_until(db)
     for z in daten["offene_zeiten"]:
         z["darf_schliessen"] = _darf_aendern(user, z["employee_id"], z["tag"], lock)
@@ -109,6 +110,10 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     for r in daten["rueckfahrten"]:  # seit 1.9.314: „Ändern“ an der Fahrzeit nach Arbeitsende -- zählt nicht am Reiter (nur ein Hinweis)
         r["darf_aendern"] = _darf_aendern(user, r["employee_id"], r["tag"], lock)
     daten["antraege"] = _antraege(db, user)
+    # seit 1.9.322 (Lohn L2c-1, Punkt 2): die Hinweise zum Arbeitszeitkonto -- nur Admin und Büro – Finanzen (wie das Konto, Antwort B11; sie nennen Urlaub
+    # und Krankheit, die Büro – Auftrag nur bei sich selbst sieht); nur Hinweise, sie zählen nicht am Reiter
+    daten["konto"] = (konto_hinweise(db, pruef_beginn(db, heute), heute) if darf_konten_aller(user)
+                      else {"ohne_eintrag": [], "arbeit_bei_abwesenheit": []})
     # seit 1.9.101: „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht; „Anträge entschieden“ nur, wenn keiner offen ist
     # (auch keiner, den das Konto nicht sieht -- Büro – Auftrag sieht nur die eigenen)
     if daten["antraege"]:

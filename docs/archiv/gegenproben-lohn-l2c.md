@@ -49,3 +49,27 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 11 – die Lohndatei bleibt unverändert | keine möglich: die Runde ändert die Lohndatei nicht; Nachweis über die Vorprobe | September, Oktober und echt Oktober Byte für Byte gleich wie auf 1.9.316 |
 
 23 Gegenproben, alle rot (alle über Tests; keine Oberfläche, kein Klicktest).
+
+## 1.9.322 (L2c-1, Punkt 2): Hinweise zum Arbeitszeitkonto in „Zeiten → Prüfen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ohne Abwesenheit, Feiertag, Kalendertag, Ausfalltag | auch Tage mit Posten (`322_1a`) | 4 rot: v722::test_tag_ohne_eintrag, test_arbeit_an_urlaubs_oder_kranktag, test_ab_dem_kontobeginn_und_bis_gestern, test_schnittstelle_rechte_ohne_zahl_und_ohne_sperre |
+| Nr. 1 – ohne laufende Zeit | auch mit laufender Zeit (`322_1b`) | 1 rot: v722::test_tag_ohne_eintrag |
+| Nr. 1 – je Person die Sollzeit zusammen | nur die Sollzeit des ersten Tags (`322_1c`) | 1 rot: v722::test_tag_ohne_eintrag |
+| Nr. 1 – auch ein betriebsfreier Tag | keine eigene: ein betriebsfreier Tag ist kein Posten -- es gibt keinen Code, der ihn ausnimmt; v722 prüft ihn mit (Mi 06.01.) | rot unter `322_1a` (dann zählten auch Tage mit Posten) |
+| Nr. 2 – nur ganze Tage | auch der halbe Urlaubstag (`322_2a`) | 1 rot: v722::test_arbeit_an_urlaubs_oder_kranktag |
+| Nr. 2 – nur Urlaub und Krankheit | auch Sonderurlaub (`322_2b`) | 1 rot: v722::test_arbeit_an_urlaubs_oder_kranktag |
+| Nr. 2 – nicht am Feiertag | auch am Feiertag (`322_2c`) | 1 rot: v722::test_arbeit_an_urlaubs_oder_kranktag |
+| Nr. 3 – nur gewerbliche | auch kaufmännische (`322_3a`) | 1 rot: v722::test_tag_ohne_eintrag |
+| Nr. 3 – ab 01.01.2027 | auch vor dem Kontobeginn (`322_3b`) | 1 rot: v722::test_ab_dem_kontobeginn_und_bis_gestern |
+| Nr. 3 – bis gestern | heute zählt mit (`322_3c`) | 4 rot: alle vier aus v722 |
+| Nr. 3 – ab dem Beginn von „Prüfen“ | keine eigene: der Beginn kommt aus `pruef_beginn()` (unverändert seit 1.9.95); v722 prüft ihn mit (ab 05.01.) | rot unter `322_3b` (dann zählte der Dezember) |
+| Nr. 4 – nur Admin und Büro – Finanzen | auch Büro – Auftrag (`322_4a`; Klicktest `322_K2`) | 1 rot: v722::test_schnittstelle_rechte_ohne_zahl_und_ohne_sperre; Klicktest: „Bea: beide Karten verborgen“ |
+| Nr. 5 – keine Zahl am Reiter | die Tage ohne Eintrag am Reiter (`322_5a`) | 1 rot: v722::test_schnittstelle_rechte_ohne_zahl_und_ohne_sperre |
+| Nr. 5 – keine Sperre | die Hinweise in „Vor dem Abschluss“ als Hindernis (`322_5b`) | 1 rot: v722::test_schnittstelle_rechte_ohne_zahl_und_ohne_sperre |
+| Nr. 6 – Karte „Tage ohne Eintrag“ | die Karte nie (`322_K1`) | Klicktest: „Anna: beide Karten zur Info, keine Zahl am Reiter“ |
+| Nr. 6 – Karte „Arbeit an Urlaubs- oder Kranktagen“ | die Karte nie (`322_K4`) | Klicktest: „Anna: beide Karten zur Info, keine Zahl am Reiter“ |
+| Nr. 6 – „Nichts zu prüfen“ nur ohne sie | die Bedingung wie bis 1.9.321 (`322_K3`) | Klicktest: „Anna: beide Karten zur Info, keine Zahl am Reiter“ |
+
+16 Gegenproben, alle rot (12 über Tests, 4 über `klicktest_konto_hinweise`).

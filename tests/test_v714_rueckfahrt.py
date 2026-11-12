@@ -119,5 +119,7 @@ def test_seite_aufbau():
     from tests import vorlagen_js as vj
     text = vj.seitentext("zeiten.html")[0]
     assert '<section class="karte" id="rueckfahrtKarte" aria-labelledby="rueckfahrtTitel" hidden>' in text
-    assert "el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length);" in text
+    # seit 1.9.322 dazu die Hinweise zum Arbeitszeitkonto
+    assert ("el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.rueckfahrten.length||d.antraege.length||ke.ohne_eintrag.length"
+            "||ke.arbeit_bei_abwesenheit.length);") in text
     assert "else if(a==='rueckfahrt-aendern'){var r=P.rueckfahrten[Number(b.dataset.i)];if(r)buchungDialogOeffnen(r)}" in text

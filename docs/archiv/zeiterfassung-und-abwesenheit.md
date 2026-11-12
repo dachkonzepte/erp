@@ -2825,3 +2825,38 @@ Di 0, Mi −8,00, Do 0, Fr −1,00, Sa +4,00 = −3,75), neutral und Plus (Feier
 Unbezahlt, betriebsfreier Tag ohne Eintrag −8,00, Ausfalltag mit mehr Arbeit als Sollzeit), Heiligabend und Silvester, nur gewerbliche und zwischen Eintritt und
 Austritt, Stand ab dem Startwert und nur bis gestern, eine feste Zahl Abfragen, die Schnittstelle mit Rollen. Angepasste Erwartungen: keine. Kein Klicktest (keine
 Oberfläche). Vorprobe September, Oktober und echt Oktober Byte für Byte gleich. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.321“.
+
+### Umsetzung 1.9.322 (Punkt 2): Hinweise zum Arbeitszeitkonto in „Zeiten → Prüfen“
+
+- `app/zeiten.py::konto_hinweise(db, ab, heute)`: ab dem Kontobeginn (01.01.2027), von `ab` (`pruef_beginn()`: der Tag nach „Abgeschlossen bis“, ohne Abschluss
+  der Monatserste) bis gestern, über die Tagesbilanz -- nur gewerbliche Personen, nach Namen, je Person zusammengefasst:
+  - `ohne_eintrag`: Tage mit Sollzeit ohne gebuchte Zeit, ohne laufende Zeit (eine Abfrage) und ohne jeden Posten (keine Abwesenheit, kein Feiertag, kein Tag des
+    Arbeitszeitkalenders, kein Ausfalltag) -- ein betriebsfreier Tag ist kein Posten und zählt mit (B5); je Person die Tage, ihre Sollzeit zusammen und
+    `TAG_OHNE_EINTRAG` („Tag ohne Eintrag – zählt im Konto als Minus“);
+  - `arbeit_bei_abwesenheit`: Tage mit gebuchter Arbeit an einem ganzen Urlaubs- oder Kranktag (`MIT_HINWEIS`, Anteil 1) -- je Person die Tage mit Art und
+    Arbeit und `ARBEIT_BEI_ABWESENHEIT` („Arbeit an einem Urlaubs- oder Kranktag – zählt im Konto als Plus“). Ein halber Urlaubstag mit Arbeit ist gewollt,
+    andere Abwesenheiten (Sonderurlaub, Fortbildung …) und Feiertage nennt er nicht (B4: Plus ohne Hinweis).
+- `GET /api/zeiten/pruefen` gibt sie als `konto` nur Admin und Büro – Finanzen (`darf_konten_aller()`), sonst leere Listen -- sie nennen Urlaub und Krankheit,
+  die Büro – Auftrag nur bei sich selbst sieht. Sie zählen nicht am Reiter und sperren weder Abschluss noch Lohndatei.
+- `zeiten.html`: zwei Karten „Zur Info“ unter „Fahrzeit nach Arbeitsende“ -- „Tage ohne Eintrag“ und „Arbeit an Urlaubs- oder Kranktagen“, je mit der Zahl der
+  Tage, je Person eine Zeile (Name · n Tage, die Tage, der Hinweis vom Server); „Nichts zu prüfen“ nur ohne sie.
+
+#### Festlegungen 1.9.322 (Bitte bestätigen)
+
+1. „Tag ohne Eintrag – zählt im Konto als Minus“: ein Tag mit Sollzeit einer gewerblichen Person ohne gebuchte und ohne laufende Zeit, ohne Abwesenheit,
+   Feiertag, Tag des Arbeitszeitkalenders und Ausfalltag -- auch ein betriebsfreier Tag ohne Urlaub; je Person die Tage und ihre Sollzeit zusammen.
+2. „Arbeit an einem Urlaubs- oder Kranktag – zählt im Konto als Plus“: gebuchte Arbeit an einem ganzen Urlaubs- oder Kranktag; nicht am halben Urlaubstag,
+   nicht an anderen Abwesenheiten, nicht am Feiertag; je Person die Tage mit Art und Arbeit.
+3. Nur gewerbliche Personen; erst ab 01.01.2027, ab dem Beginn von „Prüfen“ (Tag nach dem Abschluss, sonst Monatserster), bis gestern.
+4. Nur Admin und Büro – Finanzen bekommen die Hinweise (sie nennen Urlaub und Krankheit); Büro – Auftrag nicht.
+5. Nur Hinweise: keine Sperre von Abschluss oder Lohndatei, keine Zahl am Reiter.
+6. Zwei Karten „Zur Info“ in „Prüfen“ mit der Zahl der Tage; „Nichts zu prüfen“ nur ohne sie.
+
+#### Tests und Prüfung 1.9.322
+
+Neu: `tests/test_v722_konto_hinweise.py` (4 Tests: Tag ohne Eintrag mit betriebsfreiem Tag, Abwesenheit, Ausfalltag, laufender Zeit, Eintritt und kaufmännischer
+Person; Arbeit an Urlaubs- und Kranktag, nicht am halben Urlaubstag, Sonderurlaub, Feiertag; ab dem Kontobeginn, ab „Prüfen“ und bis gestern; die Schnittstelle
+mit Rollen, ohne Zahl am Reiter und ohne Sperre des Abschlusses). Neu `scripts/klicktest_konto_hinweise.py` (21 Prüfungen: beide Karten als Admin und Büro –
+Finanzen, verborgen für Büro – Auftrag, nach dem Löschen einer Buchung nur noch der Kranktag; Bilder bei 1440 und 412 px, hell und dunkel, 412 ohne Überlauf).
+Angepasste Erwartung: `tests/test_v714_rueckfahrt.py::test_seite_aufbau` -- alt: die Bedingung für „Nichts zu prüfen“ mit Zeiten, Pausen, Rückfahrten und
+Anträgen; neu: dazu die beiden Listen der Kontohinweise (eine Zeile). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.322“.
