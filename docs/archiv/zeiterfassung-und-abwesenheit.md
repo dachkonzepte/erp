@@ -3051,7 +3051,7 @@ mit Änderungen und Grund, Stand nach „Besprochen“, Prüfen mit der Zahl.
 - Migration `517c94f6dbcf` (nach `562f81626c3b`): fünf Spalten, der Index; der Bestand wird „datei“, nicht versendet. `downgrade()` bricht ab, solange eine
   Abgleich-Zeile, eine versendete Datei oder eine Notiz da ist.
 
-#### Festlegungen 1.9.327 (Bitte bestätigen)
+#### Festlegungen 1.9.327 (bestätigt am 12.11.2026)
 
 1. Eine Zeile der Ablage ist „datei“ oder „abgleich“; jede bisherige ist „datei“; eine neue Zeile ist nie versendet.
 2. Änderbar sind nur „versendet am / von“ (setzen, zurücknehmen); Bytes, Prüfsumme, Monat, Art, Notiz und „erzeugt“ bleiben fest, gelöscht wird nie.
@@ -3081,7 +3081,7 @@ PostgreSQL). `tests/test_v364_feste_werte_spaltenlaenge.py`: `lohndateien.art` m
   `abschliessen()` (Regel 29, in `ABSCHLIESSEND`), Zurücknehmen nach der Rückfrage auf der Seite (`LD_ZURUECK`, wie „Antrag zurückziehen?“ -- kein Dialog des
   Browsers, `tests/test_v518_zeiten_seite.py`) über `speichern()`; abgelehnt steht der Grund unter „Ausgeben“.
 
-#### Festlegungen 1.9.328 (Bitte bestätigen)
+#### Festlegungen 1.9.328 (bestätigt am 12.11.2026)
 
 1. „An das Steuerbüro gesendet“ setzen Admin und Büro – Finanzen, nur an einer erzeugten Datei (nicht an einem Abgleich), mit Zeitpunkt und Konto.
 2. Je Monat eine gesendete Datei: eine zweite 409 mit Grund (auch bei zwei Klicks zugleich, dann über den Index -- Meldung statt 500); schon vermerkt 409.
@@ -3120,7 +3120,7 @@ abgelegt und heruntergeladen“ -- der Text der abgelegten Datei endet jetzt auf
   Personalnummer · Tag · In der Datei · Heute · Grund); lädt nach dem Monat im eigenen Bereich `nachVersand` (`monatLaden()`), auch nach „gesendet“ und beim
   Monatswechsel.
 
-#### Festlegungen 1.9.329 (Bitte bestätigen)
+#### Festlegungen 1.9.329 (bestätigt am 12.11.2026)
 
 1. Bezug ist die als gesendet vermerkte Datei des Monats; gibt es danach erzeugte Abgleich-Zeilen, die jüngste davon. Ohne gesendete Datei keine Liste, sondern
    „Noch nichts versendet – vermerke an der Datei „An das Steuerbüro gesendet“.“ (auch wenn Dateien abgelegt sind).
@@ -3156,7 +3156,7 @@ Dezember mit vier Änderungen und Grund -- Urlaub kürzer, Krankheit neu, Nummer
   meldet die Seite selbst, ohne Anfrage (die Meldung geht beim Tippen weg); sonst über `abschliessen()` (Regel 29, in `ABSCHLIESSEND`), danach lädt der Monat neu. In der Ablage heißt eine Abgleich-Zeile
   „Besprochen <Zeitpunkt> · <Konto> – „<Notiz>““.
 
-#### Festlegungen 1.9.330 (Bitte bestätigen)
+#### Festlegungen 1.9.330 (bestätigt am 12.11.2026)
 
 1. „Besprochen“ legt die Rechnung von heute als Abgleich-Zeile ab (die Bytes, die die Lohndatei heute hätte, mit Notiz); die Liste vergleicht danach gegen sie und
    ist leer, bis sich wieder etwas ändert -- dann „n Änderungen seit „Besprochen““ mit den Gründen seit dem Abgleich.
@@ -3183,7 +3183,7 @@ Erwartung: `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_ro
 - `zeiten.html`, „Prüfen“: Karte „Nach dem Versand geändert“ (zur Info) mit der Summe und je Monat der Zeile und dem Weg „Monat & Lohn“
   (`/zeiten?lohnmonat=JJJJ-MM#monat`); `binden()` liest `lohnmonat` (nur JJJJ-MM) als Monat von „Monat & Lohn“. „Alles erledigt“ nur ohne sie.
 
-#### Festlegungen 1.9.331 (Bitte bestätigen)
+#### Festlegungen 1.9.331 (bestätigt am 12.11.2026 außer Nr. 1 -- das Fenster klärt die Messung in L2c-3, Punkt 0)
 
 1. „Prüfen“ nennt je Monat mit gesendeter Datei der letzten zwölf Monate bis heute, in dem sich seither etwas geändert hat, „<Monat>: n Änderungen nach dem Versand“
    (nach „Besprochen“: „… seit „Besprochen““) -- ohne Namen.
@@ -3196,3 +3196,49 @@ Neu: `tests/test_v731_nach_dem_versand_pruefen.py` (4 Tests: je Monat ohne Namen
 Büro – Finanzen; die Seite). Neu `scripts/klicktest_nach_dem_versand_pruefen.py` (14 Prüfungen, stehende Uhr Mo 04.01.2027: die Karte als einziger
 Hinweis, Weg in den Dezember, Büro – Auftrag ohne Karte; Bilder bei 1440 und 412 px, hell und dunkel). Der Link „Monat & Lohn“ bricht nicht um (`#nachVersandListe a`). Angepasste Erwartung: `tests/test_v714_rueckfahrt.py::test_seite_aufbau` -- die Bedingung von „Alles erledigt“ endet jetzt auf `||nv.length` (bisher
 `||ke.arbeit_bei_abwesenheit.length`). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.331“.
+
+### Bestätigt (12.11.2026, Tobias)
+
+L2c-2 ist geprüft und live (5dad50c, Migration 517c94f6dbcf). Bestätigt sind die 23 Festlegungen 1.9.327–1.9.331 bis auf 1.9.331 Nr. 1 (das Fenster von zwölf
+Monaten in „Prüfen“) -- darüber entscheidet die Messung in L2c-3, Punkt 0.
+
+## Lohn L2c-3: Anzeige des Kontos, Grenzen, Stand beim Antrag (ab 1.9.332)
+
+### Auftrag L2c-3 (je Punkt eine Version)
+
+0 Messung „Prüfen“: Testbestand mit 15 gewerblichen Personen und 12 Monaten mit gesendeter Datei, Dauer von `/api/zeiten/pruefen` messen und in den Bericht;
+über 1 s das Fenster auf die letzten 3 Monate (ältere zeigt „Monat & Lohn“ weiter). 1 „Monat & Lohn“ (Admin, Büro – Finanzen): je gewerblicher Person Soll,
+Saldo des Monats und Stand am Monatsende, darüber „vorläufig – maßgeblich ist die Lohnabrechnung“; ohne Startwert „Startwert folgt“; vor Januar 2027 nichts;
+die Spalten so beschriftet, dass minutengenau (Zeitarten) und 0,25 je Tag (Konto) nicht verwechselt werden (Befund L2c, 10.6). 2 Je Person „Tage ansehen“:
+Soll, Ist, Gutschrift, Saldo und Vermerk je Tag. 3 Grenzen (B9): in den Zeitregeln „Hinweis ab Plus … h“ und „Hinweis ab Minus … h“, leer = kein Hinweis;
+Hinweis in „Prüfen“ und an der Person, ohne Sperre. 4 Antrag auf Freizeitausgleich oder Unbezahlt: wo das Büro stellt oder genehmigt, „Stand vorläufig x h ·
+danach y h“; unter 0 „Plusstunden reichen nicht“, ohne Sperre; die Monteurin sieht keine Zahl (B11) -- weder auf der Seite noch über die Schnittstelle. Bilder
+1440 und 412, hell und dunkel: Monat & Lohn mit Stand, Tage einer Person, Zeitregeln mit Grenzen, Prüfen mit Grenze, Genehmigen mit Stand, Antrag der
+Monteurin ohne Zahl.
+
+Die Punkte 0–4 laufen als 1.9.333–1.9.337: 1.9.332 behebt vorweg einen Fehler aus 1.9.328, der bei der Messung gegen PostgreSQL auffiel.
+
+### Umsetzung 1.9.332 (Vorweg): „An das Steuerbüro gesendet“ unter PostgreSQL
+
+- Befund: `versendet_setzen()` und `versendet_zuruecknehmen()` (1.9.328) schrieben den Eintrag der Änderungshistorie mit der Aktion „Lohndatei an das Steuerbüro
+  gesendet“ (36 Zeichen) bzw. „Vermerk „gesendet“ zurückgenommen“ (33); `audit_logs.action` ist `String(30)`. PostgreSQL lehnt einen zu langen Wert ab -- auf dem
+  Server endeten Setzen und Zurücknehmen mit 500 und speicherten nichts (Live seit 5dad50c). SQLite nimmt ihn still an; die Tests und Klicktests liefen unter
+  SQLite, ein Test gegen PostgreSQL für diesen Weg fehlte. Die Prüfung „Feste Werte passen in ihre Spalte“ (`tests/test_v364_feste_werte_spaltenlaenge.py`)
+  sah Konstruktoren, `update().values()` und Vergleiche, nicht die Argumente von `record_audit_entry()`. Alle übrigen Aufrufe hatten kurze Aktionen (höchstens
+  26 Zeichen).
+- Behoben: die Aktionen heißen „als gesendet vermerkt“ (21) und „Vermerk zurückgenommen“ (22); Feld „An das Steuerbüro gesendet“, alter und neuer Wert bleiben.
+  Keine Migration: es gibt keinen Eintrag mit der langen Aktion (jeder Versuch scheiterte samt seinem Vermerk).
+
+#### Festlegungen 1.9.332 (Bitte bestätigen)
+
+1. Die Aktionen der beiden Historieneinträge heißen „als gesendet vermerkt“ und „Vermerk zurückgenommen“ -- sie passen in `audit_logs.action`.
+2. Jede feste Aktion eines Aufrufs von `record_audit_entry()` unter `app/` passt in `audit_logs.action` (Länge aus dem Modell); eine nicht feste Aktion nennt der
+   Wächter (es gibt keine).
+3. „An das Steuerbüro gesendet“ und „Zurücknehmen“ laufen in der Suite auch gegen PostgreSQL (Wegwerf-Schema, wie alle PostgreSQL-Tests).
+
+#### Tests und Prüfung 1.9.332
+
+Neu: `tests/test_v732_lohndatei_vermerk_postgresql.py` (2 Tests: Länge jeder Aktion; Setzen und Zurücknehmen gegen PostgreSQL). Angepasste Erwartungen:
+`tests/test_v728_lohndatei_gesendet.py::test_setzen_mit_zeitpunkt_und_konto` und `::test_zuruecknehmen_nur_der_admin` -- die Aktion „als gesendet vermerkt“
+statt „Lohndatei an das Steuerbüro gesendet“ bzw. „Vermerk zurückgenommen“ statt „Vermerk „gesendet“ zurückgenommen“. Gegenproben: `gegenproben-lohn-l2c.md`,
+„1.9.332“.

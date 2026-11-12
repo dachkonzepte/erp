@@ -48,7 +48,7 @@ def test_setzen_mit_zeitpunkt_und_konto(w):
     assert row.versendet_am is not None and f["versendet_am"].startswith(row.versendet_am.isoformat()[:16])
     assert row.inhalt == a.inhalt and row.art == "datei"  # sonst nichts geändert
     [(aktion, alt, neu, wer)] = _historie(db, a.id)
-    assert (aktion, alt, wer) == ("Lohndatei an das Steuerbüro gesendet", "nein", "Fin Finanzen") and neu.endswith(" von Fin Finanzen")
+    assert (aktion, alt, wer) == ("als gesendet vermerkt", "nein", "Fin Finanzen") and neu.endswith(" von Fin Finanzen")  # seit 1.9.332 (passt in 30 Zeichen)
 
 
 def test_je_monat_eine_nur_dateien(w):
@@ -101,7 +101,7 @@ def test_zuruecknehmen_nur_der_admin(w):
     row = db.get(Lohndatei, a.id)
     assert (row.versendet_am, row.versendet_von_user_id, row.versendet_von_name) == (None, None, None)
     [setzen, zurueck] = _historie(db, a.id)
-    assert (zurueck[0], zurueck[2], zurueck[3]) == ("Vermerk „gesendet“ zurückgenommen", "nein", "Ada Admin") and zurueck[1] == setzen[2]
+    assert (zurueck[0], zurueck[2], zurueck[3]) == ("Vermerk zurückgenommen", "nein", "Ada Admin") and zurueck[1] == setzen[2]  # seit 1.9.332
     assert admin.delete(f"{URL}/{a.id}/versendet").status_code == 409  # nicht (mehr) vermerkt
     b = datei(db)
     assert w["client"]().post(f"{URL}/{b.id}/versendet").status_code == 200  # danach geht eine andere Datei des Monats

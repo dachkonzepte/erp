@@ -277,7 +277,9 @@ def versendet_setzen(db: Session, lohndatei_id: int, *, user_id: int | None, use
         raise VersandAbgelehnt(f"Für {row.monat:%m/%Y} ist schon die Datei vom {to_berlin(andere.erzeugt_am):%d.%m.%Y %H:%M} als gesendet vermerkt – je Monat "
                                "eine; zurücknehmen kann nur ein Administrator.")
     row.versendet_am, row.versendet_von_user_id, row.versendet_von_name = datetime.utcnow(), user_id, user_name or "System"
-    record_audit_entry(db, action="Lohndatei an das Steuerbüro gesendet", entity_type="Lohndatei", entity_id=row.id,
+    # die Aktion passt in audit_logs.action (String(30)) -- seit 1.9.332; 1.9.328–1.9.331 „Lohndatei an das Steuerbüro gesendet“ (36 Zeichen) brach unter
+    # PostgreSQL mit 500 ab, SQLite nahm ihn still an (tests/test_v732_lohndatei_vermerk_postgresql.py)
+    record_audit_entry(db, action="als gesendet vermerkt", entity_type="Lohndatei", entity_id=row.id,
                        entity_label=f"Lohndatei {row.monat:%m/%Y}", field_name="versendet_am", field_label="An das Steuerbüro gesendet",
                        old_value="nein", new_value=_vermerk_text(row), actor_user_id=user_id, actor_name=user_name)
     try:
@@ -302,7 +304,7 @@ def versendet_zuruecknehmen(db: Session, lohndatei_id: int, *, user_id: int | No
         raise VersandAbgelehnt("Diese Datei ist nicht als gesendet vermerkt.")
     alt = _vermerk_text(row)
     row.versendet_am = row.versendet_von_user_id = row.versendet_von_name = None
-    record_audit_entry(db, action="Vermerk „gesendet“ zurückgenommen", entity_type="Lohndatei", entity_id=row.id, entity_label=f"Lohndatei {row.monat:%m/%Y}",
+    record_audit_entry(db, action="Vermerk zurückgenommen", entity_type="Lohndatei", entity_id=row.id, entity_label=f"Lohndatei {row.monat:%m/%Y}",
                        field_name="versendet_am", field_label="An das Steuerbüro gesendet", old_value=alt, new_value="nein", actor_user_id=user_id,
                        actor_name=user_name)
     db.commit()

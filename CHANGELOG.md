@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.332 – Lohn L2c-2, Nachtrag: „An das Steuerbüro gesendet“ unter PostgreSQL
+
+Fehler aus 1.9.328, gefunden bei der Messung für L2c-3 gegen PostgreSQL: der Eintrag in der Änderungshistorie trug die Aktion „Lohndatei an das Steuerbüro gesendet“ (36 Zeichen) bzw. „Vermerk „gesendet“ zurückgenommen“ (33) -- die Spalte `audit_logs.action` fasst 30. PostgreSQL lehnte ab, „An das Steuerbüro gesendet“ und „Zurücknehmen“ endeten auf dem Server mit einem Fehler und speicherten nichts. SQLite nimmt einen zu langen Wert still an, deshalb blieb es in den Tests unsichtbar. Die Aktionen heißen jetzt „als gesendet vermerkt“ und „Vermerk zurückgenommen“; Feld, alter und neuer Wert bleiben.
+
+Neu `tests/test_v732_lohndatei_vermerk_postgresql.py`: jede feste Aktion eines Aufrufs von `record_audit_entry()` unter `app/` passt in die Spalte (Länge aus dem Modell), und Setzen und Zurücknehmen laufen gegen PostgreSQL in einem Wegwerf-Schema. Keine Migration -- vorhandene Einträge gibt es nicht (jeder Versuch scheiterte).
+
 ## 1.9.331 – Lohn L2c-2: „Nach dem Versand geändert“ in „Prüfen“
 
 Punkt 4 der Runde L2c-2. „Zeiten → Prüfen“ hat eine Karte „Nach dem Versand geändert“ (zur Info): je Monat mit gesendeter Datei der letzten zwölf Monate, in dem sich seither etwas geändert hat, eine Zeile „Dezember 2026: 3 Änderungen nach dem Versand“ -- ohne Namen -- mit dem Weg „Monat & Lohn“, der diesen Monat öffnet (`/zeiten?lohnmonat=2026-12#monat`). Nur Admin und Büro – Finanzen bekommen sie (die Liste dahinter sehen nur sie); nur ein Hinweis, er sperrt nichts und zählt nicht am Reiter. Nach „Besprochen“ zählt der Monat ab dort („… seit „Besprochen““).

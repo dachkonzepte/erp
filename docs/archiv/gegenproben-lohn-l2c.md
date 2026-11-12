@@ -242,3 +242,14 @@ von `tests/test_v518_zeiten_seite.py` abgelehnt) -- danach alle Gegenproben noch
 
 13 Gegenproben, alle rot (9 über Tests, 4 über `klicktest_nach_dem_versand_pruefen`; `331_K3` erst nach dem Nachziehen des Klicktests, danach K1, K2 und K4
 noch einmal, rot).
+
+## 1.9.332 (Vorweg zu L2c-3): „An das Steuerbüro gesendet“ unter PostgreSQL
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „als gesendet vermerkt“ passt in die Spalte | wieder die lange Aktion von 1.9.328 (`332_1a`) | 2 rot: v732::test_gesendet_und_zuruecknehmen_unter_postgresql (der Fehler von 1.9.328 unter PostgreSQL), test_jede_aktion_passt_in_ihre_spalte |
+| Nr. 1 – „Vermerk zurückgenommen“ passt in die Spalte | wieder die lange Aktion (`332_1b`) | 2 rot: dieselben beiden |
+| Nr. 2 – jede feste Aktion passt, eine nicht feste wird genannt | eine zusammengesetzte Aktion an anderer Stelle (`332_2a`) | 1 rot: v732::test_jede_aktion_passt_in_ihre_spalte |
+| Nr. 3 – Setzen und Zurücknehmen auch gegen PostgreSQL | keine eigene: `332_1a`/`332_1b` machen den PostgreSQL-Test rot -- er läuft in der Suite (ERP_TEST_POSTGRES_URL gesetzt, nicht übersprungen) | – |
+
+3 Gegenproben, alle rot (über Tests).
