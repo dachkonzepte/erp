@@ -277,3 +277,17 @@ noch einmal, rot).
 | Nr. 6 – Spalten „Konto · 0,25 je Tag“ | ohne Einheit (`334_4a`) | 1 rot: v734::test_seite |
 
 9 Gegenproben, alle rot (6 über Tests, 3 über `klicktest_konto_monat`; `334_K3` erst nach dem Nachziehen des Klicktests, danach K1 und K2 noch einmal, rot).
+
+## 1.9.335 (L2c-3, Punkt 2): „Tage ansehen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur Tage mit Sollzeit, Stunden oder Posten | auch leere Tage (`335_1a`) | 1 rot: v735::test_zeilen_ohne_leere_tage |
+| Nr. 1 – „Tage ansehen“ öffnet die Tage der Person | der Knopf tut nichts (`335_2a`; Klicktest `335_K1`) | 1 rot: v735::test_seite; Klicktest: „Ada: der Dialog mit Name und Stand“ und alle Prüfungen im Dialog |
+| Nr. 2 – „gutgeschrieben“ bzw. „– zählt nicht“ | immer „gutgeschrieben“ (`335_1c`; Klicktest `335_K3`) | 1 rot: v735::test_vermerk_je_tag; Klicktest: „Ada: der Freizeitausgleich zählt nicht“ |
+| Nr. 2 – der Vermerk des Servers | ohne (`335_1d`) | 1 rot: v735::test_vermerk_je_tag |
+| Nr. 2 – „kein Eintrag – zählt als Minus“ | ohne (`335_1b`; Klicktest `335_K2`) | 2 rot: v735::test_vermerk_je_tag, test_zeilen_ohne_leere_tage; Klicktest: „Bo: kein Eintrag zählt als Minus, ohne Startwert“ |
+| Nr. 3 – im Kopf „vorläufig – maßgeblich ist die Lohnabrechnung“ | ohne (`335_2b`) | 1 rot: v735::test_seite |
+| Nr. 3 – Stand, ohne Startwert „Startwert folgt“; keine Anfrage | keine eigene: Kopf und Stand nehmen dieselben Werte wie die Zeile der Karte (`334_2a`); dass der Dialog nicht fragt, prüft v735::test_seite (kein `api(` in `kontoTageOeffnen`) -- es gibt keinen Schutz im Code, den eine Gegenprobe aushebeln könnte | – |
+
+9 Gegenproben, alle rot (6 über Tests, 3 über `klicktest_konto_tage`).

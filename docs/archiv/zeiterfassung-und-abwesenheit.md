@@ -3310,3 +3310,28 @@ Neu: `tests/test_v734_konto_monat.py` (4 Tests: Kontobeginn und „ohne Startwer
 Seite). Neu `scripts/klicktest_konto_monat.py` (22 Prüfungen, stehende Uhr 03.02.2027: Januar mit Ada -- Saldo +1,50 h, Stand +14,00 h -- und Bo ohne
 Startwert, Kai kaufmännisch ohne Zeile; Dezember 2026 ohne Karte und Anfrage; Februar „bis gestern“; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste
 Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.334“.
+
+### Umsetzung 1.9.335 (Punkt 2): „Tage ansehen“
+
+- `zeiten.html`: in jeder Zeile der Karte „Arbeitszeitkonto“ „Tage ansehen“ (`data-aktion="konto-tage"`); der Dialog `kontoTageDialog` aus der geladenen Antwort
+  (`KONTO.konten[…].tage`, keine Anfrage): Titel „Tage im Konto · <Name>“, darunter Monat und Stand (die Überschrift der Spalte: „Stand am Monatsende“ bzw.
+  „Stand bis <gestern>“; ohne Startwert „Startwert folgt“), der Hinweis „vorläufig – maßgeblich ist die Lohnabrechnung“; je Tag mit Sollzeit, Ist oder Posten
+  (`kontoTageZeilen()`) Tag, Soll, Ist, Gutschrift, Saldo (mit Vorzeichen) und Vermerk (`kontoVermerk()`); im Fuß die Summe des Monats. Unter der Tabelle die
+  Rechnung in einem Satz (Ist = Arbeit + Gutschrift, Saldo = Ist − Soll, ein Tag ohne alles zählt als Minus).
+- Vermerk je Posten „<Bezeichnung> <Stunden> gutgeschrieben“ bzw. „… – zählt nicht“ (die Regel des Kontos, `REGEL`), dazu in Klammern der Vermerk des Servers
+  (Schlechtwetter Winter: „in der Vorschau neutral – DATEV löst ein Guthaben selbst auf“); ein Tag mit Sollzeit, ohne Arbeit und ohne Posten: „kein Eintrag –
+  zählt als Minus“ (wie der Hinweis in „Prüfen“, 1.9.322).
+
+#### Festlegungen 1.9.335 (Bitte bestätigen)
+
+1. „Tage ansehen“ je Person zeigt je Tag Soll, Ist, Gutschrift, Saldo und Vermerk -- nur Tage mit Sollzeit, Stunden oder einem Posten; darunter die Summe des
+   Monats.
+2. Der Vermerk nennt jeden Posten mit „gutgeschrieben“ oder „– zählt nicht“, dazu den Vermerk des Servers; ein Tag mit Sollzeit ohne Arbeit und ohne Posten heißt
+   „kein Eintrag – zählt als Minus“.
+3. Im Kopf Stand (ohne Startwert „Startwert folgt“) und „vorläufig – maßgeblich ist die Lohnabrechnung“; alles aus der geladenen Antwort, keine Anfrage.
+
+#### Tests und Prüfung 1.9.335
+
+Neu: `tests/test_v735_konto_tage.py` (3 Tests: Vermerk je Tag, Zeilen ohne leere Tage, die Seite). Neu `scripts/klicktest_konto_tage.py` (25 Prüfungen: Adas
+Tage -- Neujahr gutgeschrieben, ein Arbeitstag +0,50, Urlaub gutgeschrieben, Freizeitausgleich zählt nicht, kein Wochenende --, die Summe; Bos Tag ohne Eintrag
+und „Startwert folgt“; Bilder bei 1440 und 412 px, hell und dunkel). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.335“.

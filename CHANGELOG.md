@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.335 – Lohn L2c-3: „Tage ansehen“ im Arbeitszeitkonto
+
+Punkt 2 der Runde L2c-3. Jede Zeile der Karte „Arbeitszeitkonto“ hat „Tage ansehen“: ein Dialog „Tage im Konto · <Name>“ mit je Tag Soll, Ist, Gutschrift, Saldo und Vermerk -- nur Tage mit Sollzeit, Stunden oder einem Posten (das Wochenende ohne alles fehlt), darunter die Summe des Monats, im Kopf der Stand (ohne Startwert „Startwert folgt“) und „vorläufig – maßgeblich ist die Lohnabrechnung“. Der Vermerk nennt jeden Posten mit „gutgeschrieben“ oder „– zählt nicht“ (z. B. „Freizeitausgleich 7,50 h – zählt nicht“), den Vermerk des Servers bei Schlechtwetter Winter, und einen Tag mit Sollzeit ohne Arbeit und ohne Posten als „kein Eintrag – zählt als Minus“. Alles aus der schon geladenen Antwort, keine weitere Anfrage.
+
+Neu `tests/test_v735_konto_tage.py` und `scripts/klicktest_konto_tage.py` (Bilder bei 1440 und 412 px, hell und dunkel). Keine Migration.
+
 ## 1.9.334 – Lohn L2c-3: das Arbeitszeitkonto in „Monat & Lohn“
 
 Punkt 1 der Runde L2c-3. „Monat & Lohn“ hat unter „Stunden je Mitarbeiter“ eine Karte „Arbeitszeitkonto“ (Admin, Büro – Finanzen): darüber „vorläufig – maßgeblich ist die Lohnabrechnung“, je gewerblicher Person Soll im Monat, Saldo des Monats und Stand am Monatsende (im laufenden Monat „Stand bis <gestern>“). Ohne Startwert steht statt des Stands „Startwert folgt“. Vor Januar 2027 gibt es die Karte nicht (keine Anfrage). Damit minutengenaue Zeitarten und das Konto (je Tag auf 0,25 h) nicht verwechselt werden (Befund L2c, 10.6), tragen Soll und Saldo die Einheit „Konto · 0,25 je Tag“, und ein Satz sagt, dass die Zeitarten darüber minutengenau sind. Die Zahlen kommen unverändert vom Server (`GET /api/zeiten/arbeitszeitkonto`, seit 1.9.321); die Seite rechnet nichts.
