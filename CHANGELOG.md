@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.326 – Lohn L2c-1, Nachrunde: „DATEV bekommt keine Arbeit – Umfang prüfen“
+
+Punkt C der Nachrunde L2c-1. Hat eine gewerbliche Person den Export-Umfang „nur Abwesenheiten“ oder „nichts“, geht ihre Arbeit nicht in die Lohndatei -- DATEV rechnet ihr Arbeitszeitkonto dann ohne sie. „Vor dem Abschluss“ (Reiter „Prüfen“) und „1 Prüfen“ in „Monat & Lohn“ nennen jetzt je solcher Person „Name: DATEV bekommt keine Arbeit – Umfang prüfen“, in „Monat & Lohn“ mit dem Weg zu den Lohnstammdaten. Gezählt wird jede gewerbliche Person der Lohndatei des Monats, die im Monat beschäftigt ist (`app/zeiten.py::umfang_hinweise()`). Nur ein Hinweis: er sperrt weder den Abschluss noch die Lohndatei und zählt nicht in „Fehlt“.
+
+Neu `tests/test_v726_umfang_hinweis.py` und `scripts/klicktest_umfang_hinweis.py` (Bilder bei 1440 und 412 px, hell und dunkel). Im Archiv der Befund zu L2c-2 neu („Nach dem Versand geändert“ und die Stand-Datei des Steuerbüros), nur gelesen. Keine Migration.
+
 ## 1.9.325 – Lohn L2c-1, Nachrunde: Hinweis beim Deaktivieren ohne Austritt
 
 Punkt B der Nachrunde L2c-1. Wer eine Person deaktiviert, ohne in den Lohnstammdaten einen Austritt einzutragen, lässt ihre Sollzeit weiterlaufen -- „inaktiv“ zählt für die Sollzeit nicht, im Arbeitszeitkonto wird jeder Arbeitstag ein Minus. Setzt das Speichern im Mitarbeiterformular eine Person von aktiv auf inaktiv und steht kein Austritt da, antwortet der Server mit `austritt_hinweis` „Austritt eintragen – sonst läuft die Sollzeit weiter“; gespeichert ist trotzdem, nichts wird gesperrt. Das Formular bleibt dann stehen und zeigt unter „Gespeichert.“ den Hinweis mit „Zu den Lohnstammdaten“ und „Zur Liste“. Der Weg öffnet Einstellungen → Zeitregeln und DATEV mit `?mitarbeiter=<id>`: die Person steht dort auch bei „Inaktive ausblenden“ in der Liste, hervorgehoben, der Cursor in ihrem Feld „Austritt“.

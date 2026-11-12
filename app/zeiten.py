@@ -285,6 +285,27 @@ def datev_text(fehlt: list[dict]) -> str:
     return ", ".join(teile)
 
 
+# Seit 1.9.326 (Lohn L2c-1, Nachrunde, Punkt C): eine gewerbliche Person, deren Arbeit nicht in die Lohndatei geht -- DATEV führt ihr Arbeitszeitkonto
+UMFANG_HINWEIS = "DATEV bekommt keine Arbeit – Umfang prüfen"
+
+
+def umfang_hinweise(db: Session, erster: date, personen) -> list[dict]:
+    """Seit 1.9.326 (Lohn L2c-1, Nachrunde, Punkt C): je gewerblicher Person der Lohndatei des Monats (app/lohndatei.py::berechnen(), personen), die im
+    Monat beschäftigt ist und deren Export-Umfang nicht „alles“ ist („nur Abwesenheiten“, „nichts“), ein Eintrag {art „umfang“, employee_id, name, text
+    „Name: DATEV bekommt keine Arbeit – Umfang prüfen“} -- ihre Arbeit geht nicht in die Datei, DATEV rechnet ihr Arbeitszeitkonto ohne sie. Nur ein
+    Hinweis: sperrt weder Abschluss noch Lohndatei, zählt nicht in „Fehlt“. Nach Nachnamen; eine Abfrage."""
+    kandidaten = [p for p in personen if p.umfang != "alles"]
+    if not kandidaten:
+        return []
+    zeilen = db.execute(select(Employee.id, Employee.employee_group, EmployeePayrollSettings).outerjoin(
+        EmployeePayrollSettings, EmployeePayrollSettings.employee_id == Employee.id).where(Employee.id.in_([p.employee_id for p in kandidaten]))).all()
+    ende = monat_ende(erster)
+    gewerblich = {eid for eid, gruppe, lohn in zeilen if gruppe == "gewerblich"  # im Monat beschäftigt: Eintritt bis Monatsende, Austritt ab Monatsanfang
+                  and (lohn is None or ((lohn.eintritt is None or lohn.eintritt <= ende) and (lohn.austritt is None or lohn.austritt >= erster)))}
+    return [{"art": "umfang", "employee_id": p.employee_id, "name": p.name, "text": f"{p.name}: {UMFANG_HINWEIS}"}
+            for p in sorted(kandidaten, key=lambda p: (p.nachname.casefold(), p.employee_id)) if p.employee_id in gewerblich]
+
+
 def vor_dem_abschluss(db: Session, erster: date) -> list[dict]:
     """„Vor dem Abschluss“ auf „Prüfen“: die Lücken der Zeiten als Zahl (wie viele laufen, wie viele Tage passen nicht) und was dem
     DATEV-Export des Monats fehlt, je ein Eintrag mit art und text. Seit 1.9.313 (Lohn L2b, Punkt 1) dazu je Kategorie ohne Zuordnung
@@ -297,7 +318,9 @@ def vor_dem_abschluss(db: Session, erster: date) -> list[dict]:
     liste = ([{"art": "laeuft", "text": _anzahl(laeuft, "Zeit läuft noch", "Zeiten laufen noch")}] if laeuft else []) + \
             ([{"art": "pause", "text": _anzahl(pause, "Tag mit unpassender Pause", "Tage mit unpassender Pause")}] if pause else [])
     personen = berechnen(db, erster)
-    return liste + [{"art": x["art"], "text": x["text"]} for x in datev_fehlt(db, erster, monat_ende(erster), personen=personen)]
+    # seit 1.9.326 dazu „DATEV bekommt keine Arbeit – Umfang prüfen“ (umfang_hinweise(), nur Hinweis)
+    return (liste + [{"art": x["art"], "text": x["text"]} for x in datev_fehlt(db, erster, monat_ende(erster), personen=personen)]
+            + [{"art": x["art"], "text": x["text"]} for x in umfang_hinweise(db, erster, personen)])
 
 
 def pruefen(db: Session, heute: date) -> dict:
@@ -506,6 +529,8 @@ def monat(db: Session, erster: date) -> dict:
                                    for x in sorted(lohndatei, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.nicht],
             # seit 1.9.226 (Lohn L1b, Punkt 3): die abgelegten Lohndateien des Monats, die jüngste zuerst (ohne die Bytes)
             "lohndateien": [abgelegt_dict(r) for r in abgelegte(db, erster)],
+            # seit 1.9.326 (Lohn L2c-1, Nachrunde, Punkt C): gewerbliche Personen mit Export-Umfang nicht „alles“ -- nur ein Hinweis in „1 Prüfen“
+            "umfang_hinweise": umfang_hinweise(db, erster, lohndatei),
             "antraege_offen": len(list_requests(db, status="pending")),
             "spalten": spalten, "zeilen": zeilen,
             "summe": {"stunden": {k: summe.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": summe["zusammen"],

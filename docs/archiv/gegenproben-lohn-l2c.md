@@ -120,3 +120,18 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 4 – andere Inaktive bleiben ausgeblendet | keine eigene: dieselbe Prüfung wie `325_K3`/`325_K4` (Ben steht nicht in der Liste) | – |
 
 10 Gegenproben, alle rot (6 über Tests, 4 über `klicktest_austritt_hinweis`).
+
+## 1.9.326 (Nachrunde, Punkt C): „DATEV bekommt keine Arbeit – Umfang prüfen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur gewerbliche | auch kaufmännische (`326_1a`) | 1 rot: v726::test_wer_einen_hinweis_bekommt |
+| Nr. 1 – nur Umfang nicht „alles“ | auch „alles“ (`326_1b`) | 1 rot: v726::test_wer_einen_hinweis_bekommt |
+| Nr. 1 – nur wer im Monat beschäftigt ist | auch außerhalb (`326_1c`) | 1 rot: v726::test_wer_einen_hinweis_bekommt |
+| Nr. 2 – in „Vor dem Abschluss“ | nicht dort (`326_2a`; Klicktest `326_K2`) | 1 rot: v726::test_in_vor_dem_abschluss_und_monat_sperrt_nichts; Klicktest: „„Vor dem Abschluss“: die zwei gewerblichen Personen, nicht Kai und Cem“ |
+| Nr. 2 – in „Monat & Lohn“ | nicht in der Antwort (`326_2b`) | 1 rot: v726::test_in_vor_dem_abschluss_… |
+| Nr. 2 – in „1 Prüfen“ mit Weg „Lohnstammdaten“ | die Seite zeigt ihn nicht (`326_4a`; Klicktest `326_K1`) | 1 rot: v726::test_seite; Klicktest: „„1 Prüfen“: dieselben Zeilen mit dem Weg zu den Lohnstammdaten“ |
+| Nr. 3 – sperrt die Lohndatei nicht | als Eintrag in datev_fehlt() (`326_3a`) | 1 rot: v726::test_in_vor_dem_abschluss_… |
+| Nr. 3 – sperrt den Abschluss nicht, zählt nicht in „Fehlt“ | keine eigene: es gibt keinen Code, der ihn dort einträgt; v726 und der Klicktest prüfen beides | – |
+
+9 Gegenproben, alle rot (7 über Tests, 2 über `klicktest_umfang_hinweis`).

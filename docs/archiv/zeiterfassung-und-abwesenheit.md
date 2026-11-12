@@ -2979,3 +2979,35 @@ erzeugten Nummern, keine Erwartung). Angepasste Erwartungen: keine. Kein Klickte
 Neu: `tests/test_v725_austritt_hinweis.py` (2 Tests: der Hinweis in sechs Fällen; die Stellen in beiden Seiten). Neu `scripts/klicktest_austritt_hinweis.py`
 (20 Prüfungen: vier Personen deaktiviert bei 1440 und 412 px, hell und dunkel, mit Bild; schon inaktiv ohne Hinweis; der Weg per Klick in die Lohnstammdaten mit Bild;
 mit Austritt ohne Hinweis). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.325“.
+
+### Umsetzung 1.9.326 (Punkt C): „DATEV bekommt keine Arbeit – Umfang prüfen“
+
+- `app/zeiten.py::umfang_hinweise(db, erster, personen)`: je Person der Lohndatei des Monats (`app/lohndatei.py::berechnen()`) mit Export-Umfang nicht „alles“, die
+  gewerblich ist und im Monat beschäftigt (Eintritt bis Monatsende, Austritt ab Monatsanfang; ohne Lohnstammdaten ja), ein Eintrag `{art „umfang“, employee_id, name,
+  text „Name: DATEV bekommt keine Arbeit – Umfang prüfen“}`, nach Nachnamen; eine Abfrage. `vor_dem_abschluss()` hängt sie an („Prüfen“), `monat()` gibt sie als
+  `umfang_hinweise` („Monat & Lohn“, „1 Prüfen“ mit dem Weg „Lohnstammdaten“ zu `/settings#time-rules`). Nicht in `datev_fehlt()`: sperrt weder Abschluss noch
+  Lohndatei, zählt nicht in „Fehlt“.
+
+#### Festlegungen 1.9.326 (Bitte bestätigen)
+
+1. „Name: DATEV bekommt keine Arbeit – Umfang prüfen“ für jede gewerbliche Person der Lohndatei des Monats, die im Monat beschäftigt ist und deren Export-Umfang nicht
+   „alles“ ist; nicht für kaufmännische, nicht bei „alles“, nicht wer nur außerhalb des Monats beschäftigt ist.
+2. Er steht in „Vor dem Abschluss“ und in „1 Prüfen“ von „Monat & Lohn“ (dort mit dem Weg „Lohnstammdaten“).
+3. Nur ein Hinweis: sperrt weder Abschluss noch Lohndatei, zählt nicht in „Fehlt“.
+
+#### Tests und Prüfung 1.9.326
+
+Neu: `tests/test_v726_umfang_hinweis.py` (3 Tests: wer den Hinweis bekommt -- nur Abwesenheiten, nichts, kaufmännisch, alles, vor dem Monat ausgetreten, im Monat
+eingetreten; in „Vor dem Abschluss“ und „Monat & Lohn“ ohne Sperre; die Seite). Neu `scripts/klicktest_umfang_hinweis.py` (18 Prüfungen: beide Stellen, der Weg,
+„Fehlt“ ohne Umfang; Bilder beider Ansichten bei 1440 und 412 px, hell und dunkel). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.326“.
+
+### Befund L2c-2 neu (12.11.2026, nur gelesen; Bericht `bildgrundlage/bericht_l2c1_nachrunde_<commit>.txt`, Abschnitt D)
+
+- „Nach dem Versand geändert“ geht für das Anzeigen ohne neue Tabelle: die abgelegte Lohndatei des Monats (Bytes mit Prüfsumme) gegen `berechnen()` von heute, je
+  Person und Tag (Kennzeichen, Lohnart, Stunden), Personen über die Personalnummer auch nach einem Wechsel (`PersonalnummerVergabe`); den Grund liefert die
+  Änderungshistorie. `scripts/pruefe_lohndatei.py` liest das Format schon und vergleicht je Person und Tag.
+- Es fehlt: welche Datei „der Versand“ war (das Herunterladen wird nicht protokolliert, mehrere Dateien je Monat möglich -- Vorschlag: die erste gilt), und ein
+  „besprochen“ nach dem Telefonat (Vorschlag: eine Abgleich-Zeile in derselben Ablage, eine Spalte `art`, eine Migration -- sonst wächst die Liste ohne Ende).
+- Die Stand-Datei des Steuerbüros (L2c-4) braucht eine neue Tabelle (je Datei die Bytes, je Person und Stichtag der Stand), das Format (offen), eine Vorschau vor dem
+  Übernehmen; `konten()` startet dann beim jüngsten Stand laut DATEV und rechnet nur die Tage danach vorläufig; je Monat die Änderung laut DATEV gegen den Saldo des ERP.
+- Vorschlag: L2c-2 „Nach dem Versand geändert“ vor dem ersten Abschluss 2027, L2c-3 Anzeige und Grenzen, L2c-4 Stand-Datei, sobald das Format da ist.

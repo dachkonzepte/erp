@@ -1071,6 +1071,7 @@ function monatZeichnen(d){
   if(laeuft)z.push(['offen',laeuft+(laeuft===1?' Zeit läuft noch':' Zeiten laufen noch'),'Prüfen','pruefen']);
   if(pause)z.push(['offen',pause+(pause===1?' Tag mit unpassender Pause':' Tage mit unpassender Pause'),'Prüfen','pruefen']);
   d.datev_fehlt.forEach(function(x){z.push(['offen',x.text,x.art.indexOf('personalnummer')===0?'Personal':'Zeitregeln','einstellungen'])});  // seit 1.9.230 auch „personalnummer_format“
+  (d.umfang_hinweise||[]).forEach(function(x){z.push(['offen',x.text,'Lohnstammdaten','einstellungen'])});  // seit 1.9.326: nur Hinweis, zählt nicht in „Fehlt“
   z.push(d.antraege_offen?['offen',d.antraege_offen+(d.antraege_offen===1?' Antrag offen':' Anträge offen'),'Abwesenheiten','abwesenheiten']:['ok','Anträge entschieden','','']);
   el('lohnPruefen').innerHTML=z.map(function(x){
     var weg=x[3]==='pruefen'?'<a href="#pruefen" data-reiter-link="pruefen">'+esc(x[2])+'</a>'
