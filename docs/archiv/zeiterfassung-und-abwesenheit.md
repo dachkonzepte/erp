@@ -3242,3 +3242,42 @@ Neu: `tests/test_v732_lohndatei_vermerk_postgresql.py` (2 Tests: Länge jeder Ak
 `tests/test_v728_lohndatei_gesendet.py::test_setzen_mit_zeitpunkt_und_konto` und `::test_zuruecknehmen_nur_der_admin` -- die Aktion „als gesendet vermerkt“
 statt „Lohndatei an das Steuerbüro gesendet“ bzw. „Vermerk zurückgenommen“ statt „Vermerk „gesendet“ zurückgenommen“. Gegenproben: `gegenproben-lohn-l2c.md`,
 „1.9.332“.
+
+### Umsetzung 1.9.333 (Punkt 0): Messung von „Prüfen“
+
+- `scripts/messe_pruefen.py`: baut in einer Wegwerf-Datenbank (SQLite im Temp-Ordner; mit `--pg URL` zusätzlich PostgreSQL in einem Wegwerf-Schema, nie
+  `public`) den Testbestand -- 15 gewerbliche Personen (Personalnummern aus dem erfundenen Kreis), je Arbeitstag von Januar bis Dezember 2027 eine Buchung zu
+  8,00 h, je Person und Monat ein genehmigter Urlaubstag, je Monat die Lohndatei erzeugt und als gesendet vermerkt, danach je Monat zwei geänderte Buchungen
+  (Anna Admin, in der Historie); „Abgeschlossen bis“ 31.12.2027. Gemessen wird `GET /api/zeiten/pruefen` als Admin über die echte Anmeldeschranke, mit fester
+  Uhr, je Fall ein Aufruf zum Aufwärmen und fünf gemessene (Median, größter), dazu `aenderungen_je_monat()` allein. Zwei Tage: 31.12.2027 (alle zwölf
+  gesendeten Monate im Fenster -- der ungünstigste Fall) und 17.01.2028 (elf: der laufende Monat ist nie gesendet); je Fenster 12 und 3 Monate.
+- Ergebnis (12.11.2026, Entwicklungsrechner):
+
+  | Datenbank | heute | Fenster | Monate | Prüfen (Median / größter) | davon „nach dem Versand“ |
+  |---|---|---|---|---|---|
+  | SQLite | 31.12.2027 | 12 | 12 | 0,284 s / 0,293 s | 0,252 s |
+  | SQLite | 31.12.2027 | 3 | 3 | 0,095 s / 0,165 s | 0,060 s |
+  | SQLite | 17.01.2028 | 12 | 11 | 0,257 s / 0,333 s | 0,225 s |
+  | SQLite | 17.01.2028 | 3 | 2 | 0,076 s / 0,079 s | 0,044 s |
+  | PostgreSQL | 31.12.2027 | 12 | 12 | 0,292 s / 0,296 s | 0,259 s |
+  | PostgreSQL | 31.12.2027 | 3 | 3 | 0,106 s / 0,110 s | 0,068 s |
+  | PostgreSQL | 17.01.2028 | 12 | 11 | 0,269 s / 0,279 s | 0,243 s |
+  | PostgreSQL | 17.01.2028 | 3 | 2 | 0,093 s / 0,099 s | 0,049 s |
+
+  Testbestand je Datenbank: 3.735 Buchungen, 180 Abwesenheiten, 12 Lohndateien mit 4.050 Zeilen, 4.944 Einträge der Historie. Je gesendetem Monat kostet der
+  Vergleich rund 0,02 s.
+- Entscheidung nach dem Auftrag (über 1 s: drei Monate): unter 1 s -- das Fenster bleibt bei zwölf Monaten, 1.9.331 Nr. 1 gilt wie gebaut. Der Server hat 2 Kerne
+  und ist langsamer als der Entwicklungsrechner; bis zum Doppelten bliebe es unter 1 s. Nachmessen auf dem Server ginge mit demselben Skript gegen die Probe-
+  Datenbank `spielwiese` (`--pg`, Wegwerf-Schema) -- das entscheidet der Betreiber.
+
+#### Festlegungen 1.9.333 (Bitte bestätigen)
+
+1. „Prüfen“ braucht im ungünstigsten Fall (15 gewerbliche Personen, zwölf gesendete Monate im Fenster) 0,29 s unter PostgreSQL (Median, höchstens 0,30 s) -- unter
+   1 s: das Fenster bleibt bei zwölf Monaten.
+2. Gemessen wird mit `scripts/messe_pruefen.py` (Wegwerf-Datenbank, echte Anmeldeschranke, feste Uhr; `--pg` im Wegwerf-Schema) -- wiederholbar, wenn „Prüfen“
+   wächst (Punkt 3 dieser Runde misst nach).
+
+#### Tests und Prüfung 1.9.333
+
+Neu: `tests/test_v733_messung_pruefen.py` (das Skript läuft mit einem Aufruf je Fall, legt den Bestand vollständig an, gibt je Tag und Fenster eine Zeile aus --
+ohne Dauer als Schranke). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.333“.

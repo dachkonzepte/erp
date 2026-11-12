@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.333 – Lohn L2c-3: Messung von „Prüfen“
+
+Punkt 0 der Runde L2c-3. „Prüfen“ rechnet seit 1.9.331 für jeden Monat mit gesendeter Lohndatei der letzten zwölf Monate die Liste „Nach dem Versand geändert“. Gemessen mit einem Testbestand aus 15 gewerblichen Personen und zwölf gesendeten Monaten (3.735 Buchungen, 4.050 Zeilen in den Lohndateien): `GET /api/zeiten/pruefen` braucht im ungünstigsten Fall -- alle zwölf Monate im Fenster -- 0,29 s unter PostgreSQL (Median, höchstens 0,30 s) und 0,28 s unter SQLite; davon entfallen rund 0,26 s auf die zwölf Vergleiche. Unter 1 s: das Fenster bleibt bei zwölf Monaten. Gemessen auf dem Entwicklungsrechner; der Server (2 Kerne) ist langsamer.
+
+Neu `scripts/messe_pruefen.py` (Wegwerf-Datenbank, echte Anmeldeschranke, feste Uhr, mit `--pg` auch gegen PostgreSQL in einem Wegwerf-Schema) und `tests/test_v733_messung_pruefen.py` (das Skript läuft; keine Dauer als Schranke). Keine Migration.
+
 ## 1.9.332 – Lohn L2c-2, Nachtrag: „An das Steuerbüro gesendet“ unter PostgreSQL
 
 Fehler aus 1.9.328, gefunden bei der Messung für L2c-3 gegen PostgreSQL: der Eintrag in der Änderungshistorie trug die Aktion „Lohndatei an das Steuerbüro gesendet“ (36 Zeichen) bzw. „Vermerk „gesendet“ zurückgenommen“ (33) -- die Spalte `audit_logs.action` fasst 30. PostgreSQL lehnte ab, „An das Steuerbüro gesendet“ und „Zurücknehmen“ endeten auf dem Server mit einem Fehler und speicherten nichts. SQLite nimmt einen zu langen Wert still an, deshalb blieb es in den Tests unsichtbar. Die Aktionen heißen jetzt „als gesendet vermerkt“ und „Vermerk zurückgenommen“; Feld, alter und neuer Wert bleiben.

@@ -253,3 +253,13 @@ noch einmal, rot).
 | Nr. 3 – Setzen und Zurücknehmen auch gegen PostgreSQL | keine eigene: `332_1a`/`332_1b` machen den PostgreSQL-Test rot -- er läuft in der Suite (ERP_TEST_POSTGRES_URL gesetzt, nicht übersprungen) | – |
 
 3 Gegenproben, alle rot (über Tests).
+
+## 1.9.333 (L2c-3, Punkt 0): Messung von „Prüfen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – unter 1 s, das Fenster bleibt bei zwölf Monaten | keine eigene: eine Messung, kein Schutz im Code (`MONATE_ZURUECK` bleibt 12; dass das Fenster wirkt, prüfen v731 und die Gegenprobe `331_1a`) | – |
+| Nr. 2 – das Skript legt den vollständigen Bestand an (zwölf gesendete Monate) | nur elf Monate gesendet (`333_2a`) | 1 rot: v733::test_messung_laeuft |
+| Nr. 2 – es misst je Tag beide Fenster | ohne das Fenster von drei Monaten (`333_2b`) | 1 rot: v733::test_messung_laeuft |
+
+2 Gegenproben, beide rot (über Tests).
