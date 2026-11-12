@@ -2950,3 +2950,32 @@ der Stand-Datei des Steuerbüros (L2c-4), damit deren Stand die Grundlage wird u
 
 Neu: `tests/test_v724_testnummern_erfunden.py` (2 Tests: über alle Dateien; der Wächter findet an Beispielen). Geändert: `tests/test_v708_tagesbilanz.py` (nur die
 erzeugten Nummern, keine Erwartung). Angepasste Erwartungen: keine. Kein Klicktest. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.324“.
+
+### Umsetzung 1.9.325 (Punkt B): Hinweis beim Deaktivieren ohne Austritt
+
+- `app/employees.py::austritt_hinweis(db, employee, war_aktiv)`: `AUSTRITT_HINWEIS` („Austritt eintragen – sonst läuft die Sollzeit weiter“), wenn das Speichern die
+  Person von aktiv auf inaktiv setzt und in den Lohnstammdaten kein Austritt steht (auch ohne Lohnstammdaten); sonst None. Liest nur. `PUT /api/employees/{id}`
+  merkt sich den Stand vor dem Speichern und gibt `austritt_hinweis` in der Antwort (`EmployeeOut`, sonst immer leer). Gespeichert ist trotzdem, nichts gesperrt.
+  Nur das Speichern (PUT) -- Anlegen als inaktiv ist kein Deaktivieren.
+- `master_data_form.html`: mit Hinweis bleibt das Formular stehen -- „Gespeichert.“, darunter eine Hinweisfläche (`.hinweis-karte`, Ecke der Karte) mit dem Text vom
+  Server, „Zu den Lohnstammdaten“ (`/settings?mitarbeiter=<id>#time-rules`) und „Zur Liste“; der Stand für „Abbrechen“ gilt danach als gespeichert. Ohne Hinweis geht
+  es wie bisher zur Liste.
+- `settings.html`: `LOHN_ZIEL` aus `?mitarbeiter=`; `lohnDerListe(liste, ziel)` lässt die Person auch bei „Inaktive ausblenden“ stehen (nur die Lohnstammdaten geben
+  das Ziel mit, „Urlaub und Startwerte“ nicht); beim ersten Zeichnen ist ihre Zeile hervorgehoben (`lohn-ziel`) und der Cursor steht in ihrem Feld „Austritt“
+  (`lohnZielZeigen()`). Nur die Anzeige.
+
+#### Festlegungen 1.9.325 (Bitte bestätigen)
+
+1. Der Hinweis „Austritt eintragen – sonst läuft die Sollzeit weiter“ kommt, wenn das Speichern eine Person von aktiv auf inaktiv setzt und in den Lohnstammdaten kein
+   Austritt steht (auch ohne Lohnstammdaten); sonst nicht (mit Austritt, schon inaktiv, aktiv bleiben, wieder aktivieren).
+2. Nur ein Hinweis in der Antwort auf das Speichern (`austritt_hinweis`): gespeichert ist trotzdem, nichts gesperrt; die Liste trägt ihn nicht.
+3. Das Formular bleibt dann stehen: „Gespeichert.“, darunter der Hinweis mit „Zu den Lohnstammdaten“ (`/settings?mitarbeiter=<id>#time-rules`) und „Zur Liste“; ohne
+   Hinweis zur Liste wie bisher.
+4. Die Lohnstammdaten zeigen die Person aus `?mitarbeiter=` auch bei „Inaktive ausblenden“, hervorgehoben, mit dem Cursor im Feld „Austritt“; andere Inaktive
+   bleiben ausgeblendet; nur die Anzeige.
+
+#### Tests und Prüfung 1.9.325
+
+Neu: `tests/test_v725_austritt_hinweis.py` (2 Tests: der Hinweis in sechs Fällen; die Stellen in beiden Seiten). Neu `scripts/klicktest_austritt_hinweis.py`
+(20 Prüfungen: vier Personen deaktiviert bei 1440 und 412 px, hell und dunkel, mit Bild; schon inaktiv ohne Hinweis; der Weg per Klick in die Lohnstammdaten mit Bild;
+mit Austritt ohne Hinweis). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.325“.

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..employees import apply_employee_payload, employee_to_dict, load_employees, set_cost_allocation, set_plantafel
+from ..employees import apply_employee_payload, austritt_hinweis, employee_to_dict, load_employees, set_cost_allocation, set_plantafel
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
@@ -127,6 +127,7 @@ def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Dep
         if exists:
             raise HTTPException(status_code=409, detail="Mitarbeiternummer ist bereits vergeben.")
     # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“: die Mitarbeiternummer ist keine Personalnummer mehr, nichts wird gemerkt oder gesperrt
+    war_aktiv = bool(employee.active)  # seit 1.9.325: für den Hinweis beim Deaktivieren
     try:
         apply_employee_payload(db, employee, payload)
     except ValueError as exc:
@@ -142,4 +143,5 @@ def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Dep
     set_cost_allocation(db, employee, payload.cost_allocation)
     db.commit()
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
-    return employee_to_dict(employee, db)
+    # seit 1.9.325 (Lohn L2c-1, Nachrunde, Punkt B): deaktiviert ohne Austritt -- ein Hinweis in der Antwort, das Formular zeigt ihn mit dem Weg zu den Lohnstammdaten
+    return {**employee_to_dict(employee, db), "austritt_hinweis": austritt_hinweis(db, employee, war_aktiv)}

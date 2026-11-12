@@ -1044,6 +1044,7 @@ class EmployeeOut(_felder_ohne_pruefung(EmployeeCreate, "_EmployeeFelder")):
     function_name: str | None = None
     effective_hourly_wage: Decimal | None = None
     annual_gross_wage: Decimal | None = None
+    austritt_hinweis: str | None = None  # seit 1.9.325: nur in der Antwort auf das Speichern (PUT), wenn die Person ohne Austritt deaktiviert wurde
 
 
 class EmployeeRosterOut(BaseModel):

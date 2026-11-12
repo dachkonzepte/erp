@@ -5,8 +5,22 @@ from sqlalchemy.orm import Session, selectinload
 
 from .models import (
     Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeFunction,
-    EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
+    EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeePayrollSettings,
 )
+
+
+# Seit 1.9.325 (Lohn L2c-1, Nachrunde, Punkt B): wer eine Person ohne Austritt deaktiviert, lässt ihre Sollzeit weiterlaufen (app/sollzeit.py: vor dem
+# Eintritt und nach dem Austritt 0, „inaktiv“ zählt dort nicht) -- im Arbeitszeitkonto ein Minus je Arbeitstag, „Tag ohne Eintrag“ in „Prüfen“
+AUSTRITT_HINWEIS = "Austritt eintragen – sonst läuft die Sollzeit weiter"
+
+
+def austritt_hinweis(db: Session, employee: Employee, war_aktiv: bool) -> str | None:
+    """Seit 1.9.325: AUSTRITT_HINWEIS, wenn das Speichern die Person von aktiv auf inaktiv setzt und in den Lohnstammdaten kein Austritt steht -- nur ein
+    Hinweis in der Antwort, nichts wird gesperrt oder geändert. Liest nur."""
+    if not war_aktiv or employee.active:
+        return None
+    payroll = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee.id))
+    return AUSTRITT_HINWEIS if payroll is None or payroll.austritt is None else None
 
 
 DEFAULT_EMPLOYEE_FUNCTIONS = [

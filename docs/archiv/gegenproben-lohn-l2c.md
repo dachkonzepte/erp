@@ -103,3 +103,20 @@ zählt, ein Sammel- oder Aufbaufehler nicht), danach die Datei byte-genau zurüc
 | Nr. 2 – ohne Ziffern am Anfang frei | auch ohne Ziffern am Anfang (`324_2d`) | 2 rot: v724::test_der_waechter_findet, test_erzeugte_… (D-{nr} in test_v326) |
 
 4 Gegenproben, alle rot (alle über Tests; keine Oberfläche).
+
+## 1.9.325 (Nachrunde, Punkt B): Hinweis beim Deaktivieren ohne Austritt
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur beim Wechsel von aktiv auf inaktiv | auch wer schon inaktiv war (`325_1a`) | 1 rot: v725::test_hinweis_nur_beim_deaktivieren_ohne_austritt |
+| Nr. 1 – nur ohne Austritt | auch mit Austritt (`325_1b`) | 1 rot: v725::test_hinweis_nur_… |
+| Nr. 1 – auch ohne Lohnstammdaten | ohne Lohnstammdaten kein Hinweis (`325_1c`) | 1 rot: v725::test_hinweis_nur_… |
+| Nr. 2 – nur ein Hinweis, gespeichert ist trotzdem | der Hinweis sperrt mit 409 (`325_2a`) | 1 rot: v725::test_hinweis_nur_… |
+| Nr. 2 – in der Antwort auf das Speichern | das Feld fehlt in der Antwort (`325_2b`) | 1 rot: v725::test_hinweis_nur_… |
+| Nr. 3 – das Formular bleibt stehen | weiter zur Liste (`325_3a`; Klicktest `325_K1`) | 1 rot: v725::test_seiten; Klicktest: „Ada 1440 hell: Seite bleibt, „Gespeichert.“ und der Hinweis“ und je Bild dieselbe Prüfung |
+| Nr. 3 – Weg zu den Lohnstammdaten mit der Person | Link ohne die Person (`325_K2`) | Klicktest: „Ada 1440 hell: Text, Weg und Adresse“ (je Bild), „Lohnstammdaten: geladen, Ada sichtbar trotz …“ |
+| Nr. 4 – die Person sichtbar trotz „Inaktive ausblenden“ | ohne Ziel (`325_K3`) | Klicktest: „Lohnstammdaten: geladen, Ada sichtbar trotz „Inaktive ausblenden““, „Lohnstammdaten: Zeile hervorgehoben, Cursor …“ |
+| Nr. 4 – hervorgehoben, Cursor im Feld „Austritt“ | ohne lohnZielZeigen() (`325_K4`) | Klicktest: „Lohnstammdaten: Zeile hervorgehoben, Cursor im Feld „Austritt“, andere Inaktive ausgeblendet“ |
+| Nr. 4 – andere Inaktive bleiben ausgeblendet | keine eigene: dieselbe Prüfung wie `325_K3`/`325_K4` (Ben steht nicht in der Liste) | – |
+
+10 Gegenproben, alle rot (6 über Tests, 4 über `klicktest_austritt_hinweis`).

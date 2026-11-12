@@ -8,6 +8,9 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1040px;margin:0;padding:20px}.link{color:var(--ds-link);text-decoration:none;font-weight:650}
 .wrap{background:var(--card);border:1px solid var(--line);padding:22px;border-radius:var(--ds-ecke-karte)}
+/* seit 1.9.325: Hinweis nach dem Deaktivieren ohne Austritt */
+.hinweis-karte{margin-top:14px;padding:12px 14px;background:var(--ds-warn-hell);color:var(--ds-warn-text);border-radius:var(--ds-ecke-karte);line-height:1.5}
+.hinweis-karte a{color:var(--ds-link);font-weight:600}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
 .field{display:grid;grid-template-columns:170px minmax(0,1fr);column-gap:14px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}
 .field>label:first-child~*{grid-column:2}
@@ -56,7 +59,7 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
   {% if teil == "pfad" %}{% for g in pfad %}{% if not loop.first %}<span class="ds-kopf-trenner" aria-hidden="true">/</span>{% endif %}<a class="ds-kopf-pfadglied" href="{{ g.href }}">{{ g.text }}</a>{% endfor %}
   {% elif teil == "aktion" %}<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}" data-klick="abbrechen">Abbrechen</a><button type="button" class="ds-knopf ds-knopf-aktion" id="kopfSpeichern" data-klick="speichern">Speichern</button>{% endif %}
 {% endcall %}
-<div class="wrap"><p id="help" class="muted"></p><div id="form"></div><button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span></div>
+<div class="wrap"><p id="help" class="muted"></p><div id="form"></div><button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span><div id="austrittHinweis" class="hinweis-karte" role="status" hidden></div></div>
 </main>
 </div>
 </div>
@@ -150,6 +153,9 @@ async function save(trotzLaufenderGruppenzeit){try{let body,url,method=editing?'
   }
   if(failed.length)alert('Betriebsmittel wurde angelegt, aber folgende Dokumente konnten nicht hochgeladen werden -- bitte auf der Betriebsmittelseite erneut versuchen:\n'+failed.join('\n'));
   location.href='/betriebsmittel/'+saved.id;return
-}location.href='/master-data#'+LISTENBEREICH}catch(e){/* seit 1.8.145: Kennzeichen entziehen, während für das Team eine Gruppenzeit läuft -- Rückfrage, gestoppt wird nichts */if(type==='teams'&&e.status===409&&e.detail&&e.detail.code==='laufende_gruppenzeit'&&trotzLaufenderGruppenzeit!==true){if(confirm(e.detail.message))return save(true);el('msg').textContent='Nicht gespeichert – das Kennzeichen bleibt.';return}el('msg').textContent='Fehler: '+e.message}}
+}if(type==='employees'&&editing&&saved&&saved.austritt_hinweis){el('msg').textContent='Gespeichert.';austrittHinweisZeigen(saved.austritt_hinweis);return}location.href='/master-data#'+LISTENBEREICH}catch(e){/* seit 1.8.145: Kennzeichen entziehen, während für das Team eine Gruppenzeit läuft -- Rückfrage, gestoppt wird nichts */if(type==='teams'&&e.status===409&&e.detail&&e.detail.code==='laufende_gruppenzeit'&&trotzLaufenderGruppenzeit!==true){if(confirm(e.detail.message))return save(true);el('msg').textContent='Nicht gespeichert – das Kennzeichen bleibt.';return}el('msg').textContent='Fehler: '+e.message}}
+/* seit 1.9.325 (Lohn L2c-1, Nachrunde, Punkt B): deaktiviert ohne Austritt -- gespeichert ist; die Seite bleibt stehen und zeigt den Hinweis vom Server mit dem
+   Weg zu den Lohnstammdaten (dort ist die Person sichtbar, der Cursor steht im Feld „Austritt“) und zur Liste; „Gespeichert.“ setzt save(). Nur ein Hinweis. */
+function austrittHinweisZeigen(text){const h=el('austrittHinweis');h.innerHTML=esc(text)+'. <a id="austrittWeg" href="/settings?mitarbeiter='+Number(recordId)+'#time-rules">Zu den Lohnstammdaten</a> · <a href="/master-data#'+esc(LISTENBEREICH)+'">Zur Liste</a>';h.hidden=false;abbrechenEinrichten(el('form'),()=>pendingAssetDocuments.map(d=>[d.document_type,d.file.name,d.notes]));h.scrollIntoView({block:'center'})}
 init().catch(e=>el('msg').textContent='Fehler: '+e.message)
 </script></body></html>
