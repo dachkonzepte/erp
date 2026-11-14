@@ -277,7 +277,7 @@ def test_delete_contract_cascades_items_without_reports_but_blocks_when_signed_r
         delete_contract(db, contract2["id"])
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
-        assert "archiviert" in str(exc)
+        assert "Beende den Vertrag stattdessen" in str(exc)  # seit 1.9.341 der Rat zu beenden (bis dahin „nur archiviert“)
 
 
 def test_delete_roof_area_blocks_while_used_as_contract_item():

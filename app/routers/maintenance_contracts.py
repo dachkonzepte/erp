@@ -18,7 +18,7 @@ from ..maintenance_contracts import (
     load_maintenance_settings, list_contracts,
     list_contracts_for_property, list_due_items_grouped,
     list_windows, maintenance_settings_to_dict, reorder_windows, set_contract_archived, set_contract_status,
-    set_item_archived, update_contract, update_contract_item, update_maintenance_settings, update_window,
+    set_item_archived, update_contract, update_contract_item, update_maintenance_settings, update_window, VertragVerwendet,
 )
 from ..modules import is_module_enabled
 from ..service_reports import list_contract_history
@@ -159,6 +159,8 @@ def delete_maintenance_contract(contract_id: int, db: Session = Depends(get_db, 
     _require_module_enabled(db)
     try:
         deleted = delete_contract(db, contract_id)
+    except VertragVerwendet as exc:  # seit 1.9.341: etwas ist aus dem Vertrag entstanden (bis dahin 400 nur für unterschriebene Berichte)
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:
@@ -310,6 +312,8 @@ def delete_maintenance_contract_item(item_id: int, db: Session = Depends(get_db,
     _require_module_enabled(db)
     try:
         deleted = delete_contract_item(db, item_id)
+    except VertragVerwendet as exc:  # seit 1.9.341: etwas ist aus der Position entstanden
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:

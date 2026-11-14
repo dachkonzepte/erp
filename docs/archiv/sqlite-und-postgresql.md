@@ -215,3 +215,48 @@ Verwendung (409), Konto ohne Verwendung mit Kacheln und Wiederherstellungscode (
 dem PRAGMA rot: E1 über die Route, E4, beide Konto-Tests (je `IntegrityError`); grün schon vorher: E5 mit Lieferant allein (siehe oben) und der Wächter.
 Die 11 Tests von E1–E5 (v194, v247, v214, v105, v083) waren seit 1.9.339 streng erwartet rot und laufen jetzt normal. Angepasste Erwartungen: keine
 (nur `FREMDSCHLUESSEL_BEKANNT` entfernt).
+
+## Nachrunde V1: E6 und die Seite „Benutzer“ (ab 1.9.341)
+
+Runde V1 geprüft (4a704d7) und live; die 13 Festlegungen 1.9.338–1.9.340 bestätigt (14.11.2026). Antworten Tobias auf die offenen Fragen:
+- **E6:** mit Grund ablehnen, nicht lösen -- ein Projekt oder Bericht aus dem Vertrag gehört zu seiner Geschichte. 409 mit den Bereichen und dem Rat, den
+  Vertrag zu beenden statt zu löschen (wie bei „Benutzer löschen“); `delete_contract_item()` gleich mitprüfen. Eigene kleine Runde, jetzt.
+- **Benutzer:** bei einem verwendeten Konto auf der Seite gleich „Deaktivieren“ statt „Löschen“; „Löschen“ nur für ein nie verwendetes Konto.
+- **Klicktests mit PRAGMA:** mit V3.
+
+Runde ab 1.9.341, je Punkt eine Version: **1** E6 wie oben, je mit einem Test, der vorher unter dem PRAGMA rot war; **2** Seite „Benutzer“: „Deaktivieren“
+statt „Löschen“ bei verwendetem Konto (der Server sagt, ob verwendet), Bilder 1440 und 412 px, hell und dunkel; **3** nur prüfen: was passiert mit den
+Folgeaufgaben, die E3 mit dem Berichtsentwurf löscht, wenn sie schon zugewiesen, eingeplant oder erledigt sind -- Vorschlag in den Bericht, erst fragen.
+
+### Umsetzung 1.9.341: Wartungsvertrag und Position mit Geschichte nicht löschen (Punkt 1, E6)
+
+- `app/maintenance_contracts.py`: `vertrag_verwendungen()` und `position_verwendungen()` nennen, was entstanden ist -- ein Projekt aus dem Vertrag oder
+  der Position (`project_profiles.source_maintenance_contract_id` bzw. `…_item_id`) oder ein Einsatzbericht (`service_reports.maintenance_contract_id`
+  bzw. `…_item_id`), auch ein Entwurf. Für den Vertrag zählt auch, was aus einer seiner Positionen entstand (die Positionen gingen sonst mit ihm).
+  `delete_contract()` und `delete_contract_item()` lehnen dann mit `VertragVerwendet` ab, die Routen mit 409:
+  „Aus dem Vertrag sind schon Projekte und Einsatzberichte entstanden – sie gehören zu seiner Geschichte, deshalb lässt er sich nicht löschen. Beende
+  den Vertrag stattdessen (⋮ → Beenden): dann erinnert er nicht mehr, und alles bleibt.“ -- bei der Position „… Archiviere die Position stattdessen …“
+  (eine Position hat kein „Beenden“; archiviert erinnert sie nicht mehr). Die Vertragsseite zeigt die Meldung in ihrer Statuszeile wie jede andere.
+- Bis 1.9.340 sperrte nur ein **unterschriebener** Bericht (400, „… nur archiviert“); ein Projekt aus dem Vertrag oder ein Berichtsentwurf ließ das
+  Löschen unter PostgreSQL am Fremdschlüssel mit 500 scheitern (seit 1.9.339 auch in der Suite). Ohne Geschichte unverändert: der Vertrag geht samt
+  Positionen (ORM-Kaskade) und Erinnerungen (`source_url`).
+- Jeder Fremdschlüssel auf `maintenance_contracts` und `maintenance_contract_items` steht in `MIT_DEM_VERTRAG`, `AUS_DEM_VERTRAG` oder
+  `AUS_DER_POSITION` (Wächter). Berichtigt dabei: `docs/archiv/modul-wartungen-und-monteursansicht.md` schrieb seit 1.2.15, keine andere Tabelle trage
+  einen Fremdschlüssel auf `maintenance_contracts`, und ein Entwurfsbericht blockiere das Löschen nicht -- beides galt nur ohne Prüfung der
+  Fremdschlüssel. Die Stelle in `sign_report()`, die einen schon gelöschten Vertrag überspringt, bleibt als Verteidigung; erreichbar ist sie nicht mehr.
+
+#### Festlegungen 1.9.341 (Bitte bestätigen)
+
+1. Ein Wartungsvertrag, aus dem ein Projekt oder ein Einsatzbericht entstanden ist (auch ein Entwurf, auch über eine seiner Positionen), wird nicht
+   gelöscht: 409 mit den Bereichen und dem Rat, ihn zu beenden (⋮ → Beenden).
+2. Eine Position, aus der ein Projekt oder ein Einsatzbericht entstanden ist, wird nicht gelöscht: 409 mit den Bereichen und dem Rat, sie zu archivieren.
+3. Jeder Fremdschlüssel auf Vertrag und Position steht in `MIT_DEM_VERTRAG`, `AUS_DEM_VERTRAG` oder `AUS_DER_POSITION`; ein neuer kommt dort hinein.
+4. Ohne Geschichte geht der Vertrag wie bisher samt Positionen und Erinnerungen.
+
+#### Tests und Prüfung 1.9.341
+
+Neu `tests/test_v741_vertrag_loeschen.py` (6 Tests): Vertrag mit Projekt, mit Berichtsentwurf, mit Projekt und Bericht aus einer Position; Position mit
+Projekt bzw. Bericht; Vertrag ohne Geschichte samt Position und Erinnerung; jeder Fremdschlüssel eingeordnet. Ohne die neue Prüfung (Gegenprobe `341_1`,
+`341_2`) scheitern die vier Fälle mit Geschichte am Fremdschlüssel (`FOREIGN KEY constraint failed`) -- sie waren unter dem PRAGMA vorher rot.
+Angepasste Erwartung (Regel 28): `test_v212::test_delete_contract_cascades_items_without_reports_but_blocks_when_signed_report_exists` -- Meldung mit
+„archiviert“ -> mit „Beende den Vertrag stattdessen“ (der Fall selbst bleibt abgelehnt). Gegenproben: `docs/archiv/gegenproben-v1-fremdschluessel.md`.

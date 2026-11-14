@@ -218,8 +218,12 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     **unterschriebener** Einsatzbericht dazu (seit 1.2.15, vertrags- oder positionsbezogen,
     siehe `MaintenanceContractItem` unten): dann blockiert `delete_contract()` mit `ValueError`
     statt zu kaskadieren, exakt das Muster von `delete_project()` bei bestehenden Aufträgen –
-    Archivieren bleibt davon unberührt. Keine andere Tabelle trägt eine Fremdschlüsselspalte auf
-    `maintenance_contracts` (kein Regel-6-Fall im engeren Sinn), ABER: die per
+    Archivieren bleibt davon unberührt. **Berichtigt seit 1.9.341:** der folgende Satz stimmte nie --
+    `project_profiles.source_maintenance_contract_id` und `service_reports.maintenance_contract_id` zeigen auf den Vertrag (dazu die
+    `…_item_id` auf die Position); ohne Prüfung der Fremdschlüssel unter SQLite fiel das nicht auf, unter PostgreSQL scheiterte das Löschen
+    dann mit 500 (E6). Seit 1.9.341 lehnen Vertrag und Position mit Geschichte (Projekt oder Bericht, auch Entwurf) mit 409 ab, Rat: beenden bzw.
+    archivieren (`docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.341“). Bisherige Fassung: Keine andere Tabelle trägt eine
+    Fremdschlüsselspalte auf `maintenance_contracts` (kein Regel-6-Fall im engeren Sinn), ABER: die per
     `check_due_contracts_and_create_reminders()` erzeugten Erinnerungs-Aufgaben hängen locker
     über `source_module`/`source_url` am Vertrag (Automatisierungs-Anschlussstelle, bewusst
     keine FK) – ohne explizites Aufräumen blieben sie als toter Link zurück (seit 1.2.10 in

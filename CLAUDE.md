@@ -2383,8 +2383,8 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Benutzer löschen scheitert unter PostgreSQL mit 500~~ -- seit 1.9.340 409 mit den Bereichen, in denen das Konto steht, und dem Rat zu
   deaktivieren (`app/konto_loeschen.py`, jeder Fremdschlüssel auf `app_users` eingeordnet); ob „Deaktivieren“ das Löschen auf der Seite ersetzen
   soll, ist vorgeschlagen, nicht entschieden (`docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.340“).
-- **Wartungsvertrag löschen scheitert unter PostgreSQL mit 500** (E6, gefunden 14.11.2026), sobald ein Projekt aus ihm entstand oder ein
-  Berichtsentwurf auf ihn zeigt -- nicht behoben, fachlich zu entscheiden (`docs/archiv/sqlite-und-postgresql.md`, „Neuer Fund E6“).
+- ~~Wartungsvertrag löschen scheitert unter PostgreSQL mit 500 (E6)~~ -- seit 1.9.341 lehnen Vertrag und Position mit Geschichte (Projekt oder
+  Bericht, auch Entwurf) mit 409 ab, Rat: beenden bzw. archivieren (`app/maintenance_contracts.py`, `docs/archiv/sqlite-und-postgresql.md`).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
   Muster~~ -- seit 1.8.42 gelöst: Grunddaten legt der Start an, serialisiert über eine Sperrzeile (Regel 23,
   `docs/archiv/grunddaten-beim-start.md`), ohne neue Constraints.

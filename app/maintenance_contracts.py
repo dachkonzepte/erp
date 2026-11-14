@@ -436,6 +436,61 @@ def set_contract_archived(db: Session, contract_id: int, archived: bool) -> dict
     return contract_to_dict(_load(db, contract.id), settings.reminder_lead_days, settings.use_roof_area_items)
 
 
+# Seit 1.9.341 (E6 aus dem Befund SQLite/PostgreSQL, Entscheidung Tobias 14.11.2026): was aus einem Vertrag oder einer Position entstanden ist,
+# gehört zu seiner Geschichte -- ein Projekt aus dem Vertrag (project_profiles) oder ein Einsatzbericht (service_reports, auch ein Entwurf). Dann
+# wird nicht gelöscht, sondern mit Grund abgelehnt (409) und geraten, den Vertrag zu beenden bzw. die Position zu archivieren. Bis 1.9.340 sperrte
+# nur ein unterschriebener Bericht; ein Projekt aus dem Vertrag oder ein Berichtsentwurf ließ das Löschen unter PostgreSQL am Fremdschlüssel mit 500
+# scheitern. Jeder Fremdschlüssel auf maintenance_contracts und maintenance_contract_items steht in genau einer der Listen (Wächter
+# tests/test_v741_vertrag_loeschen.py); ein neuer kommt dort hinein.
+MIT_DEM_VERTRAG = {
+    ("maintenance_contract_items", "contract_id"): "Positionen (ORM-Kaskade am Vertrag)",
+}
+AUS_DEM_VERTRAG = {
+    ("project_profiles", "source_maintenance_contract_id"): "Projekte",
+    ("service_reports", "maintenance_contract_id"): "Einsatzberichte",
+}
+AUS_DER_POSITION = {
+    ("project_profiles", "source_maintenance_contract_item_id"): "Projekte",
+    ("service_reports", "maintenance_contract_item_id"): "Einsatzberichte",
+}
+
+
+class VertragVerwendet(ValueError):
+    """Aus dem Vertrag oder der Position ist etwas entstanden -- nicht löschen (409)."""
+
+
+def _entstanden(db: Session, spalten: dict, ids: list[int]) -> list[str]:
+    """Die Bereiche, in denen eine der IDs steht, in fester Reihenfolge, ohne Doppelte."""
+    from .database import Base
+    bereiche: list[str] = []
+    if not ids:
+        return bereiche
+    for (tabelle, spalte), bereich in spalten.items():
+        t = Base.metadata.tables[tabelle]
+        if bereich not in bereiche and db.scalar(select(func.count()).select_from(t).where(t.c[spalte].in_(ids))):
+            bereiche.append(bereich)
+    return bereiche
+
+
+def vertrag_verwendungen(db: Session, contract_id: int) -> list[str]:
+    """Was aus dem Vertrag oder einer seiner Positionen entstanden ist (Bereiche)."""
+    item_ids = list(db.scalars(select(MaintenanceContractItem.id).where(MaintenanceContractItem.contract_id == contract_id)))
+    bereiche = _entstanden(db, AUS_DEM_VERTRAG, [contract_id])
+    for b in _entstanden(db, AUS_DER_POSITION, item_ids):
+        if b not in bereiche:
+            bereiche.append(b)
+    return bereiche
+
+
+def position_verwendungen(db: Session, item_id: int) -> list[str]:
+    """Was aus der Position entstanden ist (Bereiche)."""
+    return _entstanden(db, AUS_DER_POSITION, [item_id])
+
+
+def _und(bereiche: list[str]) -> str:
+    return bereiche[0] if len(bereiche) == 1 else ", ".join(bereiche[:-1]) + " und " + bereiche[-1]
+
+
 def delete_contract(db: Session, contract_id: int) -> bool:
     """Kein GoBD-Dokument wie Invoice/Order/Reminder -- ein Wartungsvertrag ist reine
     Planungsinformation, echtes Löschen ist daher grundsätzlich erlaubt, nicht nur für
@@ -452,13 +507,11 @@ def delete_contract(db: Session, contract_id: int) -> bool:
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
         return False
-    if db.scalar(
-        select(ServiceReport.id).where(
-            ServiceReport.maintenance_contract_id == contract_id, ServiceReport.status == "unterschrieben",
-        ).limit(1)
-    ):
-        raise ValueError(
-            "Wartungsverträge mit bereits unterschriebenen Einsatzberichten können nicht gelöscht werden, nur archiviert."
+    bereiche = vertrag_verwendungen(db, contract_id)  # seit 1.9.341 (E6), siehe oben
+    if bereiche:
+        raise VertragVerwendet(
+            f"Aus dem Vertrag sind schon {_und(bereiche)} entstanden – sie gehören zu seiner Geschichte, deshalb lässt er sich nicht löschen. "
+            "Beende den Vertrag stattdessen (⋮ → Beenden): dann erinnert er nicht mehr, und alles bleibt."
         )
     db.execute(
         delete(Task).where(Task.source_module == "wartungsvertrag", Task.source_url == f"/maintenance-contracts/{contract_id}")
@@ -814,13 +867,11 @@ def delete_contract_item(db: Session, item_id: int) -> bool:
     item = db.get(MaintenanceContractItem, item_id)
     if item is None:
         return False
-    if db.scalar(
-        select(ServiceReport.id).where(
-            ServiceReport.maintenance_contract_item_id == item_id, ServiceReport.status == "unterschrieben",
-        ).limit(1)
-    ):
-        raise ValueError(
-            "Diese Position hat bereits unterschriebene Einsatzberichte und kann nicht gelöscht werden."
+    bereiche = position_verwendungen(db, item_id)  # seit 1.9.341 (E6), siehe vor delete_contract()
+    if bereiche:
+        raise VertragVerwendet(
+            f"Aus der Position sind schon {_und(bereiche)} entstanden – sie gehören zur Geschichte des Vertrags, deshalb lässt sie sich nicht "
+            "löschen. Archiviere die Position stattdessen: dann erinnert sie nicht mehr, und alles bleibt."
         )
     db.delete(item)
     db.commit()

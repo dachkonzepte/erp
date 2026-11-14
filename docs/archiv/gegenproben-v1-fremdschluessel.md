@@ -46,3 +46,16 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 4 – jeder Fremdschlüssel eingeordnet | „Aufgaben“ aus `BEREICHE` genommen (`340_6c`) | 2 rot: v740::test_jeder_fremdschluessel_auf_konten_ist_eingeordnet, test_konto_mit_verwendung_wird_nicht_geloescht_sondern_erklaert |
 
 8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Nachrunde V1, 1.9.341 (Punkt 1, E6): Wartungsvertrag und Position mit Geschichte nicht löschen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Vertrag mit Projekt oder Bericht: 409 statt Löschen | keine Prüfung im Vertrag (`341_1`, wie bis 1.9.340 ohne unterschriebenen Bericht) | 3 rot, je am Fremdschlüssel: v741::test_vertrag_mit_projekt_daraus_wird_nicht_geloescht, test_vertrag_mit_berichtsentwurf_wird_nicht_geloescht, test_vertrag_zaehlt_auch_was_aus_seinen_positionen_entstand |
+| Nr. 1 – auch über eine Position | nur, was aus dem Vertrag selbst entstand (`341_3`) | 1 rot: v741::test_vertrag_zaehlt_auch_was_aus_seinen_positionen_entstand |
+| Nr. 1 und 2 – Antwort 409 | 400 statt 409 (`341_6`, Route) | 3 rot: die drei Vertragsfälle aus `341_1` |
+| Nr. 2 – Position mit Projekt oder Bericht: 409 | keine Prüfung in der Position (`341_2`) | 1 rot (am Fremdschlüssel): v741::test_position_mit_projekt_oder_bericht_wird_nicht_geloescht |
+| Nr. 3 – jeder Fremdschlüssel eingeordnet | Berichte der Position aus `AUS_DER_POSITION` genommen (`341_4`) | 3 rot: v741::test_jeder_fremdschluessel_auf_vertrag_und_position_ist_eingeordnet, test_position_…, test_vertrag_zaehlt_… |
+| Nr. 4 – ohne Geschichte samt Positionen und Erinnerungen | die Erinnerungen nicht löschen (`341_5`) | 1 rot: v741::test_vertrag_ohne_geschichte_geht_mit_positionen_und_erinnerungen |
+
+6 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
