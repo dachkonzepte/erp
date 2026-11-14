@@ -124,3 +124,36 @@ Neu `tests/test_v738_testdaten_ohne_erfundene_eltern.py` (4 Tests): Auftrag mit 
 `test_v380` (drei Prüfungen auf „Tabelle.Spalte“) -> „Tabelle.Spalte“ oder Name der Bedingung; `test_v402::test_benutzer_loeschen_nimmt_seine_sitzungen_mit`
 (gleiche ID) -> gleiche ID nur unter SQLite; v283, v293 (Mitarbeiter 1) -> der angelegte Mitarbeiter; alle übrigen nur im Aufbau (echte Eltern statt
 erfundener IDs), Soll gleich. Gegenproben: `docs/archiv/gegenproben-v1-fremdschluessel.md`.
+
+### Umsetzung 1.9.339: PRAGMA foreign_keys=ON für jede SQLite-Verbindung der Tests (Punkt 2)
+
+- `tests/conftest.py` meldet am Ereignis `connect` der Klasse `Engine` an: jede neue SQLite-Verbindung des Testprozesses bekommt
+  `PRAGMA foreign_keys=ON` -- auch die Engine aus `app.database`, die vor `conftest` entsteht, `wegwerf_engine()`, `db_session`, `threaded_db_session`,
+  Dateien und jede eigene `create_engine()` eines Tests. Kindprozesse (alembic, uvicorn) und die Klicktests haben es nicht; `app/database.py` bleibt ohne
+  PRAGMA (lokale SQLite mit Altbestand), live prüft PostgreSQL.
+- Wächter `tests/test_v739_fremdschluessel_sqlite.py`: jede dieser Arten hat die Prüfung an, ein Verstoß scheitert sofort, und kein Test schaltet sie
+  ab oder selbst ein -- gesucht im Code ohne Kommentare und Docstrings (dort darf „PRAGMA foreign_keys=…“ erklärt werden). Einzige Ausnahme
+  (`AUSNAHMEN`, darf nur kürzer werden): v325, die Migration der Vertragsgrundlage baut unter SQLite `customers` im Batch-Modus neu, und SQLite verweigert
+  das Löschen der alten Tabelle, solange Projekte darauf zeigen; PostgreSQL ändert die Spalte ohne Neuaufbau. `_run()` dort schaltet die Prüfung nur für
+  die Dauer der Migration ab und stellt sie danach wie vorher (der Test prüft das).
+- v301 schaltete die Prüfung selbst ein (seit 1.7.11, „erst nach dem Aufbau, weil der Auftrags-Helfer ein Angebot nur vortäuscht“); jetzt stellt er nur
+  fest, dass sie an ist.
+- E1–E5 scheitern unter dem PRAGMA wie live. Bis zu ihrer Behebung (Punkt 3) stehen die 11 Tests in `FREMDSCHLUESSEL_BEKANNT` (`tests/conftest.py`):
+  erwartet rot, streng (wird einer grün, scheitert der Lauf) und nur mit `IntegrityError`.
+- Laufzeit: die volle Suite vorher (1.9.338) 11:22 min, mit dem PRAGMA im Bericht der Runde und unter 1.9.340.
+
+#### Festlegungen 1.9.339 (Bitte bestätigen)
+
+1. Jede SQLite-Verbindung im Testprozess prüft Fremdschlüssel (`PRAGMA foreign_keys=ON` über das Ereignis `connect` in `tests/conftest.py`);
+   Kindprozesse und Klicktests nicht, `app/database.py` bleibt ohne PRAGMA.
+2. Kein Test schaltet die Prüfung ab oder selbst ein; eine Ausnahme steht mit Grund in `AUSNAHMEN` von `tests/test_v739_fremdschluessel_sqlite.py` (darf
+   nur kürzer werden) und gilt nur für die Dauer der Stelle, die sie braucht -- heute v325 (Migration im Batch-Modus).
+3. Ein Fehler, den das PRAGMA findet und der noch nicht behoben ist, steht bis zur Behebung in `FREMDSCHLUESSEL_BEKANNT` (`tests/conftest.py`): erwartet
+   rot, streng, nur mit `IntegrityError`. Die Liste darf nur kürzer werden; mit Punkt 3 ist sie leer und weg.
+
+#### Tests und Prüfung 1.9.339
+
+Neu `tests/test_v739_fremdschluessel_sqlite.py` (8 Tests). Angepasste Erwartungen (Regel 28): `test_v301` -- schaltet die Prüfung nicht mehr selbst ein,
+stellt nur fest, dass sie an ist (Soll gleich); `test_v325::test_migration_downgrade_removes_everything_and_refuses_when_data_would_be_lost` -- Migration
+ohne Prüfung, danach wieder mit (neue Prüfung am Ende); die 11 Tests von E1–E5 erwartet rot (xfail streng) bis Punkt 3. Gegenproben:
+`docs/archiv/gegenproben-v1-fremdschluessel.md`.

@@ -16,3 +16,18 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 6 – Spaltenprüfungen weg, der Import behält seinen Lauf | die Prüfung über die Engine nach dem Flush des Importlaufs wieder eingesetzt (`338_6`, `app/service.py`) | 1 rot: v738::test_leistungsimport_behaelt_seinen_importlauf |
 
 4 Gegenproben, alle rot; alle Dateien byte-gleich zurück.
+
+## 1.9.339 (Punkt 2): PRAGMA foreign_keys=ON für jede SQLite-Verbindung der Tests
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jede SQLite-Verbindung prüft Fremdschlüssel | das PRAGMA in `tests/conftest.py` abgeschaltet (`339_1`) | 19 rot: v739 (6: db_session, threaded_db_session, wegwerf_engine/create_engine je URL, Datei und Engine der App, Verstoß), v301 (2), die 11 Tests von E1–E5 (streng erwartet rot, werden grün) |
+| Nr. 2 – kein Test schaltet ab | `PRAGMA foreign_keys=OFF` wieder in v357 (`339_2a`) | 1 rot: v739::test_kein_test_schaltet_die_pruefung_ab_oder_selbst_ein |
+| Nr. 2 – kein Test schaltet selbst ein | `PRAGMA foreign_keys=ON` wieder in v301 (`339_2b`) | 1 rot: v739::test_kein_test_schaltet_die_pruefung_ab_oder_selbst_ein |
+| Nr. 2 – Ausnahme v325 nötig | die Prüfung während der Migration nicht abgeschaltet (`339_5a`) | 1 rot: v325::test_migration_downgrade_removes_everything_and_refuses_when_data_would_be_lost |
+| Nr. 2 – Ausnahme nur für die Dauer der Migration | nach der Migration aus gelassen (`339_5b`) | 1 rot: derselbe Test (Prüfung am Ende) |
+| Nr. 3 – bekannte Fehler erwartet rot, nur bis zur Behebung | E3 aus `FREMDSCHLUESSEL_BEKANNT` genommen (`339_4`) | 1 rot: v214::test_delete_draft_report_removes_photos_from_disk_and_cleans_up_task; „streng“: siehe `339_1` (grün gewordene scheitern) |
+| 1.9.338 Nr. 3 – Migrationsproben ohne Abschalten | wie `339_2a` | rot (siehe dort) |
+| Nr. 1 – Kindprozesse, Klicktests und `app/database.py` ohne PRAGMA | keine: eine Festlegung über unveränderten Code (nichts auszuhebeln) | -- |
+
+6 Gegenproben, alle rot; alle Dateien byte-gleich zurück.

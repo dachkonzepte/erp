@@ -1,8 +1,9 @@
 """Version 1.7.11 -- ein per Gruppe gebuchter Eintrag ließ sich unter PostgreSQL nicht löschen:
 TimeEntryGroupMember.time_entry_id ist ein Fremdschlüssel ohne Kaskade, delete_entry() entfernte
-nur den TimeEntry. SQLite prüft Fremdschlüssel standardmäßig nicht -- deshalb schaltet dieser
-Test die Prüfung ausdrücklich ein (PRAGMA foreign_keys=ON), erst NACH dem Aufbau der Testdaten,
-weil der wiederverwendete Auftrags-Helfer ein Angebot nur per ID vortäuscht."""
+nur den TimeEntry. SQLite prüft Fremdschlüssel standardmäßig nicht -- bis 1.9.338 schaltete dieser
+Test die Prüfung deshalb selbst ein (PRAGMA foreign_keys=ON, erst nach dem Aufbau, weil der Auftrags-Helfer
+ein Angebot nur per ID vortäuschte). Seit 1.9.339 prüft jede SQLite-Verbindung der Tests Fremdschlüssel
+(tests/conftest.py), der Test stellt nur noch fest, dass es so ist."""
 
 from datetime import date
 from decimal import Decimal
@@ -29,8 +30,7 @@ def _group_with_two_members():
     group = create_group_manual_entry(db, employee_ids=[a.id, b.id], team_id=team.id, actor_employee_id=a.id,
                                       is_admin=False, order_id=order.id, work_date=date.today(), hours=Decimal("4"))
     db.commit()
-    db.execute(text("PRAGMA foreign_keys=ON"))
-    assert db.execute(text("PRAGMA foreign_keys")).scalar() == 1
+    assert db.execute(text("PRAGMA foreign_keys")).scalar() == 1  # seit 1.9.339 für jede Verbindung der Tests (tests/conftest.py)
     return db, group.id, a.id, b.id
 
 

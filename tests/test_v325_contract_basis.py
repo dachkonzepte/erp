@@ -101,10 +101,24 @@ def _pre_migration_engine():
 
 
 def _run(engine, fn_name):
+    """Seit 1.9.339 ohne Fremdschlüsselprüfung für die Dauer der Migration: die Migration baut unter SQLite Tabellen im Batch-Modus neu (alte
+    Tabelle löschen, neue umbenennen); mit PRAGMA foreign_keys=ON verweigert SQLite das Löschen von customers, solange Projekte darauf zeigen.
+    Unter PostgreSQL ändert alembic die Spalte ohne Neuaufbau. Danach wie vorher (Ausnahme in tests/test_v739_fremdschluessel_sqlite.py)."""
     module = _migration()
-    with engine.begin() as conn:
-        with Operations.context(MigrationContext.configure(conn)):
-            getattr(module, fn_name)()
+    with engine.connect() as conn:
+        sqlite = conn.dialect.name == "sqlite"
+        vorher = conn.exec_driver_sql("PRAGMA foreign_keys").scalar() if sqlite else None
+        if sqlite:
+            conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        conn.commit()
+        try:
+            with conn.begin():
+                with Operations.context(MigrationContext.configure(conn)):
+                    getattr(module, fn_name)()
+        finally:
+            if sqlite:
+                conn.exec_driver_sql(f"PRAGMA foreign_keys={'ON' if vorher else 'OFF'}")
+                conn.commit()
 
 
 def _seed_pre_migration(engine):
@@ -188,6 +202,8 @@ def test_migration_downgrade_removes_everything_and_refuses_when_data_would_be_l
     assert "contract_basis" not in {c["name"] for c in insp.get_columns("orders")}
     assert "contract_basis" not in {c["name"] for c in insp.get_columns("quote_document_meta")}
     assert "contract_basis_clauses" not in insp.get_table_names()
+    with engine.connect() as conn:  # seit 1.9.339: nach der Migration prüft die Verbindung wieder Fremdschlüssel
+        assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
 
 
 # --- Punkt 1: Kunde ----------------------------------------------------------------------------
