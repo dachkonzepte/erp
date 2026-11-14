@@ -47,6 +47,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import (  # noqa: F401  (Fixtures)
     GUELTIG, PDF, PG_TEST_DATABASE_URL, SVG, _dauer, _erfassen, _png, _waits_for, _welt, ablage, welt,
 )
+from tests import migrationsbestand
 
 ROOT = Path(__file__).resolve().parent.parent
 HEUTE = berlin_today()
@@ -611,10 +612,12 @@ def test_migration_down_refuses_while_defects_exist():
         with engine.begin() as conn:
             with Operations.context(MigrationContext.configure(conn)):
                 getattr(module, name)()
+    order_id = migrationsbestand.auftrag(engine)["order"]  # echte Eltern (seit 1.9.338)
+    acceptance_id = migrationsbestand.abnahme(engine, order_id)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO defects (order_id, source, acceptance_id, description, content_sha256, "
-                          "checksum_format, created_at, created_by_name) VALUES (1, 'abnahme', 1, 'x', 'y', 1, "
-                          "'2026-10-05 00:00:00', 'X')"))
+                          "checksum_format, created_at, created_by_name) VALUES (:o, 'abnahme', :a, 'x', 'y', 1, "
+                          "'2026-10-05 00:00:00', 'X')"), {"o": order_id, "a": acceptance_id})
     with pytest.raises(RuntimeError, match="1 Mängel"):
         run("downgrade")
     with engine.begin() as conn:

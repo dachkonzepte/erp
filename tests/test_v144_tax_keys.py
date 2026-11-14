@@ -11,6 +11,7 @@ from app.projects import quote_to_dict, update_quote_tax_key
 from app.tax_keys import create_tax_key, update_tax_key
 from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
+from tests.quellangebot import quell_angebot
 
 
 def db_session():
@@ -27,7 +28,7 @@ def make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), 
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0001", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0001",
+        order_number="AUF-TEST-0001", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0001"), quote_number_snapshot="A-TEST-0001",
         title="Testauftrag", vat_rate=vat_rate, customer_name="Test Kunde", customer_number="K-0001",
     )
     db.add(order)

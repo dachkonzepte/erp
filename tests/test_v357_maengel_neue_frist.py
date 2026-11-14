@@ -21,6 +21,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import _png, ablage, welt  # noqa: F401  (Fixtures)
 from tests.test_v351_maengel import _abnahme, _iso, _mangel, _ok, _status, buero  # noqa: F401
 from tests.test_v354_maengel_monteur import HEUTE, _freigegebener_mangel, _liste, mia  # noqa: F401
+from tests import migrationsbestand
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -184,11 +185,13 @@ def test_migration_adds_column_and_refuses_downgrade_with_deadlines():
     def spalten():
         return {c["name"] for c in inspect(engine).get_columns("defect_events")}
 
-    with engine.begin() as conn:  # Bestand: ein Eintrag mit neuer Frist (Mangel und Kette braucht die Prüfung nicht)
-        conn.execute(text("PRAGMA foreign_keys=OFF"))
+    # Bestand: ein Eintrag mit neuer Frist an einem echten Mangel (seit 1.9.338; bis dahin PRAGMA foreign_keys=OFF und defect_id=1 ohne
+    # Mangel -- unter PostgreSQL gibt es kein Abschalten der Fremdschlüssel)
+    defect_id = migrationsbestand.mangel(engine, migrationsbestand.auftrag(engine)["order"])
+    with engine.begin() as conn:
         conn.execute(text("INSERT INTO defect_events (defect_id, kind, value, content_sha256, checksum_format, "
-                          "created_by_name, created_at, due_on) VALUES (1, 'status', 'offen', 'x', 1, 'Büro', "
-                          "'2026-10-05 10:00:00', '2026-11-30')"))
+                          "created_by_name, created_at, due_on) VALUES (:d, 'status', 'offen', 'x', 1, 'Büro', "
+                          "'2026-10-05 10:00:00', '2026-11-30')"), {"d": defect_id})
     with pytest.raises(RuntimeError, match="Downgrade verweigert: 1 Einträge"):
         run("downgrade")
     assert "due_on" in spalten()

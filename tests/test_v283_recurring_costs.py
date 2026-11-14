@@ -277,27 +277,39 @@ def test_finance_addressed_unassigned_task_visible_only_to_finanzen_and_admin():
     assert list_tasks_for_user(db, field_user, unassigned_only=True) == []
 
 
+def _mitarbeiter(db) -> int:
+    """Ein echter Mitarbeiter für das Konto, das eine Aufgabe übernimmt (seit 1.9.338: bis dahin employee_id=1 ohne Mitarbeiter --
+    tasks.assigned_employee_id ist ein Fremdschlüssel, unter PostgreSQL und mit PRAGMA foreign_keys=ON ein Fehler)."""
+    from app.models import Employee
+    e = Employee(employee_number="B-1", first_name="Bea", last_name="Büro", employee_group="kaufmaennisch", active=True)
+    db.add(e)
+    db.commit()
+    return e.id
+
+
 def test_claim_task_rejects_role_below_min_visible_role():
     """buero_auftrag darf eine finanz-adressierte Aufgabe nicht übernehmen -- auch nicht mit
     korrekt verknüpfter employee_id -- claim_task() wirft dafür ein eigenes PermissionError,
     getrennt von den ValueError-Geschäftsregelfällen."""
     db = db_session()
+    eid = _mitarbeiter(db)
     task = create_task(db, title="Kündigungsfrist beachten", min_visible_role=ROLE_OFFICE_FINANZEN)
-    auftrag_user = AppUser(username="a", display_name="a", role=ROLE_OFFICE_AUFTRAG, active=True, employee_id=1)
+    auftrag_user = AppUser(username="a", display_name="a", role=ROLE_OFFICE_AUFTRAG, active=True, employee_id=eid)
     with pytest.raises(PermissionError):
         claim_task(db, task["id"], auftrag_user)
 
-    finanzen_user = AppUser(username="f", display_name="f", role=ROLE_OFFICE_FINANZEN, active=True, employee_id=1)
+    finanzen_user = AppUser(username="f", display_name="f", role=ROLE_OFFICE_FINANZEN, active=True, employee_id=eid)
     claimed = claim_task(db, task["id"], finanzen_user)
-    assert claimed["assigned_employee_id"] == 1
+    assert claimed["assigned_employee_id"] == eid
 
 
 def test_claim_task_without_min_visible_role_works_for_any_office_role():
     db = db_session()
+    eid = _mitarbeiter(db)
     task = create_task(db, title="Allgemeine Büroaufgabe")
-    auftrag_user = AppUser(username="a", display_name="a", role=ROLE_OFFICE_AUFTRAG, active=True, employee_id=1)
+    auftrag_user = AppUser(username="a", display_name="a", role=ROLE_OFFICE_AUFTRAG, active=True, employee_id=eid)
     claimed = claim_task(db, task["id"], auftrag_user)
-    assert claimed["assigned_employee_id"] == 1
+    assert claimed["assigned_employee_id"] == eid
 
 
 # --- On-Demand-Erinnerung: min_visible_role statt unassigned ---
@@ -427,6 +439,7 @@ def test_finance_addressed_task_never_visible_or_claimable_for_buero_auftrag_or_
 ):
     db = threaded_db_session
     _seed_cost_and_finance_task(threaded_db_session, router_test_client)
+    eid = _mitarbeiter(db)
 
     finanzen_list = router_test_client(db, tasks_router, role="buero_finanzen").get("/api/tasks?unassigned_only=true")
     assert finanzen_list.status_code == 200
@@ -434,7 +447,7 @@ def test_finance_addressed_task_never_visible_or_claimable_for_buero_auftrag_or_
     assert finance_task_ids, "Vorbedingung: die Erinnerungs-Aufgabe muss existieren"
     task_id = finance_task_ids[0]
 
-    auftrag_client = router_test_client(db, tasks_router, role="buero_auftrag", employee_id=1)
+    auftrag_client = router_test_client(db, tasks_router, role="buero_auftrag", employee_id=eid)
     auftrag_list = auftrag_client.get("/api/tasks?unassigned_only=true")
     assert auftrag_list.status_code == 200
     assert task_id not in [t["id"] for t in auftrag_list.json()]
@@ -450,7 +463,7 @@ def test_finance_addressed_task_never_visible_or_claimable_for_buero_auftrag_or_
     field_claim = field_client.post(f"/api/tasks/{task_id}/claim")
     assert field_claim.status_code == 403
 
-    finanzen_claim = router_test_client(db, tasks_router, role="buero_finanzen", employee_id=1).post(
+    finanzen_claim = router_test_client(db, tasks_router, role="buero_finanzen", employee_id=eid).post(
         f"/api/tasks/{task_id}/claim"
     )
     assert finanzen_claim.status_code == 200, finanzen_claim.text

@@ -27,6 +27,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import (  # noqa: F401  (Fixtures)
     _dauer, _erfassen, _vorschau, ablage, buero, welt,
 )
+from tests import migrationsbestand
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -229,12 +230,14 @@ def test_migration_keeps_existing_entries_in_format_1_and_refuses_to_lose_format
         with engine.begin() as conn:
             with Operations.context(MigrationContext.configure(conn)):
                 getattr(module, name)()
+    order_id = migrationsbestand.auftrag(engine)["order"]  # echter Auftrag (seit 1.9.338)
     run("downgrade")
     assert not {"checksum_format", "discard_sha256"} & {c["name"] for c in inspect(engine).get_columns("order_acceptances")}
     with engine.begin() as conn:  # ein Eintrag aus 1.8.47
         conn.execute(text("INSERT INTO order_acceptances (order_id, kind, accepted_on, scope, result, declared_by, "
-                          "declared_by_name, content_sha256, created_at, created_by_name) VALUES (1, 'foermlich', "
-                          "'2026-09-15', 'gesamt', 'verweigert', 'auftraggeber', 'K', 'abc', '2026-10-03 00:00:00', 'X')"))
+                          "declared_by_name, content_sha256, created_at, created_by_name) VALUES (:o, 'foermlich', "
+                          "'2026-09-15', 'gesamt', 'verweigert', 'auftraggeber', 'K', 'abc', '2026-10-03 00:00:00', 'X')"),
+                     {"o": order_id})
     run("upgrade")
     with engine.begin() as conn:
         assert conn.execute(text("SELECT checksum_format, content_sha256, discard_sha256 FROM order_acceptances")).one() \

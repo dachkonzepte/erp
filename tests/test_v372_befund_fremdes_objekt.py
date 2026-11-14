@@ -239,9 +239,7 @@ def test_quick_service_order_keeps_property_and_customer_together(welt):
     from app.quick_service_orders import create_quick_service_order
 
     db = welt["db"]
-    # Die Testwelt erfindet Angebots-IDs (1, 2) -- der Schnellauftrag legt echte an; sonst "existiert bereits Auftrag".
-    welt["order"].source_quote_id, welt["fremder_auftrag"].source_quote_id = 900001, 900002
-    db.commit()
+    # Bis 1.9.337 setzte der Test hier die erfundenen Angebots-IDs der Testwelt um (900001, 900002); seit 1.9.338 sind sie echt.
     kunde_x = welt["order"].project.customer_id
     eigen = create_quick_service_order(db, customer_id=kunde_x, property_id=welt["eigen"].id, order_type="reparatur",
                                        title="Reparatur am eigenen Objekt")

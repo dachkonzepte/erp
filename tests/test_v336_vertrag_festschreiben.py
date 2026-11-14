@@ -41,6 +41,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.test_v321_email_dispatch import FakeSMTP, _attachment, _configure_smtp
 from tests.test_v325_contract_basis import make_quote, pdf_text
 from tests.test_v335_vertragsvorlagen import SECTIONS, beauftragen, save, section
+from tests import migrationsbestand
 
 dispatches_router = dispatches_router_module.router
 CUSTOMER_EMAIL = "kunde@example.com"
@@ -443,9 +444,11 @@ def _run(engine, fn_name):
 def test_migration_downgrade_refuses_while_versions_exist_and_upgrade_restores():
     engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
+    order_id, doc_id = migrationsbestand.auftrag(engine)["order"], migrationsbestand.dokument(engine)  # echte Eltern (seit 1.9.338)
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO order_contracts (order_id, status, created_by_name, created_at, updated_at) "
-                          "VALUES (1, 'festgeschrieben', 'X', '2026-10-01 00:00:00', '2026-10-01 00:00:00')"))
+        contract_id = conn.execute(text("INSERT INTO order_contracts (order_id, status, created_by_name, created_at, updated_at) "
+                                        "VALUES (:o, 'festgeschrieben', 'X', '2026-10-01 00:00:00', '2026-10-01 00:00:00') RETURNING id"),
+                                   {"o": order_id}).scalar()
     with pytest.raises(RuntimeError, match="1 nicht mehr im Entwurf"):
         _run(engine, "downgrade")
     with engine.begin() as conn:
@@ -458,6 +461,6 @@ def test_migration_downgrade_refuses_while_versions_exist_and_upgrade_restores()
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO order_contract_versions (contract_id, version_no, basis_key, is_consumer, "
                           "frozen_content, content_sha256, sent_document_id, attachment_kind, created_at) "
-                          "VALUES (1, 1, 'bgb', true, '{}', 'x', 1, 'aktuell', '2026-10-01 00:00:00')"))
+                          "VALUES (:c, 1, 'bgb', true, '{}', 'x', :d, 'aktuell', '2026-10-01 00:00:00')"), {"c": contract_id, "d": doc_id})
     with pytest.raises(RuntimeError, match="1 festgeschriebene Vertragsfassungen"):
         _run(engine, "downgrade")

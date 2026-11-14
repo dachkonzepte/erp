@@ -23,6 +23,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import AppUserCreate, PropertyCreate, PropertyOut, PropertyUpdate
 from app.service_reports import get_property_context_for_order
 from tests.aufraeumen import wegwerf_engine
+from tests.quellangebot import quell_angebot
 
 
 @pytest.fixture
@@ -76,7 +77,7 @@ def _make_order_with_property(db, order_number="AUF-TEST-0001"):
     project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(
-        order_number=order_number, project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0001",
+        order_number=order_number, project_id=project.id, source_quote_id=quell_angebot(db, project.id, order_number), quote_number_snapshot="A-TEST-0001",
         title="Testauftrag", customer_name=customer.name, property_name=prop.name,
     )
     db.add(order); db.commit()
@@ -98,7 +99,7 @@ def test_get_property_context_for_order_returns_none_without_linked_property(db_
     project = Project(project_number="P-TEST-0002", name="Testprojekt ohne Objekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db_session))
     db_session.add(project); db_session.flush()
     order = Order(
-        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0002",
+        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=quell_angebot(db_session, project.id, "AUF-TEST-0002"), quote_number_snapshot="A-TEST-0002",
         title="Testauftrag", customer_name=customer.name, property_name="Hauptadresse",
     )
     db_session.add(order); db_session.commit()

@@ -20,6 +20,7 @@ import pypdfium2 as pdfium
 
 from app.field_timesheet_pdf import month_date_range
 from tests.test_v167_pagination import count_pdf_pages
+from tests.quellangebot import quell_angebot
 
 
 def _employee(db, number, first, last):
@@ -39,7 +40,7 @@ def _order(db, order_number, project_number, customer=None):
     project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
-                  source_quote_id=int(order_number.rsplit("-", 1)[-1]),
+                  source_quote_id=quell_angebot(db, project.id, order_number),
                   quote_number_snapshot=f"A-{order_number}", title="Testauftrag", customer_name=customer.name)
     db.add(order); db.flush()
     db.add(OrderItem(order_id=order.id, sort_order=10, position_number="1", short_text="Dacheindeckung",

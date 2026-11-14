@@ -22,6 +22,7 @@ from app.models import Finding, RoofArea, RoofComponent, ServiceReportRoofArea
 from app.roof_areas import create_roof_area, create_roof_component
 from app.service_report_pdf import build_service_report_pdf
 from app.service_reports import _load as _load_report, create_report, sign_report
+from tests.quellangebot import quell_angebot
 
 
 def _make_order_for_report(db, prop=None):
@@ -209,7 +210,7 @@ def test_migration_backfills_existing_rows_from_current_names():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0099", project_id=project.id, source_quote_id=99, quote_number_snapshot="A-TEST-0099",
+        order_number="AUF-TEST-0099", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0099"), quote_number_snapshot="A-TEST-0099",
         title="Testauftrag", customer_name="Test Kunde",
     )
     db.add(order)
@@ -257,7 +258,7 @@ def test_migration_backfill_leaves_findings_without_component_untouched():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0098", project_id=project.id, source_quote_id=98, quote_number_snapshot="A-TEST-0098",
+        order_number="AUF-TEST-0098", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0098"), quote_number_snapshot="A-TEST-0098",
         title="Testauftrag", customer_name="Test Kunde",
     )
     db.add(order)

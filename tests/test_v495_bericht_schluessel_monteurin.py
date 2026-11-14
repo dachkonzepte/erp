@@ -27,6 +27,7 @@ from tests.test_v202_maintenance_contracts import make_customer_and_property
 from tests.test_v213_inspection_items import _make_order_for_report, _seed_test_template
 from tests.test_v224_field_view import make_employee
 from tests.test_v326_monteur_datengrenze import _privatadresse, _schluessel, _verboten
+from tests.quellangebot import quell_angebot
 
 TAG = date(2026, 10, 14)
 VORTAG = date(2026, 10, 13)
@@ -42,7 +43,7 @@ def _fremder_auftrag(db):
     projekt = Project(project_number="P-FREMD-0001", name="Fremdprojekt", customer_id=kunde.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    order = Order(order_number="AUF-FREMD-0001", project_id=projekt.id, source_quote_id=2, quote_number_snapshot="A-FREMD-0001",
+    order = Order(order_number="AUF-FREMD-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-FREMD-0001"), quote_number_snapshot="A-FREMD-0001",
                   title="Fremdauftrag Kehle", vat_rate=Decimal("19.00"), customer_name="Fremdkunde AG", customer_number="K-FREMD")
     db.add(order); db.flush()
     db.add(OrderItem(order_id=order.id, sort_order=10, position_number="1", short_text="Kehle", quantity=Decimal("3"), unit="m",

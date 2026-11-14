@@ -24,6 +24,7 @@ from tests.test_v167_pagination import count_pdf_pages
 from app.document_page_margins import update_margins
 from app.models import Customer, Employee, Order, OrderItem, Project
 from app.project_pipeline_columns import default_pipeline_column_id
+from tests.quellangebot import quell_angebot
 
 
 def test_order_pdf_contains_expected_content():
@@ -131,7 +132,7 @@ def test_order_pdf_uses_frozen_snapshot_not_live_customer_or_property_data():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=2, quote_number_snapshot="A-TEST-0002",
+        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0002"), quote_number_snapshot="A-TEST-0002",
         title="Testauftrag", vat_rate=Decimal("19.00"),
         customer_name="Alter Kundenname", customer_address="Alte Straße 1, 11111 Altstadt",
     )

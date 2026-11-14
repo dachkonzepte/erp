@@ -26,6 +26,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _fields, world  # noqa: F401
 from tests.test_v358_unterschrift_pruefung import SIGNATUR
 from tests.test_v359_unterzeichner import _client, _sig, _sign, abnahme  # noqa: F401  (Fixtures)
+from tests import migrationsbestand
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSIONS = ROOT / "alembic" / "versions"
@@ -256,13 +257,13 @@ def test_migration_adds_person_columns_and_refuses_downgrade():
     def spalten():
         return {c["name"] for c in inspect(engine).get_columns("checklist_attachments")}
 
-    if engine.dialect.name != "sqlite":
-        pytest.skip("Bestand mit rohem SQL ohne Fremdschlüssel nur unter SQLite (PostgreSQL: Migrationsprobe)")
+    # Bestand an einer echten Checkliste (seit 1.9.338; bis dahin PRAGMA foreign_keys=OFF mit checklist_id=1 ohne Checkliste, und unter
+    # PostgreSQL übersprungen)
+    bestand = migrationsbestand.checkliste(engine)
     with engine.begin() as conn:
-        conn.execute(text("PRAGMA foreign_keys=OFF"))
         conn.execute(text("INSERT INTO checklist_attachments (checklist_id, template_field_id, kind, stored_filename, "
-                          "sort_order, created_at, signer_person) VALUES (1, 1, 'unterschrift', 'x.png', 10, "
-                          "'2026-10-05 10:00:00', 'Klara')"))
+                          "sort_order, created_at, signer_person) VALUES (:c, :f, 'unterschrift', 'x.png', 10, "
+                          "'2026-10-05 10:00:00', 'Klara')"), {"c": bestand["checklist"], "f": bestand["field"]})
     with pytest.raises(RuntimeError, match="Downgrade verweigert: 1 Unterschriften"):
         run("downgrade")
     with engine.begin() as conn:

@@ -233,7 +233,7 @@ def test_die_eigene_sitzung_schreibt_nicht_sqlite(tmp_path):
         def zaehlen():
             with engine.connect() as conn:
                 return (conn.scalar(select(func.count()).select_from(AuditLog)),
-                        conn.execute(text("SELECT group_concat(status) FROM invoices")).scalar())
+                        tuple(conn.execute(text("SELECT status FROM invoices ORDER BY id")).scalars()))  # bis 1.9.337 group_concat (nur SQLite)
         _nur_lesend_pruefen(url, zaehlen)
     finally:
         engine.dispose()

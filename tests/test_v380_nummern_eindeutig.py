@@ -56,6 +56,12 @@ BEDINGUNG = {
 }
 
 
+def _verletzt(meldung: str, tabelle: str, spalte: str, bedingung: str) -> bool:
+    """Ob die Meldung der Datenbank die Nummernspalte nennt: SQLite schreibt „UNIQUE constraint failed: <Tabelle>.<Spalte>“, PostgreSQL den
+    Namen der Bedingung (seit 1.9.338 beides -- bis dahin nur die Fassung von SQLite, unter PostgreSQL rot)."""
+    return f"{tabelle}.{spalte}" in meldung or bedingung in meldung
+
+
 def _db():
     db = db_session()
     anlegen(db)
@@ -160,7 +166,7 @@ def test_a_number_cannot_be_stored_twice(key):
         _mit_nummer(db, key, "N-2026-0001")
     db.rollback()
     column = _existing_column(key)
-    assert f"{column.table.name}.{column.name}" in str(exc.value)  # SQLite: "UNIQUE constraint failed: <Tabelle>.<Spalte>"
+    assert _verletzt(str(exc.value), column.table.name, column.name, BEDINGUNG[key])
     assert _anzahl(db, key, "N-2026-0001") == 1
     _mit_nummer(db, key, "N-2026-0002")  # eine andere Nummer geht
     db.commit()
@@ -219,7 +225,7 @@ def _storno_mit_vergebener_nummer(db, order, monkeypatch):
 def test_issuing_an_issued_invoice_number_is_refused_and_nothing_changes(monkeypatch):
     db = _db()
     order, _ = make_order_with_item(db)
-    assert "invoices.invoice_number" in _storno_mit_vergebener_nummer(db, order, monkeypatch)
+    assert _verletzt(_storno_mit_vergebener_nummer(db, order, monkeypatch), "invoices", "invoice_number", "uq_invoice_number")
 
 
 def test_pg_issuing_an_issued_invoice_number_is_refused_and_nothing_changes(pg, monkeypatch):
@@ -244,7 +250,7 @@ def test_issuing_an_issued_reminder_number_is_refused_and_nothing_changes(monkey
     with pytest.raises(IntegrityError) as exc:
         finalize_and_send_reminder(db, zweite)
     db.rollback()
-    assert "reminders.reminder_number" in str(exc.value)
+    assert _verletzt(str(exc.value), "reminders", "reminder_number", "uq_reminder_number")
     zweite = db.get(Reminder, zweite_id)
     assert (zweite.status, zweite.reminder_number) == ("entwurf", None)
 

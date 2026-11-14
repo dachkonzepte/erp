@@ -26,6 +26,7 @@ from tests import vorlagen_js
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v314_dashboard_month_berlin import NODE, TEMPLATES, _node
 from tests.test_v329_teil_updates import payload, ui_keys
+from tests.quellangebot import quell_angebot
 
 nur_mit_node = pytest.mark.skipif(NODE is None, reason="node nicht installiert")
 
@@ -181,7 +182,7 @@ def test_backoffice_korrektur_behaelt_den_abgeschlossenen_auftrag(threaded_db_se
 
     db = threaded_db_session
     offen, _ = make_order_with_item(db)                       # derselbe Projekt: der "erste offene"
-    erledigt = Order(order_number="AUF-TEST-0002", project_id=offen.project_id, source_quote_id=2,
+    erledigt = Order(order_number="AUF-TEST-0002", project_id=offen.project_id, source_quote_id=quell_angebot(db, offen.project_id, "AUF-TEST-0002"),
                      quote_number_snapshot="A-TEST-0002", title="Reparatur Gaube", vat_rate=Decimal("19"),
                      customer_name="Test Kunde", customer_number="K-0001", status="abgeschlossen")
     db.add(erledigt)
@@ -467,7 +468,7 @@ def test_mangel_zur_aufgabe_prueft_das_modul_aufgabenmanagement(threaded_db_sess
     from tests.test_v214_findings_and_photos import _build_extra_order
 
     db = threaded_db_session
-    order, _kunde, _projekt = _build_extra_order(db, "9334", source_quote_id=9334)
+    order, _kunde, _projekt = _build_extra_order(db, "9334")
     mangel = create_finding(db, create_report(db, order.id, "rapport")["id"], "Kehle undicht", "dringend", "buero_pruefen")
     db.commit()
     client = router_test_client(db, findings_router)

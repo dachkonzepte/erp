@@ -408,14 +408,11 @@ def _schnellauftrag(w, property_id, confirm=None):
     return w["client"]("buero_auftrag", None).post("/api/quick-service-orders", json=body)
 
 
-@pytest.fixture
-def echte_angebots_ids(welt):
-    # Die Testwelt erfindet Angebots-IDs -- der Schnellauftrag legt echte an ("existiert bereits Auftrag" sonst).
-    welt["order"].source_quote_id, welt["fremder_auftrag"].source_quote_id = 900001, 900002
-    welt["db"].commit()
+# Bis 1.9.337 setzte die Fixture echte_angebots_ids hier die erfundenen Angebots-IDs der Testwelt um (900001, 900002) -- der Schnellauftrag legt
+# echte an, sonst „existiert bereits Auftrag“. Seit 1.9.338 hat jeder Auftrag der Testwelt sein echtes Angebot (tests/quellangebot.py).
 
 
-def test_quick_order_at_a_property_of_another_customer_needs_confirmation(welt, echte_angebots_ids):
+def test_quick_order_at_a_property_of_another_customer_needs_confirmation(welt):
     for confirm in (None, False):
         r = _schnellauftrag(welt, welt["fremd"].id, confirm)
         assert r.status_code == 409
@@ -483,8 +480,6 @@ def test_contract_property_change_is_refused_while_items_hang_on_the_old_propert
 def test_perform_maintenance_at_a_confirmed_property_of_another_customer(welt):
     """Am Vertrag bestätigt -> "Wartung durchführen" fragt nicht erneut; der Bericht nimmt die Flächen dieses Objekts."""
     db = welt["db"]
-    welt["order"].source_quote_id, welt["fremder_auftrag"].source_quote_id = 900001, 900002
-    db.commit()
     from app.maintenance_contracts import create_contract, create_maintenance_visit
 
     vertrag = create_contract(db, welt["kunde"].id, welt["fremd"].id, "GU-Wartung", 12, date(2027, 1, 1),
@@ -495,7 +490,7 @@ def test_perform_maintenance_at_a_confirmed_property_of_another_customer(welt):
     assert [a.roof_area_id for a in db.get(ServiceReport, besuch["report_id"]).report_roof_areas] == [welt["fremde_flaeche"]]
 
 
-def test_project_with_confirmed_foreign_property_can_be_saved_unchanged(welt, echte_angebots_ids):
+def test_project_with_confirmed_foreign_property_can_be_saved_unchanged(welt):
     ok = _schnellauftrag(welt, welt["fremd"].id, True).json()
     c = welt["client"]("buero_auftrag", None)
     body = {"customer_id": welt["kunde"].id, "property_id": welt["fremd"].id, "name": "GU-Reparatur"}  # seit 1.9.125 ohne Status

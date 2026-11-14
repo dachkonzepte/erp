@@ -20,6 +20,7 @@ from app.tasks import list_tasks
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property, make_template_project
 from tests.test_v213_inspection_items import TINY_PNG
+from tests.quellangebot import quell_angebot
 
 
 def _enable_roof_area_items(db):
@@ -156,7 +157,7 @@ def test_create_project_from_contract_for_item_tags_profile_and_advances_only_it
     assert updated_item.last_reminder_due_date is None
 
     order = Order(
-        order_number="AUF-TEST-0101", project_id=project_id, source_quote_id=1, quote_number_snapshot="A-TEST-0101",
+        order_number="AUF-TEST-0101", project_id=project_id, source_quote_id=quell_angebot(db, project_id, "AUF-TEST-0101"), quote_number_snapshot="A-TEST-0101",
         title="Testauftrag", customer_name=customer.name,
     )
     db.add(order); db.commit()
@@ -265,7 +266,7 @@ def test_delete_contract_cascades_items_without_reports_but_blocks_when_signed_r
                                  template_project_id=template.id)
     result = create_project_from_contract(db, contract2["id"])
     order = Order(
-        order_number="AUF-TEST-0102", project_id=result["project_id"], source_quote_id=1,
+        order_number="AUF-TEST-0102", project_id=result["project_id"], source_quote_id=quell_angebot(db, result["project_id"], "AUF-TEST-0102"),
         quote_number_snapshot="A-TEST-0102", title="Testauftrag", customer_name=customer.name,
     )
     db.add(order); db.commit()

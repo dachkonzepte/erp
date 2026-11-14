@@ -25,6 +25,7 @@ from app.planning import create_slot, planning_board
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.routers.planning import router as planning_router
 from app.schemas import TeamCreate, TeamEmployeeInput
+from tests.quellangebot import quell_angebot
 
 ROOT = Path(__file__).resolve().parent.parent
 MONTAG = date(2026, 11, 2)
@@ -40,7 +41,7 @@ def _auftrag(db, minuten="6", menge="10", status="laeuft"):
     projekt = Project(project_number=f"P-{n}", name=f"Dach {n}", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db), status="angebot")
     db.add(projekt)
     db.flush()
-    order = Order(order_number=f"AUF-{n}", project_id=projekt.id, source_quote_id=n, quote_number_snapshot=f"A-{n}", title="Sanierung", vat_rate=Decimal("19"),
+    order = Order(order_number=f"AUF-{n}", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, f"AUF-{n}"), quote_number_snapshot=f"A-{n}", title="Sanierung", vat_rate=Decimal("19"),
                   customer_name=kunde.name, customer_number=f"K-{n}", status=status, property_address="Dachweg 1\n52531 Uebach")
     db.add(order)
     db.flush()

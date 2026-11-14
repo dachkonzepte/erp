@@ -24,6 +24,7 @@ from app.reminders import (
 from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen, zustellen
+from tests.quellangebot import quell_angebot
 
 
 def db_session():
@@ -50,7 +51,7 @@ def make_sent_overdue_invoice(db, days_overdue=16, quantity=Decimal("100"), unit
     db.add(project)
     db.flush()
     order = Order(
-        order_number=f"AUF-TEST-{suffix}", project_id=project.id, source_quote_id=int(suffix), quote_number_snapshot=f"A-TEST-{suffix}",
+        order_number=f"AUF-TEST-{suffix}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, f"AUF-TEST-{suffix}"), quote_number_snapshot=f"A-TEST-{suffix}",
         title="Testauftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde", customer_number=f"K-{suffix}",
     )
     db.add(order)
@@ -114,7 +115,7 @@ def test_compute_reminder_status_for_invoice_not_yet_sent():
     ensure_default_reminder_levels(db)
     customer = Customer(name="Test Kunde", last_name="Test Kunde"); db.add(customer); db.flush()
     project = Project(project_number="P-TEST-0002", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db)); db.add(project); db.flush()
-    order = Order(order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0002",
+    order = Order(order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0002"), quote_number_snapshot="A-TEST-0002",
                    title="Testauftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde"); db.add(order); db.flush()
     db.add(OrderItem(order_id=order.id, sort_order=10, position_number="1", short_text="X",
                       quantity=Decimal("1"), unit="Stk", unit_price=Decimal("100"))); db.commit(); db.refresh(order)
@@ -207,7 +208,7 @@ def test_create_reminder_requires_sent_invoice():
     ensure_default_reminder_levels(db)
     customer = Customer(name="Test Kunde", last_name="Test Kunde"); db.add(customer); db.flush()
     project = Project(project_number="P-TEST-0003", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db)); db.add(project); db.flush()
-    order = Order(order_number="AUF-TEST-0003", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0003",
+    order = Order(order_number="AUF-TEST-0003", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0003"), quote_number_snapshot="A-TEST-0003",
                    title="Testauftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde"); db.add(order); db.flush()
     db.add(OrderItem(order_id=order.id, sort_order=10, position_number="1", short_text="X",
                       quantity=Decimal("1"), unit="Stk", unit_price=Decimal("100"))); db.commit(); db.refresh(order)
@@ -318,7 +319,7 @@ def test_list_invoices_needing_attention_only_includes_overdue_sent_invoices():
     # eine zweite, noch nicht fällige Rechnung -- darf nicht in der Liste auftauchen
     customer = Customer(name="Anderer Kunde", last_name="Anderer Kunde"); db.add(customer); db.flush()
     project = Project(project_number="P-TEST-0009", name="Anderes Projekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db)); db.add(project); db.flush()
-    order2 = Order(order_number="AUF-TEST-0009", project_id=project.id, source_quote_id=2, quote_number_snapshot="A-TEST-0009",
+    order2 = Order(order_number="AUF-TEST-0009", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0009"), quote_number_snapshot="A-TEST-0009",
                     title="Anderer Auftrag", vat_rate=Decimal("19.00"), customer_name="Anderer Kunde"); db.add(order2); db.flush()
     db.add(OrderItem(order_id=order2.id, sort_order=10, position_number="1", short_text="X",
                       quantity=Decimal("1"), unit="Stk", unit_price=Decimal("100"))); db.commit(); db.refresh(order2)

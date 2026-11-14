@@ -43,6 +43,7 @@ from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v231_invoice_item_table_width_and_quantity import _extract_pdf_text
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
+from tests.quellangebot import quell_angebot
 
 D = date
 
@@ -82,7 +83,7 @@ def _vergeben(db, key) -> str:
     if key == "quote":
         db.add(Quote(quote_number=number, project_id=project.id, title="A"))
     if key in ("order", "invoice", "reminder"):
-        order = Order(order_number=number if key == "order" else f"X-AUF-{n}", project_id=project.id, source_quote_id=n,
+        order = Order(order_number=number if key == "order" else f"X-AUF-{n}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, number if key == "order" else f"X-AUF-{n}"),
                       quote_number_snapshot="A", title="T", customer_name="Kunde")
         db.add(order); db.flush()
         if key in ("invoice", "reminder"):

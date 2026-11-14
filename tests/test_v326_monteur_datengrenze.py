@@ -54,6 +54,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import EmployeeRosterOut, RoofAreaOut
 from tests.test_v260_role_audit import _iter_role_marked_dependants
 from tests.uhr import uhr_festhalten
+from tests.quellangebot import quell_angebot
 
 # ---------------------------------------------------------------------------
 # Was ein Monteur nie sehen darf: Preise, Kosten, Löhne, Sätze, interne Notizen,
@@ -233,7 +234,7 @@ def _auftrag(db: Session, nummer: int, customer: Customer, prop: Property) -> Or
                       property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
-    order = Order(order_number=f"AU-2026-{nummer:04d}", project_id=project.id, source_quote_id=nummer,
+    order = Order(order_number=f"AU-2026-{nummer:04d}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, f"AU-2026-{nummer:04d}"),
                   quote_number_snapshot=f"A-2026-{nummer:04d}", title="Dachsanierung", customer_name=customer.name,
                   customer_number="K-4711", customer_address="Privatweg 9\n11111 Kundenstadt",
                   property_name=prop.name, property_address="Werkstr. 5\n22222 Objektstadt",

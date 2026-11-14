@@ -12,6 +12,7 @@ from tests.test_v133_invoices import make_order_with_item
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property
 from tests.test_v213_inspection_items import TINY_PNG, _extract_pdf_text, _seed_test_template
+from tests.quellangebot import quell_angebot
 
 
 def _make_order_for_report(db, prop=None):
@@ -22,12 +23,12 @@ def _make_order_for_report(db, prop=None):
     return order
 
 
-def _build_extra_order(db, suffix, source_quote_id):
+def _build_extra_order(db, suffix):
     """Ein zweiter, unabhängiger Auftrag in derselben Test-DB -- make_order_with_item() nutzt
-    feste Literale (order_number/project_number/source_quote_id=1) und kollidiert deshalb bei
-    einem zweiten Aufruf im selben Test (UNIQUE-Constraints) bzw. mit einer später über
-    create_quick_service_order() real angelegten Quote #1. Gleiches Konstruktionsmuster wie
-    make_order_with_item(), nur mit eindeutigen Literalen je Aufruf."""
+    feste Literale (order_number/project_number) und kollidiert deshalb bei einem zweiten Aufruf
+    im selben Test (UNIQUE-Constraints). Gleiches Konstruktionsmuster wie make_order_with_item(),
+    nur mit eindeutigen Literalen je Aufruf; das Quell-Angebot ist seit 1.9.338 echt
+    (tests/quellangebot.py)."""
     from decimal import Decimal
     from app.models import Customer, Order, Project
     customer = Customer(name=f"Test Kunde {suffix}", last_name=f"Test Kunde {suffix}")
@@ -37,7 +38,7 @@ def _build_extra_order(db, suffix, source_quote_id):
     db.add(project)
     db.flush()
     order = Order(
-        order_number=f"AUF-TEST-{suffix}", project_id=project.id, source_quote_id=source_quote_id,
+        order_number=f"AUF-TEST-{suffix}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, f"AUF-TEST-{suffix}"),
         quote_number_snapshot=f"A-TEST-{suffix}", title="Testauftrag", vat_rate=Decimal("19.00"),
         customer_name=f"Test Kunde {suffix}", customer_number=f"K-{suffix}",
     )
@@ -377,7 +378,7 @@ def test_list_findings_for_component_returns_chronological_history():
     report1 = create_report(db, order1.id, "rapport", description="Arbeiten laut Testfall", performed_at=date(2026, 1, 10))
     finding1 = create_finding(db, report1["id"], "Erste Verstopfung", "gering", "sofort_behoben", roof_component_id=component["id"])
 
-    order2, _customer2, project2 = _build_extra_order(db, "0002", source_quote_id=2)
+    order2, _customer2, project2 = _build_extra_order(db, "0002")
     project2.property_id = prop.id  # seit 1.8.70: Bauteil nur aus dem Objekt des Auftrags -- zweiter Einsatz am selben Objekt
     db.commit()
     report2 = create_report(db, order2.id, "rapport", description="Arbeiten laut Testfall", performed_at=date(2026, 3, 5))

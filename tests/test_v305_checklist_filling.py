@@ -22,6 +22,7 @@ from app.models import (
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.routers.checklists import router as checklists_router
 from app.work_preparation import ensure_preparation
+from tests.quellangebot import quell_angebot
 
 
 def _png(color=(10, 120, 90), size=(60, 30)) -> bytes:
@@ -60,7 +61,7 @@ def world(threaded_db_session, tmp_path, monkeypatch):
                           pipeline_column_id=default_pipeline_column_id(db))
         db.add(project)
         db.flush()
-        order = Order(order_number=f"AU-2026-000{n}", project_id=project.id, source_quote_id=n,
+        order = Order(order_number=f"AU-2026-000{n}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, f"AU-2026-000{n}"),
                       quote_number_snapshot=f"A-{n}", title="Auftrag", customer_name="Kunde Nord",
                       property_name="Halle Nord", property_address="Weg 1\n12345 Stadt")
         db.add(order)

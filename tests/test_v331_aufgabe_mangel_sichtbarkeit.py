@@ -28,7 +28,7 @@ GEHEIM = "Attika-Blech lose, Kunde will Kostenvoranschlag"
 def welt(threaded_db_session):
     db = threaded_db_session
     erika, otto = make_employees(db)       # Erika ist "ich", Otto der Kollege
-    order, _kunde, _projekt = _build_extra_order(db, "9331", source_quote_id=9331)
+    order, _kunde, _projekt = _build_extra_order(db, "9331")
     report = create_report(db, order.id, "rapport")
     zuordnung = {
         "eingang": (None, None),

@@ -99,7 +99,7 @@ def test_add_material_rejects_roof_area_not_covered_by_report():
 def test_add_material_rejects_inspection_item_and_finding_from_other_report():
     db = db_session()
     order1 = _make_order_for_report(db)
-    order2, _customer2, _project2 = _build_extra_order(db, "9223", source_quote_id=9223)
+    order2, _customer2, _project2 = _build_extra_order(db, "9223")
     template = _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Fläche", roof_type="Flachdach")

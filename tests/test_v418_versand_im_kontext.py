@@ -17,12 +17,16 @@ from pathlib import Path
 import pytest
 
 from app.email_dispatch import list_dispatches
-from app.models import Checklist, EmailDispatch, Order, OrderContract, Project, Property, Quote
+from sqlalchemy import select
+
+from app.models import (Checklist, ChecklistTemplate, ChecklistTemplateVersion, EmailDispatch, Order, OrderContract, Project, Property,
+                        Quote)
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.reminders import create_reminder
 from app.routers.email_dispatches import router as dispatch_router
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
+from tests.quellangebot import quell_angebot
 
 TEMPLATES = Path(__file__).parents[1] / "app" / "templates"
 
@@ -34,8 +38,17 @@ def _versand(db, art: str, dokument_id: int) -> None:
 
 
 def _checkliste(db, *, order_id=None, property_id=None) -> Checklist:
-    # Nur die Bezüge zählen (SQLite prüft die Fremdschlüssel auf Vorlage und Fassung hier nicht).
-    c = Checklist(template_id=1, template_version_id=1, template_label_snapshot="Test", status="abgeschlossen",
+    # Nur die Bezüge zählen. Vorlage und Fassung sind seit 1.9.338 echt (bis dahin template_id=1 ohne Vorlage -- unter PostgreSQL und mit
+    # PRAGMA foreign_keys=ON ein Fehler); alle Checklisten eines Tests teilen sich eine.
+    fassung = db.scalar(select(ChecklistTemplateVersion).limit(1))
+    if fassung is None:
+        vorlage = ChecklistTemplate(label="Test")
+        db.add(vorlage)
+        db.flush()
+        fassung = ChecklistTemplateVersion(template_id=vorlage.id, version_no=1)
+        db.add(fassung)
+        db.flush()
+    c = Checklist(template_id=fassung.template_id, template_version_id=fassung.id, template_label_snapshot="Test", status="abgeschlossen",
                   context_type="auftrag" if order_id else "objekt", order_id=order_id, property_id=property_id)
     db.add(c)
     db.flush()
@@ -53,7 +66,7 @@ def welt(threaded_db_session):
     projekt1b = Project(project_number="P-TEST-0003", name="Zweites Projekt", customer_id=kunde1,
                         pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt1b); db.flush()
-    auftrag1b = Order(order_number="AUF-TEST-0003", project_id=projekt1b.id, source_quote_id=3, quote_number_snapshot="A-TEST-0003",
+    auftrag1b = Order(order_number="AUF-TEST-0003", project_id=projekt1b.id, source_quote_id=quell_angebot(db, projekt1b.id, "AUF-TEST-0003"), quote_number_snapshot="A-TEST-0003",
                       title="Zweiter Auftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde", customer_number="K-0003")
     objekt = Property(customer_id=kunde1, name="Halle", street="Weg 1", postal_code="11111", city="Ort")
     db.add_all([auftrag1b, objekt]); db.flush()

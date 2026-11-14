@@ -16,6 +16,7 @@ from app.models import Customer, DocumentCategory, Employee, Order, OrderItem, P
 from app.project_pipeline_columns import default_pipeline_column_id
 from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert db_session als Fixture
 from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team
+from tests.quellangebot import quell_angebot
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +62,7 @@ def _project(db, customer, prop, number="P-TEST-0001", archived=False):
 
 def _order(db, project, customer, prop, number="AUF-0001"):
     order = Order(
-        order_number=number, project_id=project.id, source_quote_id=int(number.rsplit("-", 1)[-1]),
+        order_number=number, project_id=project.id, source_quote_id=quell_angebot(db, project.id, number),
         quote_number_snapshot=f"A-{number}", title="Testauftrag", customer_name=customer.name,
         customer_number="K-0001", property_name=prop.name,
     )

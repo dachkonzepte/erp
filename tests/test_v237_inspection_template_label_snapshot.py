@@ -21,6 +21,7 @@ from app.inspection_templates import update_template
 from app.models import InspectionTemplate, RoofArea, ServiceReportRoofArea
 from app.roof_areas import create_roof_area
 from app.service_reports import _load as _load_report, create_report, report_to_dict
+from tests.quellangebot import quell_angebot
 
 
 def _make_order_for_report(db, prop=None):
@@ -143,7 +144,7 @@ def test_migration_backfills_existing_rows_from_current_template_label():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0097", project_id=project.id, source_quote_id=97, quote_number_snapshot="A-TEST-0097",
+        order_number="AUF-TEST-0097", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0097"), quote_number_snapshot="A-TEST-0097",
         title="Testauftrag", customer_name="Test Kunde",
     )
     db.add(order)
@@ -192,7 +193,7 @@ def test_migration_backfill_leaves_rows_without_template_untouched():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0096", project_id=project.id, source_quote_id=96, quote_number_snapshot="A-TEST-0096",
+        order_number="AUF-TEST-0096", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0096"), quote_number_snapshot="A-TEST-0096",
         title="Testauftrag", customer_name="Test Kunde",
     )
     db.add(order)

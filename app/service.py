@@ -3,10 +3,7 @@ from sqlalchemy.orm import Session
 from .catalogs import ensure_import_catalog
 from .importers.leistungen_dach import ParsedProject
 from .material_groups import ensure_import_material_group
-from .materials import (
-    MaterialVariantsCache, _materials_table_has_catalog_column,
-    _service_materials_has_material_id_column, find_or_create_material,
-)
+from .materials import MaterialVariantsCache, find_or_create_material
 from .models import ImportBatch, Service, ServiceMaterial
 
 SOURCE_TYPE = "leistungen_dach"
@@ -27,8 +24,7 @@ def persist_project(db: Session, project: ParsedProject, filename: str) -> tuple
     # Tests). IDs zusätzlich sofort in lokale Variablen sichern, nicht
     # wiederholt über die Objekte zugreifen.
     import_catalog_id = ensure_import_catalog(db).id
-    materials_catalog_ready = _materials_table_has_catalog_column(db)
-    import_material_group_id = ensure_import_material_group(db).id if materials_catalog_ready else None
+    import_material_group_id = ensure_import_material_group(db).id
 
     batch = ImportBatch(
         source_type=SOURCE_TYPE,
@@ -40,7 +36,8 @@ def persist_project(db: Session, project: ParsedProject, filename: str) -> tuple
     db.flush()
     batch_id = batch.id
 
-    service_materials_ready = _service_materials_has_material_id_column(db)
+    # Bis 1.9.337 prüfte hier eine Abfrage über die Engine, ob service_materials.material_id schon existiert (Migration 1.0.25). In der
+    # Test-SQLite rollte sie die Transaktion der Sitzung zurück und mit ihr den eben geflushten Importlauf (Befund SQLite/PostgreSQL N1).
     material_variants_cache: MaterialVariantsCache = {}
 
     inserted = 0
@@ -80,16 +77,14 @@ def persist_project(db: Session, project: ParsedProject, filename: str) -> tuple
         service.activity_code = parsed.activity_code
 
         for material in parsed.materials:
-            catalog_material = None
-            if service_materials_ready:
-                catalog_material = find_or_create_material(
-                    db, material.article_number, material.name, material.unit,
-                    material.purchase_price, material.price_basis,
-                    material_variants_cache, source="imported", catalog_id=import_material_group_id,
-                )
+            catalog_material = find_or_create_material(
+                db, material.article_number, material.name, material.unit,
+                material.purchase_price, material.price_basis,
+                material_variants_cache, source="imported", catalog_id=import_material_group_id,
+            )
             service.materials.append(
                 ServiceMaterial(
-                    material_id=catalog_material.id if catalog_material else None,
+                    material_id=catalog_material.id,
                     name=material.name,
                     article_number=material.article_number,
                     quantity=material.quantity,

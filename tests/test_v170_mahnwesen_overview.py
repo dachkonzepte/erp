@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.reminders import compute_reminder_status, create_reminder, ensure_default_reminder_levels, list_all_reminders, list_invoices_needing_attention
 from tests.test_v153_mahnwesen import db_session, make_sent_overdue_invoice
+from tests.quellangebot import quell_angebot
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +46,7 @@ def test_compute_reminder_status_draft_none_for_invoice_without_due_date():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0002",
+        order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0002"), quote_number_snapshot="A-TEST-0002",
         title="Testauftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde", customer_number="K-0002",
     )
     db.add(order)

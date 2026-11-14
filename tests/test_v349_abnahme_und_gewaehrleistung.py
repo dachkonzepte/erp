@@ -55,6 +55,7 @@ from app.warranty import PROPOSALS, duration_text, warranty_end, warranty_propos
 from tests.aufraeumen import wegwerf_engine
 from tests.test_v325_contract_basis import make_quote
 from tests.test_v335_vertragsvorlagen import beauftragen
+from tests import migrationsbestand
 
 ROOT = Path(__file__).resolve().parent.parent
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
@@ -835,16 +836,20 @@ def test_migration_down_refuses_while_data_exists_and_up_restores():
     assert "warranty_until" not in {c["name"] for c in inspect(engine).get_columns("roof_areas")}
     with engine.begin() as conn:
         conn.execute(text("UPDATE orders SET work_kind = 'bauwerk'"))  # keine Zeile: kein Abbruch
+    order_id = migrationsbestand.auftrag(engine)["order"]  # echter Auftrag erst danach (seit 1.9.338), ohne Leistungsart
+    with engine.begin() as conn:
         conn.execute(text("INSERT INTO order_warranty_changes (order_id, work_kind, warranty_months, warranty_days, "
                           "contract_basis, proposal_months, proposal_days, follows_proposal, changed_by_name, "
-                          "changed_at) VALUES (1, 'bauwerk', 48, 0, 'vob_b', 48, 0, true, 'X', '2026-10-03 00:00:00')"))
+                          "changed_at) VALUES (:o, 'bauwerk', 48, 0, 'vob_b', 48, 0, true, 'X', '2026-10-03 00:00:00')"),
+                     {"o": order_id})
     with pytest.raises(RuntimeError, match="1 Festlegungen der Gewährleistung"):
         _run(engine, "downgrade")
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM order_warranty_changes"))
         conn.execute(text("INSERT INTO order_acceptances (order_id, kind, accepted_on, scope, result, declared_by, "
-                          "declared_by_name, content_sha256, created_at, created_by_name) VALUES (1, 'foermlich', "
-                          "'2026-09-15', 'gesamt', 'verweigert', 'auftraggeber', 'K', 'x', '2026-10-03 00:00:00', 'X')"))
+                          "declared_by_name, content_sha256, created_at, created_by_name) VALUES (:o, 'foermlich', "
+                          "'2026-09-15', 'gesamt', 'verweigert', 'auftraggeber', 'K', 'x', '2026-10-03 00:00:00', 'X')"),
+                     {"o": order_id})
     with pytest.raises(RuntimeError, match="1 Abnahmen"):
         _run(engine, "downgrade")
 
@@ -992,10 +997,11 @@ def test_migration_1847_down_refuses_while_data_exists():
         with engine.begin() as conn:
             with Operations.context(MigrationContext.configure(conn)):
                 getattr(module, name)()
+    project_id, contact_id = migrationsbestand.auftrag(engine)["project"], migrationsbestand.kontakt(engine)  # echte Eltern (seit 1.9.338)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO project_participants (project_id, contact_id, role, copy_on_notices, "
                           "authorized_recipient, acceptance_authorized, created_at) "
-                          "VALUES (1, 1, 'sonstiges', false, false, true, '2026-10-04')"))
+                          "VALUES (:p, :k, 'sonstiges', false, false, true, '2026-10-04')"), {"p": project_id, "k": contact_id})
     with pytest.raises(RuntimeError, match="1 Beteiligte mit Vollmacht zur Abnahme"):
         run("downgrade")
     with engine.begin() as conn:

@@ -5,15 +5,12 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.service_reports import create_report, list_property_history, sign_report
 from tests.test_v133_invoices import db_session
 from tests.test_v203_service_reports import TINY_PNG
-
-
-_next_source_quote_id = [0]
+from tests.quellangebot import quell_angebot
 
 
 def make_order_for_property(db, prop, number):
-    _next_source_quote_id[0] += 1
     order = Order(
-        order_number=number, project_id=prop["project"].id, source_quote_id=_next_source_quote_id[0],
+        order_number=number, project_id=prop["project"].id, source_quote_id=quell_angebot(db, prop["project"].id, number),
         quote_number_snapshot="A-" + number, title=f"Auftrag {number}", vat_rate=Decimal("19.00"),
         customer_name=prop["customer"].name,
     )
@@ -39,7 +36,7 @@ def test_no_history_without_a_linked_property():
     db.add(customer); db.flush()
     project = Project(project_number="P-OHNE", name="Projekt ohne Gebäude", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
-    order = Order(order_number="AUF-OHNE", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-OHNE",
+    order = Order(order_number="AUF-OHNE", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-OHNE"), quote_number_snapshot="A-OHNE",
                   title="Auftrag ohne Gebäude", vat_rate=Decimal("19.00"), customer_name=customer.name)
     db.add(order); db.commit()
     assert list_property_history(db, order.id) == []

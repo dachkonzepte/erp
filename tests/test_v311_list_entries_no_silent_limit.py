@@ -26,6 +26,7 @@ from app.time_backoffice import (
 )
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v213_inspection_items import TINY_PNG, _extract_pdf_text
+from tests.quellangebot import quell_angebot
 
 OLDEST = "Erste Begehung"
 START, END = date(2026, 1, 1), date(2026, 12, 31)
@@ -39,7 +40,7 @@ def bookings():
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     order_a, _ = make_order_with_item(db)
-    order_b = Order(order_number="AUF-TEST-0002", project_id=order_a.project_id, source_quote_id=2,
+    order_b = Order(order_number="AUF-TEST-0002", project_id=order_a.project_id, source_quote_id=quell_angebot(db, order_a.project_id, "AUF-TEST-0002"),
                     quote_number_snapshot="A-TEST-0002", title="Zweiter Auftrag", customer_name="Test Kunde")
     emp = Employee(employee_number="T-1", first_name="Max", last_name="Muster",
                    employee_group="gewerblich", hourly_wage="25", active=True)

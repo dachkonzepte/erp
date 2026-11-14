@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from app.maintenance_contracts import create_contract
+from tests.quellangebot import quell_angebot
 
 
 def _employee(db, number, first, last):
@@ -44,7 +45,7 @@ def _order_with_property(db, order_number, project_number, customer=None, proper
     project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
-                  source_quote_id=int(order_number.rsplit("-", 1)[-1]),
+                  source_quote_id=quell_angebot(db, project.id, order_number),
                   quote_number_snapshot=f"A-{order_number}", title="Testauftrag", customer_name=customer.name,
                   property_name=property_name)
     db.add(order); db.flush()

@@ -6,6 +6,7 @@ from app.document_email_templates import get_email_template, update_email_templa
 from app.email_sending import update_smtp_settings
 from app.invoices import get_invoice_recipient_email, send_invoice_email
 from tests.test_v153_mahnwesen import db_session, make_sent_overdue_invoice
+from tests.quellangebot import quell_angebot
 
 
 def _configure_smtp(db):
@@ -88,7 +89,7 @@ def test_send_invoice_email_rejects_draft():
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-DRAFT-0001", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-DRAFT-0001",
+        order_number="AUF-DRAFT-0001", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-DRAFT-0001"), quote_number_snapshot="A-DRAFT-0001",
         title="Testauftrag", vat_rate=Decimal("19.00"), customer_name="Test Kunde", customer_number="K-D001",
     )
     db.add(order)

@@ -247,7 +247,10 @@ def test_benutzer_loeschen_nimmt_seine_sitzungen_mit(welt):
     with welt.make_session() as db:
         assert db.scalars(select(UserSession).where(UserSession.user_id == weg.id)).all() == []
     neu = welt.benutzer("neu")
-    assert neu.id == weg.id  # dieselbe ID -- genau der Fall
+    with welt.make_session() as db:
+        dialekt = db.get_bind().dialect.name
+    if dialekt == "sqlite":  # seit 1.9.338 nur unter SQLite verlangt: PostgreSQL vergibt eine ID nie zweimal
+        assert neu.id == weg.id  # dieselbe ID -- genau der Fall
     assert _status(welt, wert) == 401
 
 

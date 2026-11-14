@@ -69,7 +69,7 @@ def test_scheitert_der_auftrag_bleibt_nichts(monkeypatch):
 
 def test_folgeauftrag_aus_einem_befund_ein_commit_und_bei_fehler_nichts(monkeypatch):
     db = db_session()
-    order, _customer, _project = _build_extra_order(db, "9101", source_quote_id=9101)
+    order, _customer, _project = _build_extra_order(db, "9101")
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Ziegel gebrochen", "dringend", "buero_pruefen")
     vorher = _anzahl(db)

@@ -23,6 +23,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.zahlung import voll_bezahlen
+from tests.quellangebot import quell_angebot
 
 
 def db_session():
@@ -49,7 +50,7 @@ def make_order_with_item(
     db.add(project)
     db.flush()
     order = Order(
-        order_number="AUF-TEST-0001", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0001",
+        order_number="AUF-TEST-0001", project_id=project.id, source_quote_id=quell_angebot(db, project.id, "AUF-TEST-0001"), quote_number_snapshot="A-TEST-0001",
         title="Testauftrag", vat_rate=vat_rate, customer_name="Test Kunde", customer_number="K-0001",
         caseworker_employee_id=caseworker_employee_id, project_manager_employee_id=project_manager_employee_id,
     )

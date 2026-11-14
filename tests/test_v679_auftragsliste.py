@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 
 from app.auftragsliste import auftragsliste, stunden_zeile
-from app.models import Employee, ProjectProfile, TimeEntry
+from app.models import Employee, MaintenanceContract, ProjectProfile, TimeEntry
 from app.planning import create_slot
 from app.routers.planning import router as planning_router
 from tests.test_v399_teil_updates_geld import im_browser, nur_mit_node
@@ -108,7 +108,11 @@ def test_kran_und_wartungsvertrag(liste):
     mit, ohne, wartung = _auftrag(db), _auftrag(db), _auftrag(db)
     _einsatz(liste, mit, 4, 4, team_id=None, art="kranvermietung", geraete=[{"resource_id": kran.id}], employee_ids=[bediener.id])
     _einsatz(liste, ohne, 9, 9, team_id=None, art="kranvermietung", geraete=[{"resource_id": kran.id}])
-    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=1))
+    # Ein echter Wartungsvertrag (seit 1.9.338; bis dahin source_maintenance_contract_id=1 ohne Vertrag)
+    vertrag = MaintenanceContract(customer_id=wartung.project.customer_id, title="Wartung", next_due_date=MONTAG)
+    db.add(vertrag)
+    db.flush()
+    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=vertrag.id))
     db.commit()
     z = _zeilen(liste)
     assert (z[mit.id]["stunden"], z[ohne.id]["stunden"], z[wartung.id]["stunden"]) == ("Kran mit Bediener", "Kran ohne Bediener", "Wartungsvertrag")

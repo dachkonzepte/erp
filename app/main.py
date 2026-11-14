@@ -67,13 +67,7 @@ with SessionLocal() as _upgrade_db:
         logger.info("Katalog-Migration: %s bestehende Leistung(en) dem Fertigkatalog zugeordnet.", _backfilled)
     _material_group = ensure_import_material_group(_upgrade_db)
     _materials_backfilled = backfill_existing_service_materials(_upgrade_db, _material_group.id)
-    if _materials_backfilled == -1:
-        logger.warning(
-            "Materialkatalog-Migration noch nicht angewendet (service_materials.material_id fehlt in der "
-            "Datenbank) -- bitte 'alembic revision --autogenerate' + 'alembic upgrade head' ausführen. "
-            "Bestehende Materialien werden erst danach automatisch dem Materialkatalog zugeordnet."
-        )
-    elif _materials_backfilled:
+    if _materials_backfilled:
         logger.info(
             "Materialkatalog-Migration: %s Material-Positionen dem Materialkatalog zugeordnet.",
             _materials_backfilled,

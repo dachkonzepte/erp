@@ -52,6 +52,7 @@ from tests.test_v335_vertragsvorlagen import SECTIONS, beauftragen, save
 from tests.test_v336_vertrag_festschreiben import (  # noqa: F401  (world ist eine Fixture)
     CUSTOMER_EMAIL, FakeSMTP, _archive_path, _freeze, _quote, _versions, world,
 )
+from tests import migrationsbestand
 
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
 CHECKBOX = "abschnitt-6"  # "Ich verlange den vorzeitigen Beginn." (nur Verbraucher, letzter Abschnitt)
@@ -439,8 +440,11 @@ def test_migration_downgrade_refuses_while_signatures_exist_and_upgrade_restores
         _run(engine, "downgrade")
     with engine.begin() as conn:
         conn.execute(text("UPDATE contract_template_sections SET early_start = false"))
-        conn.execute(text("INSERT INTO order_contracts (order_id, status, created_by_name, created_at, updated_at) "
-                          "VALUES (1, 'unterschrieben', 'X', '2026-10-01 00:00:00', '2026-10-01 00:00:00')"))
+    order_id, doc_id = migrationsbestand.auftrag(engine)["order"], migrationsbestand.dokument(engine)  # echte Eltern (seit 1.9.338)
+    with engine.begin() as conn:
+        contract_id = conn.execute(text("INSERT INTO order_contracts (order_id, status, created_by_name, created_at, updated_at) "
+                                        "VALUES (:o, 'unterschrieben', 'X', '2026-10-01 00:00:00', '2026-10-01 00:00:00') RETURNING id"),
+                                   {"o": order_id}).scalar()
     with pytest.raises(RuntimeError, match="1 unterschriebene Verträge"):
         _run(engine, "downgrade")
     with engine.begin() as conn:
@@ -449,10 +453,12 @@ def test_migration_downgrade_refuses_while_signatures_exist_and_upgrade_restores
     assert "order_contract_signatures" not in inspect(engine).get_table_names()
     assert "early_start" not in {c["name"] for c in inspect(engine).get_columns("contract_template_sections")}
     _run(engine, "upgrade")
+    version_id = migrationsbestand.fassung(engine, contract_id, doc_id)
     with engine.begin() as conn:
         assert conn.execute(text("SELECT early_start FROM contract_template_sections")).scalar() in (False, 0)
         conn.execute(text("INSERT INTO order_contract_signatures (contract_id, version_id, method, signed_on, signed_content, "
-                          "content_sha256, document_id, recorded_at) VALUES (1, 1, 'papier', '2026-10-01', '{}', 'x', 1, '2026-10-01 00:00:00')"))
+                          "content_sha256, document_id, recorded_at) VALUES (:c, :v, 'papier', '2026-10-01', '{}', 'x', :d, '2026-10-01 00:00:00')"),
+                     {"c": contract_id, "v": version_id, "d": doc_id})
     with pytest.raises(RuntimeError, match="1 Unterschriften"):
         _run(engine, "downgrade")
 

@@ -16,7 +16,6 @@ unbemerkt vermischt werden.
 
 from decimal import Decimal
 
-from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,22 +24,10 @@ from .models import Material, ServiceMaterial
 MaterialVariantsCache = dict[str, list[Material]]
 
 
-def _service_materials_has_material_id_column(db: Session) -> bool:
-    """Analog zu den gleichnamigen Prüfungen bei Katalogen: true, sobald die
-    1.0.25-Migration angewendet wurde. Vorher existiert
-    service_materials.material_id in der echten Datenbank noch nicht."""
-    inspector = sa_inspect(db.get_bind())
-    columns = {col["name"] for col in inspector.get_columns("service_materials")}
-    return "material_id" in columns
-
-
-def _materials_table_has_catalog_column(db: Session) -> bool:
-    """Analog zu _service_materials_has_material_id_column: true, sobald die
-    1.0.30-Migration (Materialkataloge) angewendet wurde. Vorher existiert
-    materials.catalog_id in der echten Datenbank noch nicht."""
-    inspector = sa_inspect(db.get_bind())
-    columns = {col["name"] for col in inspector.get_columns("materials")}
-    return "catalog_id" in columns
+# Bis 1.9.337 standen hier _service_materials_has_material_id_column() und _materials_table_has_catalog_column(): Prüfungen über die
+# Engine, ob die Migrationen 1.0.25 (service_materials.material_id) und 1.0.30 (materials.catalog_id) schon gelaufen sind. Beide sind in
+# jeder Datenbank durch. In der Test-SQLite (eine Verbindung, SingletonThreadPool) gab die Prüfung nach einem Flush die Verbindung der
+# Sitzung zurück und rollte dabei deren Transaktion zurück -- persist_project() verlor so seinen Importlauf (Befund SQLite/PostgreSQL N1).
 
 
 def find_or_create_material(
@@ -109,12 +96,10 @@ def find_or_create_material(
 def backfill_existing_service_materials(db: Session, import_group_id: int | None = None) -> int:
     """Einmalig: bestehende service_materials-Zeilen (material_id IS NULL) dem
     Materialkatalog zuordnen. Sicher wiederholt ausführbar (überspringt
-    bereits zugeordnete Zeilen). Gibt die Anzahl der geänderten Zeilen zurück,
-    oder -1, wenn die Spalte service_materials.material_id noch nicht
-    existiert (Migration noch nicht angewendet). import_group_id: Zielgruppe
-    für dabei neu angelegte Materialien (siehe find_or_create_material)."""
-    if not _service_materials_has_material_id_column(db):
-        return -1
+    bereits zugeordnete Zeilen). Gibt die Anzahl der geänderten Zeilen zurück.
+    import_group_id: Zielgruppe
+    für dabei neu angelegte Materialien (siehe find_or_create_material).
+    Bis 1.9.337 auch -1, wenn die Spalte noch fehlte (Migration 1.0.25 nicht angewendet) -- seit 1.9.338 nicht mehr geprüft."""
     rows = db.scalars(select(ServiceMaterial).where(ServiceMaterial.material_id.is_(None))).all()
     variants_cache: MaterialVariantsCache = {}
     for row in rows:

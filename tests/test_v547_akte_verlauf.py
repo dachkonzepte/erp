@@ -21,6 +21,7 @@ from app.routers import projects as projects_router
 from app.time_tracking import create_manual_entry
 from tests.leistungszeitraum import festschreiben
 from tests.test_v381_zahlungen import _auftrag, _buchen
+from tests.quellangebot import quell_angebot
 
 D = Decimal
 
@@ -39,7 +40,7 @@ class _Anfrage:
 
 def _zweiter_auftrag(db, order):
     """Ein zweiter Auftrag im selben Projekt."""
-    o = Order(order_number=f"{order.order_number}-B", project_id=order.project_id, source_quote_id=order.source_quote_id + 10_000,
+    o = Order(order_number=f"{order.order_number}-B", project_id=order.project_id, source_quote_id=quell_angebot(db, order.project_id, f"{order.order_number}-B"),
               quote_number_snapshot="A-B", title="PV", vat_rate=D("19.00"), customer_name=order.customer_name)
     db.add(o)
     db.flush()

@@ -19,7 +19,7 @@ from app.models import (
     MaintenanceContract, MaintenanceContractItem, MaintenanceWindow, Project, ProjectProfile, Task,
 )
 from app.routers.tasks import router as tasks_router
-from tests.test_v373_zugehoerigkeit import _vertrag_body, echte_angebots_ids, welt  # noqa: F401 -- Fixtures
+from tests.test_v373_zugehoerigkeit import _vertrag_body, welt  # noqa: F401 -- Fixtures
 
 UNBEKANNT = 987654
 
@@ -56,7 +56,7 @@ def _schnellauftrag(w, customer_id, property_id):
 
 
 @pytest.mark.parametrize("fall", ["kunde_ohne_objekt", "kunde_mit_objekt", "objekt"])
-def test_quick_order_with_unknown_customer_or_property_is_404_and_creates_nothing(welt, echte_angebots_ids, fall):
+def test_quick_order_with_unknown_customer_or_property_is_404_and_creates_nothing(welt, fall):
     db = welt["db"]
     kunde, objekt = {"kunde_ohne_objekt": (UNBEKANNT, None), "kunde_mit_objekt": (UNBEKANNT, welt["eigen"].id),
                      "objekt": (welt["kunde"].id, UNBEKANNT)}[fall]

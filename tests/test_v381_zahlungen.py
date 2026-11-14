@@ -42,6 +42,7 @@ from app.zugehoerigkeit import IdNichtGefunden
 from tests.leistungszeitraum import festschreiben
 from tests.test_v133_invoices import db_session
 from tests.zahlung import voll_bezahlen
+from tests.quellangebot import quell_angebot
 
 APP = Path(__file__).resolve().parent.parent / "app"
 D = Decimal
@@ -71,7 +72,7 @@ def _auftrag(db, customer=None, *, quantity="100", price="50"):
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
-    order = Order(order_number=f"AUF-Z-{n:04d}", project_id=project.id, source_quote_id=n, quote_number_snapshot=f"A-{n}",
+    order = Order(order_number=f"AUF-Z-{n:04d}", project_id=project.id, source_quote_id=quell_angebot(db, project.id, f"AUF-Z-{n:04d}"), quote_number_snapshot=f"A-{n}",
                   title="Dach", vat_rate=D("19.00"), customer_name=customer.name)
     db.add(order)
     db.flush()

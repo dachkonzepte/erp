@@ -49,6 +49,7 @@ from tests.test_v336_vertrag_festschreiben import (  # noqa: F401  (world ist ei
 from tests.test_v337_vertrag_unterschrift import (  # noqa: F401  (pg ist eine Fixture)
     _client, _frozen_order, _paper, _pg_app, _pg_frozen_order, _pg_sign, _scan_pdf, _sign, _signature, _status, _together, pg,
 )
+from tests import migrationsbestand
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "app" / "templates"
 NODE = shutil.which("node")
@@ -267,10 +268,16 @@ def _run(engine, fn_name):
 def test_migration_downgrade_refuses_while_copies_exist_and_upgrade_restores():
     engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
+    # Echte Eltern (seit 1.9.338): Auftrag, Vertrag, Fassung, zwei Dokumente der Ablage
+    order_id = migrationsbestand.auftrag(engine)["order"]
+    doc_id, kopie_id = migrationsbestand.dokument(engine, "fassung"), migrationsbestand.dokument(engine, "abschrift")
+    contract_id = migrationsbestand.vertrag(engine, order_id, "unterschrieben")
+    version_id = migrationsbestand.fassung(engine, contract_id, doc_id)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO order_contract_signatures (contract_id, version_id, method, signed_on, signed_content, "
                           "content_sha256, document_id, recorded_at, copy_document_id) "
-                          "VALUES (1, 1, 'papier', '2026-10-01', '{}', 'x', 1, '2026-10-01 00:00:00', 2)"))
+                          "VALUES (:c, :v, 'papier', '2026-10-01', '{}', 'x', :d, '2026-10-01 00:00:00', :k)"),
+                     {"c": contract_id, "v": version_id, "d": doc_id, "k": kopie_id})
     with pytest.raises(RuntimeError, match="1 Unterschriften haben eine unterschriebene Abschrift"):
         _run(engine, "downgrade")
     with engine.begin() as conn:

@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -117,12 +116,9 @@ def test_backfill_assigns_material_id_and_deduplicates():
     assert backfill_existing_service_materials(db) == 0
 
 
-def test_backfill_returns_minus_one_when_migration_not_yet_applied():
-    db = db_session()
-    db.execute(text("ALTER TABLE service_materials RENAME TO service_materials_real"))
-    db.execute(text("CREATE TABLE service_materials (id INTEGER PRIMARY KEY)"))
-    db.commit()
-    assert backfill_existing_service_materials(db) == -1
+# Bis 1.9.337 stand hier test_backfill_returns_minus_one_when_migration_not_yet_applied: backfill_existing_service_materials() gab -1, solange
+# service_materials.material_id fehlte (Migration 1.0.25). Die Prüfung ist seit 1.9.338 weg (Befund SQLite/PostgreSQL N1, die Migration ist überall
+# durch); dass der Import seinen Importlauf behält, prüft tests/test_v738_testdaten_ohne_erfundene_eltern.py.
 
 
 def test_create_and_update_manual_material():

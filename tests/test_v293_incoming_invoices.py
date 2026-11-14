@@ -499,6 +499,8 @@ def test_finance_addressed_skonto_task_never_visible_or_claimable_for_buero_auft
 ):
     db = threaded_db_session
     _seed_invoice_and_finance_task(threaded_db_session, router_test_client)
+    from tests.test_v283_recurring_costs import _mitarbeiter
+    eid = _mitarbeiter(db)
 
     finanzen_list = router_test_client(db, tasks_router, role="buero_finanzen").get("/api/tasks?unassigned_only=true")
     assert finanzen_list.status_code == 200
@@ -506,7 +508,7 @@ def test_finance_addressed_skonto_task_never_visible_or_claimable_for_buero_auft
     assert finance_task_ids, "Vorbedingung: die Skonto-Erinnerungs-Aufgabe muss existieren"
     task_id = finance_task_ids[0]
 
-    auftrag_client = router_test_client(db, tasks_router, role="buero_auftrag", employee_id=1)
+    auftrag_client = router_test_client(db, tasks_router, role="buero_auftrag", employee_id=eid)
     auftrag_list = auftrag_client.get("/api/tasks?unassigned_only=true")
     assert auftrag_list.status_code == 200
     assert task_id not in [t["id"] for t in auftrag_list.json()]
@@ -518,7 +520,7 @@ def test_finance_addressed_skonto_task_never_visible_or_claimable_for_buero_auft
     assert field_client.get("/api/tasks?unassigned_only=true").status_code == 403
     assert field_client.post(f"/api/tasks/{task_id}/claim").status_code == 403
 
-    finanzen_claim = router_test_client(db, tasks_router, role="buero_finanzen", employee_id=1).post(
+    finanzen_claim = router_test_client(db, tasks_router, role="buero_finanzen", employee_id=eid).post(
         f"/api/tasks/{task_id}/claim"
     )
     assert finanzen_claim.status_code == 200, finanzen_claim.text

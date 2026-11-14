@@ -59,10 +59,7 @@ def test_get_finding_for_task_returns_none_for_unrelated_task():
 
 def test_create_follow_up_project_for_task_creates_order_and_sets_back_references():
     db = db_session()
-    # source_quote_id weit weg von 1, da create_follow_up_project_for_task() intern über
-    # create_quick_service_order() eine ECHTE, ab 1 autoinkrementierte Quote anlegt (Muster wie
-    # in test_v214_findings_and_photos.py::_build_extra_order()).
-    order, _customer, _project = _build_extra_order(db, "9101", source_quote_id=9101)
+    order, _customer, _project = _build_extra_order(db, "9101")
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Ziegel gebrochen", "dringend", "buero_pruefen")
     assert finding["follow_up_task_id"] is not None
@@ -107,7 +104,7 @@ def test_router_endpoints_for_task_finding_and_create_follow_up_project(threaded
     from app.routers.findings import router as findings_router
 
     db = threaded_db_session
-    order, _customer, _project = _build_extra_order(db, "9102", source_quote_id=9102)
+    order, _customer, _project = _build_extra_order(db, "9102")
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Dachfenster undicht", "mittel", "buero_pruefen")
     task_id = finding["follow_up_task_id"]

@@ -22,7 +22,7 @@ from sqlalchemy import select
 
 from app.audit import reset_audit_context, set_audit_context
 from app.invoices import create_abschlag_leistungsstand, create_storno_draft, update_invoice_item
-from app.models import AuditLog, CalendarEvent, MaintenanceContract, OrderSection, Property, RoofArea, ServiceReport
+from app.models import AppUser, AuditLog, CalendarEvent, MaintenanceContract, OrderSection, Property, RoofArea, ServiceReport
 from app.orders import update_order_item, update_order_section
 from app.reminders import create_reminder, finalize_and_send_reminder, update_reminder_draft
 from app.service_reports import create_report
@@ -134,9 +134,12 @@ def test_wartungsvertrag_dachflaeche_und_termin(db):
     assert [(z.action, z.field_name, z.entity_label) for z in _zeilen(db, "Dachfläche")] == [
         ("angelegt", None, "Nordseite · Halle"), ("geändert", "area_sqm", "Nordseite · Halle")]
     start = datetime(2026, 11, 2, 9, 0)
-    termin = CalendarEvent(title="Aufmaß Halle", start_at=start, end_at=start + timedelta(hours=1), owner_user_id=1, project_id=order.project_id)
+    konto = AppUser(username="planer", display_name="Planer", role="admin", active=True, password_hash="x")  # seit 1.9.338 ein echtes Konto
+    db.add(konto)
+    db.flush()
+    termin = CalendarEvent(title="Aufmaß Halle", start_at=start, end_at=start + timedelta(hours=1), owner_user_id=konto.id, project_id=order.project_id)
     privat = CalendarEvent(title="Arzt", location="Praxis", notes="Kontrolle", start_at=start, end_at=start + timedelta(hours=1),
-                           owner_user_id=1, is_private=True)
+                           owner_user_id=konto.id, is_private=True)
     db.add_all([termin, privat])
     db.commit()
     # wie app/calendar_events.py::update_event(): geladen, dann geändert (nach dem Commit abgelaufen -- ohne Laden kennt die Historie den alten Wert nicht)

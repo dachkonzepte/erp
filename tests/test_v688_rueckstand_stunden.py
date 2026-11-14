@@ -11,7 +11,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from app.auftragsliste import auftragsliste
-from app.models import Employee, ProjectProfile, TimeEntry
+from app.models import Employee, MaintenanceContract, ProjectProfile, TimeEntry
 from app.planning import rueckstand
 from tests.test_v564_plantafel_leistung import MONTAG, _auftrag
 from tests.test_v671_inaktive_mitarbeiter_ausblenden import ROOT
@@ -25,7 +25,11 @@ def test_rueckstand_wie_die_auftragsliste(threaded_db_session):
     rest = _auftrag(db, minuten="60", menge="8")
     aufwand = _auftrag(db, minuten="0")
     wartung = _auftrag(db, minuten="60", menge="2")
-    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=1))
+    # Ein echter Wartungsvertrag (seit 1.9.338; bis dahin source_maintenance_contract_id=1 ohne Vertrag)
+    vertrag = MaintenanceContract(customer_id=wartung.project.customer_id, title="Wartung", next_due_date=MONTAG)
+    db.add(vertrag)
+    db.flush()
+    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=vertrag.id))
     emp = Employee(first_name="Tom", last_name="Test", employee_group="gewerblich", weekly_hours=D("40"), active=True)
     db.add(emp)
     db.flush()

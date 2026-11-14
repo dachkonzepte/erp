@@ -66,10 +66,12 @@ def test_resolve_account_display_falls_back_to_username_without_display_name(db_
 
 def test_resolve_account_display_falls_back_to_display_name_when_employee_id_points_nowhere(db_session):
     """Verteidigung in der Tiefe: employee_id gesetzt, aber der Mitarbeiter existiert nicht
-    (mehr) -- fällt auf den Anzeigenamen zurück (seit 1.8.168, bis dahin den Benutzernamen) statt eines Fehlers."""
+    (mehr) -- fällt auf den Anzeigenamen zurück (seit 1.8.168, bis dahin den Benutzernamen) statt eines Fehlers.
+    Seit 1.9.338 ein Konto, das nicht gespeichert wird: in der Datenbank verhindert der Fremdschlüssel app_users.employee_id diesen
+    Zustand (PostgreSQL, und die Suite seit 1.9.339 mit PRAGMA foreign_keys=ON); die Verteidigung in resolve_account_display() bleibt
+    trotzdem geprüft."""
     user = AppUser(username="geist", display_name="Geist", role="user", active=True,
                     password_hash="x", employee_id=999999)
-    db_session.add(user); db_session.commit()
 
     result = resolve_account_display(db_session, user)
     assert result == {"full_name": "Geist", "initials": "GE"}

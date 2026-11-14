@@ -276,8 +276,15 @@ def router_test_client():
     Test-App auch als Büro-/Monteur-Konto statt fest als Administrator zu durchlaufen (z. B. um
     require_role(...)-Ablehnungen zu belegen) -- Vorgabewerte bleiben "admin"/None, kein
     bestehender Aufruf muss sich ändern. Seit 1.8.57 optional user_id/display_name -- ein Konto mit ID (z. B. für
-    Unterschriften "angemeldetes Konto"); ohne bleibt das Konto ohne ID wie bisher."""
+    Unterschriften "angemeldetes Konto"); ohne bleibt das Konto ohne ID wie bisher.
+    Seit 1.9.338 gibt es ein Konto mit ID auch in der Datenbank: fehlt dort ein AppUser mit dieser ID, legt _make ihn an
+    (Benutzername "test-konto-<id>", Rolle und Mitarbeiter wie angemeldet). Bis dahin zeigte jede gespeicherte Konto-ID
+    (requested_by_user_id, owner_user_id …) ins Leere -- unter PostgreSQL und mit PRAGMA foreign_keys=ON ein Fehler."""
     def _make(db, *routers, role="admin", employee_id=None, user_id=None, display_name=None):
+        if user_id is not None and db.get(AppUser, user_id) is None:
+            db.add(AppUser(id=user_id, username=f"test-konto-{user_id}", display_name=display_name or role.capitalize(), role=role,
+                           active=True, employee_id=employee_id, password_hash=hash_password("Passwort123")))
+            db.commit()
         app = FastAPI()
         for router in routers:
             app.include_router(router)

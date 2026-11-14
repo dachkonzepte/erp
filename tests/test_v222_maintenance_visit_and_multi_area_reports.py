@@ -330,7 +330,9 @@ def test_sign_report_with_flag_but_deleted_contract_does_not_error():
     order, _ = make_order_with_item(db)
     report = create_report(db, order.id, "wartung", advance_due_date_on_sign=True)
     row = _load_report(db, report["id"])
-    row.maintenance_contract_id = 999999  # zeigt ins Leere, simuliert einen inzwischen gelöschten Vertrag
+    # Der Vertrag ist weg, der Bericht trägt keinen Verweis mehr. Bis 1.9.337 zeigte er hier auf eine erfundene ID (999999) -- einen
+    # Zustand, den der Fremdschlüssel service_reports.maintenance_contract_id verhindert (PostgreSQL, die Suite seit 1.9.339).
+    row.maintenance_contract_id = None
     db.commit()
     signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"

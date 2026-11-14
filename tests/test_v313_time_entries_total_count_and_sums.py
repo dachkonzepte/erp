@@ -28,6 +28,7 @@ from app.time_tracking import list_entries
 from tests import vorlagen_js
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v282_role_narrowing_etappe2 import ALL_ROLES, WAGE_KEYS, _recursive_keys
+from tests.quellangebot import quell_angebot
 
 START = date(2026, 1, 1)
 OFFICE_ROLES = ("buero_auftrag", "buero_finanzen", "admin")
@@ -40,14 +41,14 @@ def data():
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     order_a, _ = make_order_with_item(db)
-    order_b = Order(order_number="AUF-TEST-0002", project_id=order_a.project_id, source_quote_id=2,
+    order_b = Order(order_number="AUF-TEST-0002", project_id=order_a.project_id, source_quote_id=quell_angebot(db, order_a.project_id, "AUF-TEST-0002"),
                     quote_number_snapshot="A-TEST-0002", title="Zweiter Auftrag", customer_name="Test Kunde")
     other_customer = Customer(name="Fremdkunde", last_name="Fremdkunde")
     db.add_all([order_b, other_customer]); db.flush()
     other_project = Project(project_number="P-TEST-0002", name="Fremdes Projekt", customer_id=other_customer.id,
                             pipeline_column_id=order_a.project.pipeline_column_id)
     db.add(other_project); db.flush()
-    order_c = Order(order_number="AUF-TEST-0003", project_id=other_project.id, source_quote_id=3,
+    order_c = Order(order_number="AUF-TEST-0003", project_id=other_project.id, source_quote_id=quell_angebot(db, other_project.id, "AUF-TEST-0003"),
                     quote_number_snapshot="A-TEST-0003", title="Fremder Auftrag", customer_name="Fremdkunde")
     me = Employee(employee_number="M-1", first_name="Mia", last_name="Monteur", employee_group="gewerblich",
                   hourly_wage="21.50", active=True)
