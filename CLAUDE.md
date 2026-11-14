@@ -2381,8 +2381,10 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
   erwarten die `IntegrityError` derzeit ausdrücklich. Vorbild für die Behebung: das
   Idempotenzmuster des Checklisten-Moduls, siehe `docs/archiv/modul-checklisten.md`.
 - ~~Benutzer löschen scheitert unter PostgreSQL mit 500~~ -- seit 1.9.340 409 mit den Bereichen, in denen das Konto steht, und dem Rat zu
-  deaktivieren (`app/konto_loeschen.py`, jeder Fremdschlüssel auf `app_users` eingeordnet); ob „Deaktivieren“ das Löschen auf der Seite ersetzen
-  soll, ist vorgeschlagen, nicht entschieden (`docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.340“).
+  deaktivieren (`app/konto_loeschen.py`, jeder Fremdschlüssel auf `app_users` eingeordnet); seit 1.9.342 bietet die Seite bei einem verwendeten Konto
+  gleich „Deaktivieren“ (`POST /api/users/{id}/deaktivieren`), „Löschen“ nur für ein nie verwendetes (`verwendet_in` in `GET /api/users`).
+- **Folgeaufgaben eines gelöschten Berichtsentwurfs gehen spurlos mit** (geprüft 14.11.2026, nicht gebaut): auch schon bearbeitete oder erledigte;
+  Aufgaben stehen nicht in der Änderungshistorie. Vorschlag und offene Entscheidung: `docs/archiv/sqlite-und-postgresql.md`, „Punkt 3 (nur geprüft)“.
 - ~~Wartungsvertrag löschen scheitert unter PostgreSQL mit 500 (E6)~~ -- seit 1.9.341 lehnen Vertrag und Position mit Geschichte (Projekt oder
   Bericht, auch Entwurf) mit 409 ab, Rat: beenden bzw. archivieren (`app/maintenance_contracts.py`, `docs/archiv/sqlite-und-postgresql.md`).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-

@@ -166,7 +166,7 @@ AUSNAHMEN_HANDLER = {
     'tasks.html | card | onclick: t.id': 2,
     'tasks.html | renderChecklist | onchange: i.id': 1,
     'tasks.html | renderChecklist | onclick: i.id': 1,
-    'users.html | render | onclick: u.id': 3,
+    'users.html | render | onclick: u.id': 2,  # seit 1.9.342 „Löschen“ über data-klick
     'work_preparation.html | renderDelivery | onclick: x.id': 1,
     'work_preparation.html | renderMaterials | onchange: x.id': 1,
     'work_preparation.html | renderMaterials | onclick: x.id': 1,

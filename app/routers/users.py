@@ -20,7 +20,7 @@ from .. import two_factor
 from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
-from ..konto_loeschen import KontoVerwendet, konto_loeschen
+from ..konto_loeschen import KontoVerwendet, konto_loeschen, verwendungen
 from ..models import AppUser, Employee
 from ..outlook_calendar_sync import PostfachVergeben, postfach_gewechselt, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
@@ -29,10 +29,12 @@ router = APIRouter()
 
 @router.get("/api/users", response_model=list[AppUserOut])
 def list_app_users(db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
-    """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer, seit 1.8.106 auch der vertrauten Geräte (nur gelesen)."""
+    """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer, seit 1.8.106 auch der vertrauten Geräte (nur gelesen), seit 1.9.342 mit
+    den Bereichen, in denen das Konto steht (verwendet_in, leer = nie verwendet)."""
     users = db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
     return [AppUserOut.model_validate(u, from_attributes=True).model_copy(
-        update={"active_sessions": sitzungen.anzahl(db, u), "trusted_device_count": device_trust.anzahl(db, u)}) for u in users]
+        update={"active_sessions": sitzungen.anzahl(db, u), "trusted_device_count": device_trust.anzahl(db, u),
+                "verwendet_in": verwendungen(db, u.id)}) for u in users]
 
 
 def _postfach(db: Session, adresse: str | None, *, konto_id: int | None = None) -> str | None:
@@ -136,6 +138,30 @@ def end_user_sessions(user_id: int, db: Session = Depends(get_db, scope="functio
     if user.id == current.id:
         response.delete_cookie(device_trust.TRUST_COOKIE_NAME)
     return {"ok": True, "sitzungen_beendet": vorher, "geraete_abgemeldet": geraete}
+
+
+@router.post("/api/users/{user_id}/deaktivieren", response_model=AppUserOut)
+def deactivate_app_user(user_id: int, db: Session = Depends(get_db, scope="function"),
+                        current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer deaktivieren."))):
+    """Seit 1.9.342: ein Konto deaktivieren, ohne den Rest anzufassen -- der Knopf „Deaktivieren“ der Seite (statt „Löschen“ bei einem verwendeten
+    Konto). PUT /api/users/{id} ist ein volles Update (Regel 22): schickte die Seite nur active=false, fielen Rolle und Mitarbeiter auf die Vorgabe.
+    Dieselben Prüfungen wie dort (nicht das eigene Konto, nicht der letzte aktive Administrator); wie dort enden im selben Commit alle Sitzungen
+    (Regel 30). Ein schon inaktives Konto bleibt, wie es ist."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")
+    if user.id == current.id:
+        raise HTTPException(status_code=409, detail="Das aktuell angemeldete Administratorkonto kann sich nicht selbst deaktivieren oder herabstufen.")
+    if user.active:
+        if user.role == "admin":
+            aktive_admins = db.scalars(select(AppUser).where(AppUser.role == "admin", AppUser.active == True)).all()  # noqa: E712
+            if len(aktive_admins) <= 1:
+                raise HTTPException(status_code=409, detail="Der letzte aktive Administrator kann nicht deaktiviert oder herabgestuft werden.")
+        user.active = False
+        sitzungen.alle_beenden(db, user)
+        db.commit()
+        db.refresh(user)
+    return AppUserOut.model_validate(user, from_attributes=True).model_copy(update={"verwendet_in": verwendungen(db, user.id)})
 
 
 @router.delete("/api/users/{user_id}")

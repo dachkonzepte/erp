@@ -260,3 +260,50 @@ Projekt bzw. Bericht; Vertrag ohne Geschichte samt Position und Erinnerung; jede
 `341_2`) scheitern die vier Fälle mit Geschichte am Fremdschlüssel (`FOREIGN KEY constraint failed`) -- sie waren unter dem PRAGMA vorher rot.
 Angepasste Erwartung (Regel 28): `test_v212::test_delete_contract_cascades_items_without_reports_but_blocks_when_signed_report_exists` -- Meldung mit
 „archiviert“ -> mit „Beende den Vertrag stattdessen“ (der Fall selbst bleibt abgelehnt). Gegenproben: `docs/archiv/gegenproben-v1-fremdschluessel.md`.
+
+### Umsetzung 1.9.342: Seite „Benutzer“ -- „Deaktivieren“ statt „Löschen“ bei verwendetem Konto (Punkt 2)
+
+- **Server:** `GET /api/users` nennt je Konto `verwendet_in` -- die Bereiche aus `app/konto_loeschen.py::verwendungen()`, leer = nie verwendet. Neu
+  `POST /api/users/{id}/deaktivieren` (nur Admin): setzt nur `active` auf aus und beendet im selben Commit alle Sitzungen des Kontos (Regel 30);
+  Rolle, Mitarbeiter und alles andere bleiben. Dieselben Sperren wie beim Ändern: nicht das eigene Konto, nicht der letzte aktive Administrator (409);
+  ein schon inaktives Konto bleibt, wie es ist. Ein eigener Endpunkt, weil `PUT /api/users/{id}` ein volles Update ist -- schickte die Seite dort nur
+  `active=false`, fielen Rolle und Mitarbeiter auf die Vorgaben (Regel 22).
+- **Seite:** je Konto genau ein Knopf neben „Bearbeiten“ (`kontoKnopf()`): nie verwendet -> „Löschen“; verwendet und aktiv -> „Deaktivieren“ (title
+  „Verwendet in: …“, Rückfrage nennt die Bereiche und dass sie bleiben); verwendet und schon inaktiv -> keiner (wieder aktivieren über „Bearbeiten“).
+  Das eigene Konto wie bisher ohne. Der Hinweistext der Karte sagt es: „Löschen lässt sich nur ein Konto, das nie verwendet wurde – ein verwendetes wird
+  deaktiviert, was es angelegt hat, bleibt.“ Beide Knöpfe über `data-klick` (Regel 32; „Löschen“ trug bis dahin die ID im `onclick` -- die
+  Ausnahmeliste von `test_v407` ist um eins kürzer), die Anfrage über `speichern()` (Regel 29).
+- Klicktest `scripts/klicktest_benutzer_deaktivieren.py` mit Bildern bei 1440 und 412 px, hell und dunkel. Bei 412 px rollt die Tabelle wie bisher in
+  ihrem Rahmen (nichts läuft über die Seite); fürs Bild ist sie zu den Knöpfen gerollt.
+
+#### Festlegungen 1.9.342 (Bitte bestätigen)
+
+1. Der Server sagt je Konto, wo es steht (`verwendet_in` in `GET /api/users`, leer = nie verwendet); die Seite rechnet das nicht selbst.
+2. Die Seite bietet „Löschen“ nur für ein nie verwendetes Konto, „Deaktivieren“ für ein verwendetes aktives, keinen der beiden für ein verwendetes
+   inaktives und für das eigene Konto.
+3. Deaktivieren hat einen eigenen Endpunkt, der nur `active` ändert und alle Sitzungen beendet; nicht das eigene Konto, nicht der letzte aktive
+   Administrator.
+
+#### Tests und Prüfung 1.9.342
+
+Neu `tests/test_v742_benutzer_deaktivieren.py` (4 Tests) und `scripts/klicktest_benutzer_deaktivieren.py` (12 Prüfungen, Bilder). Angepasste Erwartung
+(Regel 28): `test_v407`, `AUSNAHMEN_HANDLER` „users.html | render | onclick: u.id“ 3 -> 2 (nur kürzer, „Löschen“ über `data-klick`).
+
+### Punkt 3 (nur geprüft, nicht gebaut): Folgeaufgaben, die E3 mit dem Berichtsentwurf löscht
+
+- **Wie sie entsteht:** wählt die Monteurin an einem Befund die Maßnahme „Büro prüfen lassen“, legt `app/findings.py::_execute_finding_action()` sofort
+  eine Aufgabe an („Büro prüfen lassen: <Befund>“), zugewiesen an den Sachbearbeiter des Auftrags, mit Mail an ihn -- schon im Entwurf des Berichts.
+  `Finding.follow_up_task_id` zeigt auf sie. Das Büro sieht sie sofort.
+- **Was das Büro daran tun kann:** Spalte und Status (auch erledigt, mit `completed_at`), Zuständigkeit ändern oder übernehmen, Fälligkeit, Priorität,
+  Beschreibung, Unteraufgaben (`TaskChecklistItem`) abhaken, und „Vorgang erstellen“ -- daraus entstehen Projekt und Auftrag
+  (`create_follow_up_project_for_task()`), die wiederum eingeplant werden können. „Eingeplant“ ist die Aufgabe selbst nur über ihre Fälligkeit: kein
+  Fremdschlüssel verbindet eine Aufgabe mit Plantafel oder Kalender.
+- **Was beim Löschen des Entwurfs passiert:** `delete_report()` löscht jede Folgeaufgabe, egal in welchem Zustand -- zugewiesen, mit Fälligkeit,
+  erledigt, mit Unteraufgaben (gehen mit). Löschen darf die Monteurin ihren eigenen Entwurf (`require_field_report_ownership()`), das Büro jeden. Ein
+  aus der Aufgabe erstellter Vorgang bleibt (Herkunft als Text in der Projektbeschreibung), verliert aber den Weg zurück.
+- **Geht Arbeit verloren?** Ja, und spurlos: `Task` steht nicht in der Änderungshistorie (`AUDITED_TYPES`); nur „übernommen“ schreibt `claim_task()`
+  selbst. Was das Büro an der Aufgabe getan hat, ist danach nicht mehr nachvollziehbar; die Zuständige merkt es nur daran, dass die Aufgabe fehlt.
+- **Vorschlag (erst fragen):** die Folgeaufgabe nur mitlöschen, solange niemand sie angefasst hat (noch im Anfangsstatus, nicht erledigt, ohne
+  Unteraufgaben, ohne Vorgang daraus, sonst unverändert seit dem Anlegen). Sonst bleibt sie: der Verweis des Befunds entfällt mit dem Entwurf, die Aufgabe
+  bekommt einen Vermerk in der Beschreibung („Der Berichtsentwurf mit diesem Befund wurde am … gelöscht.“), und das Büro entscheidet. Alternative: das
+  Löschen des Entwurfs mit 409 ablehnen, solange eine Folgeaufgabe bearbeitet ist -- dann kann die Monteurin ihren Entwurf nicht mehr selbst aufräumen.

@@ -1220,6 +1220,9 @@ class AppUserOut(BaseModel):
     outlook_mailbox: str | None = None
     active_sessions: int = 0  # seit 1.8.103: geltende Sitzungen (Benutzerverwaltung, "Alle Sitzungen beenden")
     trusted_device_count: int = 0  # seit 1.8.106: geltende vertraute Geräte -- "Alle Sitzungen beenden" meldet sie mit ab
+    # Seit 1.9.342: wo das Konto steht (app/konto_loeschen.py::verwendungen()); leer = nie verwendet -- nur dann bietet die Seite „Löschen“ an,
+    # sonst „Deaktivieren“ (verwendet und aktiv) oder nichts (verwendet und schon inaktiv).
+    verwendet_in: list[str] = []
 
 
 class LoginRequest(BaseModel):

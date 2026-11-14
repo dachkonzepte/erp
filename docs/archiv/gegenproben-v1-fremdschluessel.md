@@ -59,3 +59,16 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 4 – ohne Geschichte samt Positionen und Erinnerungen | die Erinnerungen nicht löschen (`341_5`) | 1 rot: v741::test_vertrag_ohne_geschichte_geht_mit_positionen_und_erinnerungen |
 
 6 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Nachrunde V1, 1.9.342 (Punkt 2): Seite „Benutzer“ -- „Deaktivieren“ statt „Löschen“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Server sagt, wo ein Konto steht | `verwendet_in` immer leer (`342_1`, `app/routers/users.py`) | 1 rot: v742::test_liste_sagt_wo_ein_konto_steht; Klicktest (`342_1k`) 8 von 12 |
+| Nr. 2 – „Löschen“ nur ohne Verwendung | die Seite bietet immer „Löschen“ (`342_2`, `app/templates/users.html`) | 1 rot: v742::test_seite_bietet_loeschen_nur_ohne_verwendung; Klicktest (`342_2k`) 8 von 12 |
+| Nr. 3 – Deaktivieren beendet alle Sitzungen | ohne `alle_beenden()` (`342_3a`) | 1 rot: v742::test_deaktivieren_laesst_den_rest_und_beendet_die_sitzungen |
+| Nr. 3 – nicht der letzte aktive Administrator | ohne die Sperre (`342_3b`) | 1 rot: v742::test_deaktivieren_nicht_sich_selbst_nicht_den_letzten_admin_nur_admin |
+| Nr. 3 – nicht das eigene Konto | ohne die Sperre (`342_3c`) | 1 rot: derselbe Test |
+| Nr. 3 – nur `active` ändert sich | Deaktivieren setzt auch die Rolle zurück (`342_4`) | 1 rot: v742::test_deaktivieren_laesst_den_rest_und_beendet_die_sitzungen |
+
+8 Gegenproben (6 über Tests, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
