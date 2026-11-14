@@ -20,6 +20,7 @@ from .. import two_factor
 from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
+from ..konto_loeschen import KontoVerwendet, konto_loeschen
 from ..models import AppUser, Employee
 from ..outlook_calendar_sync import PostfachVergeben, postfach_gewechselt, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
@@ -148,6 +149,10 @@ def delete_app_user(user_id: int, db: Session = Depends(get_db, scope="function"
         active_admins = db.scalars(select(AppUser).where(AppUser.role == "admin", AppUser.active == True)).all()
         if len(active_admins) <= 1:
             raise HTTPException(status_code=409, detail="Der letzte aktive Administrator kann nicht gelöscht werden.")
-    db.delete(user)
-    db.commit()
+    # Seit 1.9.340: steht das Konto anderswo (Aufgabe angelegt, Antrag entschieden, Zeit gebucht …), 409 mit den Bereichen und dem Rat zu
+    # deaktivieren -- bis dahin 500 unter PostgreSQL (Fremdschlüssel, bekannt seit 1.8.13). app/konto_loeschen.py
+    try:
+        konto_loeschen(db, user)
+    except KontoVerwendet as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return {"ok": True}

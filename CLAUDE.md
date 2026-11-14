@@ -471,6 +471,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
    **Wird ein übergeordneter Datensatz (Quote, QuoteItem, …) gelöscht, müssen solche
    Zusatztabellen manuell vorher geleert werden** – SQLAlchemy kaskadiert hier nichts von allein.
    Genau das wurde einmal übersehen und führte zu verwaisten Zeilen; seither expliziter Test dafür.
+   **Seit 1.9.340 auch die Reihenfolge:** zuerst löschen oder lösen, was auf die Zeile zeigt, in einem eigenen Flush, dann die Zeile -- der Unit of
+   Work ordnet DELETEs nicht über Mapper ohne Beziehung, im selben Flush ist die Reihenfolge Zufall (E1–E5 aus dem Befund SQLite/PostgreSQL, live je
+   500; die Suite prüft Fremdschlüssel seit 1.9.339, `docs/archiv/sqlite-und-postgresql.md`).
 
 7. **Vor jedem Modell-Konstruktor-Aufruf in neuem Code (Anwendungscode wie Tests) die
    tatsächlichen Feldnamen in `app/models.py` gegenprüfen**, nicht aus dem Gedächtnis raten.
@@ -2377,11 +2380,11 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
   Datensatz. `tests/test_v213_inspection_items.py`/`test_v223_service_report_materials.py`
   erwarten die `IntegrityError` derzeit ausdrücklich. Vorbild für die Behebung: das
   Idempotenzmuster des Checklisten-Moduls, siehe `docs/archiv/modul-checklisten.md`.
-- **Benutzer löschen scheitert unter PostgreSQL mit 500, sobald der Benutzer per FK referenziert
-  ist** (gefunden 1.8.13, gegen PostgreSQL nachgestellt): 15 FKs auf `app_users` ohne `ON DELETE`,
-  z. B. `checklists.created_by_user_id`; SQLite erzwingt FKs hier nicht, deshalb lokal unsichtbar.
-  Nicht behoben (Deaktivieren statt Löschen oder FK-Regel wäre zu entscheiden). Details:
-  `docs/archiv/modul-checklisten.md`, "Umsetzung 1.8.13" -> "Nebenbefunde".
+- ~~Benutzer löschen scheitert unter PostgreSQL mit 500~~ -- seit 1.9.340 409 mit den Bereichen, in denen das Konto steht, und dem Rat zu
+  deaktivieren (`app/konto_loeschen.py`, jeder Fremdschlüssel auf `app_users` eingeordnet); ob „Deaktivieren“ das Löschen auf der Seite ersetzen
+  soll, ist vorgeschlagen, nicht entschieden (`docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.340“).
+- **Wartungsvertrag löschen scheitert unter PostgreSQL mit 500** (E6, gefunden 14.11.2026), sobald ein Projekt aus ihm entstand oder ein
+  Berichtsentwurf auf ihn zeigt -- nicht behoben, fachlich zu entscheiden (`docs/archiv/sqlite-und-postgresql.md`, „Neuer Fund E6“).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
   Muster~~ -- seit 1.8.42 gelöst: Grunddaten legt der Start an, serialisiert über eine Sperrzeile (Regel 23,
   `docs/archiv/grunddaten-beim-start.md`), ohne neue Constraints.

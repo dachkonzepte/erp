@@ -140,7 +140,7 @@ erfundener IDs), Soll gleich. Gegenproben: `docs/archiv/gegenproben-v1-fremdschl
   fest, dass sie an ist.
 - E1–E5 scheitern unter dem PRAGMA wie live. Bis zu ihrer Behebung (Punkt 3) stehen die 11 Tests in `FREMDSCHLUESSEL_BEKANNT` (`tests/conftest.py`):
   erwartet rot, streng (wird einer grün, scheitert der Lauf) und nur mit `IntegrityError`.
-- Laufzeit: die volle Suite vorher (1.9.338) 11:22 min, mit dem PRAGMA im Bericht der Runde und unter 1.9.340.
+- Laufzeit: die volle Suite vorher (1.9.338) 11:22 min, mit dem PRAGMA (1.9.339) 11:19 min -- siehe 1.9.340.
 
 #### Festlegungen 1.9.339 (Bitte bestätigen)
 
@@ -157,3 +157,61 @@ Neu `tests/test_v739_fremdschluessel_sqlite.py` (8 Tests). Angepasste Erwartunge
 stellt nur fest, dass sie an ist (Soll gleich); `test_v325::test_migration_downgrade_removes_everything_and_refuses_when_data_would_be_lost` -- Migration
 ohne Prüfung, danach wieder mit (neue Prüfung am Ende); die 11 Tests von E1–E5 erwartet rot (xfail streng) bis Punkt 3. Gegenproben:
 `docs/archiv/gegenproben-v1-fremdschluessel.md`.
+
+### Umsetzung 1.9.340: E1–E5 behoben, „Benutzer löschen“ mit Meldung (Punkt 3)
+
+Gemeinsames Muster: zwischen zwei Tabellen ohne ORM-Beziehung (Regel 6) zuerst löschen oder lösen, was zeigt, und das in einem eigenen Flush -- der
+Unit of Work von SQLAlchemy ordnet DELETEs nicht über Mapper ohne Beziehung, die Reihenfolge im selben Flush ist Zufall.
+
+- **E1** `app/projects.py::delete_project()`: die Platzierungen der Positionen (`quote_item_layouts`) vor den LV-Titeln (`quote_sections`).
+- **E2** `app/address_import.py::revert_import_run()`: erst die Zeilen des Laufs (`imported_addresses` zeigen auf Kunde, Lieferant, Objekt), Flush,
+  dann Kunden und Lieferanten.
+- **E3** `app/service_reports.py::delete_report()`: erst der Bericht (mit ihm gehen die Befunde, deren `follow_up_task_id` auf die Aufgaben zeigt),
+  Flush, dann die Aufgaben.
+- **E4** `app/service.py::persist_project()`: vor dem Ersetzen der Materialien einer Leistung verliert jede Angebotskalkulation, die Material daraus
+  übernommen hat, nur den Verweis (`quote_item_material_calculations.source_material_id` leer, über das ORM -- die Änderungshistorie hält es fest);
+  ihre Werte (Name, Menge, Preis) bleiben, sie sind in der Kalkulation eingefroren.
+- **E5** `app/work_preparation.py::refresh_preparation_materials()`: die Zuordnungen (Lieferant und Lieferschein) in einem eigenen Flush vor den
+  Materialzeilen. **Lieferanten-Zuordnungen (F1) geprüft:** allein scheiterten sie nicht -- im selben Flush ging ihr DELETE zufällig vor dem der
+  Materialzeilen hinaus, das der Lieferschein-Zuordnungen danach; jetzt sind beide durch den Flush abgesichert, `test_v740` hält die Lieferanten-
+  Zuordnung allein fest.
+- **Benutzer löschen** (P7, offen seit 1.8.13): neu `app/konto_loeschen.py`. Was zum Konto gehört, geht mit ihm (`MIT_DEM_KONTO`: Sitzungen,
+  vertraute Geräte, Wiederherstellungscodes über die ORM-Kaskade, die Kacheln der Startseite hier gelöscht -- auch die scheiterten bisher unter
+  PostgreSQL). Steht das Konto anderswo (`BEREICHE`: Aufgaben, Checklisten, Zeitbuchungen, Anträge, Kalendertermine … -- 12 Spalten), antwortet
+  `DELETE /api/users/{id}` mit 409: „Das Konto wurde schon verwendet (Aufgaben, …) und lässt sich deshalb nicht löschen. Deaktiviere es stattdessen –
+  dann kann es sich nicht mehr anmelden, und alles, was es angelegt hat, bleibt.“ Die Seite „Benutzer“ zeigt die Meldung wie jede andere. Jeder
+  Fremdschlüssel auf `app_users` steht in genau einer der beiden Listen (Wächter); ein neuer kommt dort hinein.
+- `FREMDSCHLUESSEL_BEKANNT` (1.9.339) ist leer und mit dem Hook aus `tests/conftest.py` entfernt; die 11 Tests von E1–E5 laufen wieder normal.
+- Geprüft auch gegen PostgreSQL (Werkzeug des Befunds, Wegwerf-Schemas): `test_v740` und die Tests von E1–E5, 51 von 51 grün.
+- **Laufzeit mit PRAGMA:** volle Suite 1.9.338 (ohne) 11:22 min, 1.9.339 (mit) 11:19 min -- kein messbarer Unterschied (16 Arbeitsprozesse, gleicher
+  Rechner, je ein Lauf).
+
+**Vorschlag (nicht gebaut): Deaktivieren statt Löschen.** Ein Konto, das gearbeitet hat, steht fast immer irgendwo (jede Zeitbuchung, jede Aufgabe);
+Löschen geht dann nicht, Deaktivieren schon -- es beendet die Sitzungen (Regel 30), sperrt die Anmeldung und lässt Urheberschaft und Historie stehen.
+Vorschlag: auf der Seite „Benutzer“ bei einem verwendeten Konto statt „Löschen“ gleich „Deaktivieren“ anbieten (der Server kennt die Bereiche schon,
+`verwendungen()`), „Löschen“ nur für ein nie verwendetes Konto (Tippfehler beim Anlegen). Entscheidung bei Tobias.
+
+**Neuer Fund E6 (nicht gebaut):** einen Wartungsvertrag löschen (`app/maintenance_contracts.py::delete_contract()`) scheitert unter Fremdschlüsseln,
+sobald aus ihm ein Projekt entstanden ist (`project_profiles.source_maintenance_contract_id`) oder ein Berichtsentwurf auf ihn zeigt
+(`service_reports.maintenance_contract_id`) -- live 500. Die Funktion sperrt nur bei einem unterschriebenen Bericht. Gefunden mit einer Probe
+(SQLite mit PRAGMA): ohne beides gelöscht, mit Projekt aus dem Vertrag und mit Berichtsentwurf je `IntegrityError`; kein Test deckte den Weg ab.
+Dasselbe Muster vermutlich bei `delete_contract_item()` (Verweise auf die Position). Vorschlag: wie E1–E5 die Verweise vorher lösen (Projekt-Profil und
+Entwurf behalten, Verweis leer) oder wie beim unterschriebenen Bericht mit Grund ablehnen -- fachliche Entscheidung; der Rundgang V3 (jede DELETE-Route
+gegen PostgreSQL) findet diese Art systematisch.
+
+#### Festlegungen 1.9.340 (Bitte bestätigen)
+
+1. Löschen über Tabellen ohne ORM-Beziehung: zuerst löschen oder lösen, was zeigt, in einem eigenen Flush, dann das Ziel (E1–E3, E5).
+2. Ein erneuter Import einer Leistung löst nur den Verweis einer Angebotskalkulation auf das alte Quellmaterial (`source_material_id` leer); die Werte der
+   Kalkulation bleiben (E4).
+3. Ein Konto, das anderswo steht, wird nicht gelöscht: 409 mit den Bereichen und dem Rat zu deaktivieren. Was nur zum Konto gehört (Sitzungen,
+   vertraute Geräte, Wiederherstellungscodes, Kacheln der Startseite), geht mit ihm.
+4. Jeder Fremdschlüssel auf `app_users` steht in `MIT_DEM_KONTO` oder `BEREICHE` (`app/konto_loeschen.py`); ein neuer kommt dort hinein (Wächter).
+
+#### Tests und Prüfung 1.9.340
+
+Neu `tests/test_v740_e1_bis_e5_und_konto.py` (6 Tests): E1 über die Route, E4 mit erhaltenen Werten, E5 mit Lieferanten-Zuordnung allein, Konto mit
+Verwendung (409), Konto ohne Verwendung mit Kacheln und Wiederherstellungscode (geht mit), jeder Fremdschlüssel eingeordnet. Vor den Korrekturen unter
+dem PRAGMA rot: E1 über die Route, E4, beide Konto-Tests (je `IntegrityError`); grün schon vorher: E5 mit Lieferant allein (siehe oben) und der Wächter.
+Die 11 Tests von E1–E5 (v194, v247, v214, v105, v083) waren seit 1.9.339 streng erwartet rot und laufen jetzt normal. Angepasste Erwartungen: keine
+(nur `FREMDSCHLUESSEL_BEKANNT` entfernt).

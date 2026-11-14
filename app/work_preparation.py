@@ -406,6 +406,10 @@ def refresh_preparation_materials(db: Session, order_id: int, preserved: dict | 
                 db.delete(link)
             for link in db.scalars(select(WorkPreparationMaterialDeliveryNote).where(WorkPreparationMaterialDeliveryNote.material_id.in_(old_material_ids))).all():
                 db.delete(link)
+            # Seit 1.9.340 (E5 aus dem Befund SQLite/PostgreSQL): die Zuordnungen in einem eigenen Flush vor den Materialzeilen. Zwischen den
+            # Zusatztabellen und den Materialzeilen gibt es keine Beziehung (Regel 6), im selben Flush ging das DELETE der Materialzeilen
+            # zuerst hinaus -- unter PostgreSQL scheiterte so jede Positionsänderung eines Auftrags mit zugeordnetem Lieferschein.
+            db.flush()
         for row in list(prep.materials):
             db.delete(row)
         db.flush()

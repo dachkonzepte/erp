@@ -439,15 +439,19 @@ def revert_import_run(db: Session, run_id: int) -> None:
             "erzeugten Kunden/Lieferanten hängt bereits etwas, oder eine Zeile der Arbeitsliste "
             "wurde bereits bearbeitet."
         )
+    # Seit 1.9.340 (E2 aus dem Befund SQLite/PostgreSQL): zuerst die Zeilen des Laufs -- imported_addresses.created_customer_id,
+    # created_supplier_id und created_property_id zeigen auf das, was der Lauf erzeugt hat. Bis dahin wurden die Kunden zuerst gelöscht, die
+    # Abfrage der Lieferanten löste den Autoflush aus, und unter PostgreSQL brach jedes Rückgängigmachen mit 500 ab.
+    rows = db.scalars(select(ImportedAddress).where(ImportedAddress.import_run_id == run.id)).all()
+    for row in rows:
+        db.delete(row)
+    db.flush()
     customers = db.scalars(select(Customer).where(Customer.import_run_id == run.id)).all()
     for customer in customers:
         db.delete(customer)
     suppliers = db.scalars(select(Supplier).where(Supplier.import_run_id == run.id)).all()
     for supplier in suppliers:
         db.delete(supplier)
-    rows = db.scalars(select(ImportedAddress).where(ImportedAddress.import_run_id == run.id)).all()
-    for row in rows:
-        db.delete(row)
     run.status = "reverted"
     run.reverted_at = datetime.utcnow()
     db.commit()

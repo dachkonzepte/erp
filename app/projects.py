@@ -980,12 +980,15 @@ def delete_project(db: Session, project: Project) -> None:
     participant_files = delete_participants_of_project(db, project.id)
     directory = project_directory(project.id)
     for quote in project.quotes:
-        db.execute(delete(QuoteSection).where(QuoteSection.quote_id == quote.id))
-        db.execute(delete(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id))
-        db.execute(delete(QuoteEmployeeAssignment).where(QuoteEmployeeAssignment.quote_id == quote.id))
+        # Seit 1.9.340 (E1 aus dem Befund SQLite/PostgreSQL): zuerst die Platzierungen der Positionen -- quote_item_layouts.section_id zeigt
+        # auf die LV-Titel; bis dahin wurden die Titel zuerst gelöscht, und unter PostgreSQL brach das Löschen jedes Projekts mit einer
+        # Position in einem LV-Titel mit 500 ab.
         item_ids = [item.id for item in quote.items]
         if item_ids:
             db.execute(delete(QuoteItemLayout).where(QuoteItemLayout.quote_item_id.in_(item_ids)))
+        db.execute(delete(QuoteSection).where(QuoteSection.quote_id == quote.id))
+        db.execute(delete(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id))
+        db.execute(delete(QuoteEmployeeAssignment).where(QuoteEmployeeAssignment.quote_id == quote.id))
     db.delete(project)
     db.commit()
     if directory.exists():

@@ -739,11 +739,15 @@ def delete_report(db: Session, report_id: int) -> bool:
     if report.status == "unterschrieben":
         raise ValueError("Ein unterschriebener Bericht kann nicht mehr gelöscht werden.")
     task_ids = [f.follow_up_task_id for f in report.findings if f.follow_up_task_id]
+    # Seit 1.9.340 (E3 aus dem Befund SQLite/PostgreSQL): zuerst der Bericht -- mit ihm gehen die Befunde, deren follow_up_task_id auf die
+    # Aufgaben zeigt; erst danach die Aufgaben. Bis dahin umgekehrt, und unter PostgreSQL brach das Löschen jedes Entwurfs mit einer
+    # Folgeaufgabe mit 500 ab.
+    db.delete(report)
+    db.flush()
     for task_id in task_ids:
         task = db.get(Task, task_id)
         if task is not None:
             db.delete(task)
-    db.delete(report)
     db.commit()
     return True
 

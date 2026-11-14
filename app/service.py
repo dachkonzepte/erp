@@ -4,7 +4,7 @@ from .catalogs import ensure_import_catalog
 from .importers.leistungen_dach import ParsedProject
 from .material_groups import ensure_import_material_group
 from .materials import MaterialVariantsCache, find_or_create_material
-from .models import ImportBatch, Service, ServiceMaterial
+from .models import ImportBatch, QuoteItemMaterialCalculation, Service, ServiceMaterial
 
 SOURCE_TYPE = "leistungen_dach"
 
@@ -60,6 +60,15 @@ def persist_project(db: Session, project: ParsedProject, filename: str) -> tuple
             # liegen in einer separaten Tabelle und bleiben über logische Schlüssel erhalten.
             # catalog_id absichtlich NICHT angefasst -- eine bereits bestehende Leistung im
             # Fertigkatalog bleibt dort, eine vom Nutzer anderswohin verschobene bleibt dort.
+            # Seit 1.9.340 (E4 aus dem Befund SQLite/PostgreSQL): eine Angebotskalkulation, die Material dieser Leistung übernommen hat, zeigt
+            # mit source_material_id auf die alte Zeile. Der Verweis wird gelöst, ihre Werte bleiben (eingefroren in der Kalkulation); bis
+            # dahin brach unter PostgreSQL der ganze Import ab.
+            alte = [m.id for m in service.materials]
+            if alte:
+                for kalkulation in db.scalars(select(QuoteItemMaterialCalculation).where(
+                        QuoteItemMaterialCalculation.source_material_id.in_(alte))).all():
+                    kalkulation.source_material_id = None
+                db.flush()
             service.materials.clear()
 
         service.import_batch_id = batch_id

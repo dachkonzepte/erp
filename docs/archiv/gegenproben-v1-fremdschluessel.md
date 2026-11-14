@@ -31,3 +31,18 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 1 – Kindprozesse, Klicktests und `app/database.py` ohne PRAGMA | keine: eine Festlegung über unveränderten Code (nichts auszuhebeln) | -- |
 
 6 Gegenproben, alle rot; alle Dateien byte-gleich zurück.
+
+## 1.9.340 (Punkt 3): E1–E5 behoben, „Benutzer löschen“ mit Meldung
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – E1: Platzierungen vor den LV-Titeln | LV-Titel wieder zuerst (`340_1`, `app/projects.py`) | 6 rot: v740::test_e1_projekt_mit_lv_titeln_ueber_die_route_loeschen, v194 (5) |
+| Nr. 1 – E2: erst die Zeilen des Laufs | Kunden wieder zuerst (`340_2`, `app/address_import.py`) | 3 rot: v247 (3) |
+| Nr. 1 – E3: erst der Bericht, dann die Aufgaben | Aufgaben wieder zuerst (`340_3`, `app/service_reports.py`) | 1 rot: v214::test_delete_draft_report_removes_photos_from_disk_and_cleans_up_task |
+| Nr. 1 – E5: Zuordnungen in eigenem Flush | ohne den Flush (`340_5`, `app/work_preparation.py`) | 1 rot: v083::test_material_delivery_note_links_survive_order_material_refresh (die Lieferanten-Zuordnung allein bleibt grün, siehe Archiv) |
+| Nr. 2 – E4: nur der Verweis wird gelöst | den Verweis nicht lösen (`340_4`, `app/service.py`) | 2 rot: v740::test_e4_erneuter_import_loest_nur_den_verweis_der_kalkulation, v105 |
+| Nr. 3 – verwendetes Konto: 409 statt Löschen | Verwendung nicht prüfen (`340_6a`, `app/konto_loeschen.py`) | 1 rot: v740::test_konto_mit_verwendung_wird_nicht_geloescht_sondern_erklaert |
+| Nr. 3 – was zum Konto gehört, geht mit | die Kacheln nicht löschen (`340_6b`) | 1 rot: v740::test_konto_ohne_verwendung_geht_mit_allem_was_zu_ihm_gehoert |
+| Nr. 4 – jeder Fremdschlüssel eingeordnet | „Aufgaben“ aus `BEREICHE` genommen (`340_6c`) | 2 rot: v740::test_jeder_fremdschluessel_auf_konten_ist_eingeordnet, test_konto_mit_verwendung_wird_nicht_geloescht_sondern_erklaert |
+
+8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

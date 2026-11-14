@@ -42,7 +42,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -179,30 +178,8 @@ def pytest_runtest_protocol(item, nextitem):
         yield
 
 
-# Seit 1.9.339: E1–E5 aus dem Befund SQLite/PostgreSQL scheitern mit PRAGMA foreign_keys=ON wie live unter PostgreSQL. Bis zu ihrer Behebung
-# (Runde V1, Punkt 3) erwartet rot, nur mit IntegrityError und streng -- wird einer grün, scheitert der Lauf. Die Liste darf nur kürzer werden.
-FREMDSCHLUESSEL_BEKANNT = {
-    **{f"tests/test_v194_project_archive_delete.py::{t}": "E1 Projekt löschen mit LV-Titel (app/projects.py::delete_project())" for t in (
-        "test_delete_project_without_orders_succeeds", "test_delete_template_always_works_since_templates_never_have_orders",
-        "test_delete_project_cascades_to_quote_structure", "test_delete_project_removes_physical_document_folder",
-        "test_delete_project_does_not_touch_other_projects_folder")},
-    **{f"tests/test_v247_address_import.py::{t}": "E2 Adressimport rückgängig (app/address_import.py::revert_import_run())" for t in (
-        "test_revert_deletes_untouched_customers_and_suppliers", "test_reverted_run_frees_the_legacy_address_number_for_a_future_import",
-        "test_upload_preview_confirm_and_revert_over_real_routes")},
-    "tests/test_v214_findings_and_photos.py::test_delete_draft_report_removes_photos_from_disk_and_cleans_up_task":
-        "E3 Berichtsentwurf mit Folgeaufgabe löschen (app/service_reports.py::delete_report())",
-    "tests/test_v105_booking_reassign_week_validity.py::test_backoffice_booking_can_be_reassigned_to_another_project_order":
-        "E4 Leistungskatalog erneut importieren (app/service.py::persist_project())",
-    "tests/test_v083_material_bulk_assignment.py::test_material_delivery_note_links_survive_order_material_refresh":
-        "E5 Materialbedarf der AV neu aufbauen (app/work_preparation.py::refresh_preparation_materials())",
-}
-
-
-def pytest_collection_modifyitems(config, items):
-    for item in items:
-        grund = FREMDSCHLUESSEL_BEKANNT.get(item.nodeid)
-        if grund:
-            item.add_marker(pytest.mark.xfail(strict=True, raises=IntegrityError, reason=f"{grund} -- Fremdschlüssel, behoben mit Punkt 3"))
+# 1.9.339 standen hier E1–E5 aus dem Befund SQLite/PostgreSQL als erwartet rot (FREMDSCHLUESSEL_BEKANNT, xfail streng); seit 1.9.340 behoben,
+# die Liste ist weg.
 
 
 @pytest.hookimpl(tryfirst=True)
