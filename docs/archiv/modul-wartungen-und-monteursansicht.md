@@ -608,6 +608,8 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     `delete_report()` räumt bei einem Entwurf zusätzlich die über `Finding.follow_up_task_id`
     verknüpften Aufgaben auf (direkt über die FK, nicht per URL-Textabgleich wie
     `delete_contract()` seit 1.2.10 – hier existiert eine echte, eindeutige Spalte).
+    **Seit 1.9.343** nur eine unangetastete; eine angefasste bleibt mit Vermerk
+    (`folgeaufgabe_angefasst()`, siehe `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.343“).
     PDF (`app/service_report_pdf.py`): zwei neue Abschnitte NACH den Prüfpunkten, nur wenn
     nicht leer – "Dokumentation" (Prüfpunkt-Fotos ohne Mangel, eigener Abschnitt statt
     Tabellen-Einbettung, da eine `platypus.Table` mit unterschiedlich großen Bildern die

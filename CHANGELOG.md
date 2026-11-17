@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.343 – Folgeaufgabe eines Berichtsentwurfs nur unangetastet mitlöschen
+
+Punkt 1 der Runde ab 1.9.343 (Variante A, Entscheidung Tobias). Löscht jemand einen Berichtsentwurf, geht die Folgeaufgabe eines Befunds („Büro prüfen lassen“) nur noch mit, solange niemand sie angefasst hat. Angefasst ist sie, wenn sie nicht mehr in der Anfangsspalte steht (auch erledigt), Unteraufgaben hat, aus ihr ein Vorgang erstellt wurde oder sie sonst seit dem Anlegen geändert wurde (`app/service_reports.py::folgeaufgabe_angefasst()`). Eine angefasste bleibt; der Verweis des Befunds entfällt mit ihm, und vorn in der Beschreibung steht „Der Berichtsentwurf mit diesem Befund wurde am … von … gelöscht – bitte prüfen.“ mit dem Konto, das gelöscht hat. Bis 1.9.342 ging jede Folgeaufgabe mit, auch bearbeitete oder erledigte -- spurlos.
+
+Neu `tests/test_v743_folgeaufgabe_angefasst.py` (15 Tests); mit dem Stand bis 1.9.342 sind 13 davon rot. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.342 – Benutzer: „Deaktivieren“ statt „Löschen“ bei verwendetem Konto
 
 Punkt 2 der Nachrunde zu V1 (Entscheidung Tobias). Die Seite „Benutzer und Zugriff“ bietet „Löschen“ nur noch für ein Konto an, das nie verwendet wurde; ein verwendetes aktives Konto bekommt stattdessen „Deaktivieren“ (die Rückfrage nennt, wo es steht, und dass das bleibt), ein verwendetes inaktives keinen der beiden Knöpfe. Der Server sagt es: `GET /api/users` nennt je Konto `verwendet_in` (leer = nie verwendet). Neu `POST /api/users/{id}/deaktivieren`: ändert nur den Status und beendet alle Sitzungen des Kontos; nicht das eigene Konto, nicht der letzte aktive Administrator. Ein eigener Weg, weil `PUT /api/users/{id}` ein volles Update ist und Rolle und Mitarbeiter sonst auf die Vorgaben fielen.

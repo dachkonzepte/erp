@@ -17,7 +17,7 @@ Antworten auf einen sich zwischen Berichtsanlage und Ausführung ändernden Baut
 import json
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import event, func, select
@@ -31,7 +31,7 @@ from .inspection_templates import ITEM_TYPES
 from .modules import is_module_enabled
 from .paths import data_dir
 from .models import (
-    Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
+    AppUser, Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
     MaintenanceContractItem, Material, OperationalAsset, Order, Project, Property, RoofArea,
     RoofTypeInspectionTemplateDefault, ServiceReport, ServiceReportAsset, ServiceReportMaterial,
     ServiceReportPhoto, ServiceReportRoofArea, Task,
@@ -721,13 +721,34 @@ def update_report(db: Session, report_id: int, aenderungen: dict) -> dict | None
     return report_to_dict(_load(db, report.id))
 
 
-def delete_report(db: Session, report_id: int) -> bool:
-    """Ein unterschriebener Bericht ist ohnehin nicht löschbar (GoBD-Unveränderlichkeit) -- bei
-    einem Entwurf müssen zusätzlich die über Finding.follow_up_task_id locker angehängten
-    Aufgaben mit aufgeräumt werden, genau wie delete_contract() das seit 1.2.10 für seine
-    Erinnerungs-Aufgaben tut. Anders als dort (URL-Textabgleich, da MaintenanceContract keine
-    direkte FK zu Task hat) geht das hier direkt über die FK-Spalte follow_up_task_id -- eindeutig
-    und ohne die dort nötige Ungenauigkeit bei mehreren Entwürfen desselben Auftrags.
+# Seit 1.9.343 (Variante A, Nachrunde V1 Punkt 3): „sonst seit dem Anlegen geändert“ heißt, updated_at liegt mehr als diese Spanne nach
+# created_at. Beide Zeitpunkte setzt das Anlegen getrennt, wenige Mikrosekunden auseinander (gemessen 2 µs); jede Änderung an der Zeile der
+# Aufgabe setzt updated_at neu (onupdate, auch das bedingte UPDATE beim Übernehmen).
+UNVERAENDERT_BIS = timedelta(seconds=1)
+
+
+def folgeaufgabe_angefasst(db: Session, task: Task, finding: Finding) -> bool:
+    """Hat jemand die Folgeaufgabe eines Befunds angefasst (seit 1.9.343)? Ja, wenn sie nicht mehr in der Anfangsspalte steht (auch erledigt),
+    Unteraufgaben hat, aus ihr ein Vorgang erstellt wurde (follow_up_order_id/follow_up_project_id am Befund) oder sie sonst seit dem Anlegen
+    geändert wurde (Zuständigkeit, Übernehmen, Fälligkeit, Priorität, Titel, Beschreibung, Archiv -- UNVERAENDERT_BIS)."""
+    from .tasks import _default_column_key
+
+    return (task.status != _default_column_key(db) or bool(task.checklist_items)
+            or finding.follow_up_order_id is not None or finding.follow_up_project_id is not None
+            or task.updated_at - task.created_at > UNVERAENDERT_BIS)
+
+
+def folgeaufgabe_vermerk(name: str) -> str:
+    """Vermerk an einer Folgeaufgabe, die beim Löschen ihres Berichtsentwurfs bleibt (seit 1.9.343, Wortlaut Tobias)."""
+    return f"Der Berichtsentwurf mit diesem Befund wurde am {berlin_today():%d.%m.%Y} von {name} gelöscht – bitte prüfen."
+
+
+def delete_report(db: Session, report_id: int, user: AppUser | None = None) -> bool:
+    """Ein unterschriebener Bericht ist ohnehin nicht löschbar (GoBD-Unveränderlichkeit). Bei einem Entwurf gehen die Befunde mit; ihre
+    Folgeaufgaben (Finding.follow_up_task_id, „Büro prüfen lassen“) seit 1.9.343 nur, solange niemand sie angefasst hat
+    (folgeaufgabe_angefasst()). Eine angefasste bleibt: der Verweis des Befunds entfällt mit ihm, die Beschreibung bekommt vorn den Vermerk
+    folgeaufgabe_vermerk() mit dem Konto, das löscht (user; ohne den Auslöser der Anfrage). Bis 1.9.342 ging jede Folgeaufgabe mit, auch
+    zugewiesen, mit Fälligkeit, erledigt oder mit Unteraufgaben -- spurlos.
     follow_up_order_id/follow_up_project_id bleiben unangetastet: der daraus entstandene Auftrag
     ist ein eigenständiges, bereits reales Geschäftsvorgang -- nur die lose Rückverweis-Markierung
     am (gleich gelöschten) Finding verschwindet mit. Die Herkunft selbst geht dabei NICHT
@@ -738,15 +759,25 @@ def delete_report(db: Session, report_id: int) -> bool:
         return False
     if report.status == "unterschrieben":
         raise ValueError("Ein unterschriebener Bericht kann nicht mehr gelöscht werden.")
-    task_ids = [f.follow_up_task_id for f in report.findings if f.follow_up_task_id]
+    folgen = []
+    for finding in report.findings:
+        task = db.get(Task, finding.follow_up_task_id) if finding.follow_up_task_id else None
+        if task is not None:
+            folgen.append((task, folgeaufgabe_angefasst(db, task, finding)))
     # Seit 1.9.340 (E3 aus dem Befund SQLite/PostgreSQL): zuerst der Bericht -- mit ihm gehen die Befunde, deren follow_up_task_id auf die
     # Aufgaben zeigt; erst danach die Aufgaben. Bis dahin umgekehrt, und unter PostgreSQL brach das Löschen jedes Entwurfs mit einer
     # Folgeaufgabe mit 500 ab.
     db.delete(report)
     db.flush()
-    for task_id in task_ids:
-        task = db.get(Task, task_id)
-        if task is not None:
+    if any(angefasst for _, angefasst in folgen):
+        from .audit import current_actor
+
+        name = (user.display_name or user.username) if user is not None else current_actor()[1]
+        vermerk = folgeaufgabe_vermerk(name)
+    for task, angefasst in folgen:
+        if angefasst:
+            task.description = vermerk + (f"\n\n{task.description}" if task.description else "")
+        else:
             db.delete(task)
     db.commit()
     return True

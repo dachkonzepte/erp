@@ -252,7 +252,7 @@ def delete_service_report(report_id: int, db: Session = Depends(get_db, scope="f
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, report_id)
     try:
-        deleted = delete_report(db, report_id)
+        deleted = delete_report(db, report_id, _role)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:

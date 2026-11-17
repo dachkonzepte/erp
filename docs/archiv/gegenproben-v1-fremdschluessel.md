@@ -72,3 +72,18 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 3 – nur `active` ändert sich | Deaktivieren setzt auch die Rolle zurück (`342_4`) | 1 rot: v742::test_deaktivieren_laesst_den_rest_und_beendet_die_sitzungen |
 
 8 Gegenproben (6 über Tests, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde ab 1.9.343, 1.9.343 (Punkt 1): Folgeaufgabe nur unangetastet mitlöschen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur unangetastet mitlöschen (Stand bis 1.9.342 nachgestellt) | jede Folgeaufgabe geht mit (`343_1`) | 13 rot: v743, alle zehn Arten „angefasst“, Vorgang bleibt, nur die angefasste von zweien, Route |
+| Nr. 1 und 3 – nicht mehr in der Anfangsspalte (auch erledigt) | ohne Spaltenmerkmal (`343_2`) | 3 rot: v743 [spalte gewechselt], [erledigt], Route |
+| Nr. 1 – mit Unteraufgaben | ohne Merkmal Unteraufgaben (`343_3`) | 2 rot: v743 [mit unteraufgabe], nur die angefasste von zweien |
+| Nr. 1 – mit Vorgang daraus | ohne Merkmal Vorgang (`343_4`) | 2 rot: v743 [vorgang daraus], test_vorgang_aus_der_aufgabe_bleibt_bestehen |
+| Nr. 1 und 2 – sonst seit dem Anlegen geändert | ohne Merkmal `updated_at` (`343_5`) | 6 rot: v743 [prioritaet], [faelligkeit], [beschreibung], [zugewiesen], [uebernommen], [archiviert] |
+| Nr. 2 – erst mehr als eine Sekunde zählt | Spanne 0 statt 1 s (`343_6`) | 3 rot: beide unangetasteten, nur die angefasste von zweien |
+| Nr. 4 – Konto im Vermerk | Name immer aus dem Anfragekontext (`343_7`) | 11 rot: v743, die zehn Arten und die Route |
+| Nr. 4 – Vermerk vorn, Beschreibung darunter | Vermerk hinten angehängt (`343_8`) | 11 rot: dieselben |
+
+8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

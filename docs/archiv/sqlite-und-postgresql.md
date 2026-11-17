@@ -291,6 +291,8 @@ Neu `tests/test_v742_benutzer_deaktivieren.py` (4 Tests) und `scripts/klicktest_
 
 ### Punkt 3 (nur geprüft, nicht gebaut): Folgeaufgaben, die E3 mit dem Berichtsentwurf löscht
 
+Entschieden 17.11.2026: Variante A, gebaut in 1.9.343; das Löschen von Aufgaben steht seit 1.9.344 in der Änderungshistorie (siehe „Runde ab 1.9.343“).
+
 - **Wie sie entsteht:** wählt die Monteurin an einem Befund die Maßnahme „Büro prüfen lassen“, legt `app/findings.py::_execute_finding_action()` sofort
   eine Aufgabe an („Büro prüfen lassen: <Befund>“), zugewiesen an den Sachbearbeiter des Auftrags, mit Mail an ihn -- schon im Entwurf des Berichts.
   `Finding.follow_up_task_id` zeigt auf sie. Das Büro sieht sie sofort.
@@ -307,3 +309,50 @@ Neu `tests/test_v742_benutzer_deaktivieren.py` (4 Tests) und `scripts/klicktest_
   Unteraufgaben, ohne Vorgang daraus, sonst unverändert seit dem Anlegen). Sonst bleibt sie: der Verweis des Befunds entfällt mit dem Entwurf, die Aufgabe
   bekommt einen Vermerk in der Beschreibung („Der Berichtsentwurf mit diesem Befund wurde am … gelöscht.“), und das Büro entscheidet. Alternative: das
   Löschen des Entwurfs mit 409 ablehnen, solange eine Folgeaufgabe bearbeitet ist -- dann kann die Monteurin ihren Entwurf nicht mehr selbst aufräumen.
+
+## Runde ab 1.9.343: Aufgaben beim Löschen
+
+Nachrunde V1 geprüft (f67cba8) und live; die 7 Festlegungen 1.9.341–1.9.342 bestätigt (17.11.2026). Antworten Tobias:
+- **Punkt 3: Variante A.** „Angefasst“ wie beschrieben: nicht mehr im Anfangsstatus, erledigt, mit Unteraufgaben, mit Vorgang daraus oder sonst
+  seit dem Anlegen geändert. Unangetastet geht sie mit dem Entwurf; angefasst bleibt sie, der Verweis entfällt, Vermerk in der Beschreibung „Der
+  Berichtsentwurf mit diesem Befund wurde am … von … gelöscht – bitte prüfen.“
+- **Änderungshistorie:** nur das Löschen von Aufgaben -- jedes Löschen, auch das Mitlöschen mit einem Entwurf, mit Titel, Konto, Zeitpunkt und
+  Anlass. Sonstige Änderungen an Aufgaben nicht.
+
+Runde ab 1.9.343, je Punkt eine Version: **1** Variante A, mit einem Test, der vorher rot war; **2** Löschen von Aufgaben in die Änderungshistorie,
+auf allen Wegen, die Aufgaben löschen (Liste der Wege in den Bericht); **3** Seite „Benutzer“: die Rückfrage bei „Deaktivieren“ und „Löschen“ nennt
+Benutzername und Anzeigename (bei 412 px ist neben dem Knopf kein Name zu sehen), Bilder 412 px hell und dunkel. Rückfrage 17.11.2026: die Rückfrage
+ist ein `confirm()` des Browsers, ein Bildschirmfoto zeigt ihn nicht -- Antwort Tobias: `confirm()` bleibt (Regel 4); die Bilder zeigen die Zeile mit dem
+Knopf, der Klicktest liest den Text des Dialogs, der Bericht zitiert ihn.
+
+### Umsetzung 1.9.343: Folgeaufgabe nur unangetastet mitlöschen (Punkt 1, Variante A)
+
+- `app/service_reports.py::folgeaufgabe_angefasst()`: angefasst ist eine Folgeaufgabe, wenn sie nicht mehr in der Anfangsspalte steht (das deckt
+  „erledigt“: jede Spalte „erledigt“ ist eine andere als die erste), Unteraufgaben hat, aus ihr ein Vorgang erstellt wurde (`follow_up_order_id`
+  bzw. `follow_up_project_id` am Befund) oder sie sonst seit dem Anlegen geändert wurde: `updated_at` liegt mehr als `UNVERAENDERT_BIS` (1 s) nach
+  `created_at`. Beide Zeitpunkte setzt das Anlegen getrennt, gemessen 2 µs auseinander -- deshalb nicht „ungleich“. Jede Änderung an der Zeile der
+  Aufgabe setzt `updated_at` neu: Spalte, Zuständigkeit, Fälligkeit, Priorität, Titel, Beschreibung, Archiv, auch das bedingte UPDATE beim Übernehmen
+  (geprüft: `onupdate` greift dort). Unteraufgaben und Vorgang ändern die Zeile nicht, deshalb eigene Merkmale.
+- `delete_report()` prüft je Befund vor dem Löschen; danach (eigener Flush wie seit 1.9.340) geht eine unangetastete Folgeaufgabe, eine angefasste
+  bleibt: der Befund geht mit dem Bericht und mit ihm der Verweis, die Beschreibung bekommt vorn `folgeaufgabe_vermerk()` -- Wortlaut wie oben, Datum in
+  Berlin, Konto = Anzeigename des löschenden Kontos (sonst Benutzername; ohne Konto der Auslöser der Anfrage). Die Route gibt das Konto mit
+  (`DELETE /api/service-reports/{id}`, Monteurin für den eigenen Entwurf wie Büro). Ein aus der Aufgabe erstellter Vorgang bleibt wie bisher.
+- Nicht geändert: Wartungsvertrag und Aufgaben von Hand. Die Änderung der Beschreibung steht nicht in der Historie (nur das Löschen, Punkt 2).
+
+#### Festlegungen 1.9.343 (Bitte bestätigen)
+
+1. Eine Folgeaufgabe geht mit ihrem Berichtsentwurf nur unangetastet. Angefasst: nicht in der Anfangsspalte (auch erledigt), mit Unteraufgaben (beim
+   Löschen vorhanden), mit Vorgang daraus oder sonst seit dem Anlegen geändert.
+2. „Sonst seit dem Anlegen geändert“ = `updated_at` mehr als eine Sekunde nach `created_at` (das Anlegen setzt beide Mikrosekunden auseinander).
+3. Anfangsspalte = die heute erste Spalte der Aufgaben. Hat der Admin die Spalten seit dem Anlegen umgestellt, gilt eine Aufgabe in der früheren ersten
+   Spalte als angefasst und bleibt -- die sichere Richtung.
+4. Eine angefasste bleibt mit dem Vermerk vorn in der Beschreibung (Wortlaut Tobias, Datum in Berlin, Anzeigename des löschenden Kontos), die bisherige
+   Beschreibung darunter.
+
+#### Tests und Prüfung 1.9.343
+
+Neu `tests/test_v743_folgeaufgabe_angefasst.py` (15 Tests): unangetastet geht (auch eine ältere), je eine Art „angefasst“ (Spalte, erledigt, Unteraufgabe,
+Vorgang, Priorität, Fälligkeit, Beschreibung, zugewiesen, übernommen, archiviert) bleibt mit Vermerk, der Vorgang bleibt, von zwei Folgeaufgaben nur die
+angefasste, über die Route mit dem Namen des Kontos. Für die Arten, die nur über `updated_at` erkennbar sind, setzt der Test beide Zeitpunkte eine Stunde
+zurück (eine Änderung liegt dann wie im Betrieb nach dem Anlegen). Mit dem Stand bis 1.9.342 nachgestellt (`343_1`: jede Folgeaufgabe geht mit) sind 13
+rot -- alle außer den beiden unangetasteten. Angepasste Erwartungen: keine.
