@@ -46,6 +46,7 @@ from .models import (
 )
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from .tasks import PRIORITIES
+from .telefonbuch import nach_namen
 
 FIELD_TYPES = (
     "ja_nein", "text", "zahl", "auswahl", "datum", "uhrzeit", "datum_uhrzeit", "foto", "beleg", "unterschrift", "hinweis",
@@ -270,7 +271,7 @@ def list_templates(db: Session, include_archived: bool = False) -> list[dict]:
     query = _template_query()
     if not include_archived:
         query = query.where(ChecklistTemplate.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich
-    query = query.order_by(ChecklistTemplate.sort_order, ChecklistTemplate.label, ChecklistTemplate.id)
+    query = query.order_by(ChecklistTemplate.sort_order, *nach_namen(ChecklistTemplate.label), ChecklistTemplate.id)
     return [template_to_dict(t) for t in db.scalars(query).all()]
 
 

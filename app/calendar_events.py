@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from .auth import resolve_account_display
 from .berlin_time import to_berlin
 from .models import AppUser, CalendarEvent, OperationalResource, Project, Quote
+from .telefonbuch import nach_namen
 
 MODULE_KEY = "kalender"
 
@@ -223,7 +224,7 @@ def list_owners(db: Session, *, role_keys: tuple[str, ...]) -> list[dict]:
     """Für den Besitzer-Auswahl-Dropdown und die Kollegen-Namen der Kalenderansicht --
     ausschließlich aktive Konten der übergebenen Rollen (die Büro-/Admin-Rollen mit Zugriff auf
     dieses Modul, kein AppUser mit role='field')."""
-    stmt = select(AppUser).where(AppUser.active == True, AppUser.role.in_(role_keys)).order_by(AppUser.display_name)  # noqa: E712
+    stmt = select(AppUser).where(AppUser.active == True, AppUser.role.in_(role_keys)).order_by(*nach_namen(AppUser.display_name), AppUser.id)  # noqa: E712
     return [{"id": u.id, "display_name": resolve_account_display(db, u)["full_name"]} for u in db.scalars(stmt).all()]
 
 

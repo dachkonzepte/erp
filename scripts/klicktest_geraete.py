@@ -243,7 +243,8 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     liste = await tab.js(LISTE)
     p.pruefe("Liste: Plantafel und nur Plantafel", [z for z in liste if z[0] in ("Pritsche HS-DK 202 MAN", "Leiter Alu 6 m", "Rüttelplatte Wacker", "Hubsteiger Genie")],
-             [["Pritsche HS-DK 202 MAN", "Plantafel", "Öffnen"], ["Leiter Alu 6 m", "Plantafel", "Öffnen"], ["Rüttelplatte Wacker", "", "Öffnen"],
+             # seit 1.9.353 nach dem aufgelösten Namen wie im Telefonbuch (bis dahin die mit Gerät vorn, in der Reihenfolge des Anlegens)
+             [["Leiter Alu 6 m", "Plantafel", "Öffnen"], ["Pritsche HS-DK 202 MAN", "Plantafel", "Öffnen"], ["Rüttelplatte Wacker", "", "Öffnen"],
               ["Hubsteiger Genie", "nur Plantafel", "Betriebsmittel anlegen"]])
     p.pruefe("Liste: Untertitel zählt „nur Plantafel“, nirgends „Ressource“", [await tab.js("document.getElementById('seitenkopfUntertitel').textContent"),
                                                                              await tab.js(OHNE_WORT)], ["6 inventarisierte Betriebsmittel · 1 nur Plantafel", True])

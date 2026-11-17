@@ -30,6 +30,7 @@ from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
 from .version import APP_VERSION
 from .rounding import round_half_up, round_hours
+from .telefonbuch import nach_namen
 
 
 # Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
@@ -2220,7 +2221,7 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
         rand_start, rand_ende = min(x.start_date for x in visible), max(x.end_date for x in visible)
         if rand_start < start_date or rand_ende > end_date:
             relevant = db.scalars(_einsatz_abfrage().where(PlanningSlot.start_date <= rand_ende, PlanningSlot.end_date >= rand_start)).all()
-    all_employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)).all()
+    all_employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True).order_by(*nach_namen(Employee.last_name, Employee.first_name), Employee.id)).all()
     kennzeichen=_plantafel_map(db,all_employees)  # seit 1.9.253: das Kennzeichen „Plantafel“ einmal für alle
     visible_employee_ids={x.id for x in all_employees if kennzeichen[x.id]!="nicht_zeigen"}
     employees=[x for x in all_employees if x.id in visible_employee_ids]
@@ -2234,7 +2235,7 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
     for slot_id, warnungen in termin_warnungen_der_tafel(db, visible, settings).items():  # seit 1.9.255 (bis 1.9.254 nur beim Speichern)
         conflict_map[slot_id] = conflict_map.get(slot_id, []) + warnungen
 
-    teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
+    teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(*nach_namen(Team.name), Team.id)).all()
     used_team_ids = {x.team_assignment.team_id for x in visible if x.team_assignment is not None}
     team_rows=[]
     for team in teams:
@@ -2243,7 +2244,7 @@ def planning_board(db: Session, start_date: date, end_date: date, betrachter_use
             # seit 1.9.247 Vorname und Kolonnenführer (Zeile der Tafel: „Tom (KF), Mia, Ole“)
             "employees":[{"id":x.employee_id,"name":_employee_name(x.employee),"vorname":(x.employee.first_name or _employee_name(x.employee)).strip(),"role":x.role,"kf":bool(x.is_crew_leader)} for x in team.employees if x.employee and x.employee_id in visible_employee_ids],
             "resources":[{"id":x.resource_id,"name":x.resource.name,"type":x.resource.resource_type,"role":x.role} for x in team.resources if x.resource]})
-    resources=db.scalars(select(OperationalResource).where(OperationalResource.active==True).order_by(OperationalResource.resource_type,OperationalResource.name)).all()
+    resources=db.scalars(select(OperationalResource).where(OperationalResource.active==True).order_by(OperationalResource.resource_type,*nach_namen(OperationalResource.name), OperationalResource.id)).all()
 
     holiday_names, holiday_meta=_combined_holiday_map(db,start_date,end_date); holiday_dates=set(holiday_names)
     school_holidays, school_warnings=school_holidays_for_range(db,start_date,end_date,auto_sync=False)

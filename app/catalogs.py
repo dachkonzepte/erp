@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Catalog, Service
+from .telefonbuch import nach_namen
 
 IMPORT_CATALOG_NAME = "Fertigkatalog (Importe)"
 
@@ -59,7 +60,7 @@ def backfill_existing_services(db: Session, catalog: Catalog) -> int:
 
 
 def list_catalogs(db: Session, *, include_archived: bool = False) -> list[Catalog]:
-    stmt = select(Catalog).order_by(Catalog.is_import_catalog.desc(), Catalog.name)
+    stmt = select(Catalog).order_by(Catalog.is_import_catalog.desc(), *nach_namen(Catalog.name), Catalog.id)
     if not include_archived:
         stmt = stmt.where(Catalog.archived == False)  # noqa: E712
     return db.scalars(stmt).all()

@@ -46,6 +46,7 @@ from .permissions import ROLE_OFFICE_FINANZEN
 from .recurring_cost_documents import delete_document_file
 from .rounding import round_money
 from .tasks import create_task
+from .telefonbuch import nach_namen
 
 MODULE_KEY = "betriebskosten"
 
@@ -233,7 +234,7 @@ def list_costs(db: Session, *, include_inactive: bool = True) -> list[dict]:
     query = _cost_query()
     if not include_inactive:
         query = query.where(RecurringCost.active == True)  # noqa: E712
-    query = query.order_by(RecurringCost.label)
+    query = query.order_by(*nach_namen(RecurringCost.label), RecurringCost.id)
     return [cost_to_dict(c, lead_days) for c in db.scalars(query).all()]
 
 

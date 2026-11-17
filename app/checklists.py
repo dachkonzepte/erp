@@ -113,6 +113,7 @@ from .models import (
 from .operational_assets import resolve_asset_identity
 from .paths import data_dir
 from .signature_image import MAX_SIGNATURE_PNG_BYTES, check_signature_png
+from .telefonbuch import nach_namen
 
 logger = logging.getLogger(__name__)
 
@@ -847,7 +848,7 @@ def list_startable_templates(db: Session, context_type: str) -> list[dict]:
         .join(ChecklistTemplateVersion, ChecklistTemplateVersion.template_id == ChecklistTemplate.id)
         .where(ChecklistTemplate.archived == False, column == True,  # noqa: E712 -- SQLAlchemy-Vergleich
                ChecklistTemplateVersion.status == "veroeffentlicht")
-        .order_by(ChecklistTemplate.sort_order, ChecklistTemplate.label)
+        .order_by(ChecklistTemplate.sort_order, *nach_namen(ChecklistTemplate.label), ChecklistTemplate.id)
     ).all()
     return [{"id": t.id, "label": t.label, "description": t.description, "version_no": no,
              "purpose": purpose, "purpose_label": purpose_label(purpose)}

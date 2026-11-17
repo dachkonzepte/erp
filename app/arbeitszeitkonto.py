@@ -40,6 +40,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .telefonbuch import sortierwert
+
 NULL = Decimal("0")
 KONTOBEGINN = date(2027, 1, 1)  # der Tag nach dem Stichtag der Startwerte (app/lohnkonten.py::STICHTAG)
 GEWERBLICH = "gewerblich"
@@ -184,7 +186,7 @@ def konten(db: Session, von: date, bis: date, employee_ids=None, *, heute: date 
     startwerte = {s.employee_id: s for s in db.scalars(select(LohnStartwert).where(LohnStartwert.employee_id.in_([e.id for e in personen] or [0])))}
 
     ergebnis = []
-    for emp in sorted(personen, key=lambda e: (not e.active, (e.last_name or "").casefold(), (e.first_name or "").casefold(), e.id)):
+    for emp in sorted(personen, key=lambda e: (not e.active, sortierwert(e.last_name), sortierwert(e.first_name), e.id)):
         s = startwerte.get(emp.id)
         start = s.saldo_stunden if s is not None else None
         k = Konto(emp.id, employee_name(emp) or f"#{emp.id}", bool(emp.active), start)

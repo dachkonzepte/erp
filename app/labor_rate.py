@@ -10,6 +10,7 @@ from .models import (
 from .employees import annual_gross_wage, effective_cost_allocation
 from .recurring_costs import list_costs, overview_summary
 from .rounding import round_money
+from .telefonbuch import nach_namen
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
@@ -49,7 +50,7 @@ def active_employees(db: Session) -> list[Employee]:
         select(Employee)
         .options(selectinload(Employee.compensation))
         .where(Employee.active.is_(True))
-        .order_by(Employee.last_name, Employee.first_name)
+        .order_by(*nach_namen(Employee.last_name, Employee.first_name), Employee.id)
     ).all()
 
 

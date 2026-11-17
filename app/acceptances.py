@@ -61,6 +61,7 @@ from .models import (
 )
 from .paths import data_dir
 from .warranty import END_RULE_TEXT, duration_text, warranty_end
+from .telefonbuch import nach_namen
 
 KINDS = {"foermlich": "förmlich", "ausdruecklich": "ausdrücklich", "schluessig": "schlüssig"}
 SCOPES = {"gesamt": "Gesamtabnahme", "teil": "Teilabnahme"}
@@ -420,7 +421,7 @@ def acceptance_options(db: Session, order: Order) -> dict:
     project = db.get(Project, order.project_id)
     prop = db.get(Property, project.property_id) if project and project.property_id else None
     roof_areas = db.scalars(
-        select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False)).order_by(RoofArea.name)
+        select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False)).order_by(*nach_namen(RoofArea.name), RoofArea.id)
     ).all() if prop else []
     participants = db.scalars(
         select(ProjectParticipant).options(selectinload(ProjectParticipant.contact))

@@ -36,6 +36,7 @@ from .models import (
     Checklist, Invoice, Order, OrderAcceptance, OrderContract, PlanningSlot, Project, Quote, ServiceReport, TimeEntry, WorkPreparation,
 )
 from .rounding import round_half_up, round_hours, round_money
+from .telefonbuch import sortierwert
 
 PHASEN = ("angebot", "auftrag", "ausfuehrung", "abnahme", "schlussrechnung")
 PHASE_NAMEN = {"angebot": "Angebot", "auftrag": "Auftrag", "ausfuehrung": "Ausführung", "abnahme": "Abnahme",
@@ -326,7 +327,7 @@ def stunden(db: Session, order: Order) -> dict:
     soll = soll_stunden(order)
     mitarbeiter = [{"employee_id": k, "name": namen.get(k, f"Nr. {k}"), "tage": len(v["tage"]), "fahrzeit": round_hours(v["fahrzeit"]),
                     "stunden": round_hours(v["stunden"])} for k, v in je.items()]
-    mitarbeiter.sort(key=lambda x: (-x["stunden"], x["name"]))
+    mitarbeiter.sort(key=lambda x: (-x["stunden"], sortierwert(x["name"])))
     return {"soll": soll, "gebucht": round_hours(gebucht), "fahrzeit": round_hours(fahrzeit), "baustelle_werkstatt": round_hours(bw),
             "ohne_position": round_hours(ohne_position), "abweichung": round_hours(bw - soll), "prozent_vom_soll": _prozent(bw, soll),
             "je_zeitart": {k: round_hours(v) for k, v in je_zeitart.items()}, "mitarbeiter": mitarbeiter}

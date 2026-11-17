@@ -32,6 +32,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .telefonbuch import sortierwert
+
 NULL = Decimal("0")
 ZEHNTEL = Decimal("0.1")
 URLAUB = "urlaub"
@@ -123,7 +125,7 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
         offen.setdefault(r.employee_id, []).append(r)
 
     ergebnis = []
-    for emp in sorted(personen, key=lambda e: (not e.active, (e.last_name or "").casefold(), (e.first_name or "").casefold())):
+    for emp in sorted(personen, key=lambda e: (not e.active, sortierwert(e.last_name), sortierwert(e.first_name), e.id)):
         tage = b.tage[emp.id]
         soll = {t: x.soll for t, x in tage.items()}
         p = b.payrolls.get(emp.id)

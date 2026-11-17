@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Employee, EmployeeAbsenceRequest, EmployeeRoleSettings, PlanningHoliday, Team, TeamEmployee, TimeEntry
+from .telefonbuch import nach_namen
 
 SCHLECHTWETTER = "schlechtwetter"
 WOCHENTAG = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
@@ -74,7 +75,7 @@ def ist_fuehrung(db: Session, employee_id: int | None) -> bool:
 
 def gewerbliche(db: Session) -> list[Employee]:
     return list(db.scalars(select(Employee).where(Employee.active.is_(True), Employee.employee_group == "gewerblich")
-                           .order_by(Employee.last_name, Employee.first_name)).all())
+                           .order_by(*nach_namen(Employee.last_name, Employee.first_name), Employee.id)).all())
 
 
 def kolonnen(db: Session) -> list[dict]:
@@ -82,7 +83,7 @@ def kolonnen(db: Session) -> list[dict]:
     zeilen = db.execute(select(Team.id, Team.name, TeamEmployee.employee_id).join(TeamEmployee, TeamEmployee.team_id == Team.id)
                         .join(Employee, Employee.id == TeamEmployee.employee_id)
                         .where(Team.active.is_(True), Employee.active.is_(True), Employee.employee_group == "gewerblich")
-                        .order_by(Team.name, Team.id)).all()
+                        .order_by(*nach_namen(Team.name), Team.id)).all()
     je: dict[int, dict] = {}
     for tid, name, eid in zeilen:
         je.setdefault(tid, {"id": tid, "name": name, "mitglieder": []})["mitglieder"].append(eid)

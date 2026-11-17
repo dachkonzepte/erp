@@ -15,6 +15,7 @@ from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalAsset
 from ..operational_assets import loeschbare_ressourcen, ressource_in_gebrauch
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -106,7 +107,7 @@ def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
 
 @router.get("/api/suppliers", response_model=list[SupplierOut])
 def list_suppliers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    return [SupplierOut.model_validate(_supplier_dict(x)) for x in db.scalars(select(Supplier).order_by(Supplier.name)).all()]
+    return [SupplierOut.model_validate(_supplier_dict(x)) for x in db.scalars(select(Supplier).order_by(*nach_namen(Supplier.name), Supplier.id)).all()]
 
 
 @router.get("/api/suppliers/{supplier_id}", response_model=SupplierOut)
@@ -149,7 +150,7 @@ def delete_supplier(supplier_id:int,db:Session=Depends(get_db, scope="function")
 @router.get("/api/resources", response_model=list[OperationalResourceOut])
 def list_resources(db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     frei=loeschbare_ressourcen(db)  # seit 1.9.305: eine Abfrage je Tabelle für die ganze Liste
-    return [OperationalResourceOut.model_validate(_resource_dict(x,x.id in frei)) for x in db.scalars(select(OperationalResource).order_by(OperationalResource.resource_type,OperationalResource.name)).all()]
+    return [OperationalResourceOut.model_validate(_resource_dict(x,x.id in frei)) for x in db.scalars(select(OperationalResource).order_by(OperationalResource.resource_type,*nach_namen(OperationalResource.name), OperationalResource.id)).all()]
 
 
 @router.get("/api/resources/{resource_id}", response_model=OperationalResourceOut)
@@ -197,7 +198,7 @@ def delete_resource(resource_id:int,db:Session=Depends(get_db, scope="function")
 
 @router.get("/api/teams", response_model=list[TeamOut])
 def list_teams(db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    rows=db.scalars(select(Team).order_by(Team.name)).all()
+    rows=db.scalars(select(Team).order_by(*nach_namen(Team.name), Team.id)).all()
     return [TeamOut.model_validate(_team_dict(db,x)) for x in rows]
 
 

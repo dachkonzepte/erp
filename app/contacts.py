@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import Contact, Customer, Project, ProjectParticipant, Supplier
+from .telefonbuch import nach_namen
 
 KINDS = {"person": "Person", "firma": "Firma"}
 FIELDS = ("kind", "company_name", "first_name", "last_name", "function", "phone", "mobile", "email",
@@ -115,9 +116,10 @@ def contact_search_filter(term: str):
 
 
 def contact_sort_columns() -> tuple:
-    """Nachname bzw. Firmenname, dann Vorname -- mit Verweis die des Stammsatzes. Braucht with_sources()."""
-    return (func.lower(func.coalesce(Contact.last_name, Contact.company_name, Customer.last_name, Supplier.name, "")),
-            func.lower(func.coalesce(Contact.first_name, Customer.first_name, "")))
+    """Nachname bzw. Firmenname, dann Vorname -- mit Verweis die des Stammsatzes. Braucht with_sources(). Seit 1.9.353 wie im Telefonbuch
+    (app/telefonbuch.py; bis dahin lower(), unter SQLite nur für ASCII), ohne Namen am Ende."""
+    return nach_namen(func.coalesce(Contact.last_name, Contact.company_name, Customer.last_name, Supplier.name, ""),
+                      func.coalesce(Contact.first_name, Customer.first_name, ""))
 
 
 def contact_load_options() -> tuple:

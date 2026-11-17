@@ -692,3 +692,55 @@ Antwort zeigt, bekommt eine feste Reihenfolge, leere Werte ausdrücklich ans End
 Neu `tests/test_v752_fehlertext_ueberall.py` (5 Tests: Regel A, Regel B, Einbinden, Probe jeder Form des Wächters, Baustein in node). Auf dem Stand von
 1.9.351 meldet der Wächter 103 Stellen in 37 Vorlagen (Regel A und B). Angepasste Erwartung (Regel 28): `test_v411_vorweg`, Feierabend in `/mobil`
 bei 502 ohne JSON -- „HTTP 502.“ -> „Serverfehler (502) …“ (Text aus `fehlerText()`); der Test führt das Skript in node jetzt mit dem Baustein aus.
+
+### Umsetzung 1.9.353: Listen nach Namen wie im Telefonbuch (Punkt 1, F6)
+
+- **Bestand:** 39 Abfragen sortierten in der Datenbank roh nach einer Namensspalte (`order_by(Customer.name)` …), dazu die Beziehung Objekt → Dachflächen
+  (`order_by="RoofArea.name"`), sieben Quellen der Büro-Suche und Adressbuch/Beteiligte über `func.lower()` (unter SQLite nur ASCII). SQLite sortierte binär
+  (Großbuchstaben vor Kleinbuchstaben, Umlaute ans Ende, ein leerer Name zuerst), PostgreSQL nach seiner Kollation (Befund P4). 17 Stellen sortierten in Python
+  über `casefold()`/`lower()` oder roh (Umlaute ans Ende, leere Namen zuerst).
+- **Der Weg:** `app/telefonbuch.py` -- ein Sortierschlüssel je Name: Leerzeichen am Rand weg, A–Z auf a–z und jeder Buchstabe mit Umlaut oder Akzent auf
+  seinen Grundbuchstaben (eine Tabelle, `GRUNDBUCHSTABEN`), ß/ẞ zu ss, Æ zu ae, Œ zu oe, leer = NULL. In der Datenbank die Funktion `telefonbuch(text)`:
+  unter SQLite die Python-Funktion an jeder Verbindung (Ereignis „connect“ an der Klasse Engine), unter PostgreSQL eine SQL-Funktion aus derselben Tabelle --
+  auf dem Server von der Migration `9e4b2c7d1a35` angelegt (Text wörtlich, keine Tabelle, keine Daten), sonst nach jedem `create_all()` (Testschemas,
+  lokale Entwicklung). Kein `lower()` der Datenbank (hängt unter PostgreSQL an der Zeichenklassifizierung des Servers); verglichen wird der Schlüssel unter
+  PostgreSQL mit `COLLATE "C"` (byteweise, wie SQLite) -- die lokale Instanz (German_Germany.1252) ordnete „Müller Bau“ und „Müller-Bau“ sonst umgekehrt.
+- **Im Code:** `.order_by(*nach_namen(Customer.name), Customer.id)` (leere Namen über `nulls_last()` ans Ende, die ID als letzter Schlüssel), in Python
+  `sortierwert(x.name)`. `_count_and_fetch()` der Büro-Suche nimmt dafür auch ein Tupel. Die Spalte bleibt, nach der eine Liste schon sortierte -- die
+  Kundenliste nach dem ganzen Namen samt Anrede (Frage im Bericht).
+- **Wächter** `tests/test_v753_telefonbuch.py`: keine Sortierung nach einer Namensspalte (`name`, `display_name`, `first_name`, `last_name`, `label`,
+  `title`, `company_name`, `kurzname`, `username`) an `nach_namen()` vorbei -- `order_by`, Beziehungen, die Suche --, danach die ID; `func.lower()`/`upper()`
+  nur in einem Vergleich; in Python kein `casefold()`/`lower()` und kein roher Name als Sortierschlüssel. `AUSNAHMEN` ist leer und darf nur kürzer werden.
+- **Im Browser** sortieren vier Listen selbst (`localeCompare(…, 'de')`: Geräte und Mitglieder einer Kolonne in der Plantafel, Kategorien der Projekte,
+  Bereiche der Änderungshistorie) -- schon ohne Groß- und Kleinschreibung und mit Umlaut beim Grundbuchstaben, unabhängig von der Datenbank; nicht geändert.
+- **Fund im Klicktest (gebaut):** die Betriebsmittel-Liste (`list_assets()`) sortierte in der Datenbank nach `OperationalAsset.name` -- bei einem
+  Betriebsmittel mit Gerät ist die Spalte leer, der Name kommt erst beim Lesen aus dem Gerät (`resolve_asset_identity()`). Solche standen unter SQLite
+  vorn (in der Reihenfolge des Anlegens), unter PostgreSQL hinten, nie nach ihrem Namen; mit „leer ans Ende“ wurde es sichtbar (`klicktest_geraete`
+  rot). Jetzt nach dem aufgelösten Namen in Python, wie schon die Auswahl im Einsatzbericht (`list_selectable_assets()`).
+- **Befunde (nicht gebaut):** ein Nachname aus Leerzeichen geht durch (`CustomerCreate`: `min_length=1` zählt das Leerzeichen), der Name wird leer -- die
+  Liste zeigt einen Kunden ohne Namen; ein Kunde mit Nachnamen "" (nur über die Datenbank) lässt die ganze Kundenliste mit 500 scheitern (`CustomerOut` erbt
+  `min_length=1`, steht in `BEKANNT` von `test_v673`).
+
+#### Festlegungen 1.9.353 (Bitte bestätigen)
+
+1. Listen nach Namen sortieren ohne Groß- und Kleinschreibung (A–Z wie a–z).
+2. Umlaute und Akzente beim Grundbuchstaben (Ä wie A, é wie e, ł wie l; Tabelle `GRUNDBUCHSTABEN` in `app/telefonbuch.py`); andere Schriften bleiben, wie sie sind.
+3. ß und ẞ wie ss; Æ wie ae, Œ wie oe.
+4. Leere Namen (keiner, leer, nur Leerzeichen) stehen am Ende; Leerzeichen am Anfang und Ende zählen nicht.
+5. SQLite, PostgreSQL und Python rechnen denselben Schlüssel aus einer Tabelle: unter SQLite an jeder Verbindung, unter PostgreSQL aus der Migration
+   `9e4b2c7d1a35` (Text wörtlich -- eine geänderte Tabelle braucht eine neue Migration) und nach jedem `create_all()`.
+6. Unabhängig von der Kollation des Servers: unter PostgreSQL wird der Schlüssel mit `COLLATE "C"` verglichen.
+7. Jede Sortierung nach einer Namensspalte in der Datenbank geht über `nach_namen()`, danach die ID als letzter Schlüssel; kein `lower()` zum Sortieren.
+8. Jede Sortierung nach Namen in Python geht über `sortierwert()`.
+9. Sortiert wird nach derselben Spalte wie bisher -- die Kundenliste weiter nach dem ganzen Namen samt Anrede.
+10. Die vier Listen, die der Browser selbst sortiert (`localeCompare(…, 'de')`), bleiben.
+11. Betriebsmittel sortieren nach dem aufgelösten Namen (mit Gerät der Name des Geräts), nicht nach der Spalte.
+
+#### Tests und Prüfung 1.9.353
+
+Neu `tests/test_v753_telefonbuch.py` (30 Tests: 14 Fälle des Schlüssels, jedes Zeichen der Tabelle, SQLite und PostgreSQL rechnen wie Python, Kollation,
+Migration -- Text gleich, angelegt und wieder entfernt --, `create_all()` legt an, Kundenliste unter SQLite und PostgreSQL, Wächter in vier Teilen mit Probe
+jeder Form) und Klicktest `scripts/klicktest_telefonbuch.py` (15 Prüfungen: Kundenliste, API und Büro-Suche in der Reihenfolge des Telefonbuchs, der leere
+Name zuletzt, Bilder 1440 und 412 px, hell und dunkel); dazu die Betriebsmittel nach dem aufgelösten Namen. Angepasste Erwartung (Regel 28):
+`klicktest_geraete`, „Liste: Plantafel und nur Plantafel“ -- „Pritsche, Leiter, Rüttelplatte, Hubsteiger“ (die mit Gerät vorn, in der Reihenfolge
+des Anlegens) -> „Leiter, Pritsche, Rüttelplatte, Hubsteiger“ (nach Namen; „nur Plantafel“ weiter am Ende).

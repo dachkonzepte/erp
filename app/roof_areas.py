@@ -19,6 +19,7 @@ from .models import (
     RoofComponent, RoofComponentType, RoofLayer, RoofLayerType, ServiceReport, ServiceReportMaterial, ServiceReportRoofArea,
 )
 from .roof_area_sketches import delete_sketch_file, replace_sketch
+from .telefonbuch import nach_namen
 
 
 @event.listens_for(RoofArea, "before_delete")
@@ -107,7 +108,7 @@ def list_roof_areas(db: Session, property_id: int, include_archived: bool = Fals
     )
     if not include_archived:
         query = query.where(RoofArea.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
-    query = query.order_by(RoofArea.name)
+    query = query.order_by(*nach_namen(RoofArea.name), RoofArea.id)
     return [roof_area_to_dict(r) for r in db.scalars(query).all()]
 
 

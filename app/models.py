@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Ind
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
+from .telefonbuch import nach_namen
 
 
 class Catalog(Base):
@@ -443,7 +444,8 @@ class Property(Base):
     # mit auf. Ein Bulk-DELETE ohne ORM-Instanzen würde dieses Event umgehen (kommt aktuell
     # nirgends vor).
     roof_areas: Mapped[list["RoofArea"]] = relationship(
-        back_populates="property", cascade="all, delete-orphan", order_by="RoofArea.name"
+        back_populates="property", cascade="all, delete-orphan",
+        order_by=lambda: (*nach_namen(RoofArea.name), RoofArea.id),  # seit 1.9.353 wie im Telefonbuch
     )
     # Objektgebundene Dateien (seit "Dateiablage je Objekt", siehe CLAUDE.md) -- eigene Ablage
     # NEBEN den bereits bestehenden ProjectDocument/CustomerDocument, siehe PropertyDocument

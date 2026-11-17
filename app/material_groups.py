@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Material, MaterialGroup
+from .telefonbuch import nach_namen
 
 IMPORT_MATERIAL_GROUP_NAME = "Fertigkatalog (Importe)"
 
@@ -58,7 +59,7 @@ def backfill_existing_materials(db: Session, group: MaterialGroup) -> int:
 
 
 def list_material_groups(db: Session, *, include_archived: bool = False) -> list[MaterialGroup]:
-    stmt = select(MaterialGroup).order_by(MaterialGroup.is_import_catalog.desc(), MaterialGroup.name)
+    stmt = select(MaterialGroup).order_by(MaterialGroup.is_import_catalog.desc(), *nach_namen(MaterialGroup.name), MaterialGroup.id)
     if not include_archived:
         stmt = stmt.where(MaterialGroup.archived == False)  # noqa: E712
     return db.scalars(stmt).all()

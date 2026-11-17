@@ -12,6 +12,7 @@ from .models import (
     Employee, EmployeeWorkTimeModel, TimeBackofficeAdvancedSettings,
     WorkTimeBreakRule, WorkTimeModel, WorkTimeModelValidity,
 )
+from .telefonbuch import nach_namen
 
 
 def week_in_range(week: int, valid_from_week: int, valid_to_week: int) -> bool:
@@ -115,7 +116,7 @@ def model_to_dict(model: WorkTimeModel, db: Session | None = None) -> dict:
 
 
 def list_models(db: Session) -> list[dict]:
-    rows = db.scalars(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).order_by(WorkTimeModel.sort_order, WorkTimeModel.name)).all()
+    rows = db.scalars(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).order_by(WorkTimeModel.sort_order, *nach_namen(WorkTimeModel.name), WorkTimeModel.id)).all()
     return [model_to_dict(x, db) for x in rows]
 
 
@@ -249,7 +250,7 @@ def bulk_set_employee_model(db: Session, employee_ids: list[int], model_id: int)
 
 
 def employee_model_rows(db: Session) -> list[dict]:
-    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
+    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), *nach_namen(Employee.last_name, Employee.first_name), Employee.id)).all()
     result=[]
     for emp in employees:
         assigned_id=employee_model_id(db, emp.id)

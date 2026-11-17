@@ -1,6 +1,9 @@
 import os
 from sqlalchemy import create_engine
+from sqlalchemy import event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+from . import telefonbuch  # seit 1.9.353: telefonbuch() an jeder SQLite-Verbindung (Ereignis „connect“ an der Klasse Engine)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dachkonzepte_erp.db")
 
@@ -60,6 +63,11 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 
 class Base(DeclarativeBase):
     pass
+
+
+# Seit 1.9.353: nach jedem create_all() unter PostgreSQL die Funktion telefonbuch() (Testschemas, lokale Entwicklung); auf dem Server legt
+# sie die Migration 9e4b2c7d1a35 an. Siehe app/telefonbuch.py.
+event.listen(Base.metadata, "after_create", telefonbuch.pg_anlegen)
 
 
 def get_db():

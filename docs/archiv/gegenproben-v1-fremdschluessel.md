@@ -194,3 +194,28 @@ jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich 
 | Nr. 4 – Rückfalltext | ohne `ersatz` (`352_5`) | 1 rot: v752 node |
 
 5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2b, 1.9.353 (Punkt 1): Listen nach Namen wie im Telefonbuch
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ohne Groß- und Kleinschreibung | Tabelle ohne A–Z (`353_1`) | 11 rot: v753 Schlüssel, Tabelle, SQLite, PostgreSQL, Migration, Kundenliste |
+| Nr. 2 – Umlaute beim Grundbuchstaben | Tabelle nur A–Z (`353_2`) | 11 rot: v753 dieselben |
+| Nr. 3 – ß wie ss | ohne ß/ẞ in `ERSETZEN` (`353_3`) | 9 rot: v753 u. a. Migrationstext, Kundenliste unter PostgreSQL |
+| Nr. 4 – leere Namen ans Ende | ohne `nulls_last()` (`353_4a`) | 2 rot: v753 SQLite, Kundenliste |
+| Nr. 4 – Leerzeichen am Rand zählen nicht | ohne `strip` (`353_4b`) | 7 rot: v753 Schlüssel, SQLite, PostgreSQL, Migration, Kundenliste |
+| Nr. 5 – PostgreSQL rechnet wie Python | `pg_sql()` ohne ß (`353_5`) | 3 rot: v753 Migrationstext, PostgreSQL, Kundenliste unter PostgreSQL |
+| Nr. 5 – `create_all()` legt an | ohne Ereignis an `Base.metadata` (`353_5b`) | 2 rot: v753 create_all, Kundenliste unter PostgreSQL |
+| Nr. 5 – SQLite an jeder Verbindung | ohne `create_function` (`353_5c`) | 2 rot: v753 SQLite, Kundenliste |
+| Nr. 6 – unabhängig von der Kollation | ohne `COLLATE "C"` (`353_6`) | 2 rot: v753 PostgreSQL, Kundenliste unter PostgreSQL |
+| Nr. 7 – über `nach_namen()` | Kundenliste `order_by(Customer.name)` (`353_7a`) | 3 rot: v753 Wächter, Kundenliste SQLite und PostgreSQL |
+| Nr. 7 – Klicktest | dieselbe Änderung (`353_1k`) | klicktest_telefonbuch rot (9 von 15: leerer Name zuerst, Groß vor klein) |
+| Nr. 7 – kein `lower()` | Adressbuch wieder `func.lower()` (`353_7b`) | 1 rot: v753 Wächter lower |
+| Nr. 7 – die ID zuletzt | Benutzer ohne `AppUser.id` (`353_7c`) | 1 rot: v753 Wächter id |
+| Nr. 7 – auch Beziehungen | Dachflächen `order_by="RoofArea.name"` (`353_7d`) | 1 rot: v753 Wächter datenbank |
+| Nr. 8 – Python über `sortierwert()` | „Monat & Lohn“ wieder `casefold()` (`353_8`) | 1 rot: v753 Wächter python |
+| Nr. 9, 10 | keine -- nichts gebaut (Spalte und Browser unverändert) | -- |
+| Nr. 11 – Betriebsmittel nach dem aufgelösten Namen | wieder `order_by(OperationalAsset.name)` (`353_9`) | 2 rot: v753 Betriebsmittel, Wächter datenbank |
+
+16 Gegenproben (15 über Tests, 1 über den Klicktest), alle rot; `353_7c` lief zuerst aus dem falschen Grund rot (Kommentar mitten in der Zeile, die Datei
+ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle Dateien byte-gleich zurück, kein Marker unter `app/`.

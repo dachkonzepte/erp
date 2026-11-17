@@ -111,6 +111,7 @@ from .models import (
 from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from .tasks import list_tasks_for_user
+from .telefonbuch import nach_namen
 
 MIN_QUERY_LENGTH = 2
 SEARCH_RESULT_LIMIT = 10
@@ -156,7 +157,7 @@ def search_properties(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIM
     stmt = (
         _property_search_base_stmt(term)
         .options(selectinload(Property.customer))
-        .order_by(Property.name)
+        .order_by(*nach_namen(Property.name), Property.id)
         .limit(limit)
     )
     return list(db.scalars(stmt).all())
@@ -242,7 +243,8 @@ def _count_and_fetch(db: Session, stmt, order_by, limit: int, *, options: tuple 
     fetch_stmt = stmt
     for option in options:
         fetch_stmt = fetch_stmt.options(option)
-    rows = db.scalars(fetch_stmt.order_by(order_by).limit(limit)).all()
+    # seit 1.9.353 auch mehrere Schlüssel (ein Tupel) -- nach Namen über nach_namen() und die ID zuletzt
+    rows = db.scalars(fetch_stmt.order_by(*(order_by if isinstance(order_by, tuple) else (order_by,))).limit(limit)).all()
     return count, rows
 
 
@@ -255,7 +257,7 @@ def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .where(or_(Customer.name.ilike(pattern), CustomerProfile.customer_number.ilike(pattern)))
     )
-    return _count_and_fetch(db, stmt, Customer.name, limit)
+    return _count_and_fetch(db, stmt, (*nach_namen(Customer.name), Customer.id), limit)
 
 
 def _customer_row(c: Customer) -> dict:
@@ -266,7 +268,7 @@ def _customer_row(c: Customer) -> dict:
 
 def _search_properties_office(db: Session, term: str, limit: int) -> tuple[int, list]:
     return _count_and_fetch(
-        db, _property_search_base_stmt(term), Property.name, limit,
+        db, _property_search_base_stmt(term), (*nach_namen(Property.name), Property.id), limit,
         options=(selectinload(Property.customer),),
     )
 
@@ -281,7 +283,7 @@ def _property_office_row(p: Property) -> dict:
 def _search_roof_areas(db: Session, term: str, limit: int) -> tuple[int, list]:
     pattern = f"%{term}%"
     stmt = select(RoofArea).where(RoofArea.name.ilike(pattern))
-    return _count_and_fetch(db, stmt, RoofArea.name, limit, options=(selectinload(RoofArea.property),))
+    return _count_and_fetch(db, stmt, (*nach_namen(RoofArea.name), RoofArea.id), limit, options=(selectinload(RoofArea.property),))
 
 
 def _roof_area_row(r: RoofArea) -> dict:
@@ -468,7 +470,7 @@ def _search_employees(db: Session, term: str, limit: int) -> tuple[int, list]:
         Employee.last_name.ilike(pattern),
         Employee.employee_number.ilike(pattern),
     ))
-    return _count_and_fetch(db, stmt, Employee.last_name, limit)
+    return _count_and_fetch(db, stmt, (*nach_namen(Employee.last_name, Employee.first_name), Employee.id), limit)
 
 
 def _employee_row(e: Employee) -> dict:
@@ -617,7 +619,7 @@ def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int,
             OperationalResource.kurzname.ilike(pattern),
         ),
     )
-    anzahl_frei, geraete = _count_and_fetch(db, frei, OperationalResource.name, max(limit - len(treffer), 0))
+    anzahl_frei, geraete = _count_and_fetch(db, frei, (*nach_namen(OperationalResource.name), OperationalResource.id), max(limit - len(treffer), 0))
     return anzahl + anzahl_frei, [*treffer, *geraete]
 
 
@@ -638,7 +640,7 @@ def _search_suppliers(db: Session, term: str, limit: int) -> tuple[int, list]:
         Supplier.name.ilike(pattern),
         Supplier.supplier_number.ilike(pattern),
     ))
-    return _count_and_fetch(db, stmt, Supplier.name, limit)
+    return _count_and_fetch(db, stmt, (*nach_namen(Supplier.name), Supplier.id), limit)
 
 
 def _supplier_row(s: Supplier) -> dict:
@@ -651,7 +653,7 @@ def _supplier_row(s: Supplier) -> dict:
 
 def _search_contacts(db: Session, term: str, limit: int) -> tuple[int, list]:
     stmt = with_sources(select(Contact)).where(contact_search_filter(term))
-    return _count_and_fetch(db, stmt, contact_sort_columns()[0], limit, options=contact_load_options())
+    return _count_and_fetch(db, stmt, (*contact_sort_columns(), Contact.id), limit, options=contact_load_options())
 
 
 def _contact_row(c: Contact) -> dict:

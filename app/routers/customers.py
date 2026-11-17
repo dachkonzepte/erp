@@ -32,6 +32,7 @@ from ..schemas import (
     CustomerCreate, CustomerDocumentOut, CustomerExtraInfoCreate, CustomerExtraInfoOut,
     CustomerExtraInfoUpdate, CustomerOut, CustomerUpdate,
 )
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUs
     customers = db.scalars(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
-        .order_by(Customer.name)
+        .order_by(*nach_namen(Customer.name), Customer.id)
     ).all()
     # Seit 1.8.76 legt das Lesen kein fehlendes Profil mehr an (vorher samt Kundennummer aus dem Nummernkreis -- eine Anzeige
     # verbrauchte eine Nummer, Regel 23). Jeder Anlegeweg legt das Profil an; ein Altkunde ohne Profil zeigt keine Nummer, bis

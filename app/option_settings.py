@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import GeneralSettings, SettingOption, SettingOptionGroup
+from .telefonbuch import nach_namen
 
 
 DEFAULT_OPTION_GROUPS = {
@@ -417,7 +418,7 @@ NEU_INAKTIV = {"time_entry_types": ("weather_winter", "weather_summer")}
 def load_option_groups(db: Session) -> list[SettingOptionGroup]:
     return db.scalars(
         select(SettingOptionGroup).options(selectinload(SettingOptionGroup.options))
-        .order_by(SettingOptionGroup.sort_order, SettingOptionGroup.label)
+        .order_by(SettingOptionGroup.sort_order, *nach_namen(SettingOptionGroup.label), SettingOptionGroup.id)
     ).all()
 
 

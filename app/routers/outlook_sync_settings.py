@@ -16,6 +16,7 @@ from ..email_sending import load_smtp_settings
 from ..models import OperationalResource
 from ..outlook_calendar_sync import PostfachVergeben, load_outlook_sync_settings, postfach_gewechselt, postfach_pruefen, postfach_uebersicht, update_outlook_sync_settings
 from ..schemas import GeraetPostfachUpdate, OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ def get_postfaecher(db: Session = Depends(get_db, scope="function"), _admin=Depe
 @router.get("/api/outlook-sync-settings/geraete")
 def get_geraete(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     """Seit 1.9.162: was ein Postfach bekommen kann -- aktive Geräte ohne Postfach; eines mit Postfach steht schon in der Übersicht."""
-    return [{"id": g.id, "name": g.name} for g in db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_(None)).order_by(OperationalResource.name))]
+    return [{"id": g.id, "name": g.name} for g in db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_(None)).order_by(*nach_namen(OperationalResource.name), OperationalResource.id))]
 
 
 @router.put("/api/outlook-sync-settings/geraete/{resource_id}")

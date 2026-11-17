@@ -46,6 +46,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .rounding import round_hours
+from .telefonbuch import sortierwert
 
 NULL = Decimal("0")
 # seit 1.9.327 (Lohn L2c-2, Punkt 0): was eine Zeile der Ablage ist -- die erzeugte Datei (zum Versand oder Nachsehen) oder der Abgleich nach dem Telefonat
@@ -172,7 +173,7 @@ def berechnen(db: Session, erster: date) -> list[Person]:
                 person.zeilen.append(Zeile(tag, z["kennzeichen"], z["lohnart"], round_hours(stunden), quelle))
         for lohnart in sorted(monat):
             person.zeilen.append(Zeile(None, None, lohnart, round_hours(monat[lohnart]), "schlechtwetter"))
-    ergebnis.sort(key=lambda x: (x.personalnummer is None, x.personalnummer or "", x.name.casefold()))
+    ergebnis.sort(key=lambda x: (x.personalnummer is None, x.personalnummer or "", sortierwert(x.name)))
     return ergebnis
 
 

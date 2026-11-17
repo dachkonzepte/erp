@@ -15,6 +15,7 @@ from .models import (
 
 from .rounding import round_half_up, round_hours, round_quarter_hours
 from .work_time_models import automatic_break_minutes_for_duration, fehlende_pause_am_tag
+from .telefonbuch import nach_namen
 
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
 # Zeitarten, die NIE als produktiv gelten -- travel (Fahrzeit) sowie die beiden Schlechtwetter-
@@ -789,7 +790,7 @@ def time_tracking_context(db: Session, employee_id: int | None = None, include_a
     """Mitarbeiter, Teams und Aufträge für die Zeiterfassung im Büro. Seit 1.9.90 (Stufe 4, R5a, Punkt 2) mit mit_geschlossenen auch die
     abgeschlossenen und stornierten Aufträge -- nach den offenen, gekennzeichnet (geschlossen, status): das Büro mit dem Recht, für andere
     zu buchen, bucht und ändert auch dort (die Monteurin nicht, app/routers/time_tracking.py::_require_order_open_for_field())."""
-    emp_stmt=select(Employee).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)
+    emp_stmt=select(Employee).where(Employee.active==True).order_by(*nach_namen(Employee.last_name, Employee.first_name), Employee.id)
     employees=db.scalars(emp_stmt).all()
     # Bestandsauftraege aus aelteren Versionen koennen einen leeren/NULL-Status haben.
     # Diese duerfen in der Zeiterfassung nicht versehentlich ausgefiltert werden.
@@ -804,7 +805,7 @@ def time_tracking_context(db: Session, employee_id: int | None = None, include_a
     assigned_ids=employee_assigned_order_ids(db, employee_id) if employee_id else set()
     if employee_id and assigned_ids and not include_all_orders:
         orders=[o for o in orders if o.id in assigned_ids]
-    team_stmt = select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee)).where(Team.active==True).order_by(Team.name)
+    team_stmt = select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee)).where(Team.active==True).order_by(*nach_namen(Team.name), Team.id)
     teams = db.scalars(team_stmt).unique().all()
     if employee_id and not include_all_orders:
         teams = [t for t in teams if any(m.employee_id == employee_id for m in t.employees)]
@@ -989,7 +990,7 @@ def list_crews_for_leader(db: Session, employee_id: int | None) -> list[dict]:
         return []
     teams = db.scalars(
         select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee))
-        .where(Team.id.in_(team_ids)).order_by(Team.name)
+        .where(Team.id.in_(team_ids)).order_by(*nach_namen(Team.name), Team.id)
     ).unique().all()
     return [{
         "team_id": t.id, "name": t.name,

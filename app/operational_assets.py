@@ -67,6 +67,7 @@ from .models import (
 from .operational_asset_documents import delete_document_file
 from .recurring_costs import normalize_to_annual
 from .tasks import create_task
+from .telefonbuch import sortierwert
 
 MODULE_KEY = "betriebsmittel"
 
@@ -291,8 +292,12 @@ def list_assets(db: Session, *, include_inactive: bool = True) -> list[dict]:
     query = _asset_query()
     if not include_inactive:
         query = query.where(OperationalAsset.active == True)  # noqa: E712
-    query = query.order_by(OperationalAsset.name)
-    return [asset_to_dict(a, lead_days, db=db) for a in db.scalars(query).all()]
+    # Seit 1.9.353 nach dem LIVE aufgelösten Namen wie im Telefonbuch (wie list_selectable_assets()): bei einem Betriebsmittel mit Gerät bleibt
+    # OperationalAsset.name leer (resolve_asset_identity()) -- bis 1.9.352 sortierte die Datenbank danach, solche standen unter SQLite vorn
+    # (in der Reihenfolge des Anlegens), unter PostgreSQL hinten, nie nach ihrem Namen.
+    rows = [asset_to_dict(a, lead_days, db=db) for a in db.scalars(query.order_by(OperationalAsset.id)).all()]
+    rows.sort(key=lambda r: sortierwert(r["name"]))
+    return rows
 
 
 def list_due_assets(db: Session) -> list[dict]:
@@ -314,7 +319,7 @@ def list_selectable_assets(db: Session) -> list[dict]:
         OperationalAsset.selectable_in_reports == True, OperationalAsset.active == True,  # noqa: E712
     )
     rows = [asset_field_dict(a) for a in db.scalars(query).all()]
-    rows.sort(key=lambda r: (r["name"] or "").lower())
+    rows.sort(key=lambda r: sortierwert(r["name"]))
     return rows
 
 

@@ -22,6 +22,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .telefonbuch import sortierwert
+
 KEIN_VERSAND = "Noch nichts versendet – vermerke an der Datei „An das Steuerbüro gesendet“."
 NICHTS_ZU_BESPRECHEN = "Keine Änderung nach dem Versand – nichts zu besprechen."  # seit 1.9.330
 OHNE_GRUND = "kein Eintrag in der Änderungshistorie"
@@ -228,7 +230,7 @@ def nach_dem_versand(db: Session, erster: date) -> dict:
             g = (je_tag.get((wer, z["tag"]), []) if z["tag"] else []) + (je_person.get(wer, []) if isinstance(wer, int) else [])
             z["gruende"] = g or [OHNE_GRUND]
         zeilen += eigene
-    zeilen.sort(key=lambda z: (z["name"].casefold(), z["personalnummer"] or "", z["art"] != "nummer", z["tag"] is None, z["tag"] or erster))
+    zeilen.sort(key=lambda z: (sortierwert(z["name"]), z["personalnummer"] or "", z["art"] != "nummer", z["tag"] is None, z["tag"] or erster))
     # seit 1.9.330: ist der Bezug eine Abgleich-Zeile („Besprochen“), zählt die Liste ab dort
     seit = "seit „Besprochen“" if b.art == "abgleich" else "nach dem Versand"
     return {"stand": "geaendert" if zeilen else "gleich",

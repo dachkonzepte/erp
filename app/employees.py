@@ -7,6 +7,7 @@ from .models import (
     Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeFunction,
     EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeePayrollSettings,
 )
+from .telefonbuch import nach_namen
 
 
 # Seit 1.9.325 (Lohn L2c-1, Nachrunde, Punkt B): wer eine Person ohne Austritt deaktiviert, lässt ihre Sollzeit weiterlaufen (app/sollzeit.py: vor dem
@@ -65,7 +66,7 @@ def ensure_default_employee_functions(db: Session) -> None:
 
 def load_employee_functions(db: Session) -> list[EmployeeFunction]:
     return db.scalars(
-        select(EmployeeFunction).order_by(EmployeeFunction.sort_order, EmployeeFunction.name)
+        select(EmployeeFunction).order_by(EmployeeFunction.sort_order, *nach_namen(EmployeeFunction.name), EmployeeFunction.id)
     ).all()
 
 
@@ -83,7 +84,7 @@ def load_employees(db: Session) -> list[Employee]:
     Funktion seiner Berufsbezeichnung, wenn es sie gibt (legacy_function()); das Profil entsteht beim Speichern."""
     return db.scalars(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
-        .order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
+        .order_by(Employee.active.desc(), *nach_namen(Employee.last_name, Employee.first_name), Employee.id)
     ).all()
 
 

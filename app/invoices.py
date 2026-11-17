@@ -87,6 +87,7 @@ from .placeholders import apply_placeholders
 from .rounding import CENT, INVOICE_ROUNDING_HALF_UP, round_money
 from .service_period import check_order, missing_reason, period_text, proposal as service_period_proposal
 from .settings import issue_number
+from .telefonbuch import sortierwert
 
 logger = logging.getLogger(__name__)
 
@@ -1046,7 +1047,7 @@ def create_invoice_from_time_entries(
         bucket["hours"] += Decimal(entry.hours)
 
     ordered_buckets = sorted(
-        grouped.values(), key=lambda b: (_time_entry_employee_name(b["employee"]), b["activity"] or ""),
+        grouped.values(), key=lambda b: (sortierwert(_time_entry_employee_name(b["employee"])), b["activity"] or ""),
     )
     for index, bucket in enumerate(ordered_buckets, start=1):
         employee_name = _time_entry_employee_name(bucket["employee"])
@@ -1075,7 +1076,7 @@ def create_invoice_from_time_entries(
         for material in (db.get(Material, mid) for mid, _unit in catalog_groups) if material is not None
     }
     for (material_id, unit), qty in sorted(
-        catalog_groups.items(), key=lambda kv: materials_by_id[kv[0][0]].name if kv[0][0] in materials_by_id else "",
+        catalog_groups.items(), key=lambda kv: sortierwert(materials_by_id[kv[0][0]].name if kv[0][0] in materials_by_id else None),
     ):
         material = materials_by_id.get(material_id)
         if material is None:

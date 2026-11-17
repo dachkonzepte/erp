@@ -68,6 +68,7 @@ from .models import (
     TaskColumn,
 )
 from .warranty import warranty_end
+from .telefonbuch import nach_namen
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +299,7 @@ def defect_options(db: Session, acceptance: OrderAcceptance) -> dict:
     order = db.get(Order, acceptance.order_id)
     prop = db.get(Property, acceptance.property_id) if acceptance.property_id else None
     roof_areas = db.scalars(
-        select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False)).order_by(RoofArea.name)
+        select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False)).order_by(*nach_namen(RoofArea.name), RoofArea.id)
     ).all() if prop else []
     participants = db.scalars(
         select(ProjectParticipant).options(selectinload(ProjectParticipant.contact))
@@ -489,7 +490,7 @@ def protocol_options(db: Session, checklist) -> dict:
     project = db.get(Project, order.project_id) if order else None
     prop = db.get(Property, project.property_id) if project and project.property_id else None
     areas = db.scalars(select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False))
-                       .order_by(RoofArea.name)).all() if prop else []
+                       .order_by(*nach_namen(RoofArea.name), RoofArea.id)).all() if prop else []
     return {"property": {"id": prop.id, "name": prop.name} if prop else None,
             "roof_areas": [{"id": r.id, "name": r.name} for r in areas]}
 

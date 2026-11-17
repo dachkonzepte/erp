@@ -24,6 +24,7 @@ from ..konto_loeschen import KontoVerwendet, konto_loeschen, verwendungen
 from ..models import AppUser, Employee
 from ..outlook_calendar_sync import PostfachVergeben, postfach_gewechselt, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -31,7 +32,7 @@ router = APIRouter()
 def list_app_users(db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
     """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer, seit 1.8.106 auch der vertrauten Geräte (nur gelesen), seit 1.9.342 mit
     den Bereichen, in denen das Konto steht (verwendet_in, leer = nie verwendet)."""
-    users = db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
+    users = db.scalars(select(AppUser).order_by(*nach_namen(AppUser.display_name), AppUser.id)).all()
     return [AppUserOut.model_validate(u, from_attributes=True).model_copy(
         update={"active_sessions": sitzungen.anzahl(db, u), "trusted_device_count": device_trust.anzahl(db, u),
                 "verwendet_in": verwendungen(db, u.id)}) for u in users]

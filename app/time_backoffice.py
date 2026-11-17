@@ -23,7 +23,9 @@ from .models import AppUser, Employee, EmployeePayrollSettings, PersonalnummerVe
 from .rounding import round_hours
 from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau, tagessumme
 from .settings import load_general_settings
+from .telefonbuch import sortierwert
 from .work_time_models import load_advanced_settings
+from .telefonbuch import nach_namen
 
 # Seit 1.9.168 (Lohn L1a, Punkt 3, Entscheidung Tobias E3): was von einer Person in die Lohndatei geht. „alles“ = Arbeit, Abwesenheiten und
 # Feiertage; „abwesenheiten“ = nur Urlaub, Krankheit und die übrigen zugeordneten Abwesenheiten (bisher z. B. Azubis in Time 4); „nichts“.
@@ -360,7 +362,7 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
 
 
 def payroll_rows(db: Session) -> list[dict]:
-    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
+    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), *nach_namen(Employee.last_name, Employee.first_name), Employee.id)).all()
     sollzeiten, gemerkt = _sollzeiten_aller(db), fruehere_personalnummern(db)
     traeger = personalnummern_traeger(db, [n for liste in gemerkt.values() for n in liste])  # seit 1.9.191, eine Abfrage für alle
     from .lohndatei import personalnummern_der_ablage
@@ -442,7 +444,7 @@ def backoffice_summary(db: Session, start_date: date, end_date: date, employee_i
             "hours":round_hours(tagessumme(eigene)),"productive_hours":round_hours(tagessumme([r for r in eigene if r.counts_as_productive])),
             "travel_hours":round_hours(tagessumme([r for r in eigene if r.entry_type=="travel"])),"days":len({r.work_date for r in eigene}),
         })
-    employees.sort(key=lambda x:x["employee_name"].casefold())
+    employees.sort(key=lambda x: sortierwert(x["employee_name"]))
     return {
         "start_date":start_date,"end_date":end_date,"entry_count":len(rows),
         "total_hours":round_hours(tagessumme(rows)),"productive_hours":round_hours(tagessumme([r for r in rows if r.counts_as_productive])),
@@ -467,7 +469,7 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
     buf=BytesIO(); doc=SimpleDocTemplate(buf,pagesize=landscape(A4),leftMargin=10*mm,rightMargin=10*mm,topMargin=11*mm,bottomMargin=12*mm,title="Stundenzettel")
     styles=getSampleStyleSheet(); body=ParagraphStyle("BodyDE",parent=styles["BodyText"],fontSize=8,leading=10); small=ParagraphStyle("Small",parent=body,fontSize=7,leading=9)
     story=[]
-    for idx,(emp_id,entries) in enumerate(sorted(grouped.items(), key=lambda x: ((db.get(Employee,x[0]).last_name if db.get(Employee,x[0]) else ""),x[0]))):
+    for idx,(emp_id,entries) in enumerate(sorted(grouped.items(), key=lambda x: (sortierwert(db.get(Employee,x[0]).last_name if db.get(Employee,x[0]) else None),x[0]))):
         emp=db.get(Employee,emp_id); name=f"{emp.first_name} {emp.last_name}" if emp else str(emp_id)
         story.append(Paragraph(f"<b>{escape(general.company_name)}</b> – Stundenzettel", styles["Heading2"]))
         story.append(Paragraph(f"Mitarbeiter: <b>{escape(name)}</b> &nbsp;&nbsp; Zeitraum: {start_date.strftime('%d.%m.%Y')}–{end_date.strftime('%d.%m.%Y')}",body)); story.append(Spacer(1,3*mm))
@@ -535,7 +537,7 @@ def datev_fehlt(db: Session, start_date: date, end_date: date, *, personen=None)
     settings = load_time_settings(db)
     personen = personen if personen is not None else berechnen(db, start_date.replace(day=1))
     liste: list[dict] = []
-    for x in sorted(personen, key=lambda x: (x.nachname.casefold(), x.employee_id)):
+    for x in sorted(personen, key=lambda x: (sortierwert(x.nachname), x.employee_id)):
         if not x.zeilen:
             continue
         if not x.personalnummer:

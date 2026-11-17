@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from .models import AppUser, AuditLog, Employee, EmployeePayrollSettings, Order, TimeEntry, TimeEntryGroup, TimeEntryGroupMember
 from .permissions import MOBIL_ROLLEN
 from .rounding import round_hours
+from .telefonbuch import sortierwert
 from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, exportiert_arbeit, load_employee_payroll,
                              personalnummer_gueltig,
                               load_time_settings, unpassende_pausen)
@@ -200,7 +201,7 @@ def konto_hinweise(db: Session, ab: date, heute: date) -> dict:
     laufend = set(db.execute(select(TimeEntry.employee_id, TimeEntry.work_date).where(
         TimeEntry.status == "running", TimeEntry.work_date >= von, TimeEntry.work_date <= bis)).all())
     personen = sorted((e for e in b.personen if e.employee_group == GEWERBLICH),
-                      key=lambda e: ((e.last_name or "").casefold(), (e.first_name or "").casefold(), e.id))
+                      key=lambda e: (sortierwert(e.last_name), sortierwert(e.first_name), e.id))
     for emp in personen:
         name = employee_name(emp) or f"#{emp.id}"
         ohne, mit_arbeit = [], []
@@ -255,7 +256,7 @@ def monat_stunden(db: Session, erster: date) -> dict:
             continue
         mitarbeiter.append({"employee_id": employee_id, "name": employee_name(eigene[0].employee) or f"#{employee_id}",
                             "tage": len({r.work_date for r in gebucht}), "stunden": round_hours(tagessumme(eigene))})
-    mitarbeiter.sort(key=lambda x: x["name"].casefold())
+    mitarbeiter.sort(key=lambda x: sortierwert(x["name"]))
     return {"gebucht": round_hours(tagessumme(rows)), "fahrzeit": round_hours(tagessumme([r for r in rows if r.entry_type == "travel"])),
             "mitarbeiter": mitarbeiter, "rows": rows}
 
@@ -303,7 +304,7 @@ def umfang_hinweise(db: Session, erster: date, personen) -> list[dict]:
     gewerblich = {eid for eid, gruppe, lohn in zeilen if gruppe == "gewerblich"  # im Monat beschäftigt: Eintritt bis Monatsende, Austritt ab Monatsanfang
                   and (lohn is None or ((lohn.eintritt is None or lohn.eintritt <= ende) and (lohn.austritt is None or lohn.austritt >= erster)))}
     return [{"art": "umfang", "employee_id": p.employee_id, "name": p.name, "text": f"{p.name}: {UMFANG_HINWEIS}"}
-            for p in sorted(kandidaten, key=lambda p: (p.nachname.casefold(), p.employee_id)) if p.employee_id in gewerblich]
+            for p in sorted(kandidaten, key=lambda p: (sortierwert(p.nachname), p.employee_id)) if p.employee_id in gewerblich]
 
 
 def vor_dem_abschluss(db: Session, erster: date) -> list[dict]:
@@ -446,7 +447,7 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
     return {**kopf, "status": _status(erster, load_time_settings(db).locked_until),
             "eintraege": heute_zeilen, "summe": round_hours(tagessumme(rows)), "laufend": sum(1 for r in rows if r.status == "running"),
             "filter": {
-                "mitarbeiter": sorted(({"id": i, "name": n} for i, n in leute.items()), key=lambda x: (x["name"] or "").casefold()),
+                "mitarbeiter": sorted(({"id": i, "name": n} for i, n in leute.items()), key=lambda x: sortierwert(x["name"])),
                 "auftraege": [{"id": o.id, **_auftrag(o)} for o in sorted(auftraege.values(), key=lambda o: o.order_number or "", reverse=True)],
                 "zeitarten": [{"value": k, "label": v} for k, v in zeitarten.items()],
             }}
@@ -519,14 +520,14 @@ def monat(db: Session, erster: date) -> dict:
                        "lohnexport": exportiert_arbeit(p), "tage": 0,
                        "stunden": {k: Decimal("0") for k, _ in SPALTEN + (("other", ""),)}, "zusammen": Decimal("0"),
                        "schlechtwetter": schlechtwetter.get(employee_id, ohne_sw)})
-    zeilen.sort(key=lambda x: x["name"].casefold())
+    zeilen.sort(key=lambda x: sortierwert(x["name"]))
     spalten = [{"key": k, "label": label} for k, label in SPALTEN] + ([{"key": "other", "label": "Sonstige"}] if sonstige else [])
     from .absence_requests import list_requests
     return {**_monat_kopf(erster), "status": status, "abgeschlossen_bis": lock, "abgeschlossen_am": settings.locked_at,
             "luecken": luecken, "luecken_text": luecken_text(luecken), "datev_fehlt": fehlt, "datev_text": datev_text(fehlt),
             # seit 1.9.225: je Person, was nicht in die Datei geht, mit Grund (nach Nachnamen) -- über dem Knopf „DATEV-Export“
             "nicht_in_der_datei": [{"employee_id": x.employee_id, "name": x.name, "eintraege": x.nicht_texte()}
-                                   for x in sorted(lohndatei, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.nicht],
+                                   for x in sorted(lohndatei, key=lambda x: (sortierwert(x.nachname), x.employee_id)) if x.nicht],
             # seit 1.9.226 (Lohn L1b, Punkt 3): die abgelegten Lohndateien des Monats, die jüngste zuerst (ohne die Bytes)
             "lohndateien": [abgelegt_dict(r) for r in abgelegte(db, erster)],
             # seit 1.9.326 (Lohn L2c-1, Nachrunde, Punkt C): gewerbliche Personen mit Export-Umfang nicht „alles“ -- nur ein Hinweis in „1 Prüfen“

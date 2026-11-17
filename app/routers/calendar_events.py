@@ -37,6 +37,7 @@ from ..outlook_calendar_sync import (
 )
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalendarEventCreate, CalendarEventUpdate, CalendarOwnerOut, OutlookSyncResultOut
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def get_calendar_owners(db: Session = Depends(get_db, scope="function"), _role: 
 def get_calendar_geraete(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.161: Geräte mit eigenem Kalender (Postfach) -- neben den Konten wählbar als Besitzer eines Termins."""
     _require_module_enabled(db)
-    zeilen = db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_not(None)).order_by(OperationalResource.name)).all()
+    zeilen = db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_not(None)).order_by(*nach_namen(OperationalResource.name), OperationalResource.id)).all()
     return [{"id": g.id, "name": g.name} for g in zeilen]
 
 

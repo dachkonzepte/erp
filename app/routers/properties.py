@@ -14,6 +14,7 @@ from ..database import get_db
 from ..models import AppUser, Customer, Property
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import PropertyCreate, PropertyOut, PropertyUpdate
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/properties", response_model=list[PropertyOut])
 def list_properties(customer_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    stmt = select(Property).order_by(Property.name)
+    stmt = select(Property).order_by(*nach_namen(Property.name), Property.id)
     if customer_id is not None:
         stmt = stmt.where(Property.customer_id == customer_id)
     return db.scalars(stmt).all()

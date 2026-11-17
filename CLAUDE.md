@@ -1652,6 +1652,11 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   "[object Object]" bei 422): keine liest `.detail` an `fehlerText()` vorbei, jeder Zweig `if(!x.ok)`, der etwas zeigt, ruft ihn, wer ihn aufruft, bindet
   `_fehlertext.html` selbst ein (mehrfach einbindbar: nur `var` und Funktion); vierter Parameter `ersatz` für eine Antwort ohne Text. Wächter
   `tests/test_v752_fehlertext_ueberall.py` (Ausnahme mit Grund in `AUSNAHMEN`, nur kürzer).
+- **Listen nach Namen wie im Telefonbuch** (seit 1.9.353, F6): ohne Groß- und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie ss, leere
+  Namen am Ende -- unter SQLite und PostgreSQL gleich, unabhängig von der Kollation des Servers. In der Datenbank nur über
+  `app/telefonbuch.py::nach_namen()` (`.order_by(*nach_namen(X.name), X.id)`, die ID zuletzt), in Python über `sortierwert()`, nie `lower()`/`casefold()`;
+  die Funktion `telefonbuch()` meldet sich an jeder SQLite-Verbindung an, unter PostgreSQL legt sie die Migration `9e4b2c7d1a35` an (Text wörtlich, eine
+  geänderte Zeichentabelle braucht eine neue Migration) und jedes `create_all()`. Wächter `tests/test_v753_telefonbuch.py` (`AUSNAHMEN` leer, nur kürzer).
 - **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
   `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante

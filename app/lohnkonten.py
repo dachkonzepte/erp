@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from .berlin_time import berlin_today
 from .models import Employee, LohnStartwert, TimeTrackingSettings, Urlaubsanspruch
 from .rounding import round_half_up
+from .telefonbuch import nach_namen
 
 STICHTAG = date(2026, 12, 31)  # Antwort 12: Stand nach dem Tag, die Konten beginnen am 01.01.2027
 ERSTES_JAHR = STICHTAG.year + 1  # seit 1.9.312: das erste Jahr der Konten (2027)
@@ -204,7 +205,7 @@ def konten(db: Session, employee_ids=None) -> list[dict]:
     """Je Person (employee_ids: nur diese; sonst alle, aktive zuerst) ihre Ansprüche aller Jahre und ihr Startwert -- drei Abfragen."""
     einstellungen = _einstellungen(db)
     vorgabe, modus = einstellungen.urlaub_vorgabe_tage, einstellungen.urlaub_uebertrag
-    abfrage = select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
+    abfrage = select(Employee).order_by(Employee.active.desc(), *nach_namen(Employee.last_name, Employee.first_name), Employee.id)
     if employee_ids is not None:
         abfrage = abfrage.where(Employee.id.in_(list(employee_ids) or [0]))
     personen = list(db.scalars(abfrage))

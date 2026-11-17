@@ -28,6 +28,7 @@ from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
 from ..zeiten import buchungen, feiertage_bundesland, konto_hinweise, monat, monat_ende, monat_lesen, pruef_beginn, pruefen
+from ..telefonbuch import nach_namen
 
 router = APIRouter()
 
@@ -252,7 +253,7 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
         "hinweis": None if aller else (NUR_EIGENE_ANTRAEGE if user.employee_id is not None else KEIN_MITARBEITER),
         "darf_beantragen": aller or user.employee_id is not None, "fuer_andere": aller, "eigener_mitarbeiter": user.employee_id,
         "mitarbeiter": [{"id": e.id, "name": f"{e.first_name} {e.last_name}".strip(), "employee_number": e.employee_number}
-                        for e in db.query(Employee).filter(Employee.active == True).order_by(Employee.last_name, Employee.first_name)]  # noqa: E712
+                        for e in db.query(Employee).filter(Employee.active == True).order_by(*nach_namen(Employee.last_name, Employee.first_name), Employee.id)]  # noqa: E712
         if aller else [],
         "arten": arten_fuer_auswahl(db),
         "offen": offen,
@@ -269,7 +270,7 @@ def _kolonnen(db: Session) -> list[dict]:
     je: dict[int, dict] = {}
     for tid, name, eid in db.execute(select(Team.id, Team.name, TeamEmployee.employee_id).join(TeamEmployee, TeamEmployee.team_id == Team.id)
                                      .join(Employee, Employee.id == TeamEmployee.employee_id)
-                                     .where(Team.active.is_(True), Employee.active.is_(True)).order_by(Team.name, Team.id)):
+                                     .where(Team.active.is_(True), Employee.active.is_(True)).order_by(*nach_namen(Team.name), Team.id)):
         je.setdefault(tid, {"id": tid, "name": name, "mitglieder": []})["mitglieder"].append(eid)
     return list(je.values())
 
