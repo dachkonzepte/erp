@@ -223,16 +223,16 @@ class CustomerCreate(BaseModel):
     # CLAUDE.md "Adressimport aus dem Altsystem" für die Begründung dieser Aufteilung.
     last_name: str = Field(min_length=1, max_length=255)
     category: str = Field(default="Privatkunde", min_length=1, max_length=80)
-    contact_person: str | None = None
-    street: str | None = None
+    contact_person: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
     country: str = Field(default="Deutschland", max_length=120)
-    postal_code: str | None = None
-    city: str | None = None
-    email: str | None = None
-    email_2: str | None = None
-    phone: str | None = None
-    mobile: str | None = None
-    fax: str | None = None
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+    email: str | None = Field(default=None, max_length=255)
+    email_2: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    mobile: str | None = Field(default=None, max_length=80)
+    fax: str | None = Field(default=None, max_length=80)
     notes: str | None = None
     default_payment_term_id: int | None = None
     # Verbraucher nach § 13 BGB (seit 1.8.21), Vorgabe ja -- steuert die Vertragsgrundlage neuer Angebote.
@@ -259,16 +259,16 @@ class CustomerUpdate(PartialUpdate):
     first_name: str | None = Field(default=None, max_length=120)
     last_name: str | None = Field(default=None, min_length=1, max_length=255)
     category: str | None = Field(default=None, min_length=1, max_length=80)
-    contact_person: str | None = None
-    street: str | None = None
+    contact_person: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
     country: str | None = Field(default=None, max_length=120)
-    postal_code: str | None = None
-    city: str | None = None
-    email: str | None = None
-    email_2: str | None = None
-    phone: str | None = None
-    mobile: str | None = None
-    fax: str | None = None
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+    email: str | None = Field(default=None, max_length=255)
+    email_2: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    mobile: str | None = Field(default=None, max_length=80)
+    fax: str | None = Field(default=None, max_length=80)
     notes: str | None = None
     default_payment_term_id: int | None = None
     is_consumer: bool | None = None  # weggelassen = unverändert (seit 1.8.21), ausdrücklich null 422 (seit 1.9.136)
@@ -281,16 +281,16 @@ class CustomerExtraInfoUpdate(CustomerExtraInfoCreate):
 class PropertyCreate(BaseModel):
     customer_id: int
     name: str = Field(min_length=1, max_length=255)
-    street: str | None = None
-    postal_code: str | None = None
-    city: str | None = None
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
     notes: str | None = None
     # Seit "Rechtekonzept" (siehe CLAUDE.md): das, was ein Monteur über den Einsatzbericht
     # lesen soll, ohne die Kundenakte zu öffnen -- Zugang (Schlüssel, Codes, Hunde, Parken) und
     # Ansprechpartner VOR ORT, bewusst getrennt von Customer.contact_person (siehe app/models.py).
     access_notes: str | None = None
-    site_contact_name: str | None = None
-    site_contact_phone: str | None = None
+    site_contact_name: str | None = Field(default=None, max_length=160)
+    site_contact_phone: str | None = Field(default=None, max_length=60)
 
 
 class PropertyOut(PropertyCreate):
@@ -327,13 +327,13 @@ class PropertyUpdate(PartialUpdate):
     NOT_NULL = frozenset({"customer_id", "name"})
     customer_id: int | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    street: str | None = None
-    postal_code: str | None = None
-    city: str | None = None
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
     notes: str | None = None
     access_notes: str | None = None
-    site_contact_name: str | None = None
-    site_contact_phone: str | None = None
+    site_contact_name: str | None = Field(default=None, max_length=160)
+    site_contact_phone: str | None = Field(default=None, max_length=60)
 
 
 PROJEKTSTATUS_ABGELEITET = ("Der Projektstatus ergibt sich aus Angebot und Auftrag (Anfrage, Angebot, Phase des Auftrags) und wird nicht von Hand "
@@ -655,10 +655,10 @@ class QuoteItemUpdate(PartialUpdate):
     quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     short_text: str | None = Field(default=None, min_length=1)
     long_text: str | None = None
-    unit: str | None = Field(default=None, min_length=1)
+    unit: str | None = Field(default=None, min_length=1, max_length=50)
     unit_price: Decimal | None = Field(default=None, ge=0)
-    position_type: str | None = None
-    gaeb_oz: str | None = None
+    position_type: str | None = Field(default=None, max_length=30)
+    gaeb_oz: str | None = Field(default=None, max_length=100)
 
 
 class QuoteItemOut(BaseModel):
@@ -895,25 +895,25 @@ class GeneralSettingsUpdate(PartialUpdate):
     Laden der Seite gemerkten, veralteten Stand der Stammdaten)."""
     NOT_NULL = frozenset({"company_name"})
     company_name: str | None = Field(default=None, min_length=1, max_length=255)
-    managing_director: str | None = None
-    street: str | None = None
-    postal_code: str | None = None
-    city: str | None = None
-    country: str = "Deutschland"
-    phone: str | None = None
-    email: str | None = None
-    website: str | None = None
-    tax_number: str | None = None
-    vat_id: str | None = None
-    register_court: str | None = None
-    register_number: str | None = None
-    iban: str | None = None
-    bic: str | None = None
+    managing_director: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+    country: str = Field(default="Deutschland", max_length=120)
+    phone: str | None = Field(default=None, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
+    website: str | None = Field(default=None, max_length=255)
+    tax_number: str | None = Field(default=None, max_length=80)
+    vat_id: str | None = Field(default=None, max_length=80)
+    register_court: str | None = Field(default=None, max_length=160)
+    register_number: str | None = Field(default=None, max_length=80)
+    iban: str | None = Field(default=None, max_length=80)
+    bic: str | None = Field(default=None, max_length=40)
     default_vat_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)
     default_quote_intro: str | None = None
     default_quote_outro: str | None = None
     sidebar_logo_height_px: int = Field(default=64, ge=24, le=120)
-    public_base_url: str | None = None
+    public_base_url: str | None = Field(default=None, max_length=255)
 
     @field_validator("public_base_url")
     @classmethod
@@ -968,7 +968,7 @@ def _felder_ohne_pruefung(eingabe: type[BaseModel], name: str) -> type[BaseModel
 
 class EmployeeFunctionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
-    employee_group: str = Field(default="gewerblich")
+    employee_group: str = Field(default="gewerblich", max_length=30)
     description: str | None = None
     sort_order: int = Field(default=100, ge=0, le=9999)
     active: bool = True
@@ -998,7 +998,7 @@ class EmployeeCreate(BaseModel):
     # job_title bleibt für API-Abwärtskompatibilität bestehen; neue UI verwendet function_id.
     job_title: str | None = Field(default=None, max_length=160)
     function_id: int | None = None
-    employee_group: str = Field(default="gewerblich")
+    employee_group: str = Field(default="gewerblich", max_length=30)
     compensation_type: str = Field(default="hourly", pattern="^(hourly|fixed_salary)$")
     hourly_wage: Decimal | None = Field(default=None, ge=0)
     monthly_salary: Decimal | None = Field(default=None, ge=0)
@@ -1191,7 +1191,7 @@ class AppUserCreate(BaseModel):
     # Kalkulationsgrundlagen/Betriebskosten/Vergütung (buero_finanzen) erben. Die Sidebar-
     # Voreinstellung in users.html bleibt davon unabhängig weiterhin "field" (Monteur), die am
     # wenigsten privilegierte Rolle über ALLE vier hinweg -- siehe dort für die Begründung.
-    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
+    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$", max_length=30)
     active: bool = True
     # Kalender-Modul, Stufe 2 (Outlook-Sync) -- siehe AppUser.outlook_mailbox, app/models.py.
     outlook_mailbox: str | None = Field(default=None, max_length=255)
@@ -1201,7 +1201,7 @@ class AppUserUpdate(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     display_name: str = Field(min_length=1, max_length=160)
     employee_id: int | None = None
-    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
+    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$", max_length=30)
     active: bool = True
     new_password: str | None = Field(default=None, min_length=8, max_length=200)
     outlook_mailbox: str | None = Field(default=None, max_length=255)
@@ -1698,7 +1698,7 @@ class DefectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     description: str | None = None
     roof_area_id: int | None = None
-    location: str | None = None
+    location: str | None = Field(default=None, max_length=500)
     remedy_due_on: date | None = None
 
 
@@ -2409,9 +2409,9 @@ class SmtpSettingsUpdate(BaseModel):
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(ge=1, le=65535)
     username: str = Field(min_length=1, max_length=255)
-    encryption: str = Field(pattern="^(starttls|ssl|none)$")
+    encryption: str = Field(pattern="^(starttls|ssl|none)$", max_length=20)
     sender_email: str = Field(min_length=3, max_length=255)
-    sender_name: str | None = None
+    sender_name: str | None = Field(default=None, max_length=255)
     password: str | None = None  # None = unverändert lassen
 
 
@@ -2436,7 +2436,7 @@ class AISettingsOut(BaseModel):
 
 class AISettingsUpdate(BaseModel):
     enabled: bool
-    provider: str | None = None  # gegen AI_PROVIDERS geprüft in app/ai_settings.py::update_ai_settings()
+    provider: str | None = Field(default=None, max_length=30)  # gegen AI_PROVIDERS geprüft in app/ai_settings.py::update_ai_settings()
     api_base_url: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=120)
     api_key: str | None = None  # None = unverändert lassen
@@ -2671,7 +2671,7 @@ class DocumentEmailTemplateOut(BaseModel):
 
 
 class DocumentEmailTemplateUpdate(BaseModel):
-    subject_template: str | None = None
+    subject_template: str | None = Field(default=None, max_length=255)
     body_template: str | None = None
 
 
@@ -2755,13 +2755,13 @@ class InvoiceItemCreate(BaseModel):
     ist_quantity: Decimal = Field(ge=0)
     source_order_item_id: int | None = None
     soll_quantity: Decimal | None = None
-    position_number: str | None = None
+    position_number: str | None = Field(default=None, max_length=50)
 
 
 class InvoiceItemUpdate(BaseModel):
     short_text: str | None = None
     long_text: str | None = None
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=50)
     unit_price: Decimal | None = Field(default=None, ge=0)
     ist_quantity: Decimal | None = Field(default=None, ge=0)
 
@@ -3454,7 +3454,7 @@ class EmployeeAbsenceCreate(BaseModel):
     absence_type: str | None = Field(default=None, max_length=80)
     # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
     # Neuanlegen/Ändern bewusst NICHT erlaubt, siehe app/absence_requests.py::ABSENCE_CATEGORIES.
-    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
+    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$", max_length=20)  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3502,7 +3502,7 @@ class EmployeeAbsencePlanningOut(BaseModel):
 class EmployeeAbsenceRequestCreate(BaseModel):
     employee_id: int
     absence_type: str | None = Field(default=None, max_length=80)  # seit 1.9.153 optional, wie EmployeeAbsenceCreate
-    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
+    absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$", max_length=20)  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3968,7 +3968,11 @@ class TimeTrackingSettingsOut(BaseModel):
 
 
 class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
-    pass  # seit 1.9.231 ohne die Prüfung der Rundung (entfallen)
+    # seit 1.9.231 ohne die Prüfung der Rundung (entfallen). Seit 1.9.350 mit den Längen der Spalten (Runde V2a, Punkt 1) -- update_time_settings()
+    # übernimmt die beiden Nummern nicht (die setzt nur PUT /api/time-backoffice/datev-nummern, DatevNummernUpdate); hier stehen sie, weil das Schema
+    # vom Antwortschema erbt und das Antwortschema nichts prüft (test_v673).
+    datev_beraternummer: str | None = Field(default=None, max_length=7)
+    datev_mandantennummer: str | None = Field(default=None, max_length=5)
 
 
 class TimeTrackingLockUpdate(BaseModel):
@@ -4197,12 +4201,12 @@ class RoofAreaCreate(BaseModel):
     # Begründung (Schichtenliste RoofLayer hat das Freitextfeld abgelöst).
     property_id: int
     name: str = Field(min_length=1, max_length=255)
-    roof_type: str | None = None
-    covering: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
+    covering: str | None = Field(default=None, max_length=120)
     pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
-    contractor: str | None = None
+    contractor: str | None = Field(default=None, max_length=255)
     third_party_guarantee_until: date | None = None
     notes: str | None = None
 
@@ -4212,18 +4216,18 @@ class RoofAreaUpdate(PartialUpdate):
     stehen. name darf fehlen, aber nicht leer sein."""
     NOT_NULL = frozenset({"name"})
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    roof_type: str | None = None
-    covering: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
+    covering: str | None = Field(default=None, max_length=120)
     pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
-    contractor: str | None = None
+    contractor: str | None = Field(default=None, max_length=255)
     third_party_guarantee_until: date | None = None
     notes: str | None = None
 
 
 class RoofAreaBulkCreate(BaseModel):
-    roof_type: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
     names: list[str] = Field(min_length=1)
 
 
@@ -4246,20 +4250,20 @@ class RoofComponentOut(BaseModel):
 
 
 class RoofComponentCreate(BaseModel):
-    component_type: str | None = None
+    component_type: str | None = Field(default=None, max_length=80)
     name: str = Field(min_length=1, max_length=255)
     quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
     sort_order: int = 100
     notes: str | None = None
 
 
 class RoofComponentUpdate(BaseModel):
-    component_type: str | None = None
+    component_type: str | None = Field(default=None, max_length=80)
     name: str = Field(min_length=1, max_length=255)
     quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
     sort_order: int = 100
     notes: str | None = None
@@ -4289,8 +4293,8 @@ class RoofLayerTypeOut(BaseModel):
 class RoofLayerTypeCreate(BaseModel):
     key: str = Field(min_length=1, max_length=60)
     label: str = Field(min_length=1, max_length=120)
-    roof_type: str | None = None
-    option_group: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
+    option_group: str | None = Field(default=None, max_length=80)
     has_execution: bool = True
     has_thickness: bool = False
     has_notes: bool = True
@@ -4298,8 +4302,8 @@ class RoofLayerTypeCreate(BaseModel):
 
 class RoofLayerTypeUpdate(BaseModel):
     label: str = Field(min_length=1, max_length=120)
-    roof_type: str | None = None
-    option_group: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
+    option_group: str | None = Field(default=None, max_length=80)
     has_execution: bool = True
     has_thickness: bool = False
     has_notes: bool = True
@@ -4329,9 +4333,9 @@ class RoofLayerOut(BaseModel):
 
 class RoofLayerUpsert(BaseModel):
     present: bool | None = None
-    execution: str | None = None
+    execution: str | None = Field(default=None, max_length=160)
     thickness_mm: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=255)
 
 
 # --- Version 1.2.19: Bauteilarten als echte Tabelle (vorher SettingOptionGroup) ---
@@ -4443,7 +4447,7 @@ class ServiceMaterialAdd(BaseModel):
 
 class ServiceCreate(BaseModel):
     catalog_id: int | None = None
-    service_type: str | None = None
+    service_type: str | None = Field(default=None, max_length=20)
     short_text: str = Field(min_length=1)
     long_text: str | None = None
     quantity: Decimal = Field(gt=0)
@@ -4462,7 +4466,7 @@ class ServiceCreate(BaseModel):
 
 
 class ServiceBaseUpdate(BaseModel):
-    service_type: str | None = None
+    service_type: str | None = Field(default=None, max_length=20)
     short_text: str = Field(min_length=1)
     long_text: str | None = None
     quantity: Decimal = Field(gt=0)
@@ -4501,7 +4505,7 @@ class MaterialSearchOut(BaseModel):
 
 
 class MaterialCatalogCreate(BaseModel):
-    article_number: str | None = None
+    article_number: str | None = Field(default=None, max_length=100)
     name: str = Field(min_length=1)
     unit: str = Field(min_length=1, max_length=50)
     purchase_price: Decimal = Field(ge=0)
@@ -4510,7 +4514,7 @@ class MaterialCatalogCreate(BaseModel):
 
 
 class MaterialCatalogUpdate(BaseModel):
-    article_number: str | None = None
+    article_number: str | None = Field(default=None, max_length=100)
     name: str = Field(min_length=1)
     unit: str = Field(min_length=1, max_length=50)
     purchase_price: Decimal = Field(ge=0)
@@ -4528,7 +4532,7 @@ class MaterialGroupOut(BaseModel):
 
 
 class MaterialGroupCreate(BaseModel):
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=255)
     description: str | None = None
 
 
@@ -4580,8 +4584,8 @@ class DocumentLayoutBlockUpdate(PartialUpdate):
     height_mm: Decimal | None = Field(default=None, gt=0, le=297)
     content: str | None = None
     font_size: Decimal | None = Field(default=None, ge=5, le=36)
-    font_weight: str | None = Field(default=None, pattern="^(normal|bold)$")
-    text_align: str | None = Field(default=None, pattern="^(left|center|right)$")
+    font_weight: str | None = Field(default=None, pattern="^(normal|bold)$", max_length=10)
+    text_align: str | None = Field(default=None, pattern="^(left|center|right)$", max_length=10)
     visible: bool | None = None
 
 
@@ -4674,12 +4678,12 @@ class TaskOut(BaseModel):
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    status: str | None = None
-    priority: str = "normal"
+    status: str | None = Field(default=None, max_length=30)
+    priority: str = Field(default="normal", max_length=30)
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None
-    min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
+    min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$", max_length=30)
 
 
 class TaskUpdate(PartialUpdate):
@@ -4699,8 +4703,8 @@ class TaskUpdate(PartialUpdate):
 
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    status: str | None = None
-    priority: str | None = None
+    status: str | None = Field(default=None, max_length=30)
+    priority: str | None = Field(default=None, max_length=30)
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None
@@ -4790,7 +4794,7 @@ class MaintenanceContractItemOut(BaseModel):
 class MaintenanceContractItemCreate(BaseModel):
     roof_area_id: int
     maintenance_window_id: int
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
     template_project_id: int | None = None
     inspection_template_id: int | None = None
     duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
@@ -4799,7 +4803,7 @@ class MaintenanceContractItemCreate(BaseModel):
 class MaintenanceContractItemUpdate(BaseModel):
     roof_area_id: int
     maintenance_window_id: int
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
     template_project_id: int | None = None
     inspection_template_id: int | None = None
     duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
@@ -4906,7 +4910,7 @@ class MaintenanceContractUpdate(BaseModel):
 
 
 class MaintenanceContractStatusUpdate(BaseModel):
-    status: str
+    status: str = Field(max_length=30)
 
 
 # --- Version 1.2.12: Wartungsvertrag aus einem bestehenden Projekt erzeugen ---
@@ -4978,13 +4982,13 @@ class InspectionTemplateItemOut(BaseModel):
 
 class InspectionTemplateItemCreate(BaseModel):
     text: str = Field(min_length=1, max_length=500)
-    item_type: str
-    group_name: str | None = None
-    component_type: str | None = None
+    item_type: str = Field(max_length=30)
+    group_name: str | None = Field(default=None, max_length=120)
+    component_type: str | None = Field(default=None, max_length=80)
     required: bool = False
     target_min: Decimal | None = None
     target_max: Decimal | None = None
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     photo_required: bool = False
     photo_before_after: bool = False
     sort_order: int = 100
@@ -5010,13 +5014,13 @@ class InspectionTemplateOut(BaseModel):
 
 class InspectionTemplateCreate(BaseModel):
     label: str = Field(min_length=1, max_length=160)
-    roof_type: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
     description: str | None = None
 
 
 class InspectionTemplateUpdate(BaseModel):
     label: str = Field(min_length=1, max_length=160)
-    roof_type: str | None = None
+    roof_type: str | None = Field(default=None, max_length=80)
     description: str | None = None
 
 
@@ -5065,12 +5069,12 @@ class InspectionItemOut(BaseModel):
 
 class InspectionItemCreate(BaseModel):
     text: str = Field(min_length=1, max_length=500)
-    item_type: str
-    group_name: str | None = None
+    item_type: str = Field(max_length=30)
+    group_name: str | None = Field(default=None, max_length=120)
     required: bool = False
     target_min: Decimal | None = None
     target_max: Decimal | None = None
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     roof_component_id: int | None = None
     roof_area_id: int | None = None
 
@@ -5086,13 +5090,13 @@ class InspectionItemResultUpdate(BaseModel):
             raise ValueError("„Erfasst von“ setzt der Server aus der Anmeldung.")
         return data
 
-    result: str | None = None
+    result: str | None = Field(default=None, max_length=20)
     condition_grade: int | None = None
     measured_value: Decimal | None = None
     quantity: Decimal | None = None
     duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     notes: str | None = None
-    client_uuid: str | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
 
 
 class InspectionItemsSyncResult(BaseModel):
@@ -5198,7 +5202,7 @@ class ServiceReportHistoryOut(BaseModel):
 
 
 class ServiceReportCreate(BaseModel):
-    report_type: str
+    report_type: str = Field(max_length=30)
     description: str | None = None
     created_by_employee_id: int | None = None
     performed_at: date | None = None
@@ -5210,7 +5214,7 @@ class ServiceReportUpdate(PartialUpdate):
     """Seit 1.9.66 (Stufe 4, R4) ein Teil-Update: die Berichtsseite speichert die Beschreibung allein (wie eine Bemerkung) und das
     Datum allein; die Art nur, solange der Bericht leer ist (app/service_reports.py::update_report())."""
     NOT_NULL = frozenset({"report_type", "performed_at"})
-    report_type: str | None = None
+    report_type: str | None = Field(default=None, max_length=30)
     description: str | None = None
     performed_at: date | None = None
 
@@ -5273,8 +5277,8 @@ class FindingCreate(BaseModel):
         return data
 
     description: str = Field(min_length=1)
-    severity: str
-    action: str
+    severity: str = Field(max_length=30)
+    action: str = Field(max_length=40)
     inspection_item_id: int | None = None
     roof_component_id: int | None = None
     resubmission_date: date | None = None
@@ -5291,8 +5295,8 @@ class FindingFollowupUpdate(BaseModel):
             raise ValueError("„Geschlossen von“ setzt der Server aus der Anmeldung.")
         return data
 
-    status: str | None = None
-    action: str | None = None
+    status: str | None = Field(default=None, max_length=30)
+    action: str | None = Field(default=None, max_length=40)
     resubmission_date: date | None = None
 
 
@@ -5331,26 +5335,26 @@ class ServiceReportMaterialOut(BaseModel):
 
 class ServiceReportMaterialCreate(BaseModel):
     material_id: int | None = None
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
     quantity: Decimal = Field(ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     roof_area_id: int | None = None
     inspection_item_id: int | None = None
     finding_id: int | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=255)
     created_by_employee_id: int | None = None
-    client_uuid: str | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
 
 
 class ServiceReportMaterialUpdate(BaseModel):
     material_id: int | None = None
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
     quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
     roof_area_id: int | None = None
     inspection_item_id: int | None = None
     finding_id: int | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=255)
 
 
 # --- Version 1.4.5: Eingesetzte Betriebsmittel am Einsatzbericht (Betriebsmittelverwaltung Stufe 3) ---
@@ -5371,7 +5375,7 @@ class ServiceReportAssetCreate(BaseModel):
     asset_id: int
     notes: str | None = None
     created_by_employee_id: int | None = None
-    client_uuid: str | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
 
 
 class ServiceReportAssetUpdate(BaseModel):
@@ -5634,11 +5638,11 @@ class RecurringCostOut(BaseModel):
 
 class RecurringCostCreate(BaseModel):
     label: str = Field(min_length=1, max_length=255)
-    category: str | None = None
-    overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$")
+    category: str | None = Field(default=None, max_length=80)
+    overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$", max_length=20)
     net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal = Decimal("19.00")
-    billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
+    billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$", max_length=20)
 
     @field_validator("tax_rate_pct")
     @classmethod
@@ -5663,11 +5667,11 @@ class RecurringCostUpdate(PartialUpdate):
     (app/recurring_costs.py::update_cost(), unter der Sperre der Zeile)."""
     NOT_NULL = frozenset({"label", "overhead_classification", "net_amount", "tax_rate_pct", "billing_interval", "active"})
     label: str | None = Field(default=None, min_length=1, max_length=255)
-    category: str | None = None
-    overhead_classification: str | None = Field(default=None, pattern="^(keine|fix|auslastungsabhaengig)$")
+    category: str | None = Field(default=None, max_length=80)
+    overhead_classification: str | None = Field(default=None, pattern="^(keine|fix|auslastungsabhaengig)$", max_length=20)
     net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal | None = None
-    billing_interval: str | None = Field(default=None, pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
+    billing_interval: str | None = Field(default=None, pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$", max_length=20)
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
     notice_period_months: int | None = Field(default=None, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
@@ -5774,7 +5778,7 @@ class IncomingInvoiceCreate(BaseModel):
     due_date: date | None = None
     skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
-    payment_status: str = Field(default="offen", pattern="^(offen|bezahlt)$")
+    payment_status: str = Field(default="offen", pattern="^(offen|bezahlt)$", max_length=20)
     payment_date: date | None = None
     # Zuordnung: höchstens EINE der drei darf gesetzt sein -- geprüft in
     # app/incoming_invoices.py::_validate_single_assignment(), bewusst kein CheckConstraint
@@ -5811,7 +5815,7 @@ class IncomingInvoiceUpdate(PartialUpdate):
     due_date: date | None = None
     skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
-    payment_status: str | None = Field(default=None, pattern="^(offen|bezahlt)$")
+    payment_status: str | None = Field(default=None, pattern="^(offen|bezahlt)$", max_length=20)
     payment_date: date | None = None
     project_id: int | None = None
     asset_id: int | None = None
@@ -6248,7 +6252,7 @@ class ChecklistPurposeOut(BaseModel):
 
 class ChecklistCreate(BaseModel):
     template_id: int
-    context_type: str = Field(pattern="^(auftrag|objekt|betriebsmittel|betrieb)$")
+    context_type: str = Field(pattern="^(auftrag|objekt|betriebsmittel|betrieb)$", max_length=20)
     order_id: int | None = None
     property_id: int | None = None
     operational_asset_id: int | None = None

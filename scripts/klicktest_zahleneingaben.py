@@ -156,7 +156,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("422 des Servers lesbar", await tab.warten(
         "document.getElementById('paymentTermStatus').textContent.startsWith('Fehler:')"), True)
     p.pruefe("422: Text", await tab.js("document.getElementById('paymentTermStatus').textContent"),
-             "Fehler: Bitte die Eingabe prüfen – Bezeichnung ist zu lang.")
+             "Fehler: Bitte die Eingabe prüfen – Bezeichnung ist zu lang (höchstens 120 Zeichen).")  # seit 1.9.350 mit Grenze
     await tab.bild("zahlungsbedingung_422")
     await _tippen(tab, "ptLabel", "Klicktest 30 Tage")
     await tab.js("savePaymentTerm()")

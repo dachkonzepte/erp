@@ -29,7 +29,9 @@ function fehlerText(body,status,felder){
       const pfad=(Array.isArray(e.loc)?e.loc:[]).filter(x=>!['body','query','path','header'].includes(x));
       const name=pfad.length?String(pfad[pfad.length-1]):'';
       const feld=(felder&&felder[name])||name;
-      const art=_FEHLERARTEN[e.type];
+      let art=_FEHLERARTEN[e.type];
+      // seit 1.9.350 (Runde V2a, Punkt 1): „ist zu lang“ mit der Grenze, wenn die Antwort sie nennt (ctx.max_length der Schemaprüfung)
+      if(art&&e.type==='string_too_long'&&e.ctx&&Number.isInteger(e.ctx.max_length))art+=` (höchstens ${e.ctx.max_length} Zeichen)`;
       if(art)return feld?`${feld} ${art}`:`Die Eingabe ${art}`;
       const text=typeof e.msg==='string'&&e.msg.trim()?e.msg.replace(/^Value error,\s*/,''):'ist ungültig';
       return feld?`${feld}: ${text}`:text;

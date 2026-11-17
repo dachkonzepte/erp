@@ -179,12 +179,22 @@ def test_defect_with_roof_area_photos_and_receipt(welt, buero, ablage):
     ({}, {"photos": [("x.pdf", PDF, "application/pdf")]}, "Foto muss JPEG"),
     ({}, {"photos": [("x.svg", SVG, "image/svg+xml")]}, "Foto (JPEG, PNG, WebP) oder ein PDF"),
     ({}, {"receipts": [("x.pdf", PDF, "application/pdf"), ("y.pdf", PDF, "application/pdf")]}, "mehrfach"),
-    ({"location": "x" * 501}, {}, "Ortsangabe"),
 ])
 def test_invalid_input_is_rejected_and_nothing_stored(welt, buero, ablage, werte, dateien, teil):
     a = _abnahme(buero, welt)
     r = _mangel(buero, a["id"], **werte, **dateien)
     assert r.status_code == 400 and teil in r.json()["detail"], r.text
+    assert _anzahl(welt["db"]) == 0 and _anzahl(welt["db"], Task) == 0
+    assert not (ablage / "maengel").exists() or not list((ablage / "maengel").rglob("*.*"))
+
+
+def test_zu_lange_ortsangabe_422_mit_feld_und_grenze(welt, buero, ablage):
+    """Seit 1.9.350 (Runde V2a, Punkt 1): die Grenze steht am Schema (DefectCreate.location, max_length 500) -- 422 mit Feld und Grenze; bis
+    1.9.349 lehnte erst app/defects.py mit 400 „Die Ortsangabe …“ ab (die Prüfung bleibt dort für andere Aufrufer)."""
+    a = _abnahme(buero, welt)
+    r = _mangel(buero, a["id"], location="x" * 501)
+    assert r.status_code == 422, r.text
+    assert [(e["loc"][-1], e["type"], e["ctx"]["max_length"]) for e in r.json()["detail"]] == [("location", "string_too_long", 500)]
     assert _anzahl(welt["db"]) == 0 and _anzahl(welt["db"], Task) == 0
     assert not (ablage / "maengel").exists() or not list((ablage / "maengel").rglob("*.*"))
 

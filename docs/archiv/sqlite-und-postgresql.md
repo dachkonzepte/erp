@@ -564,3 +564,45 @@ Neu `tests/test_v749_projekt_vorlage_und_eingangsrechnung.py` (4 Tests): Vorlage
 Eingangsrechnungen, Aufgabe und Eingangsrechnung zusammen. Ohne den jeweiligen Eintrag in `PROJEKT_SPERREN` (`349_2`–`349_4`) scheitern die Fälle am
 Fremdschlüssel -- vorher rot. Angepasste Erwartung (Regel 28): `test_v746::test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet` -- die drei
 Fremdschlüssel stehen nicht mehr in `OFFEN`, sondern als „sperrt (409, E9/E10)“, und alles, was mit 409 sperrt, muss in `PROJEKT_SPERREN` stehen.
+
+### Umsetzung 1.9.350: jedes Eingabefeld mit der Länge seiner Spalte (Punkt 1)
+
+- **Was offen war:** auf dem Stand von 1.9.349 dieselben 89 Spalten wie im Befund (Abschnitt 3 A, Zuordnung unverändert: ein Eingabeschema gehört zum
+  Modell, mit dessen Klassennamen sein Name beginnt -- der längste Treffer --, ein Textfeld zur Spalte gleichen Namens). Sie stecken in 127
+  Felddefinitionen, alle in `app/schemas.py` (geerbte Felder an der Stelle, an der sie definiert sind).
+- **Gebaut:** jede dieser Definitionen hat `max_length` = Länge der Spalte -- `Field(default=…, max_length=n)` bzw. ein vorhandenes `Field(…)` um
+  `max_length` ergänzt (ein Muster `pattern=` bleibt daneben). Berater- und Mandantennummer erbt `TimeTrackingSettingsUpdate` vom Antwortschema
+  `TimeTrackingSettingsOut`; ein Antwortschema prüft nichts (1.9.273, `test_v673`), deshalb stehen die beiden dort im Update-Schema neu, mit 7 bzw. 5.
+  `update_time_settings()` übernimmt sie ohnehin nicht -- gesetzt werden sie nur über `PUT /api/time-backoffice/datev-nummern` (`DatevNummernUpdate`,
+  seit 1.9.92, siehe Punkt 3).
+- **Zu lang:** 422 aus der Schemaprüfung, je Feld ein Eintrag mit `loc` (Feld), `type` „string_too_long“ und `ctx.max_length` (Grenze) -- nie mehr 500 unter
+  PostgreSQL. Die vier Proben des Befunds über echte Routen (PLZ des Kunden, PLZ der Firma, Straße des Objekts, Priorität der Aufgabe) antworten so.
+- **Auf der Seite:** `fehlerText()` (`_fehlertext.html`) hängt die Grenze an, wenn die Antwort sie nennt: „Bitte die Eingabe prüfen – PLZ ist zu lang
+  (höchstens 20 Zeichen).“ Ohne `ctx` wie bisher „ist zu lang“. Seiten ohne `fehlerText()` (seit 1.8.35 bekannt: „28 weitere Vorlagen reichen detail
+  roh weiter“) zeigen eine 422-Liste weiter als „Fehler: [object Object]“ -- grob ermittelt u. a. Aufgaben, Eingangsrechnungen, Betriebskosten,
+  Prüfvorlagen, Wartungsverträge, Angebots-Editor, Leistung, Benutzer, Projekt anlegen, Anfragen. Dort sind die betroffenen Felder überwiegend
+  Auswahllisten; nicht umgestellt, Vorschlag im Bericht.
+- **Wächter** `tests/test_v750_laengen.py`: dieselbe Zuordnung über alle Eingabeschemas unter `app/` (ohne `app.main`); jedes zugeordnete Feld braucht
+  `max_length` ≤ n. `OFFEN` darf nur kürzer werden und ist leer; ein neues Feld ohne Grenze macht ihn rot. Dazu je Feld die Probe „ein Zeichen zu viel“
+  über `model_validate()` (417 Felder in 264 Spalten).
+- Nicht in dieser Zuordnung (Grenzen der Heuristik, Befund): Formularfelder von Uploads (`Form(...)`), Felder mit anderem Namen als ihre Spalte, Schemas,
+  deren Name nicht mit dem Modell beginnt. Sie findet der Rundgang V3 (jede schreibende Route mit Text an der Grenze und einem Zeichen darüber).
+
+#### Festlegungen 1.9.350 (Bitte bestätigen)
+
+1. Jedes Eingabefeld, das in eine Spalte `String(n)` geht, hat `max_length` ≤ n -- hier gleich n; zu lang ist 422 mit Feld und Grenze, nie 500.
+2. Die Zuordnung Feld ↔ Spalte ist die des Befunds (Schemaname beginnt mit dem Modell, Feld = Spalte); der Wächter hält sie, `OFFEN` ist leer und darf nur
+   kürzer werden.
+3. Ein Update-Schema, das vom Antwortschema erbt, bekommt die Grenze in einer eigenen Definition, nie im Antwortschema.
+4. Die Meldung auf der Seite nennt die Grenze, wenn die Antwort sie nennt („ist zu lang (höchstens n Zeichen)“).
+
+#### Tests und Prüfung 1.9.350
+
+Neu `tests/test_v750_laengen.py` (423 Tests: Wächter, je Feld ein Zeichen zu viel, die vier Routen des Befunds, Meldung). Auf dem Stand von 1.9.349 rot:
+133 Felder lassen ein Zeichen zu viel durch, die vier Routen antworten 200 (live unter PostgreSQL 500), der Wächter nennt alle offenen Felder, die Meldung
+ohne Grenze. Angepasste Erwartung (Regel 28): `test_v351_maengel` -- eine Ortsangabe aus 501 Zeichen gab bis 1.9.349 400 „Die Ortsangabe …“ aus
+`app/defects.py`, jetzt greift die Grenze am Schema `DefectCreate.location` vorher: 422 mit Feld und Grenze (eigener Test
+`test_zu_lange_ortsangabe_422_mit_feld_und_grenze`, der Fall aus der Parametrierung genommen). Die Seite der Mängel zeigt „Ortsangabe ist zu lang
+(höchstens 500 Zeichen)“ (`defFeldnamen()`); die Prüfung in `app/defects.py` bleibt für andere Aufrufer.
+Angepasste Erwartung des Klicktests (Regel 28): `klicktest_zahleneingaben`, Prüfung „422: Text“ -- „Fehler: Bitte die Eingabe prüfen – Bezeichnung
+ist zu lang.“ -> „… ist zu lang (höchstens 120 Zeichen).“ (die Meldung nennt jetzt die Grenze; aufgefallen im Lauf aller Klicktests vor dem Commit).

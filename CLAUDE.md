@@ -1656,7 +1656,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Namen nach festen Werten (status, kind, type, mode, key …) muss eingeordnet sein. Seit 1.9.332 auch die Aktion jedes Aufrufs von `record_audit_entry()` gegen `audit_logs.action` (`tests/test_v732_lohndatei_vermerk_postgresql.py`; Anlass: „Lohndatei an das Steuerbüro gesendet“, 36 Zeichen, brach unter PostgreSQL ab). Eine neue Spalte oder Konstante kommt dort
   in die passende Liste. **Abgeleitete Werte** (seit 1.8.71, z. B. der Schlüssel einer Spalte aus ihrer Bezeichnung) werden dort
   gekürzt, wo sie entstehen, gegen die kürzeste Spalte, in die sie geschrieben werden -- Länge aus dem Modell
-  (`app/spaltenlaenge.py`: `laenge()`, `eindeutig_gekuerzt()`).
+  (`app/spaltenlaenge.py`: `laenge()`, `eindeutig_gekuerzt()`). **Freie Eingaben** (seit 1.9.350): jedes Feld eines Eingabeschemas, das in eine Spalte
+  `String(n)` geht, hat `max_length` ≤ n -- zu lang ist 422 mit Feld und Grenze, nie 500; ein Update-Schema, das vom Antwortschema erbt, bekommt die
+  Grenze in einer eigenen Definition. Wächter `tests/test_v750_laengen.py` (Zuordnung: Schemaname beginnt mit dem Modell, Feld = Spalte; `OFFEN` leer).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,

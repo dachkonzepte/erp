@@ -156,3 +156,14 @@ Punkt 1 der Runde (nur geprüft) hat keine Festlegung und keine Gegenprobe: er b
 
 6 Gegenproben, alle rot; dazu zuerst `349_2`–`349_4` mit umbenannter Tabelle statt herausgenommenem Eintrag -- rot aus dem falschen Grund (KeyError in
 jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2a, 1.9.350 (Punkt 1): Längen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 und 2 – jedes Feld hat eine Grenze | Priorität der Aufgabe ohne Grenze (`350_1`) | 3 rot: v750 Wächter, Feld TaskCreate.priority, Route Aufgabe |
+| Nr. 1 und 2 – Grenze ≤ Länge der Spalte | Grenze 31 statt 30 (`350_2`) | 3 rot: dieselben |
+| Nr. 3 – eigene Definition im Update-Schema | wieder geerbt, ohne Grenze (`350_4`) | 3 rot: v750 Wächter, beide Felder der Nummern |
+| Nr. 4 – Meldung mit Grenze | `fehlerText()` ohne Grenze (`350_3`) | 1 rot: v750::test_meldung_nennt_die_grenze |
+
+4 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
