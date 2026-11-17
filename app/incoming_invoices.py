@@ -471,7 +471,7 @@ def check_due_skonto_and_create_reminders(db: Session) -> list[int]:
         select(IncomingInvoice).options(selectinload(IncomingInvoice.supplier)).where(
             IncomingInvoice.payment_status == "offen",
             IncomingInvoice.skonto_deadline.is_not(None),
-        )
+        ).order_by(IncomingInvoice.id)
     ).all()
     reminded = []
     for invoice in candidates:

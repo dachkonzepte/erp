@@ -980,7 +980,7 @@ def _latest_readiness_answer(db: Session, asset_id: int):
         .join(ChecklistAnswer, ChecklistAnswer.checklist_id == Checklist.id)
         .where(Checklist.operational_asset_id == asset_id, Checklist.status == "abgeschlossen",
                ChecklistAnswer.field_key == READINESS_FIELD_KEY, ChecklistAnswer.value_text.in_(("ja", "nein")))
-        .order_by(Checklist.completed_at.desc(), Checklist.id.desc())
+        .order_by(Checklist.completed_at.desc().nulls_last(), Checklist.id.desc())
         .limit(1)
     ).first()
 
@@ -1545,7 +1545,7 @@ def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | No
     # Abnahme nimmt (app/acceptance_protocol.py): beides läuft nacheinander.
     from .models import OrderAcceptance  # lokal wie Defect
     blocking = db.scalars(select(OrderAcceptance).where(
-        OrderAcceptance.checklist_attachment_id.in_([s.id for s in affected]), OrderAcceptance.discarded_at.is_(None))
+        OrderAcceptance.checklist_attachment_id.in_([s.id for s in affected]), OrderAcceptance.discarded_at.is_(None)).order_by(OrderAcceptance.id)
     ).all()
     if blocking:
         field_labels = {f.id: f.label for f in checklist.template_version.fields}

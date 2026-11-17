@@ -171,7 +171,7 @@ def abschluss_info(db: Session, order: Order) -> dict:
     from .models import Invoice
     from .time_tracking import summarize_entries
 
-    invoices = list(db.scalars(select(Invoice).where(Invoice.order_id == order.id)))
+    invoices = list(db.scalars(select(Invoice).where(Invoice.order_id == order.id).order_by(Invoice.id)))
     if closing_invoices(invoices):
         return {"schlussrechnung": True, "ohne_rechnung": False, "grund": None, "stunden_gebucht": None}
     bestehende = rechnungen_am_auftrag(invoices)

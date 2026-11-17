@@ -1652,6 +1652,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   "[object Object]" bei 422): keine liest `.detail` an `fehlerText()` vorbei, jeder Zweig `if(!x.ok)`, der etwas zeigt, ruft ihn, wer ihn aufruft, bindet
   `_fehlertext.html` selbst ein (mehrfach einbindbar: nur `var` und Funktion); vierter Parameter `ersatz` für eine Antwort ohne Text. Wächter
   `tests/test_v752_fehlertext_ueberall.py` (Ausnahme mit Grund in `AUSNAHMEN`, nur kürzer).
+- **Jede Liste mit fester Reihenfolge** (seit 1.9.354): jede Listen-Beziehung hat `order_by` (ohne eigene Ordnung die ID, mit `sort_order` dann ID); jede
+  Abfrage, deren Ergebnis eine Folge ist (`.all()`, Schleife, `list()`), hat `order_by` -- ohne nur mit Grund in `OHNE_REIHENFOLGE` (Zuordnung, Menge, Summe,
+  Prüfung, danach sortiert); jedes `order_by` auf einer Spalte, die leer sein darf, sagt `nulls_last()`. Wächter `tests/test_v754_reihenfolge.py`.
 - **Listen nach Namen wie im Telefonbuch** (seit 1.9.353, F6): ohne Groß- und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie ss, leere
   Namen am Ende -- unter SQLite und PostgreSQL gleich, unabhängig von der Kollation des Servers. In der Datenbank nur über
   `app/telefonbuch.py::nach_namen()` (`.order_by(*nach_namen(X.name), X.id)`, die ID zuletzt), in Python über `sortierwert()`, nie `lower()`/`casefold()`;

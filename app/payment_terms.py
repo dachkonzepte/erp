@@ -94,7 +94,7 @@ def set_default_payment_term(db: Session, term_id: int) -> PaymentTerm | None:
     term = db.get(PaymentTerm, term_id)
     if term is None:
         return None
-    for other in db.scalars(select(PaymentTerm).where(PaymentTerm.is_default == True)).all():  # noqa: E712
+    for other in db.scalars(select(PaymentTerm).where(PaymentTerm.is_default == True).order_by(PaymentTerm.id)).all():  # noqa: E712
         other.is_default = False
     term.is_default = True
     db.commit()

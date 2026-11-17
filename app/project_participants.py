@@ -465,7 +465,7 @@ def remove_power_of_attorney(db: Session, participant: ProjectParticipant, kind:
 def delete_participants_of_project(db: Session, project_id: int) -> list[str]:
     """Für delete_project(): Zeilen löschen (ohne Commit), Dateinamen der Belege zurückgeben -- die
     Dateien entfernt der Aufrufer erst nach dem Commit."""
-    rows = db.scalars(select(ProjectParticipant).where(ProjectParticipant.project_id == project_id)).all()
+    rows = db.scalars(select(ProjectParticipant).where(ProjectParticipant.project_id == project_id).order_by(ProjectParticipant.id)).all()
     stored = [name for p in rows for name in (p.poa_stored_filename, p.acceptance_poa_stored_filename) if name]
     for p in rows:
         db.delete(p)

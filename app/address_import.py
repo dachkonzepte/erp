@@ -356,7 +356,7 @@ def get_pending_preview(db: Session) -> dict | None:
 
 
 def discard_pending_preview(db: Session) -> None:
-    pending = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing")).all()
+    pending = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.id)).all()
     for entry in pending:
         db.delete(entry)
     if pending:
@@ -534,14 +534,14 @@ def revert_import_run(db: Session, run_id: int) -> None:
     # Seit 1.9.340 (E2 aus dem Befund SQLite/PostgreSQL): zuerst die Zeilen des Laufs -- imported_addresses.created_customer_id,
     # created_supplier_id und created_property_id zeigen auf das, was der Lauf erzeugt hat. Bis dahin wurden die Kunden zuerst gelöscht, die
     # Abfrage der Lieferanten löste den Autoflush aus, und unter PostgreSQL brach jedes Rückgängigmachen mit 500 ab.
-    rows = db.scalars(select(ImportedAddress).where(ImportedAddress.import_run_id == run.id)).all()
+    rows = db.scalars(select(ImportedAddress).where(ImportedAddress.import_run_id == run.id).order_by(ImportedAddress.id)).all()
     for row in rows:
         db.delete(row)
     db.flush()
-    customers = db.scalars(select(Customer).where(Customer.import_run_id == run.id)).all()
+    customers = db.scalars(select(Customer).where(Customer.import_run_id == run.id).order_by(Customer.id)).all()
     for customer in customers:
         db.delete(customer)
-    suppliers = db.scalars(select(Supplier).where(Supplier.import_run_id == run.id)).all()
+    suppliers = db.scalars(select(Supplier).where(Supplier.import_run_id == run.id).order_by(Supplier.id)).all()
     for supplier in suppliers:
         db.delete(supplier)
     run.status = "reverted"

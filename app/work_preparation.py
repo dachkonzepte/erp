@@ -168,7 +168,7 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
             selectinload(WorkPreparationMaterialDeliveryNote.delivery_note).selectinload(WorkPreparationDeliveryNote.supplier),
         )
         .join(WorkPreparationMaterial, WorkPreparationMaterial.id == WorkPreparationMaterialDeliveryNote.material_id)
-        .where(WorkPreparationMaterial.preparation_id == prep.id)
+        .where(WorkPreparationMaterial.preparation_id == prep.id).order_by(WorkPreparationMaterialDeliveryNote.id)
     ).all():
         note=link.delivery_note
         material_delivery_links.setdefault(link.material_id,[]).append({
@@ -316,7 +316,7 @@ def capture_preparation_material_state(db: Session, order_id: int) -> dict:
     for x in db.scalars(
         select(WorkPreparationMaterialDeliveryNote)
         .join(WorkPreparationMaterial, WorkPreparationMaterial.id==WorkPreparationMaterialDeliveryNote.material_id)
-        .where(WorkPreparationMaterial.preparation_id==prep.id)
+        .where(WorkPreparationMaterial.preparation_id==prep.id).order_by(WorkPreparationMaterialDeliveryNote.id)
     ).all():
         delivery_links.setdefault(x.material_id,[]).append(x.delivery_note_id)
     for row in prep.materials:
@@ -353,7 +353,7 @@ def list_open_tasks(db: Session, employee_id: int | None = None) -> list[dict]:
         query = query.where(WorkPreparationTask.assigned_employee_id == employee_id)
     query = query.order_by(
         case((WorkPreparationTask.due_date.is_(None), 1), else_=0),
-        WorkPreparationTask.due_date,
+        WorkPreparationTask.due_date.nulls_last(),
     )
     result = []
     for t in db.scalars(query).all():
@@ -402,9 +402,9 @@ def refresh_preparation_materials(db: Session, order_id: int, preserved: dict | 
     try:
         old_material_ids=[row.id for row in prep.materials]
         if old_material_ids:
-            for link in db.scalars(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.material_id.in_(old_material_ids))).all():
+            for link in db.scalars(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.material_id.in_(old_material_ids)).order_by(WorkPreparationMaterialSupplier.id)).all():
                 db.delete(link)
-            for link in db.scalars(select(WorkPreparationMaterialDeliveryNote).where(WorkPreparationMaterialDeliveryNote.material_id.in_(old_material_ids))).all():
+            for link in db.scalars(select(WorkPreparationMaterialDeliveryNote).where(WorkPreparationMaterialDeliveryNote.material_id.in_(old_material_ids)).order_by(WorkPreparationMaterialDeliveryNote.id)).all():
                 db.delete(link)
             # Seit 1.9.340 (E5 aus dem Befund SQLite/PostgreSQL): die Zuordnungen in einem eigenen Flush vor den Materialzeilen. Zwischen den
             # Zusatztabellen und den Materialzeilen gibt es keine Beziehung (Regel 6), im selben Flush ging das DELETE der Materialzeilen

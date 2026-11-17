@@ -150,7 +150,7 @@ def list_findings(
         (Finding.severity == "akute_gefahr", 4), (Finding.severity == "dringend", 3),
         (Finding.severity == "mittel", 2), (Finding.severity == "gering", 1), else_=0,
     )
-    query = query.order_by(severity_rank.desc(), Finding.resubmission_date.is_(None), Finding.resubmission_date)
+    query = query.order_by(severity_rank.desc(), Finding.resubmission_date.is_(None), Finding.resubmission_date.nulls_last())
     return [finding_to_dict(f) for f in db.scalars(query).all()]
 
 

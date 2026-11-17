@@ -110,7 +110,7 @@ def signale(db: Session, order_ids, heute: date | None = None) -> dict[int, Sign
     for oid, vstatus in db.execute(select(OrderContract.order_id, OrderContract.status).where(OrderContract.order_id.in_(ids))):
         out[oid].vertrag = vstatus
     rechnungen: dict[int, list[Invoice]] = {}
-    for inv in db.scalars(select(Invoice).where(Invoice.order_id.in_(ids), Invoice.invoice_type.in_(("schluss", "aufwand")))):
+    for inv in db.scalars(select(Invoice).where(Invoice.order_id.in_(ids), Invoice.invoice_type.in_(("schluss", "aufwand"))).order_by(Invoice.id)):
         rechnungen.setdefault(inv.order_id, []).append(inv)
     for oid, invs in rechnungen.items():
         fertig = closing_invoices(invs)
@@ -195,7 +195,7 @@ def projekt_status_alle(db: Session, project_ids, heute: date | None = None) -> 
     if not ids:
         return {}
     auftraege: dict[int, list[Order]] = {}
-    for o in db.scalars(select(Order).where(Order.project_id.in_(ids))):
+    for o in db.scalars(select(Order).where(Order.project_id.in_(ids)).order_by(Order.id)):
         auftraege.setdefault(o.project_id, []).append(o)
     mit_angebot = set(db.scalars(select(Quote.project_id).where(Quote.project_id.in_(ids)).distinct()))
     alle = [o for liste in auftraege.values() for o in liste]
@@ -355,7 +355,7 @@ def positionen(db: Session, order: Order) -> dict:
             .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
             .where(Invoice.order_id == order.id, Invoice.status.in_(VALID_STATUSES),
                    Invoice.invoice_type.in_(("abschlag_leistungsstand", "schluss")), InvoiceItem.source_order_item_id.is_not(None))
-            .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc(), Invoice.invoice_date.desc(), Invoice.id.desc())):
+            .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc().nulls_last(), Invoice.invoice_date.desc(), Invoice.id.desc())):
         if quelle is None:
             quelle = {"invoice_id": inv_id, "invoice_number": nummer, "invoice_date": am, "invoice_type": art, "bezeichnung": bezeichnung}
         stand.setdefault(item_id, _d(ist))

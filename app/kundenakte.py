@@ -152,7 +152,7 @@ def guthaben(db: Session, customer_id: int) -> dict:
     from .payments import customer_balance, customer_credits, payment_rest  # lokal: Zirkel-Import über app/invoices.py
 
     zeilen = [{"id": p.id, "received_on": p.received_on, "rest": payment_rest(db, p)}
-              for p in db.scalars(select(Payment).where(Payment.customer_id == customer_id, Payment.reverses_payment_id.is_(None)))]
+              for p in db.scalars(select(Payment).where(Payment.customer_id == customer_id, Payment.reverses_payment_id.is_(None)).order_by(Payment.id))]
     return customer_balance(zeilen, customer_credits(db, customer_id))
 
 

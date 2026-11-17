@@ -114,9 +114,9 @@ def bilanz(db: Session, von: date, bis: date, employee_ids=None) -> Bilanz:
         abwesend.setdefault(a.employee_id, []).append(a)
     if ids is None:
         mit_daten = {e for e, _ in buchungen} | set(abwesend)
-        personen = list(db.scalars(select(Employee).where(or_(Employee.active == True, Employee.id.in_(mit_daten or {0})))))  # noqa: E712
+        personen = list(db.scalars(select(Employee).where(or_(Employee.active == True, Employee.id.in_(mit_daten or {0}))).order_by(Employee.id)))  # noqa: E712
     else:
-        personen = list(db.scalars(select(Employee).where(Employee.id.in_(ids or [0]))))
+        personen = list(db.scalars(select(Employee).where(Employee.id.in_(ids or [0])).order_by(Employee.id)))
     payrolls = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings).where(
         EmployeePayrollSettings.employee_id.in_([e.id for e in personen] or [0])))}
     feiertage = automatic_public_holidays(feiertage_bundesland(db), range(von.year - 1, bis.year + 2))

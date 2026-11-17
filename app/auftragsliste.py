@@ -75,7 +75,7 @@ def auftragsliste(db: Session, start: date, ende: date) -> list[dict]:
     for oid, von, bis, status in db.execute(
             select(WorkPreparation.order_id, PlanningSlot.start_date, PlanningSlot.end_date, PlanningSlot.status)
             .join(PlanningSlot, PlanningSlot.preparation_id == WorkPreparation.id)
-            .where(WorkPreparation.order_id.in_(offen), PlanningSlot.start_date <= ende, PlanningSlot.end_date >= start)):
+            .where(WorkPreparation.order_id.in_(offen), PlanningSlot.start_date <= ende, PlanningSlot.end_date >= start).order_by(PlanningSlot.start_date, PlanningSlot.id)):
         im_zeitraum.setdefault(oid, []).append((von, bis, status))
     naechster = dict(db.execute(
         select(WorkPreparation.order_id, func.min(PlanningSlot.start_date))

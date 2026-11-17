@@ -76,7 +76,7 @@ def billed_items(db: Session, order_id: int) -> dict[int, list[str]]:
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
         .where(Invoice.order_id == order_id, Invoice.status.in_(VALID_STATUSES), Invoice.invoice_type != "storno",
                InvoiceItem.source_order_item_id.is_not(None), InvoiceItem.ist_quantity != 0)
-        .distinct().order_by(Invoice.invoice_number)
+        .distinct().order_by(Invoice.invoice_number.nulls_last())
     ).all()
     result: dict[int, list[str]] = {}
     for item_id, number in rows:

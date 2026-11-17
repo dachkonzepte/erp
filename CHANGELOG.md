@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.354 – Jede Liste mit fester Reihenfolge
+
+Punkt 2 der Runde V2b (Befund SQLite/PostgreSQL, Abschnitt 3 E). Ohne ORDER BY liefert PostgreSQL nach einer Änderung eine andere Reihenfolge -- im Befund tauschten die Angebote eines Projekts nach einer Statusänderung die Plätze --, und leere Werte stehen dort hinten statt vorn. Jetzt hat jede Listen-Beziehung eine Reihenfolge (26, meist die des Anlegens), jede Abfrage, deren Ergebnis eine Folge ist, ein `order_by` (66, auch Lösch- und Änderungsschleifen, Kopien und Zeilensperren), und leere Werte stehen ausdrücklich am Ende (14). Ohne Reihenfolge bleiben 61 Abfragen, deren Ergebnis eine Zuordnung, Menge oder Summe wird -- jede mit Grund.
+
+Neu `tests/test_v754_reihenfolge.py` mit Wächter und zwei Tests gegen PostgreSQL. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.353 – Listen nach Namen wie im Telefonbuch
 
 Punkt 1 der Runde V2b (F6). Listen nach Namen sortieren jetzt ohne Groß- und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben (Ä wie A, é wie e), ß wie ss, leere Namen am Ende -- unter SQLite und PostgreSQL gleich und unabhängig von der Kollation des Servers. Bis 1.9.352 sortierte SQLite binär („Zebra“ vor „apfel“, „Äpfel“ am Ende, ein leerer Name oben), PostgreSQL nach seiner Kollation. Betroffen sind rund 60 Listen: Kunden, Objekte, Dachflächen, Mitarbeiter, Kolonnen, Geräte, Lieferanten, Adressbuch und Beteiligte, Benutzer, Kataloge, Vorlagen, die Büro-Suche, die Listen unter „Zeiten“, die Konten und der Lohn. Dabei aufgefallen: die Betriebsmittel-Liste sortierte nach einer Spalte, die bei einem Betriebsmittel mit Gerät leer ist -- jetzt nach dem Namen, den sie zeigt.

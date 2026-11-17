@@ -66,7 +66,7 @@ def persist_project(db: Session, project: ParsedProject, filename: str) -> tuple
             alte = [m.id for m in service.materials]
             if alte:
                 for kalkulation in db.scalars(select(QuoteItemMaterialCalculation).where(
-                        QuoteItemMaterialCalculation.source_material_id.in_(alte))).all():
+                        QuoteItemMaterialCalculation.source_material_id.in_(alte)).order_by(QuoteItemMaterialCalculation.id)).all():
                     kalkulation.source_material_id = None
                 db.flush()
             service.materials.clear()

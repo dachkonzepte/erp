@@ -52,7 +52,7 @@ def ensure_default_work_time_models(db: Session) -> None:
     die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(WorkTimeModel.id).limit(1)) is not None:
         settings = load_advanced_settings(db)
-        for model in db.scalars(select(WorkTimeModel)).all():
+        for model in db.scalars(select(WorkTimeModel).order_by(WorkTimeModel.id)).all():
             if validity_row(db, model.id, create=False) is None:
                 code=(model.code or "").lower()
                 # seit 1.9.167 der Tarif Dachdecker (KW 18–48 und 49–17), bis 1.9.166 KW 13–43 und 44–12

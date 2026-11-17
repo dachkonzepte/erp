@@ -104,7 +104,7 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
         query = query.where(Task.title.ilike(f"%{search}%"))
     if not include_archived:
         query = query.where(Task.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
-    query = query.order_by(Task.due_date.is_(None), Task.due_date, Task.id.desc())
+    query = query.order_by(Task.due_date.is_(None), Task.due_date.nulls_last(), Task.id.desc())
     columns_by_key = _columns_by_key(db)
     return [task_to_dict(t, columns_by_key) for t in db.scalars(query).all()]
 

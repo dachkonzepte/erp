@@ -105,7 +105,7 @@ def offene_zeiten(db: Session, heute: date) -> list[dict]:
     Zeitart, Auftrag (Nummer · Titel, Kennzeichen), ob sie zu einer laufenden Gruppe gehört."""
     rows = db.scalars(select(TimeEntry).options(selectinload(TimeEntry.employee), selectinload(TimeEntry.order))
                       .where(TimeEntry.status == "running", TimeEntry.started_at.is_not(None))
-                      .order_by(TimeEntry.started_at, TimeEntry.id)).all()
+                      .order_by(TimeEntry.started_at.nulls_last(), TimeEntry.id)).all()
     rows = [r for r in rows if laeuft_seit_frueher(r, heute)]
     namen = _entry_type_labels(db)
     gruppe = _laufende_gruppen(db, [r.id for r in rows])
@@ -153,7 +153,7 @@ def rueckfahrten(db: Session, ab: date, bis: date) -> list[dict]:
     oder lässt sie stehen. Eine Abfrage für die Buchungen, der Verlauf über _listenzeilen()."""
     rows = db.scalars(select(TimeEntry).options(selectinload(TimeEntry.employee), selectinload(TimeEntry.order))
                       .where(TimeEntry.status == "booked", TimeEntry.work_date >= ab, TimeEntry.work_date <= bis)
-                      .order_by(TimeEntry.employee_id, TimeEntry.work_date, TimeEntry.started_at, TimeEntry.id)).all()
+                      .order_by(TimeEntry.employee_id, TimeEntry.work_date, TimeEntry.started_at.nulls_last(), TimeEntry.id)).all()
     je_tag: dict[tuple[int, date], list[TimeEntry]] = defaultdict(list)
     for r in rows:
         je_tag[(r.employee_id, r.work_date)].append(r)

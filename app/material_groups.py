@@ -50,7 +50,7 @@ def backfill_existing_materials(db: Session, group: MaterialGroup) -> int:
     Spalte materials.catalog_id noch nicht existiert."""
     if not _materials_table_has_catalog_column(db):
         return -1
-    rows = db.scalars(select(Material).where(Material.catalog_id.is_(None))).all()
+    rows = db.scalars(select(Material).where(Material.catalog_id.is_(None)).order_by(Material.id)).all()
     for material in rows:
         material.catalog_id = group.id
     if rows:

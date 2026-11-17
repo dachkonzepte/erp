@@ -131,7 +131,7 @@ def reset(db: Session, user: AppUser) -> None:
     alle Sitzungen des Kontos (app/sitzungen.py) -- auch eine, die den zweiten Faktor schon bestätigt hatte."""
     user.totp_secret_encrypted = None
     user.totp_confirmed_at = None
-    for row in db.scalars(select(TwoFactorRecoveryCode).where(TwoFactorRecoveryCode.user_id == user.id)).all():
+    for row in db.scalars(select(TwoFactorRecoveryCode).where(TwoFactorRecoveryCode.user_id == user.id).order_by(TwoFactorRecoveryCode.id)).all():
         db.delete(row)
     sitzungen.alle_beenden(db, user)
     db.commit()

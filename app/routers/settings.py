@@ -164,7 +164,7 @@ def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, 
         setattr(function, key, value)
     function.name = function.name.strip()
     # Bestehende Mitarbeitergruppe und Legacy-Funktion synchron halten.
-    profiles = db.scalars(select(EmployeeProfile).where(EmployeeProfile.function_id == function_id)).all()
+    profiles = db.scalars(select(EmployeeProfile).where(EmployeeProfile.function_id == function_id).order_by(EmployeeProfile.id)).all()
     for profile in profiles:
         employee = db.get(Employee, profile.employee_id)
         if employee:

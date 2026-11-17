@@ -327,7 +327,7 @@ def pausen_neu_rechnen(db: Session, employee_id: int, tag: date, erwartet: dict[
     Pause und gebuchte Stunden der genannten Buchungen (eine Buchung einer Gruppe gilt danach als einzeln geändert), dazu eine Zeile im
     Verlauf. Nie von selbst -- nur auf den Klick „Pausen neu rechnen“."""
     rows = db.scalars(select(TimeEntry).where(TimeEntry.employee_id == employee_id, TimeEntry.work_date == tag,
-                                              TimeEntry.status == "booked").with_for_update()).all()
+                                              TimeEntry.status == "booked").with_for_update().order_by(TimeEntry.id)).all()
     vorschau = pausen_vorschau(db, employee_id, tag)
     plan = {b["id"]: b for b in vorschau["buchungen"]}
     if not vorschau["passt"] and not plan:
@@ -374,7 +374,7 @@ def active_entry(db: Session, employee_id: int) -> TimeEntry | None:
         select(TimeEntry)
         .options(selectinload(TimeEntry.order), selectinload(TimeEntry.project), selectinload(TimeEntry.order_item))
         .where(TimeEntry.employee_id == employee_id, TimeEntry.status == "running")
-        .order_by(TimeEntry.started_at.desc())
+        .order_by(TimeEntry.started_at.desc().nulls_last())
     )
 
 
@@ -726,7 +726,7 @@ def list_entries(
         selectinload(TimeEntry.employee), selectinload(TimeEntry.project),
         selectinload(TimeEntry.order), selectinload(TimeEntry.order_item), selectinload(TimeEntry.created_by),
     ).where(*_entry_filters(employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
-    ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc(), TimeEntry.id.desc())
+    ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc().nulls_last(), TimeEntry.id.desc())
     if limit is not None: stmt=stmt.limit(limit)
     return db.scalars(stmt).all()
 
@@ -836,14 +836,14 @@ def group_for_entry(db: Session, entry_id: int) -> TimeEntryGroup | None:
 
 
 def group_member_ids(db: Session, group_id: int) -> list[int]:
-    return list(db.scalars(select(TimeEntryGroupMember.employee_id).where(TimeEntryGroupMember.group_id == group_id)).all())
+    return list(db.scalars(select(TimeEntryGroupMember.employee_id).where(TimeEntryGroupMember.group_id == group_id).order_by(TimeEntryGroupMember.id)).all())
 
 
 def validate_group_members(db: Session, employee_ids: list[int], *, team_id: int | None = None, actor_employee_id: int | None = None, is_admin: bool = False) -> list[Employee]:
     ids = list(dict.fromkeys(int(x) for x in employee_ids if x))
     if not ids:
         raise ValueError("Bitte mindestens einen Mitarbeiter auswählen.")
-    employees = list(db.scalars(select(Employee).where(Employee.id.in_(ids), Employee.active==True)).all())
+    employees = list(db.scalars(select(Employee).where(Employee.id.in_(ids), Employee.active==True).order_by(Employee.id)).all())
     if len(employees) != len(ids):
         raise ValueError("Mindestens ein ausgewählter Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
     if is_admin:
@@ -943,7 +943,7 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status!='running' or group.started_at is None: raise ValueError("Diese Gruppenbuchung läuft nicht mehr.")
     end=ended_at or berlin_now()
-    links=db.scalars(select(TimeEntryGroupMember).where(TimeEntryGroupMember.group_id==group.id)).all()
+    links=db.scalars(select(TimeEntryGroupMember).where(TimeEntryGroupMember.group_id==group.id).order_by(TimeEntryGroupMember.id)).all()
     amounts=[]; applied_breaks=[]
     for link in links:
         entry=db.get(TimeEntry,link.time_entry_id)
@@ -1186,7 +1186,7 @@ def active_group_for_employee(db: Session, employee_id: int, *, initiated_only: 
         .join(TimeEntryGroupMember, TimeEntryGroupMember.group_id==TimeEntryGroup.id)
         .join(TimeEntry, TimeEntry.id==TimeEntryGroupMember.time_entry_id)
         .where(TimeEntryGroupMember.employee_id==employee_id, TimeEntryGroup.status=='running', TimeEntry.status=='running')
-        .order_by(TimeEntryGroup.started_at.desc())
+        .order_by(TimeEntryGroup.started_at.desc().nulls_last())
     )
     if initiated_only:
         stmt=stmt.where(TimeEntryGroup.initiated_by_employee_id==employee_id)

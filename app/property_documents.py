@@ -117,13 +117,13 @@ def list_merged_documents_for_property(db: Session, property_id: int, *, field_v
     property_docs = db.scalars(
         select(PropertyDocument)
         .options(selectinload(PropertyDocument.document_category))
-        .where(PropertyDocument.property_id == property_id)
+        .where(PropertyDocument.property_id == property_id).order_by(PropertyDocument.id)
     ).all()
     project_docs = db.scalars(
         select(ProjectDocument)
         .join(Project, ProjectDocument.project_id == Project.id)
         .options(selectinload(ProjectDocument.document_category))
-        .where(Project.property_id == property_id, Project.archived == False)  # noqa: E712
+        .where(Project.property_id == property_id, Project.archived == False).order_by(ProjectDocument.id)  # noqa: E712
     ).all()
 
     items: list[dict] = []

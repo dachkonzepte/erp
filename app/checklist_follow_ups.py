@@ -161,7 +161,7 @@ def _close_lapsed_rows(db: Session, checklist: Checklist, specs) -> None:
         valid = row_key(spec, current) if current is not None else None
         rows = db.scalars(select(ChecklistFollowUp).where(
             ChecklistFollowUp.checklist_id == checklist.id, ChecklistFollowUp.status.in_(OPEN_STATUSES),
-            ChecklistFollowUp.follow_up_key.like(spec.key + SIGNATURE_KEY_SEPARATOR + "%"))).all()
+            ChecklistFollowUp.follow_up_key.like(spec.key + SIGNATURE_KEY_SEPARATOR + "%")).order_by(ChecklistFollowUp.id)).all()
         for row in rows:
             if row.follow_up_key != valid:
                 db.execute(update(ChecklistFollowUp)

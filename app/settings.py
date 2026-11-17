@@ -97,7 +97,7 @@ def highest_existing(db: Session, sequence_key: str, format_pattern: str) -> tup
         return None
     regex = _pattern_regex(format_pattern, berlin_now().year)
     best = None
-    for value in db.scalars(select(column).where(column.is_not(None))):
+    for value in db.scalars(select(column).where(column.is_not(None)).order_by(column)):
         match = regex.fullmatch(value)
         if match and (best is None or int(match.group(1)) > best[0]):
             best = (int(match.group(1)), value)

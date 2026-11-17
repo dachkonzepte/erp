@@ -138,7 +138,7 @@ def abgleichen(db: Session, slot: PlanningSlot) -> list[int]:
 
 def entfernen(db: Session, slot_id: int) -> None:
     """Vor dem Löschen eines Einsatzes (ohne Commit): seine Termine fallen weg, in Outlook über Löschaufträge."""
-    for termin in db.scalars(select(CalendarEvent).where(CalendarEvent.planning_slot_id == slot_id)).all():
+    for termin in db.scalars(select(CalendarEvent).where(CalendarEvent.planning_slot_id == slot_id).order_by(CalendarEvent.id)).all():
         _weg(db, termin)
     db.flush()
 
@@ -147,7 +147,7 @@ def auftrag_abgleichen(db: Session, order_id: int) -> list[int]:
     """Nach einem Wechsel des Auftragsstatus (ohne Commit): abgeschlossen oder storniert -> keine Termine, wieder offen -> wieder da."""
     from .planning import _load_slot
     ids = db.scalars(select(PlanningSlot.id).join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
-                     .where(WorkPreparation.order_id == order_id)).all()
+                     .where(WorkPreparation.order_id == order_id).order_by(PlanningSlot.id)).all()
     return [t for sid in ids for t in abgleichen(db, _load_slot(db, sid))]
 
 

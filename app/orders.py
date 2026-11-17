@@ -594,7 +594,7 @@ def change_orders_customer(db: Session, project_id: int, customer, *, reason: st
         order.customer_id = customer.id
         for key, value in snapshot.items():
             setattr(order, key, value)
-        for invoice in db.scalars(select(Invoice).where(Invoice.order_id == order.id, Invoice.status == "entwurf")):
+        for invoice in db.scalars(select(Invoice).where(Invoice.order_id == order.id, Invoice.status == "entwurf").order_by(Invoice.id)):
             for key, value in snapshot.items():
                 setattr(invoice, key, value)
     for row in rows:
@@ -940,7 +940,7 @@ def sync_block_reasons(db: Session, order: Order) -> list[str]:
     # Seit 1.8.82 (R4a Punkt 2, app/order_locks.py): nach der Schlussrechnung ist alles gesperrt, ab der ersten gültigen Rechnung
     # der Steuersatz -- auch eine, die an keiner Position hängt (pauschaler Abschlag, Aufwand), oder eine Schlussrechnung ohne
     # Positionen.
-    invoices = list(db.scalars(select(Invoice).where(Invoice.order_id == order.id)))
+    invoices = list(db.scalars(select(Invoice).where(Invoice.order_id == order.id).order_by(Invoice.id)))
     final = closing_invoices(invoices)  # seit 1.8.86 auch eine abschließende Rechnung aus Aufwand
     if final:
         what = "die Schlussrechnung" if final[0].invoice_type == "schluss" else "die abschließende Rechnung aus Aufwand"

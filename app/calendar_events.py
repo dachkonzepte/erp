@@ -240,7 +240,7 @@ def unlink_calendar_events_for_project(db: Session, project_id: int) -> None:
     rows = db.scalars(
         select(CalendarEvent).where(
             or_(CalendarEvent.project_id == project_id, CalendarEvent.quote_id.in_(quote_ids))
-        )
+        ).order_by(CalendarEvent.id)
     ).all()
     for row in rows:
         row.project_id = None

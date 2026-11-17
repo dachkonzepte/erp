@@ -219,3 +219,16 @@ jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich 
 
 16 Gegenproben (15 über Tests, 1 über den Klicktest), alle rot; `353_7c` lief zuerst aus dem falschen Grund rot (Kommentar mitten in der Zeile, die Datei
 ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2b, 1.9.354 (Punkt 2): jede Liste mit fester Reihenfolge
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jede Listen-Beziehung | `Project.quotes` ohne `order_by` (`354_1`) | 2 rot: v754 Beziehungen, Angebote unter PostgreSQL (P2b: die Plätze getauscht) |
+| Nr. 2 – jede Folge mit `order_by` | „Abgleich gesperrt“ ohne `order_by` (`354_2`) | 1 rot: v754 Abfragen |
+| Nr. 3 – Liste genau | eine Stelle aus `OHNE_REIHENFOLGE` mit `order_by` (`354_3`) | 2 rot: v754 Liste genau, leere Werte (die Spalte darf leer sein) |
+| Nr. 4 – leere Werte am Ende (Abfragen) | `list_entries()` ohne `nulls_last()` (`354_4`) | 2 rot: v754 Wächter, Dauer-Buchung unter PostgreSQL (P5) |
+| Nr. 4 – leere Werte am Ende (Beziehungen) | Prüffristen ohne `nulls_last()` (`354_4b`) | 1 rot: v754 Beziehungen |
+| Nr. 5 – jede Form | über die Probe in `test_der_waechter_erkennt_jede_form` (Schleife, `list()`) | -- (keine Änderung unter `app/`) |
+
+5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

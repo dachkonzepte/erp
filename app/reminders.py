@@ -1118,7 +1118,7 @@ def list_invoices_needing_attention(db: Session) -> list[dict]:
     abgezogenen Rechnungen; die Endrechnung mit ihrem Zahlbetrag, auch wenn sie selbst schon bezahlt ist (app/final_dunning.py)."""
     overdue = db.scalars(
         select(Invoice).where(Invoice.status == FINALIZED, Invoice.invoice_type != "storno", Invoice.due_date < berlin_today())
-        .options(selectinload(Invoice.reminders), selectinload(Invoice.order))
+        .options(selectinload(Invoice.reminders), selectinload(Invoice.order)).order_by(Invoice.id)
     ).all()
     # Seit 1.8.78 nur mit mahnfähigem Betrag (offen − Einbehalt), und dieser statt des Bruttos; seit 1.8.89 der angemahnte Betrag.
     states = dunning_states(db, overdue)

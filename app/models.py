@@ -24,7 +24,7 @@ class Catalog(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    services: Mapped[list["Service"]] = relationship(back_populates="catalog")
+    services: Mapped[list["Service"]] = relationship(back_populates="catalog", order_by="Service.id")
     calculation_settings: Mapped["CalculationSettings | None"] = relationship(back_populates="catalog")
 
 
@@ -38,7 +38,7 @@ class ImportBatch(Base):
     filename: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    services: Mapped[list["Service"]] = relationship(back_populates="import_batch")
+    services: Mapped[list["Service"]] = relationship(back_populates="import_batch", order_by="Service.id")
 
 
 class Service(Base):
@@ -71,13 +71,13 @@ class Service(Base):
     import_batch: Mapped[ImportBatch] = relationship(back_populates="services")
     catalog: Mapped["Catalog | None"] = relationship(back_populates="services")
     materials: Mapped[list["ServiceMaterial"]] = relationship(
-        back_populates="service", cascade="all, delete-orphan"
+        back_populates="service", cascade="all, delete-orphan", order_by="ServiceMaterial.id"
     )
     calculation: Mapped["ServiceCalculation | None"] = relationship(
         back_populates="service", cascade="all, delete-orphan", uselist=False
     )
     material_overrides: Mapped[list["MaterialCalculationOverride"]] = relationship(
-        back_populates="service", cascade="all, delete-orphan"
+        back_populates="service", cascade="all, delete-orphan", order_by="MaterialCalculationOverride.id"
     )
 
 
@@ -102,7 +102,7 @@ class MaterialGroup(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    materials: Mapped[list["Material"]] = relationship(back_populates="catalog")
+    materials: Mapped[list["Material"]] = relationship(back_populates="catalog", order_by="Material.id")
 
 
 class Material(Base):
@@ -127,7 +127,7 @@ class Material(Base):
     catalog_id: Mapped[int | None] = mapped_column(ForeignKey("material_groups.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    service_materials: Mapped[list["ServiceMaterial"]] = relationship(back_populates="material")
+    service_materials: Mapped[list["ServiceMaterial"]] = relationship(back_populates="material", order_by="ServiceMaterial.id")
     catalog: Mapped["MaterialGroup | None"] = relationship(back_populates="materials")
 
 
@@ -278,9 +278,9 @@ class Customer(Base):
     profile: Mapped["CustomerProfile | None"] = relationship(
         back_populates="customer", cascade="all, delete-orphan", uselist=False
     )
-    properties: Mapped[list["Property"]] = relationship(back_populates="customer", cascade="all, delete-orphan")
-    projects: Mapped[list["Project"]] = relationship(back_populates="customer")
-    inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="customer")
+    properties: Mapped[list["Property"]] = relationship(back_populates="customer", cascade="all, delete-orphan", order_by="Property.id")
+    projects: Mapped[list["Project"]] = relationship(back_populates="customer", order_by="Project.id")
+    inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="customer", order_by="Inquiry.id")
     extra_infos: Mapped[list["CustomerExtraInfo"]] = relationship(
         back_populates="customer", cascade="all, delete-orphan", order_by="CustomerExtraInfo.id"
     )
@@ -435,8 +435,8 @@ class Property(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     customer: Mapped[Customer] = relationship(back_populates="properties")
-    projects: Mapped[list["Project"]] = relationship(back_populates="property")
-    inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="property")
+    projects: Mapped[list["Project"]] = relationship(back_populates="property", order_by="Project.id")
+    inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="property", order_by="Inquiry.id")
     # Dachflächen (seit 1.2.14) -- anders als projects/inquiries bewusst MIT cascade: Property
     # wird zwar aktuell nirgends im Code gelöscht, aber ein before_delete-Event auf RoofArea
     # (registriert in app/roof_areas.py) räumt beim Löschen -- auch kaskadiert über dieses
@@ -523,7 +523,7 @@ class Project(Base):
 
     customer: Mapped[Customer] = relationship(back_populates="projects")
     property: Mapped[Property | None] = relationship(back_populates="projects")
-    quotes: Mapped[list["Quote"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    quotes: Mapped[list["Quote"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Quote.id")
     orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.id")
     source_inquiry: Mapped["Inquiry | None"] = relationship(back_populates="project", foreign_keys="Inquiry.project_id", uselist=False)
     documents: Mapped[list["ProjectDocument"]] = relationship(
@@ -1075,7 +1075,7 @@ class Order(Base):
     sections: Mapped[list["OrderSection"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderSection.sort_order")
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.sort_order")
     revisions: Mapped[list["OrderRevision"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderRevision.revision_number")
-    invoices: Mapped[list["Invoice"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+    invoices: Mapped[list["Invoice"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="Invoice.id")
     caseworker: Mapped["Employee | None"] = relationship(foreign_keys=[caseworker_employee_id])
     project_manager: Mapped["Employee | None"] = relationship(foreign_keys=[project_manager_employee_id])
     contract_basis_changes: Mapped[list["OrderContractBasisChange"]] = relationship(
@@ -2313,7 +2313,7 @@ class ImportRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="completed")
     reverted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    rows: Mapped[list["ImportedAddress"]] = relationship(back_populates="import_run")
+    rows: Mapped[list["ImportedAddress"]] = relationship(back_populates="import_run", order_by="ImportedAddress.id")
 
 
 class ImportedAddress(Base):
@@ -3216,7 +3216,7 @@ class EmployeeFunction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    employee_profiles: Mapped[list["EmployeeProfile"]] = relationship(back_populates="function")
+    employee_profiles: Mapped[list["EmployeeProfile"]] = relationship(back_populates="function", order_by="EmployeeProfile.id")
 
 
 class Employee(Base):
@@ -3493,9 +3493,9 @@ class AppUser(Base):
     totp_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     totp_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
-    trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan")
-    sessions: Mapped[list["UserSession"]] = relationship(cascade="all, delete-orphan")
+    recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan", order_by="TwoFactorRecoveryCode.id")
+    trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan", order_by="TrustedDevice.id")
+    sessions: Mapped[list["UserSession"]] = relationship(cascade="all, delete-orphan", order_by="UserSession.id")
 
     @property
     def two_factor_configured(self) -> bool:
@@ -3910,8 +3910,8 @@ class ServiceReport(Base):
     inspection_items: Mapped[list["InspectionItem"]] = relationship(
         cascade="all, delete-orphan", order_by="InspectionItem.sort_order, InspectionItem.id"
     )
-    findings: Mapped[list["Finding"]] = relationship(back_populates="service_report", cascade="all, delete-orphan")
-    photos: Mapped[list["ServiceReportPhoto"]] = relationship(cascade="all, delete-orphan")
+    findings: Mapped[list["Finding"]] = relationship(back_populates="service_report", cascade="all, delete-orphan", order_by="Finding.id")
+    photos: Mapped[list["ServiceReportPhoto"]] = relationship(cascade="all, delete-orphan", order_by="ServiceReportPhoto.sort_order, ServiceReportPhoto.id")
     materials: Mapped[list["ServiceReportMaterial"]] = relationship(
         cascade="all, delete-orphan", order_by="ServiceReportMaterial.sort_order, ServiceReportMaterial.id"
     )
@@ -4224,7 +4224,7 @@ class RoofArea(Base):
     # Kein order_by hier: die Anzeigereihenfolge richtet sich nach RoofLayerType.sort_order
     # (einer anderen Tabelle) -- Sortierung passiert ausschließlich auf Dict-Ebene in
     # list_roof_layers() (app/roof_areas.py).
-    layers: Mapped[list["RoofLayer"]] = relationship(cascade="all, delete-orphan")
+    layers: Mapped[list["RoofLayer"]] = relationship(cascade="all, delete-orphan", order_by="RoofLayer.id")
 
 
 class RoofComponent(Base):
@@ -4523,7 +4523,7 @@ class Finding(Base):
     # Nur Lesezugriff (kein cascade hier) -- die Löschkaskade läuft über
     # ServiceReport.photos (service_report_id), diese Relationship greift über die andere FK
     # (finding_id) auf dieselbe Tabelle zu, rein für den bequemen Zugriff finding.photos.
-    photos: Mapped[list["ServiceReportPhoto"]] = relationship(back_populates="finding")
+    photos: Mapped[list["ServiceReportPhoto"]] = relationship(back_populates="finding", order_by="ServiceReportPhoto.sort_order, ServiceReportPhoto.id")
 
 
 class ServiceReportPhoto(Base):
@@ -4802,7 +4802,7 @@ class OperationalAsset(Base):
 
     resource: Mapped["OperationalResource | None"] = relationship()
     inspections: Mapped[list["OperationalAssetInspection"]] = relationship(
-        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetInspection.next_due_date"
+        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetInspection.next_due_date.nulls_last(), OperationalAssetInspection.id"
     )
     documents: Mapped[list["OperationalAssetDocument"]] = relationship(
         back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetDocument.uploaded_at.desc()"
@@ -5748,16 +5748,16 @@ class Checklist(Base):
     template_version: Mapped["ChecklistTemplateVersion"] = relationship()
     created_by_employee: Mapped["Employee | None"] = relationship(foreign_keys=[created_by_employee_id])
     completed_by_employee: Mapped["Employee | None"] = relationship(foreign_keys=[completed_by_employee_id])
-    answers: Mapped[list["ChecklistAnswer"]] = relationship(back_populates="checklist", cascade="all, delete-orphan")
+    answers: Mapped[list["ChecklistAnswer"]] = relationship(back_populates="checklist", cascade="all, delete-orphan", order_by="ChecklistAnswer.id")
     attachments: Mapped[list["ChecklistAttachment"]] = relationship(
         back_populates="checklist", cascade="all, delete-orphan",
         order_by="ChecklistAttachment.sort_order, ChecklistAttachment.id",
     )
     rule_executions: Mapped[list["ChecklistRuleExecution"]] = relationship(
-        back_populates="checklist", cascade="all, delete-orphan",
+        back_populates="checklist", cascade="all, delete-orphan", order_by="ChecklistRuleExecution.id",
     )
     follow_ups: Mapped[list["ChecklistFollowUp"]] = relationship(
-        back_populates="checklist", cascade="all, delete-orphan",
+        back_populates="checklist", cascade="all, delete-orphan", order_by="ChecklistFollowUp.id",
     )
 
 
@@ -5791,7 +5791,7 @@ class ChecklistAnswer(Base):
     checklist: Mapped["Checklist"] = relationship(back_populates="answers")
     template_field: Mapped["ChecklistTemplateField"] = relationship()
     selections: Mapped[list["ChecklistAnswerSelection"]] = relationship(
-        back_populates="answer", cascade="all, delete-orphan",
+        back_populates="answer", cascade="all, delete-orphan", order_by="ChecklistAnswerSelection.id",
     )
 
 

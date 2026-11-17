@@ -516,7 +516,7 @@ def delete_contract(db: Session, contract_id: int, user: AppUser | None = None) 
     # Seit 1.9.344 einzeln über aufgabe_loeschen() (Eintrag in der Änderungshistorie, Unteraufgaben per Kaskade) statt delete(Task) über die
     # Tabelle -- das sah die Historie nicht, und mit einer Unteraufgabe scheiterte es am Fremdschlüssel.
     erinnerungen = db.scalars(select(Task).where(Task.source_module == "wartungsvertrag",
-                                                 Task.source_url == f"/maintenance-contracts/{contract_id}")).all()
+                                                 Task.source_url == f"/maintenance-contracts/{contract_id}").order_by(Task.id)).all()
     for erinnerung in erinnerungen:
         aufgabe_loeschen(db, erinnerung, f"mit dem Wartungsvertrag „{contract.title}“ (Erinnerung)", user)
     db.delete(contract)
@@ -554,7 +554,7 @@ def check_due_contracts_and_create_reminders(db: Session) -> list[dict]:
             MaintenanceContract.status == "aktiv",
             MaintenanceContract.archived == False,  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
             MaintenanceContract.next_due_date <= threshold,
-        )
+        ).order_by(MaintenanceContract.id)
     ).all()
     reminded = []
     for contract in due:
@@ -584,7 +584,7 @@ def check_due_contracts_and_create_reminders(db: Session) -> list[dict]:
                 MaintenanceContract.archived == False,  # noqa: E712
                 MaintenanceContractItem.archived == False,  # noqa: E712
                 MaintenanceContractItem.next_due_date <= threshold,
-            )
+            ).order_by(MaintenanceContractItem.id)
         ).all()
         for item in items_due:
             if item.last_reminder_due_date == item.next_due_date:

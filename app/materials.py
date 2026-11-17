@@ -55,7 +55,7 @@ def find_or_create_material(
     if cache_key not in variants_cache:
         if article_number:
             variants_cache[cache_key] = list(
-                db.scalars(select(Material).where(Material.article_number == article_number)).all()
+                db.scalars(select(Material).where(Material.article_number == article_number).order_by(Material.id)).all()
             )
         else:
             variants_cache[cache_key] = []
@@ -101,7 +101,7 @@ def backfill_existing_service_materials(db: Session, import_group_id: int | None
     import_group_id: Zielgruppe
     für dabei neu angelegte Materialien (siehe find_or_create_material).
     Bis 1.9.337 auch -1, wenn die Spalte noch fehlte (Migration 1.0.25 nicht angewendet) -- seit 1.9.338 nicht mehr geprüft."""
-    rows = db.scalars(select(ServiceMaterial).where(ServiceMaterial.material_id.is_(None))).all()
+    rows = db.scalars(select(ServiceMaterial).where(ServiceMaterial.material_id.is_(None)).order_by(ServiceMaterial.id)).all()
     variants_cache: MaterialVariantsCache = {}
     for row in rows:
         material = find_or_create_material(

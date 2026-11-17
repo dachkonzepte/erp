@@ -459,9 +459,9 @@ def update_quote_section(db: Session, quote_id: int, section_id: int, title: str
 def delete_quote_section(db: Session, quote_id: int, section_id: int) -> None:
     section = _validate_section(db, quote_id, section_id)
     # Inhalte eine Ebene nach oben verschieben, damit beim Löschen nichts verloren geht.
-    for child in db.scalars(select(QuoteSection).where(QuoteSection.parent_id == section.id)).all():
+    for child in db.scalars(select(QuoteSection).where(QuoteSection.parent_id == section.id).order_by(QuoteSection.id)).all():
         child.parent_id = section.parent_id
-    for layout in db.scalars(select(QuoteItemLayout).where(QuoteItemLayout.section_id == section.id)).all():
+    for layout in db.scalars(select(QuoteItemLayout).where(QuoteItemLayout.section_id == section.id).order_by(QuoteItemLayout.id)).all():
         layout.section_id = section.parent_id
     db.delete(section); db.commit(); auto_number_quote(db, quote_id)
 
@@ -815,7 +815,7 @@ def _copy_quote_into_project(db: Session, source_quote: Quote, target_project: P
         db.flush()
         section_id_map[s.id] = new_section.id
 
-    source_items = db.scalars(select(QuoteItem).where(QuoteItem.quote_id == source_quote.id)).all()
+    source_items = db.scalars(select(QuoteItem).where(QuoteItem.quote_id == source_quote.id).order_by(QuoteItem.id)).all()
     for item in source_items:
         new_item = QuoteItem(
             quote_id=new_quote.id, source_service_id=item.source_service_id, sort_order=item.sort_order,
@@ -851,7 +851,7 @@ def _copy_quote_into_project(db: Session, source_quote: Quote, target_project: P
             db.add(new_calc)
             db.flush()
             source_materials = db.scalars(
-                select(QuoteItemMaterialCalculation).where(QuoteItemMaterialCalculation.calculation_id == source_calc.id)
+                select(QuoteItemMaterialCalculation).where(QuoteItemMaterialCalculation.calculation_id == source_calc.id).order_by(QuoteItemMaterialCalculation.id)
             ).all()
             for m in source_materials:
                 db.add(QuoteItemMaterialCalculation(

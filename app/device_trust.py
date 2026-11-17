@@ -88,6 +88,6 @@ def revoke_all(db: Session, user: AppUser) -> None:
     """Löscht ALLE vertrauten Geräte von user -- aufgerufen bei jeder Änderung, die ein zuvor
     vertrautes Gerät entwerten muss (2FA-Reset, Passwortänderung, expliziter Widerruf), siehe
     CLAUDE.md und den Klassendocstring von TrustedDevice."""
-    for row in db.scalars(select(TrustedDevice).where(TrustedDevice.user_id == user.id)).all():
+    for row in db.scalars(select(TrustedDevice).where(TrustedDevice.user_id == user.id).order_by(TrustedDevice.id)).all():
         db.delete(row)
     db.commit()

@@ -1084,7 +1084,7 @@ def _weggefallene_entfernen(db: Session, postfach: Postfach, token: str, items: 
     returned“, ein @removed kommt dafür nie. Gelöscht wird nur, was Graph einzeln mit 404 beantwortet: der Abruf selbst beweist nichts, events/delta ist für v1.0 nicht dokumentiert."""
     gesehen = {item.get("id") for item in items}
     zeilen = db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent), CalendarEvent.outlook_event_id.is_not(None),
-                                                    or_(CalendarEvent.outlook_postfach == postfach.adresse, CalendarEvent.outlook_postfach.is_(None)))).all()
+                                                    or_(CalendarEvent.outlook_postfach == postfach.adresse, CalendarEvent.outlook_postfach.is_(None))).order_by(CalendarEvent.id)).all()
     for zeile in zeilen:
         if zeile.outlook_event_id in gesehen:
             continue
@@ -1107,7 +1107,7 @@ def _weggefallene_entfernen(db: Session, postfach: Postfach, token: str, items: 
 
 def _liegt_woanders(db: Session, postfach: Postfach) -> list[CalendarEvent]:
     return db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent), CalendarEvent.outlook_event_id.is_not(None), CalendarEvent.outlook_postfach.is_not(None),
-                                                  CalendarEvent.outlook_postfach != postfach.adresse)).all()
+                                                  CalendarEvent.outlook_postfach != postfach.adresse).order_by(CalendarEvent.id)).all()
 
 
 def _postfach_wechsel_aufloesen(db: Session, postfach: Postfach, counters: dict) -> None:
@@ -1551,7 +1551,7 @@ def _postfach_abgleichen(db: Session, postfach: Postfach, sperre: _Sperre, count
         # SOFORT nach einem erfolgreichen Push UND wird bei einem Fehlschlag EINZELN abgefangen
         # (eigenes try/except je Zeile) -- ein kaputter Termin blockiert weder die übrigen Termine
         # in dieser Schleife noch das Fortschreiben von delta_link/last_synced_at am Ende.
-        local_rows = db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent))).all()
+        local_rows = db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent)).order_by(CalendarEvent.id)).all()
         for row in local_rows:
             if row.id in just_synced_ids or not _needs_push(row):
                 continue

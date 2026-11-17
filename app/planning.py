@@ -187,7 +187,7 @@ def sync_school_holidays(db: Session, state_code: str, year: int, force: bool=Fa
         return {"state_code":code,"year":year,"success":True,"cached":True}
     try:
         rows=_fetch_school_holidays(code,year)
-        for old in db.scalars(select(PlanningSchoolHoliday).where(PlanningSchoolHoliday.state_code==code,PlanningSchoolHoliday.calendar_year==year)).all(): db.delete(old)
+        for old in db.scalars(select(PlanningSchoolHoliday).where(PlanningSchoolHoliday.state_code==code,PlanningSchoolHoliday.calendar_year==year).order_by(PlanningSchoolHoliday.id)).all(): db.delete(old)
         for row in rows: db.add(PlanningSchoolHoliday(**row))
         if sync is None: sync=PlanningSchoolHolidaySync(state_code=code,calendar_year=year); db.add(sync)
         sync.success=True; sync.error_message=None; sync.synced_at=datetime.utcnow(); db.commit()
@@ -1936,7 +1936,7 @@ def _pruefungen(db: Session, geraet_ids: set[int]) -> dict[int, list[tuple[str, 
             select(OperationalAsset.resource_id, OperationalAssetInspection.inspection_type, OperationalAssetInspection.next_due_date)
             .join(OperationalAssetInspection, OperationalAssetInspection.asset_id == OperationalAsset.id)
             .where(OperationalAsset.resource_id.in_(geraet_ids), OperationalAssetInspection.next_due_date.is_not(None))
-            .order_by(OperationalAssetInspection.next_due_date, OperationalAssetInspection.id)):
+            .order_by(OperationalAssetInspection.next_due_date.nulls_last(), OperationalAssetInspection.id)):
         je.setdefault(rid, []).append((art, faellig))
     return je
 

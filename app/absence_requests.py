@@ -379,7 +379,7 @@ def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id:
     if row is None:
         raise ValueError("Abwesenheit nicht gefunden.")
     abschluss_pruefen(db, row.start_date, row.end_date, abschluss_erlaubt=abschluss_erlaubt)  # seit 1.9.309
-    for antrag in db.scalars(select(EmployeeAbsenceRequest).where(EmployeeAbsenceRequest.approved_absence_id == absence_id)):
+    for antrag in db.scalars(select(EmployeeAbsenceRequest).where(EmployeeAbsenceRequest.approved_absence_id == absence_id).order_by(EmployeeAbsenceRequest.id)):
         antrag.approved_absence_id = None
         antrag.status = "cancelled"
         antrag.reviewed_by_user_id = geloescht_von_user_id

@@ -830,7 +830,7 @@ def reverse_payment(db: Session, payment: Payment, *, reason: str | None, user_i
         raise PaymentRejected("Eine Gegenbuchung lässt sich nicht zurücknehmen.")
 
     def rows_and_orders():
-        rows = list(db.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == payment.id)))
+        rows = list(db.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == payment.id).order_by(PaymentAllocation.id)))
         return rows, {db.get(Invoice, a.invoice_id).order_id for a in rows}
 
     # Die Aufträge stehen erst nach dem Lesen der Zuordnungen fest; kam bis zur Sperre der Zahlung eine Zuordnung auf einen
@@ -1060,4 +1060,4 @@ def unallocated_by_customer(db: Session) -> list[dict]:
         if rest > 0:
             customer = db.get(Customer, customer_id)
             result.append({"customer_id": customer_id, "customer_name": customer.name if customer else None, "rest": rest})
-    return sorted(result, key=lambda r: -r["rest"])
+    return sorted(result, key=lambda r: (-r["rest"], r["customer_id"]))  # seit 1.9.354 bei gleichem Rest nach Kunde (feste Reihenfolge)

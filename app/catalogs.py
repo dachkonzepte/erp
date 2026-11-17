@@ -51,7 +51,7 @@ def backfill_existing_services(db: Session, catalog: Catalog) -> int:
     bewusst nichts versucht, statt mit einem Datenbankfehler abzubrechen."""
     if not _services_table_has_catalog_column(db):
         return -1
-    rows = db.scalars(select(Service).where(Service.catalog_id.is_(None))).all()
+    rows = db.scalars(select(Service).where(Service.catalog_id.is_(None)).order_by(Service.id)).all()
     for service in rows:
         service.catalog_id = catalog.id
     if rows:

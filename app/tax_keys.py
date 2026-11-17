@@ -87,7 +87,7 @@ def set_default_tax_key(db: Session, key_id: int) -> TaxKey | None:
     key = db.get(TaxKey, key_id)
     if key is None:
         return None
-    for other in db.scalars(select(TaxKey).where(TaxKey.is_default == True)).all():  # noqa: E712
+    for other in db.scalars(select(TaxKey).where(TaxKey.is_default == True).order_by(TaxKey.id)).all():  # noqa: E712
         other.is_default = False
     key.is_default = True
     db.commit()

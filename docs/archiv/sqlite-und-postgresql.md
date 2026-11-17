@@ -744,3 +744,40 @@ jeder Form) und Klicktest `scripts/klicktest_telefonbuch.py` (15 Prüfungen: Kun
 Name zuletzt, Bilder 1440 und 412 px, hell und dunkel); dazu die Betriebsmittel nach dem aufgelösten Namen. Angepasste Erwartung (Regel 28):
 `klicktest_geraete`, „Liste: Plantafel und nur Plantafel“ -- „Pritsche, Leiter, Rüttelplatte, Hubsteiger“ (die mit Gerät vorn, in der Reihenfolge
 des Anlegens) -> „Leiter, Pritsche, Rüttelplatte, Hubsteiger“ (nach Namen; „nur Plantafel“ weiter am Ende).
+
+### Umsetzung 1.9.354: jede Liste mit fester Reihenfolge, leere Werte am Ende (Punkt 2)
+
+- **Gesichtet:** die 26 Listen-Beziehungen ohne `order_by` und die Abfragen ohne `order_by` aus dem Befund (Abschnitt 3 E). Der Befund zählte nur `.all()`
+  und übersprang grob jede Zeile mit `set(`, `{` oder `len(` (49); der Wächter liest den Baum und zählt auch Schleifen über `db.scalars(select …)` und
+  `list(…)` -- 127 Stellen, deren Ergebnis eine Folge ist, dazu 96, deren Ergebnis direkt eine Menge, Summe oder Zuordnung wird (zählen nicht).
+- **Beziehungen (26):** jede bekommt eine Reihenfolge -- ohne eigene Ordnung die des Anlegens (ID), mit Reihenfolgefeld `sort_order, id` (Fotos eines Berichts
+  und eines Befunds, wie der Code sie ohnehin sortiert). Darunter die beiden sichtbaren aus dem Befund: `Project.quotes` (`GET /api/projects/{id}/quotes`,
+  Befund P2b) und `ServiceReport.findings`.
+- **Abfragen (127):** 66 bekommen ein `order_by` (meist die ID): Listen und Meldungen (z. B. die Rechnungsnummern in „Abgleich gesperrt“ und „Abschließen“, die
+  erste blockierende Abnahme beim Verwerfen einer Unterschrift, die Abzüge, die Dokumente am Objekt, „zur Mahnung fällig“), Lösch- und Änderungsschleifen (ihre
+  Reihenfolge landet in der Änderungshistorie), Kopien (die Positionen eines kopierten Angebots behalten ihre Reihenfolge), Erinnerungen, die Aufgaben anlegen,
+  und Zeilensperren (`pausen_neu_rechnen()`, Zuordnungen einer Zahlung: feste Reihenfolge gegen Verklemmen). 61 bleiben ohne, mit Grund in `OHNE_REIHENFOLGE`
+  (`tests/test_v754_reihenfolge.py`): Zuordnung je Schlüssel, Menge, Summe/Anzahl/min/max, nur Prüfung, nur neu geladen, danach vollständig sortiert. „Rest am
+  Kunden“ (`unallocated_by_customer()`) sortiert bei gleichem Betrag nach dem Kunden.
+- **Leere Werte (14):** jedes `order_by` auf einer Spalte, die leer sein darf, sagt `nulls_last()` -- 13 Abfragen und die Beziehung Betriebsmittel →
+  Prüffristen. Sichtbar unter PostgreSQL: in den Zeitbuchungen (`list_entries()`, je Tag nach Beginn absteigend) stand eine Dauer-Buchung ohne Beginn vorn,
+  unter SQLite hinten -- jetzt überall hinten. Wo schon `is_(None)` davor sortierte (Aufgaben, Befunde, Aufgaben der Arbeitsvorbereitung), ändert sich nichts.
+- **Wächter** `tests/test_v754_reihenfolge.py`: jede Listen-Beziehung mit `order_by`; jede Abfrage, deren Ergebnis eine Folge ist, mit `order_by` oder in
+  `OHNE_REIHENFOLGE` (Zahl je Funktion, die Liste stimmt genau); jedes `order_by` auf einer Spalte, die leer sein darf, mit `nulls_last()` (oder `nulls_first()`
+  mit Grund in `NULLS_FIRST`, leer) -- in Abfragen und Beziehungen; dazu zwei Verhaltenstests gegen PostgreSQL (P2b, P5).
+- **Befund (nicht gebaut):** 54 von 243 `order_by` enden nicht auf der ID -- bei Gleichstand (gleicher Status, gleiches Datum, gleicher Rang) ist die Reihenfolge
+  unter PostgreSQL weiter offen (z. B. die Befunde nach Schwere und Wiedervorlage). Nicht Teil von Abschnitt 3 E; Vorschlag im Bericht.
+
+#### Festlegungen 1.9.354 (Bitte bestätigen)
+
+1. Jede Listen-Beziehung hat eine Reihenfolge: ohne eigene Ordnung die des Anlegens (ID), mit Reihenfolgefeld `sort_order`, dann ID.
+2. Jede Abfrage, deren Ergebnis eine Folge ist, hat ein `order_by` -- auch Lösch- und Änderungsschleifen, Kopien, Erinnerungen und Zeilensperren.
+3. Ohne `order_by` nur, wo das Ergebnis eine Zuordnung, Menge, Summe, Prüfung wird, nur neu geladen oder danach vollständig sortiert wird -- jede solche Stelle
+   steht mit Grund in `OHNE_REIHENFOLGE`, die Liste stimmt genau.
+4. Leere Werte stehen beim Sortieren ausdrücklich am Ende (`nulls_last()`), aufsteigend wie absteigend, in Abfragen und Beziehungen; `nulls_first()` nur mit Grund.
+5. Der Wächter zählt jede Form, die eine Folge liefert (`.all()`, Schleife, `list()`), nicht nur `.all()` wie der Befund.
+
+#### Tests und Prüfung 1.9.354
+
+Neu `tests/test_v754_reihenfolge.py` (8 Tests: Abfragen mit `order_by`, `OHNE_REIHENFOLGE` genau, Beziehungen, leere Werte in Beziehungen und Abfragen, Probe
+jeder Form, die Angebote eines Projekts nach einer Statusänderung und die Dauer-Buchung am Ende ihres Tags -- beide gegen PostgreSQL).

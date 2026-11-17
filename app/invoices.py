@@ -480,7 +480,7 @@ def _find_matching_payment_term(db: Session, label: str) -> PaymentTerm | None:
     mit '14 Tage Netto ' (Leerzeichen/Großschreibung) trotzdem die passende
     Zahlungsbedingung '14 Tage netto' findet."""
     normalized = label.strip().lower()
-    for term in db.scalars(select(PaymentTerm)).all():
+    for term in db.scalars(select(PaymentTerm).order_by(PaymentTerm.id)).all():
         if term.label.strip().lower() == normalized:
             return term
     return None
@@ -563,7 +563,7 @@ def get_previous_cumulative_ist(
             Invoice.invoice_type.in_(["abschlag_leistungsstand", "schluss"]),
             InvoiceItem.source_order_item_id == source_order_item_id,
         )
-        .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc(), Invoice.invoice_date.desc(), Invoice.id.desc())
+        .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc().nulls_last(), Invoice.invoice_date.desc(), Invoice.id.desc())
     )
     if exclude_invoice_id is not None:
         stmt = stmt.where(Invoice.id != exclude_invoice_id)
@@ -1565,7 +1565,7 @@ def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
     if changes.get("closes_order"):
         if invoice.order is not None:
             db.expire(invoice.order, ["items"])
-        reason = closing_block_reason(list(db.scalars(select(Invoice).where(Invoice.order_id == invoice.order_id))), invoice)
+        reason = closing_block_reason(list(db.scalars(select(Invoice).where(Invoice.order_id == invoice.order_id).order_by(Invoice.id))), invoice)
         if reason:
             raise _reject(db, InvoiceBlocked(reason))
     elif "closes_order" in changes:

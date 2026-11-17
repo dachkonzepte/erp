@@ -152,7 +152,7 @@ def delete_work_preparation_task(task_id: int, db: Session = Depends(get_db, sco
 @router.post("/api/work-preparation/materials/bulk-assign", response_model=WorkPreparationOut)
 def bulk_assign_work_preparation_materials(payload: WorkPreparationMaterialBulkAssign, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     material_ids=list(dict.fromkeys(payload.material_ids))
-    rows=db.scalars(select(WorkPreparationMaterial).where(WorkPreparationMaterial.id.in_(material_ids))).all()
+    rows=db.scalars(select(WorkPreparationMaterial).where(WorkPreparationMaterial.id.in_(material_ids)).order_by(WorkPreparationMaterial.id)).all()
     if len(rows)!=len(material_ids):
         raise HTTPException(status_code=404,detail="Mindestens eine Materialposition wurde nicht gefunden.")
     prep_ids={row.preparation_id for row in rows}
@@ -309,7 +309,7 @@ def delete_work_preparation_delivery_note(delivery_note_id:int,db:Session=Depend
     if row is None: raise HTTPException(status_code=404,detail="Lieferschein nicht gefunden.")
     prep=db.get(WorkPreparation,row.preparation_id); order_id=prep.order_id; doc=db.get(ProjectDocument,row.project_document_id)
     path=document_path(doc) if doc else None
-    for link in db.scalars(select(WorkPreparationMaterialDeliveryNote).where(WorkPreparationMaterialDeliveryNote.delivery_note_id==row.id)).all():
+    for link in db.scalars(select(WorkPreparationMaterialDeliveryNote).where(WorkPreparationMaterialDeliveryNote.delivery_note_id==row.id).order_by(WorkPreparationMaterialDeliveryNote.id)).all():
         db.delete(link)
     db.delete(row)
     if doc is not None: db.delete(doc)

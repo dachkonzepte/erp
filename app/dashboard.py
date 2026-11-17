@@ -47,7 +47,7 @@ def get_widget_layout(db: Session, user_id: int) -> list[dict]:
 def save_widget_layout(db: Session, user_id: int, widgets: list[dict]) -> list[dict]:
     """Ersetzt das komplette Layout eines Benutzers (Full-Replace-Muster,
     analog zu reorder_quote() in app/projects.py)."""
-    for row in db.scalars(select(UserDashboardWidget).where(UserDashboardWidget.user_id == user_id)).all():
+    for row in db.scalars(select(UserDashboardWidget).where(UserDashboardWidget.user_id == user_id).order_by(UserDashboardWidget.id)).all():
         db.delete(row)
     db.flush()
     for w in widgets:

@@ -584,7 +584,7 @@ def delete_asset(db: Session, asset_id: int) -> bool:
         )
     for inspection in list(asset.inspections):
         delete_document_file(inspection.document_filename)
-    for cost in db.scalars(select(RecurringCost).where(RecurringCost.asset_id == asset_id)).all():
+    for cost in db.scalars(select(RecurringCost).where(RecurringCost.asset_id == asset_id).order_by(RecurringCost.id)).all():
         if cost.is_asset_quick_entry:
             db.delete(cost)
         else:
@@ -823,7 +823,7 @@ def check_due_asset_inspections_and_create_reminders(db: Session) -> list[int]:
         .where(
             OperationalAssetInspection.next_due_date.is_not(None),
             OperationalAssetInspection.next_due_date <= threshold,
-        )
+        ).order_by(OperationalAssetInspection.id)
     ).all()
     reminded = []
     for inspection in due:

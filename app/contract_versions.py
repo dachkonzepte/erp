@@ -331,7 +331,7 @@ def freeze_contract(
         )
         for older in db.scalars(select(OrderContractVersion).where(
             OrderContractVersion.contract_id == contract.id, OrderContractVersion.superseded_at.is_(None),
-        )).all():
+        ).order_by(OrderContractVersion.id)).all():
             older.superseded_at = now
         version = OrderContractVersion(
             contract_id=contract.id, version_no=version_no, basis_key=content["basis_key"],

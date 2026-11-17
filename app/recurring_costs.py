@@ -405,7 +405,7 @@ def check_due_cancellations_and_create_reminders(db: Session) -> list[int]:
             RecurringCost.active == True,  # noqa: E712
             RecurringCost.contract_end_date.is_not(None),
             RecurringCost.notice_period_months.is_not(None),
-        )
+        ).order_by(RecurringCost.id)
     ).all()
     reminded = []
     for cost in active_costs:

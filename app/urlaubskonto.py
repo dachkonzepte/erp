@@ -121,7 +121,7 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
     offen: dict[int, list] = {}
     for r in db.scalars(select(EmployeeAbsenceRequest).where(
             EmployeeAbsenceRequest.employee_id.in_(ids), EmployeeAbsenceRequest.status == "pending", EmployeeAbsenceRequest.absence_category == URLAUB,
-            EmployeeAbsenceRequest.start_date <= date(jahr, 12, 31), EmployeeAbsenceRequest.end_date >= date(jahr, 1, 1))):
+            EmployeeAbsenceRequest.start_date <= date(jahr, 12, 31), EmployeeAbsenceRequest.end_date >= date(jahr, 1, 1)).order_by(EmployeeAbsenceRequest.id)):
         offen.setdefault(r.employee_id, []).append(r)
 
     ergebnis = []
