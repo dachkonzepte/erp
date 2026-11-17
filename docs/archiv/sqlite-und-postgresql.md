@@ -871,3 +871,45 @@ Namen) -> leer, `PAARE` um die acht Paare erweitert, `from_attributes` je Paar w
 Angepasste Erwartungen (Folge von B2, das Schema lehnt jetzt vor der Geschäftslogik ab): `tests/test_v323_dispatch_completion.py`, Notiz "   " beim Klären:
 400 -> 422; `tests/test_v349_abnahme_und_gewaehrleistung.py`, Begründung "   " beim Verwerfen einer Abnahme: 400 -> 422;
 `tests/test_v338_vertrag_abschrift.py`, Meldung der Auftragsseite bei leerer Bezeichnung: „Bezeichnung ist zu kurz.“ -> „Bezeichnung fehlt.“.
+
+### Umsetzung 1.9.357: jedes Zahlenfeld mit Grenzen bis zur Spalte (Punkt 2)
+
+- **Gesichtet:** wie im Befund (Abschnitt 3 G, Zuordnung wie bei den Längen: Schema -> Modell nach dem Namen, Feld -> Spalte gleichen Namens) 141 Felder,
+  die in eine Spalte Numeric(p,s) gehen, und 172, die in eine Spalte Integer gehen; 98 bzw. 150 ohne passende Grenze -- genau die Zahlen des Befunds.
+  Nachgezogen in 239 Felddefinitionen (die übrigen erben), vom Werkzeug über den Baum von `app/schemas.py` gesetzt, nicht von Hand.
+- **Grenzen** als Konstanten oben in `app/schemas.py`: `NUMERIC_p_s` = größter Wert von Numeric(p,s) (`NUMERIC_5_2` = 999,99 für Steuersatz und Dachneigung,
+  `NUMERIC_6_3` = 999,999 für den Basiszinssatz, `NUMERIC_4_1` = 999,9 für Urlaubstage und Übertrag …), `INT4_MIN`/`INT4_MAX` für Integer (auch jede ID in
+  einem Formular), und für Numeric(18,…) -- 12 bis 16 Stellen vor dem Komma -- `ZAHL_12` = 999.999.999.999: die Grenze steht in der Antwort als JSON-Zahl
+  (FastAPI schreibt Decimal als float) und in der Meldung, 18 Stellen kämen dort gerundet an („höchstens 1.000.000.000.000“). Untergrenze das Negativ,
+  wo keine war; eine engere, die schon da war (ge=0, gt=0, ge=-100, le=80 …), bleibt. Zu groß heißt 422 mit Feld und Grenze (`less_than_equal`,
+  `ctx.le`); sechs Felder, die schon `max_digits` hatten (Basiszinssatz, Zahlung, Mahngebühr), lehnen weiter zuerst über die Stellenzahl ab.
+- **Meldung:** `fehlerText()` hängt die Grenze an „ist zu groß“ / „ist zu klein“ („höchstens 999,99“, „mindestens -999,99“, „höchstens 2.147.483.647“,
+  „muss kleiner als … sein“, „muss größer als … sein“, deutsch geschrieben) und hat jetzt einen Text für zu viele Stellen („hat zu viele Stellen (höchstens 6)“, „… Nachkommastellen“,
+  „… Stellen vor dem Komma“) -- bis 1.9.356 kam dort die englische Meldung von Pydantic an.
+- **Nebenbefund aus 1.9.356, hier behoben:** `_felder_ohne_pruefung()` übernahm eine Vorgabe über `default_factory` nicht -- das Feld war in der Basis Pflicht,
+  und `CustomerOut`, das die Zusatzinfos neu setzt, gab beim Import eine UserWarning („shadows an attribute in parent“, in der Suite 74 statt 58 Warnungen).
+  Ohne Wirkung auf Antworten (CustomerOut setzt das Feld selbst); jetzt bleibt die Vorgabe.
+- **Befund (nicht gebaut):** eine ID über int4 im **Pfad** oder in der Abfrage (`/api/customers/3000000000`) endet unter PostgreSQL mit
+  `NumericValueOutOfRange`, also 500 -- geprobt gegen ein Wegwerf-Schema (`db.get()` und `where(X.id == …)`, SQLAlchemy schreibt `::INTEGER`). Nicht Teil von
+  Abschnitt 3 G (Eingabefelder der Schemas); Vorschlag im Bericht.
+- **Wächter** `tests/test_v757_zahlenbereiche.py`: jedes Zahlenfeld mit Grenzen bis zur Spalte (`OFFEN` leer, darf nur kürzer werden); je Feld ein Wert über
+  der Spalte und einer darunter -> 422 am Feld; jede Grenze von vorher bleibt (`VORHER`, 156 Felder); die Konstanten passen unter PostgreSQL in ihre Spalte und ein
+  Schritt darüber nicht; über echte Routen Dachneigung 1000 und ein Kunde 3 000 000 000; die Meldung in node.
+
+#### Festlegungen 1.9.357 (Bitte bestätigen)
+
+1. Jedes Eingabefeld, das in eine Spalte Numeric(p,s) geht, hat eine Obergrenze bis zum größten Wert der Spalte und, wo keine war, das Negativ als Untergrenze.
+2. Jedes Eingabefeld, das in eine Spalte Integer geht (auch eine ID), hat die Grenzen von int4.
+3. Eine engere Grenze, die schon da war, bleibt -- Spaltengrenzen nur, wo keine war.
+4. Numeric(18,…) bekommt 999.999.999.999 statt des größten Werts der Spalte, damit die Grenze in Antwort und Meldung genau stimmt.
+5. Die Grenzen stehen als Konstanten in `app/schemas.py` (`NUMERIC_p_s`, `INT4_MIN`/`INT4_MAX`, `ZAHL_12`), geprüft gegen PostgreSQL.
+6. Die Meldung nennt die Grenze, deutsch geschrieben („ist zu groß (höchstens 999,99)“, „ist zu klein (mindestens …)“).
+7. Zu viele Stellen haben eine deutsche Meldung („hat zu viele Stellen (höchstens n)“).
+8. `_felder_ohne_pruefung()` übernimmt eine Vorgabe über `default_factory` (Nebenbefund aus 1.9.356).
+
+#### Tests und Prüfung 1.9.357
+
+Neu `tests/test_v757_zahlenbereiche.py` (319 Tests, 313 davon je Feld). Ergänzt: `tests/test_v673_antworten_ohne_pruefung.py`,
+`test_vorgabe_ueber_default_factory_bleibt`. Angepasste Erwartung: Klicktest `klicktest_zahleneingaben.py`, „Anfahrt 30: Text“ -- „… Anfahrt je Tag
+ist zu groß.“ -> „… Anfahrt je Tag ist zu groß (muss kleiner als 24 sein).“ (die Meldung nennt jetzt die Grenze; zuerst stand dort „(kleiner als 24)“,
+im Klicktest gesehen und umformuliert).

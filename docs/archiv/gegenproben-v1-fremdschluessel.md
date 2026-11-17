@@ -261,3 +261,19 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 6 – Meldung „fehlt“ | Zeile in `_fehlertext.html` entfernt (`356_7`) | 1 rot: v756 Meldung in node |
 
 8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2c, 1.9.357 (Punkt 2): jedes Zahlenfeld mit Grenzen bis zur Spalte
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Numeric: Obergrenze | Dachneigung ohne `le` (`357_1`) | 3 rot: v757 Wächter, je Feld, Route |
+| Nr. 2 – Integer: int4 | Kunde des Projekts ohne Grenzen (`357_2`) | 3 rot: v757 Wächter, je Feld, Route |
+| Nr. 1 – Untergrenze | Steuersatz des Kontos ohne `ge` (`357_3`) | 3 rot: v757 Wächter, je Feld (Create und Update) |
+| Nr. 3 – engere Grenze bleibt | Dachneigung `ge=0` -> `ge=-NUMERIC_5_2` (`357_4`) | zuerst **grün** (kein Test sah es); `test_vorhandene_grenzen_bleiben` nachgezogen (`VORHER`), dieselbe Probe: 1 rot |
+| Nr. 5 – Konstante passt in die Spalte | `NUMERIC_5_2` = 1000,00 (`357_5`) | 12 rot: v757 PostgreSQL, Wächter, Route, je Feld |
+| Nr. 4 – Numeric(18,…) | `ZAHL_12` = 10^16 (`357_6`) | 66 rot: v757 PostgreSQL, Wächter, je Feld |
+| Nr. 6 – Meldung mit Grenze | `grenze` in `_fehlertext.html` leer (`357_7`) | 1 rot: v757 Meldung in node |
+| Nr. 7 – Meldung zu vielen Stellen | `stellen` in `_fehlertext.html` leer (`357_8`) | 1 rot: v757 Meldung in node |
+| Nr. 8 – Vorgabe über default_factory | Zweig entfernt (`357_9`) | 1 rot: v673 `test_vorgabe_ueber_default_factory_bleibt` |
+
+9 Gegenproben, alle rot (eine nach nachgezogenem Test); alle Dateien byte-gleich zurück, kein Marker unter `app/`.

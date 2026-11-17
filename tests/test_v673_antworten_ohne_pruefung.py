@@ -144,3 +144,18 @@ def test_position_einer_eingangsrechnung_mit_anderem_steuersatz(threaded_db_sess
         "supplier_id": lieferant.id, "supplier_invoice_number": "RE-2020-016", "invoice_date": "2020-09-01", "net_amount": "500.00", "tax_rate_pct": "19.00",
         "payment_status": "offen", "items": [{"description": "Ziegel", "net_amount": "500.00", "tax_rate_pct": "16.00"}]})
     assert falsch.status_code == 422 and "Steuersatz" in falsch.text
+
+
+def test_vorgabe_ueber_default_factory_bleibt():
+    """Seit 1.9.357: _felder_ohne_pruefung() übernimmt eine Vorgabe über default_factory -- bis dahin war das Feld in der Basis Pflicht, und ein
+    Antwortschema, das es neu setzt (CustomerOut.extra_infos), gab beim Import eine UserWarning („shadows an attribute in parent“)."""
+    import warnings
+    from pydantic import Field
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        basis = schemas._felder_ohne_pruefung(CustomerCreate, "_ProbeFelder")
+
+        class Probe(basis):
+            extra_infos: list[CustomerExtraInfoOut] = Field(default_factory=list)
+    assert not basis.model_fields["extra_infos"].is_required()
+    assert Probe.model_validate({"last_name": "x"}).extra_infos == []

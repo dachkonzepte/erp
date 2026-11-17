@@ -39,14 +39,32 @@ Pflichttext = Annotated[str, BeforeValidator(_ohne_rand)]
 PflichttextWennDa = Annotated[str | None, BeforeValidator(_ohne_rand)]
 
 
+# Seit 1.9.357 (Runde V2c, Punkt 2; Befund Abschnitt 3 G): Grenzen der Zahlenspalten. SQLite speichert jede Zahl, PostgreSQL lehnt einen Wert ab, der
+# nicht in seine Spalte passt (NumericValueOutOfRange, live 500). Jedes Eingabefeld, das in eine Spalte Numeric(p,s) oder Integer geht, hat deshalb
+# le und ge bis zur Spalte (eine engere Grenze, die schon da war, bleibt) -- Wächter tests/test_v757_zahlenbereiche.py. NUMERIC_p_s ist der größte Wert
+# von Numeric(p,s); bei mehr als 15 Stellen (Numeric(18,…)) ZAHL_12 = 999.999.999.999: die Grenze steht in der Antwort als JSON-Zahl und in der Meldung,
+# 18 Stellen kämen dort gerundet an.
+INT4_MIN, INT4_MAX = -2_147_483_648, 2_147_483_647
+NUMERIC_4_1 = Decimal("999.9")
+NUMERIC_5_1 = Decimal("9999.9")
+NUMERIC_5_2 = Decimal("999.99")
+NUMERIC_6_2 = Decimal("9999.99")
+NUMERIC_6_3 = Decimal("999.999")
+NUMERIC_9_4 = Decimal("99999.9999")
+NUMERIC_12_2 = Decimal("9999999999.99")
+ZAHL_12 = 999_999_999_999
+
+
 def _felder_ohne_pruefung(eingabe: type[BaseModel], name: str) -> type[BaseModel]:
     """Seit 1.9.265 (Stufe 6, R5b, Punkt 0a): die Felder eines Eingabeschemas ohne seine Prüfung -- gleicher Name, Typ und Vorgabe, aber ohne Grenzen
     (min_length, ge, pattern …) und ohne Validatoren. Für eine Antwort: was gespeichert ist, wird gezeigt, auch wenn das Formular es heute ablehnen würde.
     Seit 1.9.273 auch für Funktion, Abwesenheit, Konto und Position einer Eingangsrechnung, seit 1.9.356 für alle (Kunde, Zusatzinfo, Gerät, Feiertag,
     Objekt, Angebotskopf, Option, Lieferant) -- kein Antwortschema prüft mehr (tests/test_v673_antworten_ohne_pruefung.py). Ohne Prüfung heißt auch
     ohne das Abschneiden der Pflichttexte (der Validator steht in den Metadaten, der Typ bleibt str): ein gespeicherter Nachname aus Leerzeichen
-    erscheint, wie er ist."""
-    felder = {n: (f.annotation, ... if f.is_required() else f.default) for n, f in eingabe.model_fields.items()}
+    erscheint, wie er ist. Seit 1.9.357 bleibt eine Vorgabe über default_factory (z. B. die Zusatzinfos des Kunden) -- ohne sie war das Feld in der
+    Basis Pflicht, und CustomerOut, das es neu setzt, gab beim Import eine UserWarning („shadows an attribute in parent“)."""
+    felder = {n: (f.annotation, Field(default_factory=f.default_factory) if f.default_factory is not None else (... if f.is_required() else f.default))
+              for n, f in eingabe.model_fields.items()}
     return create_model(name, **felder)
 
 
@@ -132,10 +150,10 @@ class CalculationSettingsOut(BaseModel):
 
 
 class CalculationSettingsUpdate(BaseModel):
-    labor_rate: Decimal = Field(ge=0)
-    material_markup_pct: Decimal = Field(ge=-100)
-    overhead_pct: Decimal = Field(ge=-100)
-    risk_profit_pct: Decimal = Field(ge=-100)
+    labor_rate: Decimal = Field(ge=0, le=ZAHL_12)
+    material_markup_pct: Decimal = Field(ge=-100, le=NUMERIC_9_4)
+    overhead_pct: Decimal = Field(ge=-100, le=NUMERIC_9_4)
+    risk_profit_pct: Decimal = Field(ge=-100, le=NUMERIC_9_4)
     use_source_time_as_minutes: bool = True
 
 
@@ -150,16 +168,16 @@ class MaterialOverrideIn(BaseModel):
 class ServiceCalculationUpdate(PartialUpdate):
     """Teil-Update: das Leistungsformular hat kein Notizfeld und schickt notes nicht mit (bis
     1.8.24 dadurch beim Speichern geleert). material_overrides fehlt = Überschreibungen bleiben."""
-    site_time_minutes: Decimal | None = Field(default=None, ge=0)
-    workshop_time_minutes: Decimal | None = Field(default=None, ge=0)
-    labor_rate_override: Decimal | None = Field(default=None, ge=0)
-    material_markup_pct_override: Decimal | None = Field(default=None, ge=-100)
-    equipment_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    subcontractor_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    other_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    overhead_pct_override: Decimal | None = Field(default=None, ge=-100)
-    risk_profit_pct_override: Decimal | None = Field(default=None, ge=-100)
-    manual_sale_price: Decimal | None = Field(default=None, ge=0)
+    site_time_minutes: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    workshop_time_minutes: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    labor_rate_override: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    material_markup_pct_override: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    equipment_cost: Decimal = Field(default=Decimal("0"), ge=0, le=ZAHL_12)
+    subcontractor_cost: Decimal = Field(default=Decimal("0"), ge=0, le=ZAHL_12)
+    other_cost: Decimal = Field(default=Decimal("0"), ge=0, le=ZAHL_12)
+    overhead_pct_override: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    risk_profit_pct_override: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    manual_sale_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     notes: str | None = None
     material_overrides: list[MaterialOverrideIn] = Field(default_factory=list)
 
@@ -305,7 +323,7 @@ class CustomerExtraInfoUpdate(CustomerExtraInfoCreate):
 
 
 class PropertyCreate(BaseModel):
-    customer_id: int
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     name: Pflichttext = Field(min_length=1, max_length=255)
     street: str | None = Field(default=None, max_length=255)
     postal_code: str | None = Field(default=None, max_length=20)
@@ -351,7 +369,7 @@ class PropertyUpdate(PartialUpdate):
     """Teil-Update: die Kundenseite bearbeitet Zugang und Ansprechpartner vor Ort nicht und schickt
     sie nicht mit (bis 1.8.24 dadurch beim Speichern geleert)."""
     NOT_NULL = frozenset({"customer_id", "name"})
-    customer_id: int | None = None
+    customer_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     name: PflichttextWennDa = Field(default=None, min_length=1, max_length=255)
     street: str | None = Field(default=None, max_length=255)
     postal_code: str | None = Field(default=None, max_length=20)
@@ -367,8 +385,8 @@ PROJEKTSTATUS_ABGELEITET = ("Der Projektstatus ergibt sich aus Angebot und Auftr
 
 
 class ProjectCreate(BaseModel):
-    customer_id: int
-    property_id: int | None = None
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     name: Pflichttext = Field(min_length=1, max_length=255)
     # Seit 1.9.125 (Stufe 5, R2, Punkt 1): der Status ergibt sich aus den Daten (app/akte.py) -- mitgeschickt 422, statt still gespeichert.
     status: str | None = Field(default=None, max_length=50)
@@ -382,8 +400,8 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    customer_id: int
-    property_id: int | None = None
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     name: Pflichttext = Field(min_length=1, max_length=255)
     status: str | None = Field(default=None, max_length=50)  # seit 1.9.125 abgeleitet, mitgeschickt 422 (wie ProjectCreate)
     category: str | None = Field(default=None, max_length=100)
@@ -609,7 +627,7 @@ class QuoteDocumentMetaOut(_felder_ohne_pruefung(QuoteDocumentMetaUpdate, "_Quot
 class QuoteSectionCreate(BaseModel):
     title: Pflichttext = Field(min_length=1, max_length=255)
     description: str | None = None
-    parent_id: int | None = None
+    parent_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class QuoteSectionUpdate(QuoteSectionCreate):
@@ -641,18 +659,18 @@ class QuoteItemLayoutUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): das Verschieben per Drag-and-drop schickt nur den Titel -- vorher ging "in Summe"
     mit dem beim Laden gemerkten Stand mit. section_id null = ohne Titel."""
     NOT_NULL = frozenset({"include_in_total"})
-    section_id: int | None = None
+    section_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     include_in_total: bool | None = None
 
 
 class QuoteReorderSection(BaseModel):
-    id: int
+    id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     parent_id: int | None = None
     sort_order: int
 
 
 class QuoteReorderItem(BaseModel):
-    id: int
+    id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     section_id: int | None = None
     sort_order: int
 
@@ -670,7 +688,7 @@ class QuoteReorderRequest(BaseModel):
 
 class QuoteItemCreate(BaseModel):
     service_id: int
-    quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    quantity: Decimal = Field(default=Decimal("1"), gt=0, le=ZAHL_12)
     section_id: int | None = None
 
 
@@ -678,11 +696,11 @@ class QuoteItemUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): die Inline-Felder der LV-Liste schicken nur Menge bzw. Einheit -- vorher ging der
     beim Laden gemerkte Stand aller Felder mit, zwei schnelle Änderungen derselben Position schrieben den alten Wert zurück."""
     NOT_NULL = frozenset({"quantity", "short_text", "long_text", "unit", "unit_price", "position_type"})
-    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"), le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     short_text: PflichttextWennDa = Field(default=None, min_length=1)
     long_text: str | None = None
     unit: PflichttextWennDa = Field(default=None, min_length=1, max_length=50)
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    unit_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     position_type: str | None = Field(default=None, max_length=30)
     gaeb_oz: str | None = Field(default=None, max_length=100)
 
@@ -711,11 +729,11 @@ class QuoteItemMaterialCalculationUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update je Materialzeile (Regel 22): die Kalkulation zeigt die Preiseinheit nicht und schickt sie nicht
     mehr -- vorher ging sie aus dem beim Laden gemerkten Stand mit, eine fehlende wurde 1."""
     NOT_NULL = frozenset({"quantity", "waste_pct", "purchase_price", "price_basis"})
-    id: int | None  # seit 1.8.84: ohne ID aus der Vorschau einer noch nicht gespeicherten Kalkulation
-    quantity: Decimal | None = Field(default=None, ge=0)
-    waste_pct: Decimal | None = Field(default=None, ge=-100)
-    purchase_price: Decimal | None = Field(default=None, ge=0)
-    price_basis: Decimal | None = Field(default=None, gt=0)
+    id: int | None = Field(ge=INT4_MIN, le=INT4_MAX)  # seit 1.8.84: ohne ID aus der Vorschau einer noch nicht gespeicherten Kalkulation
+    quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    waste_pct: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    purchase_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    price_basis: Decimal | None = Field(default=None, gt=0, le=ZAHL_12)
 
 
 class QuoteItemCalculationUpdate(PartialUpdate):
@@ -724,16 +742,16 @@ class QuoteItemCalculationUpdate(PartialUpdate):
     berechneter VK gilt. Fehlt materials, bleiben die Materialzeilen."""
     NOT_NULL = frozenset({"site_time_minutes", "workshop_time_minutes", "labor_rate", "material_markup_pct", "equipment_cost",
                           "subcontractor_cost", "other_cost", "overhead_pct", "risk_profit_pct", "materials"})
-    site_time_minutes: Decimal | None = Field(default=None, ge=0)
-    workshop_time_minutes: Decimal | None = Field(default=None, ge=0)
-    labor_rate: Decimal | None = Field(default=None, ge=0)
-    material_markup_pct: Decimal | None = Field(default=None, ge=-100)
-    equipment_cost: Decimal | None = Field(default=None, ge=0)
-    subcontractor_cost: Decimal | None = Field(default=None, ge=0)
-    other_cost: Decimal | None = Field(default=None, ge=0)
-    overhead_pct: Decimal | None = Field(default=None, ge=-100)
-    risk_profit_pct: Decimal | None = Field(default=None, ge=-100)
-    manual_sale_price: Decimal | None = Field(default=None, ge=0)
+    site_time_minutes: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    workshop_time_minutes: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    labor_rate: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    material_markup_pct: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    equipment_cost: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    subcontractor_cost: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    other_cost: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    overhead_pct: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    risk_profit_pct: Decimal | None = Field(default=None, ge=-100, le=NUMERIC_9_4)
+    manual_sale_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     notes: str | None = None
     materials: list[QuoteItemMaterialCalculationUpdate] | None = None
 
@@ -834,8 +852,8 @@ class QuoteListOut(BaseModel):
 
 
 class InquiryCreate(BaseModel):
-    customer_id: int
-    property_id: int | None = None
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     title: Pflichttext = Field(min_length=1, max_length=255)
     description: str | None = None
     status: str = Field(default="neu", max_length=50)
@@ -973,8 +991,8 @@ class NumberSequenceOut(BaseModel):
 
 class NumberSequenceUpdate(BaseModel):
     format_pattern: Pflichttext = Field(min_length=1, max_length=120)
-    start_value: int = Field(ge=0)
-    next_value: int = Field(ge=0)
+    start_value: int = Field(ge=0, le=INT4_MAX)
+    next_value: int = Field(ge=0, le=INT4_MAX)
     reset_yearly: bool = False
 
 
@@ -1017,7 +1035,7 @@ class EmployeeCreate(BaseModel):
     function_id: int | None = None
     employee_group: str = Field(default="gewerblich", max_length=30)
     compensation_type: str = Field(default="hourly", pattern="^(hourly|fixed_salary)$")
-    hourly_wage: Decimal | None = Field(default=None, ge=0)
+    hourly_wage: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     monthly_salary: Decimal | None = Field(default=None, ge=0)
     weekly_hours: Decimal = Field(default=Decimal("40.00"), gt=0, le=80)
     street: str | None = Field(default=None, max_length=255)
@@ -1129,7 +1147,7 @@ class LaborRateSettingsUpdate(BaseModel):
     employer_cost_pct: Decimal = Field(ge=0, le=200)
     productive_time_pct: Decimal = Field(gt=0, le=100)
     # Legacy-Feld bleibt optional für ältere Clients; wird als fixe GK in EUR interpretiert.
-    annual_overhead: Decimal | None = Field(default=None, ge=0)
+    annual_overhead: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     fixed_overhead_mode: str | None = Field(default=None, pattern="^(eur|pct)$")
     fixed_overhead_value: Decimal | None = Field(default=None, ge=0)
     variable_overhead_mode: str | None = Field(default=None, pattern="^(eur|pct)$")
@@ -1198,7 +1216,7 @@ class AppUserCreate(BaseModel):
     username: Pflichttext = Field(min_length=3, max_length=80)
     password: str = Field(min_length=8, max_length=200)
     display_name: Pflichttext = Field(min_length=1, max_length=160)
-    employee_id: int | None = None
+    employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     # Seit "Rechtekonzept" (siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen"): vier statt zwei
     # Rollen -- "office" ist in buero_finanzen/buero_auftrag aufgeteilt. Der SCHEMA-Standardwert
     # (greift nur, wenn ein Aufruf "role" ganz weglässt -- users.html schickt immer einen
@@ -1217,7 +1235,7 @@ class AppUserCreate(BaseModel):
 class AppUserUpdate(BaseModel):
     username: Pflichttext = Field(min_length=3, max_length=80)
     display_name: Pflichttext = Field(min_length=1, max_length=160)
-    employee_id: int | None = None
+    employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$", max_length=30)
     active: bool = True
     new_password: str | None = Field(default=None, min_length=8, max_length=200)
@@ -1292,8 +1310,8 @@ class OrderCreateFromQuote(BaseModel):
     order_date: date = Field(default_factory=berlin_today)
     execution_start: date | None = None
     execution_end: date | None = None
-    caseworker_employee_id: int | None = None
-    project_manager_employee_id: int | None = None
+    caseworker_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    project_manager_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     payment_terms: str | None = None
     remarks: str | None = None
     # Seit 1.9.124 (Stufe 5, R2, Punkt 1): ein neuer Auftrag beginnt immer mit „läuft“ -- ein mitgeschickter Status (bis 1.9.123 „beauftragt“ oder
@@ -1436,8 +1454,8 @@ class OrderUpdate(PartialUpdate):
     execution_start: date | None = None
     execution_end: date | None = None
     execution_period: str | None = Field(default=None, max_length=255)  # Freitext aus dem Angebot, seit 1.8.32
-    caseworker_employee_id: int | None = None
-    project_manager_employee_id: int | None = None
+    caseworker_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    project_manager_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     payment_terms: str | None = None
     remarks: str | None = None
     intro_text: str | None = None
@@ -1496,9 +1514,9 @@ class OrderItemUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): die Felder der LV-Liste schicken nur Menge, Einheit bzw. Einheitspreis -- vorher ging
     der beim Laden gemerkte Stand aller Felder mit. Die Sperren (app/order_locks.py) prüfen die gesendeten Felder."""
     NOT_NULL = frozenset({"quantity", "unit", "unit_price", "short_text", "long_text", "position_type", "include_in_total"})
-    quantity: Decimal | None = Field(default=None, ge=0)
+    quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     unit: PflichttextWennDa = Field(default=None, min_length=1, max_length=50)
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    unit_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     short_text: PflichttextWennDa = Field(default=None, min_length=1)
     long_text: str | None = None
     position_type: str | None = Field(default=None, max_length=30)
@@ -1701,7 +1719,7 @@ class OrderAcceptanceCreate(BaseModel):
     reservation_penalty: StrictBool | None = None
     contractor_objections: str | None = None
     declared_by: Literal["auftraggeber", "beteiligter"]
-    participant_id: int | None = None
+    participant_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     conduct_reason: str | None = None
 
 
@@ -1714,7 +1732,7 @@ class DefectCreate(BaseModel):
     Pflicht, Dachfläche aus dem Objekt der Abnahme, Frist nicht vor der Abnahme) prüft app/defects.py."""
     model_config = ConfigDict(extra="forbid")
     description: str | None = None
-    roof_area_id: int | None = None
+    roof_area_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     location: str | None = Field(default=None, max_length=500)
     remedy_due_on: date | None = None
 
@@ -2051,7 +2069,7 @@ class ReminderLevelUpdate(PartialUpdate):
     NOT_NULL = frozenset({"label", "days_after_previous_step", "fee_amount", "active"})
     label: PflichttextWennDa = Field(default=None, min_length=1, max_length=120)
     days_after_previous_step: int | None = Field(default=None, ge=1, le=365)
-    fee_amount: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    fee_amount: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2, le=ZAHL_12)
     text_template: str | None = None
     email_subject_template: str | None = Field(default=None, max_length=255)
     email_body_template: str | None = None
@@ -2078,7 +2096,7 @@ class ReminderUpdate(BaseModel):
 class ReminderChargesUpdate(BaseModel):
     """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Mahnungsentwurf bewusst übernehmen -- alle Felder Pflicht. Seit
     1.8.81 (Punkt 7) dazu die Verzugszinsen."""
-    fee_amount: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    fee_amount: Decimal = Field(ge=0, max_digits=12, decimal_places=2, le=ZAHL_12)
     fee_accepted: bool
     flat_fee_accepted: bool
     interest_accepted: bool
@@ -2364,7 +2382,7 @@ BASISZINS_JAHRE = (2000, 2100)  # seit 1.8.119, wie das Feld "Jahr" in den Einst
 
 class BaseInterestRateCreate(BaseModel):
     half_year_start: date
-    rate_percent: Decimal = Field(max_digits=6, decimal_places=3)
+    rate_percent: Decimal = Field(max_digits=6, decimal_places=3, ge=-NUMERIC_6_3, le=NUMERIC_6_3)
     reviewed_on: date | None
     reviewed_by: str | None = Field(max_length=160)
 
@@ -2379,7 +2397,7 @@ class BaseInterestRateCreate(BaseModel):
 
 class BaseInterestRateUpdate(BaseModel):
     """Alle Felder Pflicht (Regel 22): die Seite schickt Satz und Prüfangaben zusammen."""
-    rate_percent: Decimal = Field(max_digits=6, decimal_places=3)
+    rate_percent: Decimal = Field(max_digits=6, decimal_places=3, ge=-NUMERIC_6_3, le=NUMERIC_6_3)
     reviewed_on: date | None
     reviewed_by: str | None = Field(max_length=160)
 
@@ -2529,17 +2547,17 @@ class PaymentTermOut(BaseModel):
 
 class PaymentTermCreate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=120)
-    days: int = Field(ge=0)
+    days: int = Field(ge=0, le=INT4_MAX)
     skonto_percent: Decimal | None = Field(default=None, gt=0, le=100)
-    skonto_days: int | None = Field(default=None, ge=0)
+    skonto_days: int | None = Field(default=None, ge=0, le=INT4_MAX)
     text_template: str | None = None
 
 
 class PaymentTermUpdate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=120)
-    days: int = Field(ge=0)
+    days: int = Field(ge=0, le=INT4_MAX)
     skonto_percent: Decimal | None = Field(default=None, gt=0, le=100)
-    skonto_days: int | None = Field(default=None, ge=0)
+    skonto_days: int | None = Field(default=None, ge=0, le=INT4_MAX)
     text_template: str | None = None
 
 
@@ -2739,7 +2757,7 @@ class InvoiceOverviewOut(BaseModel):
 
 
 class InvoiceCreateAbschlagPauschal(BaseModel):
-    lump_sum_net: Decimal = Field(gt=0)
+    lump_sum_net: Decimal = Field(gt=0, le=ZAHL_12)
     progress_description: str | None = None
     due_date: date | None = None
 
@@ -2754,7 +2772,7 @@ class InvoiceHeaderUpdate(PartialUpdate):
     NOT_NULL = frozenset({"closes_order", "lump_sum_net"})  # seit 1.8.86: NOT-NULL-Spalte; seit 1.8.119 der Pauschalbetrag (Pflicht im Browser)
     due_date: date | None = None
     progress_description: str | None = None
-    lump_sum_net: Decimal | None = Field(default=None, gt=0)
+    lump_sum_net: Decimal | None = Field(default=None, gt=0, le=ZAHL_12)
     intro_text: str | None = None
     outro_text: str | None = None
     outro_text_2: str | None = None
@@ -2768,10 +2786,10 @@ class InvoiceItemCreate(BaseModel):
     short_text: Pflichttext = Field(min_length=1)
     long_text: str = ""
     unit: Pflichttext = Field(min_length=1, max_length=50)
-    unit_price: Decimal = Field(ge=0)
-    ist_quantity: Decimal = Field(ge=0)
-    source_order_item_id: int | None = None
-    soll_quantity: Decimal | None = None
+    unit_price: Decimal = Field(ge=0, le=ZAHL_12)
+    ist_quantity: Decimal = Field(ge=0, le=ZAHL_12)
+    source_order_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    soll_quantity: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
     position_number: str | None = Field(default=None, max_length=50)
 
 
@@ -2779,8 +2797,8 @@ class InvoiceItemUpdate(BaseModel):
     short_text: str | None = None
     long_text: str | None = None
     unit: str | None = Field(default=None, max_length=50)
-    unit_price: Decimal | None = Field(default=None, ge=0)
-    ist_quantity: Decimal | None = Field(default=None, ge=0)
+    unit_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    ist_quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
 
 
 _CENT_FIELD = {"max_digits": 16, "decimal_places": 2}
@@ -2789,7 +2807,7 @@ _CENT_FIELD = {"max_digits": 16, "decimal_places": 2}
 class PaymentChargeLineIn(BaseModel):
     """Seit 1.8.81: was von der Zahlung auf eine Nebenforderung der Rechnung der Zeile geht."""
     charge_id: int
-    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+    amount: Decimal = Field(gt=0, **_CENT_FIELD, le=ZAHL_12)
 
 
 class PaymentLineIn(BaseModel):
@@ -2804,9 +2822,9 @@ class PaymentLineIn(BaseModel):
 
 class PaymentCreate(BaseModel):
     """Zahlungseingang erfassen (seit 1.8.78); lines leer = alles bleibt Rest am Kunden. "Erfasst von" setzt der Server."""
-    customer_id: int
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     received_on: date
-    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+    amount: Decimal = Field(gt=0, **_CENT_FIELD, le=ZAHL_12)
     note: str | None = Field(default=None, max_length=2000)
     lines: list[PaymentLineIn] = Field(default_factory=list)
 
@@ -2967,9 +2985,9 @@ class WorkPreparationUpdate(PartialUpdate):
 
 
 class WorkPreparationEmployeeCreate(BaseModel):
-    employee_id: int
+    employee_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     role: str | None = Field(default=None, max_length=120)
-    planned_hours: Decimal | None = Field(default=None, ge=0)
+    planned_hours: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     notes: str | None = None
 
 
@@ -2977,7 +2995,7 @@ class WorkPreparationEmployeeUpdate(PartialUpdate):
     """Teil-Update (seit 1.8.29): die Arbeitsvorbereitung bearbeitet nur Rolle und Notiz; bis 1.8.28
     schickte sie immer planned_hours:null mit und leerte damit die Planstunden."""
     role: str | None = Field(default=None, max_length=120)
-    planned_hours: Decimal | None = Field(default=None, ge=0)
+    planned_hours: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     notes: str | None = None
 
 
@@ -2986,9 +3004,9 @@ class WorkPreparationTaskCreate(BaseModel):
     status: str = Field(default="offen", max_length=40)
     priority: str = Field(default="normal", max_length=30)
     due_date: date | None = None
-    assigned_employee_id: int | None = None
+    assigned_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
 
 
 class WorkPreparationTaskUpdate(PartialUpdate):
@@ -2998,13 +3016,13 @@ class WorkPreparationTaskUpdate(PartialUpdate):
     status: str | None = Field(default=None, max_length=40)
     priority: str | None = Field(default=None, max_length=30)
     due_date: date | None = None
-    assigned_employee_id: int | None = None
+    assigned_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
-    sort_order: int | None = None
+    sort_order: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class WorkPreparationMaterialUpdate(BaseModel):
-    planned_quantity: Decimal = Field(ge=0)
+    planned_quantity: Decimal = Field(ge=0, le=ZAHL_12)
     status: str = Field(default="bedarf", max_length=40)
     supplier: str | None = Field(default=None, max_length=255)
     notes: str | None = None
@@ -3134,14 +3152,14 @@ class OperationalResourceOut(_felder_ohne_pruefung(OperationalResourceCreate, "_
 
 
 class TeamEmployeeInput(BaseModel):
-    employee_id: int
+    employee_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     role: str | None = Field(default=None, max_length=120)
     # Seit 1.7.12. Achtung: _apply_team_payload() legt alle Mitgliedszeilen bei jedem Speichern
     # neu an -- ein Client, der das Feld nicht mitschickt, setzt es damit auf False zurück.
     is_crew_leader: bool = False
 
 class TeamResourceInput(BaseModel):
-    resource_id: int
+    resource_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     role: str | None = Field(default=None, max_length=120)
 
 class TeamCreate(BaseModel):
@@ -3187,7 +3205,7 @@ class WorkPreparationMaterialUpdateV082(PartialUpdate):
     Lieferant, Verknüpfung und Freitext werden geleert (oder auf supplier gesetzt, falls mitgeschickt).
     Bis 1.8.28 schickte die Arbeitsvorbereitung immer supplier:null mit und leerte so den Freitext."""
     NOT_NULL = frozenset({"planned_quantity", "status"})
-    planned_quantity: Decimal | None = Field(default=None, ge=0)
+    planned_quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     status: str | None = Field(default=None, max_length=40)
     supplier_id: int | None = None
     supplier: str | None = Field(default=None, max_length=255)
@@ -3466,7 +3484,7 @@ class PlanningHolidayOut(_felder_ohne_pruefung(PlanningHolidayCreate, "_Planning
 
 
 class EmployeeAbsenceCreate(BaseModel):
-    employee_id: int
+    employee_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     # Seit 1.9.153 optional: leer = keine genauere Angabe, der Server trägt den Namen der Kategorie ein (bis 1.9.152 Vorgabe „Urlaub“, app/absence_requests.py::_antrag_anlegen())
     absence_type: str | None = Field(default=None, max_length=80)
     # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
@@ -3517,7 +3535,7 @@ class EmployeeAbsencePlanningOut(BaseModel):
 
 # --- Version 1.0.2: Abwesenheitsanträge ---
 class EmployeeAbsenceRequestCreate(BaseModel):
-    employee_id: int
+    employee_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     absence_type: str | None = Field(default=None, max_length=80)  # seit 1.9.153 optional, wie EmployeeAbsenceCreate
     absence_category: str = Field(pattern="^(urlaub|sonderurlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$", max_length=20)  # seit 1.9.169 Freizeitausgleich
     start_date: date
@@ -3595,15 +3613,15 @@ class PlanningSuggestionRequest(BaseModel):
 
 
 class PlanningSlotCapacityUpdate(BaseModel):
-    planned_hours: Decimal | None = Field(default=None, ge=0)
+    planned_hours: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
 
 
 # --- Version 1.0: Zeiterfassung / mobile Baustellenansicht ---
 class TimeEntryManualCreate(BaseModel):
-    employee_id: int
-    order_id: int
-    order_item_id: int | None = None
+    employee_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    order_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    order_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     work_date: date
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
@@ -3628,9 +3646,9 @@ class TimeEntryUpdate(PartialUpdate):
     ersetzte "Ändern" die Pause durch den Standard und leerte die LV-Position). Wechselt der
     Auftrag ohne neue LV-Position, entfällt die alte -- sie gehört zum alten Auftrag."""
     NOT_NULL = frozenset({"employee_id", "order_id", "work_date", "entry_type", "hours", "break_minutes"})
-    employee_id: int | None = None
-    order_id: int | None = None
-    order_item_id: int | None = None
+    employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    order_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    order_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     work_date: date | None = None
     entry_type: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, max_length=180)
@@ -4020,8 +4038,8 @@ class KontenVorgabenUpdate(PartialUpdate):
 
 class UrlaubsanspruchUpdate(PartialUpdate):
     """Seit 1.9.310: Anspruch einer Person in einem Jahr, Teil-Update; urlaubstage leer = die Vorgabe, uebertrag leer = nicht von Hand."""
-    urlaubstage: Decimal | None = None
-    uebertrag: Decimal | None = None
+    urlaubstage: Decimal | None = Field(default=None, ge=-NUMERIC_4_1, le=NUMERIC_4_1)
+    uebertrag: Decimal | None = Field(default=None, ge=-NUMERIC_4_1, le=NUMERIC_4_1)
     verfall_am: date | None = None
     notiz: str | None = Field(default=None, max_length=255)
 
@@ -4216,12 +4234,12 @@ class RoofAreaFieldOut(BaseModel):
 class RoofAreaCreate(BaseModel):
     # Seit 1.2.18 OHNE build_up/insulation -- siehe RoofAreaOut/app/models.py::RoofArea für die
     # Begründung (Schichtenliste RoofLayer hat das Freitextfeld abgelöst).
-    property_id: int
+    property_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     name: Pflichttext = Field(min_length=1, max_length=255)
     roof_type: str | None = Field(default=None, max_length=80)
     covering: str | None = Field(default=None, max_length=120)
-    pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    pitch_degrees: Decimal | None = Field(default=None, ge=0, le=NUMERIC_5_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    area_sqm: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
     contractor: str | None = Field(default=None, max_length=255)
     third_party_guarantee_until: date | None = None
@@ -4235,8 +4253,8 @@ class RoofAreaUpdate(PartialUpdate):
     name: PflichttextWennDa = Field(default=None, min_length=1, max_length=255)
     roof_type: str | None = Field(default=None, max_length=80)
     covering: str | None = Field(default=None, max_length=120)
-    pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    pitch_degrees: Decimal | None = Field(default=None, ge=0, le=NUMERIC_5_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    area_sqm: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
     contractor: str | None = Field(default=None, max_length=255)
     third_party_guarantee_until: date | None = None
@@ -4269,20 +4287,20 @@ class RoofComponentOut(BaseModel):
 class RoofComponentCreate(BaseModel):
     component_type: str | None = Field(default=None, max_length=80)
     name: Pflichttext = Field(min_length=1, max_length=255)
-    quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = Field(default=None, max_length=20)
     year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
 
 
 class RoofComponentUpdate(BaseModel):
     component_type: str | None = Field(default=None, max_length=80)
     name: Pflichttext = Field(min_length=1, max_length=255)
-    quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    quantity: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = Field(default=None, max_length=20)
     year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
 
 
@@ -4351,7 +4369,7 @@ class RoofLayerOut(BaseModel):
 class RoofLayerUpsert(BaseModel):
     present: bool | None = None
     execution: str | None = Field(default=None, max_length=160)
-    thickness_mm: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    thickness_mm: int | None = Field(default=None, ge=0, le=INT4_MAX)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     notes: str | None = Field(default=None, max_length=255)
 
 
@@ -4424,10 +4442,10 @@ class EmployeePayrollSettingsOut(BaseModel):
 
 
 class WorkTimeBreakRuleInput(BaseModel):
-    id: int | None = None
+    id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     threshold_hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int = Field(ge=0, le=720)
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
 
 
 class WorkTimeModelUpsert(BaseModel):
@@ -4438,17 +4456,17 @@ class WorkTimeModelUpsert(BaseModel):
     valid_to_week: int = Field(default=53, ge=1, le=53)
     description: str | None = None
     active: bool = True
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
     break_rules: list[WorkTimeBreakRuleInput] = Field(default_factory=list)
 
 
 class EmployeeWorkTimeModelUpdate(BaseModel):
-    model_id: int
+    model_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
 class EmployeeWorkTimeModelBulkUpdate(BaseModel):
     employee_ids: list[int] = Field(min_length=1)
-    model_id: int
+    model_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
 class TimeBackofficeBulkAction(BaseModel):
@@ -4457,21 +4475,21 @@ class TimeBackofficeBulkAction(BaseModel):
 
 
 class ServiceMaterialAdd(BaseModel):
-    material_id: int
-    quantity: Decimal = Field(gt=0)
+    material_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    quantity: Decimal = Field(gt=0, le=ZAHL_12)
     waste_pct: Decimal = Field(default=Decimal("0"), ge=-100)
 
 
 class ServiceCreate(BaseModel):
-    catalog_id: int | None = None
+    catalog_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     service_type: str | None = Field(default=None, max_length=20)
     short_text: Pflichttext = Field(min_length=1)
     long_text: str | None = None
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(gt=0, le=ZAHL_12)
     unit: Pflichttext = Field(min_length=1, max_length=50)
-    sale_price: Decimal | None = Field(default=None, ge=0)
-    site_time_raw: Decimal = Field(default=Decimal("0"), ge=0)
-    workshop_time_raw: Decimal = Field(default=Decimal("0"), ge=0)
+    sale_price: Decimal | None = Field(default=None, ge=0, le=ZAHL_12)
+    site_time_raw: Decimal = Field(default=Decimal("0"), ge=0, le=ZAHL_12)
+    workshop_time_raw: Decimal = Field(default=Decimal("0"), ge=0, le=ZAHL_12)
     labor_rate_override: Decimal | None = Field(default=None, ge=0)
     material_markup_pct_override: Decimal | None = Field(default=None, ge=-100)
     equipment_cost: Decimal = Field(default=Decimal("0"), ge=0)
@@ -4486,12 +4504,12 @@ class ServiceBaseUpdate(BaseModel):
     service_type: str | None = Field(default=None, max_length=20)
     short_text: Pflichttext = Field(min_length=1)
     long_text: str | None = None
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(gt=0, le=ZAHL_12)
     unit: Pflichttext = Field(min_length=1, max_length=50)
 
 
 class ServiceMoveOrCopy(BaseModel):
-    catalog_id: int | None = None
+    catalog_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class MaterialCatalogOut(BaseModel):
@@ -4525,17 +4543,17 @@ class MaterialCatalogCreate(BaseModel):
     article_number: str | None = Field(default=None, max_length=100)
     name: Pflichttext = Field(min_length=1)
     unit: Pflichttext = Field(min_length=1, max_length=50)
-    purchase_price: Decimal = Field(ge=0)
-    price_basis: Decimal = Field(default=Decimal("1"), gt=0)
-    catalog_id: int | None = None
+    purchase_price: Decimal = Field(ge=0, le=ZAHL_12)
+    price_basis: Decimal = Field(default=Decimal("1"), gt=0, le=ZAHL_12)
+    catalog_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class MaterialCatalogUpdate(BaseModel):
     article_number: str | None = Field(default=None, max_length=100)
     name: Pflichttext = Field(min_length=1)
     unit: Pflichttext = Field(min_length=1, max_length=50)
-    purchase_price: Decimal = Field(ge=0)
-    price_basis: Decimal = Field(default=Decimal("1"), gt=0)
+    purchase_price: Decimal = Field(ge=0, le=ZAHL_12)
+    price_basis: Decimal = Field(default=Decimal("1"), gt=0, le=ZAHL_12)
 
 
 class MaterialGroupOut(BaseModel):
@@ -4554,7 +4572,7 @@ class MaterialGroupCreate(BaseModel):
 
 
 class MaterialMoveOrCopy(BaseModel):
-    catalog_id: int | None = None
+    catalog_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class CatalogCreate(BaseModel):
@@ -4698,8 +4716,8 @@ class TaskCreate(BaseModel):
     status: str | None = Field(default=None, max_length=30)
     priority: str = Field(default="normal", max_length=30)
     due_date: date | None = None
-    assigned_employee_id: int | None = None
-    project_id: int | None = None
+    assigned_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$", max_length=30)
 
 
@@ -4723,8 +4741,8 @@ class TaskUpdate(PartialUpdate):
     status: str | None = Field(default=None, max_length=30)
     priority: str | None = Field(default=None, max_length=30)
     due_date: date | None = None
-    assigned_employee_id: int | None = None
-    project_id: int | None = None
+    assigned_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 # --- Version 1.1.1: Konfigurierbare Aufgaben-Spalten ---
@@ -4809,21 +4827,21 @@ class MaintenanceContractItemOut(BaseModel):
 
 
 class MaintenanceContractItemCreate(BaseModel):
-    roof_area_id: int
-    maintenance_window_id: int
+    roof_area_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    maintenance_window_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     description: str | None = Field(default=None, max_length=255)
-    template_project_id: int | None = None
-    inspection_template_id: int | None = None
-    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    template_project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    inspection_template_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    duration_minutes: int | None = Field(default=None, ge=0, le=INT4_MAX)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
 
 
 class MaintenanceContractItemUpdate(BaseModel):
-    roof_area_id: int
-    maintenance_window_id: int
+    roof_area_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    maintenance_window_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     description: str | None = Field(default=None, max_length=255)
-    template_project_id: int | None = None
-    inspection_template_id: int | None = None
-    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    template_project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    inspection_template_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    duration_minutes: int | None = Field(default=None, ge=0, le=INT4_MAX)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
 
 
 class MaintenanceContractCreateProjectRequest(BaseModel):
@@ -4840,14 +4858,14 @@ class MaintenanceWindowOut(BaseModel):
 
 class MaintenanceWindowCreate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=80)
-    month_from: int
-    month_to: int
+    month_from: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    month_to: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
 class MaintenanceWindowUpdate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=80)
-    month_from: int
-    month_to: int
+    month_from: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    month_to: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
 class MaintenanceWindowReorder(BaseModel):
@@ -4903,25 +4921,25 @@ class FieldMaintenancePropertyGroupOut(BaseModel):
 
 class MaintenanceContractCreate(BaseModel):
     """confirm_property_customer (seit 1.8.70): Objekt eines anderen Kunden bewusst bestätigt, sonst 409."""
-    customer_id: int
-    property_id: int | None = None
+    customer_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     title: Pflichttext = Field(min_length=1, max_length=255)
     interval_months: int = Field(default=12, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
-    template_project_id: int | None = None
-    responsible_employee_id: int | None = None
+    template_project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    responsible_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
     confirm_property_customer: bool = False
 
 
 class MaintenanceContractUpdate(BaseModel):
     """confirm_property_customer (seit 1.8.70): nur nötig, wenn ein neu gewähltes Objekt einem anderen Kunden gehört."""
-    property_id: int | None = None
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     title: Pflichttext = Field(min_length=1, max_length=255)
     interval_months: int = Field(ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
-    template_project_id: int | None = None
-    responsible_employee_id: int | None = None
+    template_project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    responsible_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
     confirm_property_customer: bool = False
 
@@ -4934,7 +4952,7 @@ class MaintenanceContractStatusUpdate(BaseModel):
 class MaintenanceContractFromProjectCreate(BaseModel):
     interval_months: int = Field(default=12, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
-    responsible_employee_id: int | None = None
+    responsible_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 # --- Version 1.2.6: Einstellungen für Wartungen & Reparaturen ---
@@ -4946,9 +4964,9 @@ class MaintenanceSettingsOut(BaseModel):
 
 
 class MaintenanceSettingsUpdate(BaseModel):
-    reminder_lead_days: int
+    reminder_lead_days: int = Field(ge=INT4_MIN, le=INT4_MAX)
     use_roof_area_items: bool = False
-    default_responsible_employee_id: int | None = None
+    default_responsible_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 # --- Version 1.3.0: Monteursansicht (/mobil, bis 1.3.60 /vor-ort) ---
@@ -5003,12 +5021,12 @@ class InspectionTemplateItemCreate(BaseModel):
     group_name: str | None = Field(default=None, max_length=120)
     component_type: str | None = Field(default=None, max_length=80)
     required: bool = False
-    target_min: Decimal | None = None
-    target_max: Decimal | None = None
+    target_min: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    target_max: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
     unit: str | None = Field(default=None, max_length=20)
     photo_required: bool = False
     photo_before_after: bool = False
-    sort_order: int = 100
+    sort_order: int = Field(default=100, ge=INT4_MIN, le=INT4_MAX)
 
 
 class InspectionTemplateItemUpdate(InspectionTemplateItemCreate):
@@ -5089,11 +5107,11 @@ class InspectionItemCreate(BaseModel):
     item_type: str = Field(max_length=30)
     group_name: str | None = Field(default=None, max_length=120)
     required: bool = False
-    target_min: Decimal | None = None
-    target_max: Decimal | None = None
+    target_min: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    target_max: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
     unit: str | None = Field(default=None, max_length=20)
-    roof_component_id: int | None = None
-    roof_area_id: int | None = None
+    roof_component_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    roof_area_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class InspectionItemResultUpdate(BaseModel):
@@ -5108,10 +5126,10 @@ class InspectionItemResultUpdate(BaseModel):
         return data
 
     result: str | None = Field(default=None, max_length=20)
-    condition_grade: int | None = None
-    measured_value: Decimal | None = None
-    quantity: Decimal | None = None
-    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    condition_grade: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    measured_value: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    quantity: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    duration_minutes: int | None = Field(default=None, ge=0, le=INT4_MAX)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     notes: str | None = None
     client_uuid: str | None = Field(default=None, max_length=36)
 
@@ -5221,10 +5239,10 @@ class ServiceReportHistoryOut(BaseModel):
 class ServiceReportCreate(BaseModel):
     report_type: str = Field(max_length=30)
     description: str | None = None
-    created_by_employee_id: int | None = None
+    created_by_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     performed_at: date | None = None
     roof_area_ids: list[int] | None = None
-    inspection_template_id: int | None = None
+    inspection_template_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class ServiceReportUpdate(PartialUpdate):
@@ -5296,8 +5314,8 @@ class FindingCreate(BaseModel):
     description: Pflichttext = Field(min_length=1)
     severity: str = Field(max_length=30)
     action: str = Field(max_length=40)
-    inspection_item_id: int | None = None
-    roof_component_id: int | None = None
+    inspection_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    roof_component_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     resubmission_date: date | None = None
 
 
@@ -5351,26 +5369,26 @@ class ServiceReportMaterialOut(BaseModel):
 
 
 class ServiceReportMaterialCreate(BaseModel):
-    material_id: int | None = None
+    material_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     description: str | None = Field(default=None, max_length=255)
-    quantity: Decimal = Field(ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    quantity: Decimal = Field(ge=Decimal("0.001"), le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = Field(default=None, max_length=20)
-    roof_area_id: int | None = None
-    inspection_item_id: int | None = None
-    finding_id: int | None = None
+    roof_area_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    inspection_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    finding_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = Field(default=None, max_length=255)
-    created_by_employee_id: int | None = None
+    created_by_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     client_uuid: str | None = Field(default=None, max_length=36)
 
 
 class ServiceReportMaterialUpdate(BaseModel):
-    material_id: int | None = None
+    material_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     description: str | None = Field(default=None, max_length=255)
-    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"), le=ZAHL_12)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = Field(default=None, max_length=20)
-    roof_area_id: int | None = None
-    inspection_item_id: int | None = None
-    finding_id: int | None = None
+    roof_area_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    inspection_item_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    finding_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = Field(default=None, max_length=255)
 
 
@@ -5389,9 +5407,9 @@ class ServiceReportAssetOut(BaseModel):
 
 
 class ServiceReportAssetCreate(BaseModel):
-    asset_id: int
+    asset_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
-    created_by_employee_id: int | None = None
+    created_by_employee_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     client_uuid: str | None = Field(default=None, max_length=36)
 
 
@@ -5418,7 +5436,7 @@ class OperationalAssetInspectionOut(BaseModel):
 
 class OperationalAssetInspectionCreate(BaseModel):
     inspection_type: Pflichttext = Field(min_length=1, max_length=80)
-    interval_months: int | None = Field(default=None, ge=1)
+    interval_months: int | None = Field(default=None, ge=1, le=INT4_MAX)
     last_inspection_date: date | None = None
     # Wird seit 1.4.2 ignoriert, sobald interval_months gesetzt ist -- der Server berechnet
     # next_due_date dann automatisch (siehe app/operational_assets.py::_compute_next_due_date()).
@@ -5520,7 +5538,7 @@ class GeraetRessourceTeil(PartialUpdate):
 
 
 class OperationalAssetCreate(BaseModel):
-    resource_id: int | None = None
+    resource_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     # seit 1.9.296: einplanbar=True legt (ohne resource_id) zum Gerät das Plantafel-Gerät an -- eine Transaktion (app/operational_assets.py::geraet_speichern())
     einplanbar: bool | None = None
     ressource: GeraetRessourceTeil | None = None
@@ -5535,7 +5553,7 @@ class OperationalAssetCreate(BaseModel):
     product_url: str | None = Field(default=None, max_length=500)
     usage_notes: str | None = None
     acquisition_date: date | None = None
-    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     cost_notes: str | None = None
     active: bool = True
     selectable_in_reports: bool = False
@@ -5562,7 +5580,7 @@ class OperationalAssetUpdate(PartialUpdate):
     BEKANNT). einplanbar setzt oder entfernt den Haken „Auf der Plantafel einplanbar“ (die Identität wandert mit), resource_id verknüpft ein freies
     vorhandenes Plantafel-Gerät, ressource ändert dessen Felder (Kurzname), trotzdem_entfernen bestätigt das Entfernen trotz künftiger Einsätze."""
     NOT_NULL = frozenset({"active", "selectable_in_reports", "einplanbar", "trotzdem_entfernen"})
-    resource_id: int | None = None
+    resource_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     einplanbar: bool | None = None
     ressource: GeraetRessourceTeil | None = None
     trotzdem_entfernen: bool | None = None
@@ -5577,7 +5595,7 @@ class OperationalAssetUpdate(PartialUpdate):
     product_url: str | None = Field(default=None, max_length=500)
     usage_notes: str | None = None
     acquisition_date: date | None = None
-    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # wie im Browser (tests/test_v424_zahlgrenzen.py)
+    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2, le=NUMERIC_12_2)  # wie im Browser (tests/test_v424_zahlgrenzen.py)
     cost_notes: str | None = None
     active: bool | None = None
     selectable_in_reports: bool | None = None
@@ -5607,7 +5625,7 @@ class OperationalAssetSettingsOut(BaseModel):
 
 
 class OperationalAssetSettingsUpdate(BaseModel):
-    reminder_lead_days: int = Field(ge=0)
+    reminder_lead_days: int = Field(ge=0, le=INT4_MAX)
 
 
 # --- Version 1.5.0: Betriebskosten-Übersicht, Schicht 1 ---
@@ -5657,8 +5675,8 @@ class RecurringCostCreate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=255)
     category: str | None = Field(default=None, max_length=80)
     overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$", max_length=20)
-    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    tax_rate_pct: Decimal = Decimal("19.00")
+    net_amount: Decimal = Field(ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    tax_rate_pct: Decimal = Field(default=Decimal("19.00"), ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$", max_length=20)
 
     @field_validator("tax_rate_pct")
@@ -5673,7 +5691,7 @@ class RecurringCostCreate(BaseModel):
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
     notice_period_months: int | None = Field(default=None, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    asset_id: int | None = None
+    asset_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     active: bool = True
     notes: str | None = None
 
@@ -5686,13 +5704,13 @@ class RecurringCostUpdate(PartialUpdate):
     label: PflichttextWennDa = Field(default=None, min_length=1, max_length=255)
     category: str | None = Field(default=None, max_length=80)
     overhead_classification: str | None = Field(default=None, pattern="^(keine|fix|auslastungsabhaengig)$", max_length=20)
-    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    tax_rate_pct: Decimal | None = None
+    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    tax_rate_pct: Decimal | None = Field(default=None, ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     billing_interval: str | None = Field(default=None, pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$", max_length=20)
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
     notice_period_months: int | None = Field(default=None, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    asset_id: int | None = None
+    asset_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     active: bool | None = None
     notes: str | None = None
 
@@ -5709,7 +5727,7 @@ class RecurringCostSettingsOut(BaseModel):
 
 
 class RecurringCostSettingsUpdate(BaseModel):
-    reminder_lead_days: int = Field(ge=0)
+    reminder_lead_days: int = Field(ge=0, le=INT4_MAX)
 
 
 class RecurringCostOverviewOut(BaseModel):
@@ -5731,7 +5749,7 @@ class AccountCreate(BaseModel):
     label: Pflichttext = Field(min_length=1, max_length=255)
     # Nur ein Vorschlag beim Wählen (siehe Account-Klassendocstring, app/models.py) -- nie
     # serverseitig auf tax_rate_pct einer Rechnung/Position übertragen.
-    default_tax_rate_pct: Decimal | None = None
+    default_tax_rate_pct: Decimal | None = Field(default=None, ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     active: bool = True
 
     @field_validator("default_tax_rate_pct")
@@ -5757,11 +5775,11 @@ class AccountOut(_felder_ohne_pruefung(AccountCreate, "_AccountFelder")):
 
 class IncomingInvoiceItemIn(BaseModel):
     description: Pflichttext = Field(min_length=1, max_length=255)
-    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    tax_rate_pct: Decimal = Decimal("19.00")
+    net_amount: Decimal = Field(ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    tax_rate_pct: Decimal = Field(default=Decimal("19.00"), ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     # Vorkontierung (Buchhaltung Stufe 2) -- Verweis auf den Kontenstamm, siehe
     # IncomingInvoice.account_id-Dokumentation (app/models.py).
-    account_id: int | None = None
+    account_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
     @field_validator("tax_rate_pct")
     @classmethod
@@ -5787,11 +5805,11 @@ class IncomingInvoiceItemOut(_felder_ohne_pruefung(IncomingInvoiceItemIn, "_Inco
 
 
 class IncomingInvoiceCreate(BaseModel):
-    supplier_id: int
+    supplier_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     supplier_invoice_number: str | None = Field(default=None, max_length=80)
     invoice_date: date
-    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    tax_rate_pct: Decimal = Decimal("19.00")
+    net_amount: Decimal = Field(ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    tax_rate_pct: Decimal = Field(default=Decimal("19.00"), ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     due_date: date | None = None
     skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
@@ -5800,11 +5818,11 @@ class IncomingInvoiceCreate(BaseModel):
     # Zuordnung: höchstens EINE der drei darf gesetzt sein -- geprüft in
     # app/incoming_invoices.py::_validate_single_assignment(), bewusst kein CheckConstraint
     # (Muster ServiceReportPhoto).
-    project_id: int | None = None
-    asset_id: int | None = None
-    recurring_cost_id: int | None = None
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    asset_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    recurring_cost_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     # Vorkontierung (Buchhaltung Stufe 2) -- nur relevant, wenn KEINE Positionen existieren.
-    account_id: int | None = None
+    account_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
     # Positionen sind eine OPTIONALE Aufschlüsselung des Gesamtbetrags -- siehe
     # IncomingInvoice-Klassendocstring (app/models.py).
@@ -5824,20 +5842,20 @@ class IncomingInvoiceUpdate(PartialUpdate):
     (eine Zuordnung, Summe der Positionen, …) laufen auf gespeichertem Stand + gesendeten Werten
     (app/incoming_invoices.py::update_invoice(), unter der Sperre der Zeile)."""
     NOT_NULL = frozenset({"supplier_id", "invoice_date", "net_amount", "tax_rate_pct", "payment_status", "items"})
-    supplier_id: int | None = None
+    supplier_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     supplier_invoice_number: str | None = Field(default=None, max_length=80)
     invoice_date: date | None = None
-    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
-    tax_rate_pct: Decimal | None = None
+    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2, le=NUMERIC_12_2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    tax_rate_pct: Decimal | None = Field(default=None, ge=-NUMERIC_5_2, le=NUMERIC_5_2)
     due_date: date | None = None
     skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
     payment_status: str | None = Field(default=None, pattern="^(offen|bezahlt)$", max_length=20)
     payment_date: date | None = None
-    project_id: int | None = None
-    asset_id: int | None = None
-    recurring_cost_id: int | None = None
-    account_id: int | None = None
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    asset_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    recurring_cost_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    account_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     notes: str | None = None
     items: list[IncomingInvoiceItemIn] | None = None
 
@@ -5894,7 +5912,7 @@ class IncomingInvoiceSettingsOut(BaseModel):
 
 
 class IncomingInvoiceSettingsUpdate(BaseModel):
-    skonto_reminder_lead_days: int = Field(ge=0)
+    skonto_reminder_lead_days: int = Field(ge=0, le=INT4_MAX)
 
 
 class IncomingInvoiceOpenLiabilitiesOut(BaseModel):
@@ -6010,11 +6028,11 @@ class CalendarEventCreate(BaseModel):
     notes: str | None = None
     # None beim Anlegen bedeutet "der eigene Account" -- der Router füllt das über den
     # angemeldeten Benutzer, siehe app/routers/calendar_events.py::post_calendar_event().
-    owner_user_id: int | None = None
-    resource_id: int | None = None  # seit 1.9.161: der Termin gehört einem Gerät (Kran-Kalender) statt einem Konto
+    owner_user_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    resource_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)  # seit 1.9.161: der Termin gehört einem Gerät (Kran-Kalender) statt einem Konto
     # app/calendar_events.py::_validate_single_assignment() -- höchstens eines der beiden.
-    project_id: int | None = None
-    quote_id: int | None = None
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    quote_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     is_private: bool = False
 
 
@@ -6026,10 +6044,10 @@ class CalendarEventUpdate(BaseModel):
     all_day: bool | None = None
     location: str | None = Field(default=None, max_length=255)
     notes: str | None = None
-    owner_user_id: int | None = None
-    resource_id: int | None = None
-    project_id: int | None = None
-    quote_id: int | None = None
+    owner_user_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    resource_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    project_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    quote_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     is_private: bool | None = None
 
 
@@ -6101,7 +6119,7 @@ class ChecklistTemplateFieldWrite(BaseModel):
     """Anlegen UND Ändern eines Felds -- alles optional, der Router reicht nur die tatsächlich
     gesendeten Schlüssel weiter (exclude_unset-Muster, siehe update_inspection_item())."""
     field_key: str | None = Field(default=None, max_length=80)
-    sort_order: int | None = None
+    sort_order: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     group_name: str | None = Field(default=None, max_length=120)
     field_type: str | None = Field(default=None, max_length=30)
     label: str | None = Field(default=None, max_length=500)
@@ -6111,11 +6129,11 @@ class ChecklistTemplateFieldWrite(BaseModel):
     multiline: bool | None = None
     multiple: bool | None = None
     unit: str | None = Field(default=None, max_length=20)
-    min_value: Decimal | None = None
-    max_value: Decimal | None = None
-    decimals: int | None = None
-    min_count: int | None = None
-    max_count: int | None = None
+    min_value: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    max_value: Decimal | None = Field(default=None, ge=-ZAHL_12, le=ZAHL_12)
+    decimals: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    min_count: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    max_count: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     prefill_now: bool | None = None
     signer_label: str | None = Field(default=None, max_length=80)
     signer_mode: str | None = Field(default=None, max_length=20)  # seit 1.8.57: frei|konto|auftraggeber|beteiligter
@@ -6132,7 +6150,7 @@ class ChecklistTemplateOptionCreate(BaseModel):
 
 class ChecklistTemplateOptionUpdate(BaseModel):
     label: str | None = Field(default=None, max_length=160)
-    sort_order: int | None = None
+    sort_order: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
 
 
 class ChecklistTemplateRuleWrite(BaseModel):
@@ -6142,10 +6160,10 @@ class ChecklistTemplateRuleWrite(BaseModel):
     task_title: str | None = Field(default=None, max_length=255)
     task_description: str | None = None
     task_priority: str | None = Field(default=None, max_length=30)
-    due_in_days: int | None = None
+    due_in_days: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     assignee_mode: str | None = Field(default=None, max_length=30)
     min_visible_role: str | None = Field(default=None, max_length=30)
-    sort_order: int | None = None
+    sort_order: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     link_purpose: str | None = Field(default=None, max_length=40)  # seit 1.8.38
 
 
@@ -6268,11 +6286,11 @@ class ChecklistPurposeOut(BaseModel):
 
 
 class ChecklistCreate(BaseModel):
-    template_id: int
+    template_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
     context_type: str = Field(pattern="^(auftrag|objekt|betriebsmittel|betrieb)$", max_length=20)
-    order_id: int | None = None
-    property_id: int | None = None
-    operational_asset_id: int | None = None
+    order_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    property_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    operational_asset_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     client_uuid: str | None = Field(default=None, max_length=36)
 
 
@@ -6626,7 +6644,7 @@ class PowerOfAttorneyOut(BaseModel):
 class ProjectParticipantCreate(BaseModel):
     """Genau eine Herkunft: ein Kontakt des Adressbuchs oder (seit 1.8.39) ein Kunde bzw. Lieferant -- für
     diesen wird der Adressbuch-Eintrag mit Verweis angelegt oder der vorhandene wiederverwendet."""
-    contact_id: int | None = None
+    contact_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
     customer_id: int | None = None
     supplier_id: int | None = None
     role: Pflichttext = Field(min_length=1, max_length=40)

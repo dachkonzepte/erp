@@ -23,7 +23,8 @@ var _FEHLERARTEN={
   literal_error:'hat einen nicht vorgesehenen Wert',enum:'hat einen nicht vorgesehenen Wert',
   greater_than:'ist zu klein',greater_than_equal:'ist zu klein',less_than:'ist zu groß',less_than_equal:'ist zu groß',
   too_long:'hat zu viele Einträge',too_short:'hat zu wenige Einträge',json_invalid:'ist kein gültiges JSON',
-  dict_type:'hat das falsche Format',list_type:'hat das falsche Format'
+  dict_type:'hat das falsche Format',list_type:'hat das falsche Format',
+  decimal_max_digits:'hat zu viele Stellen',decimal_max_places:'hat zu viele Nachkommastellen',decimal_whole_digits:'hat zu viele Stellen vor dem Komma'
 };
 function fehlerText(body,status,felder,ersatz){
   const d=body&&typeof body==='object'?body.detail:undefined;
@@ -39,6 +40,11 @@ function fehlerText(body,status,felder,ersatz){
       if(art&&e.type==='string_too_long'&&e.ctx&&Number.isInteger(e.ctx.max_length))art+=` (höchstens ${e.ctx.max_length} Zeichen)`;
       // seit 1.9.356 (Runde V2c, B2): ein Pflichtfeld nur aus Leerzeichen kommt nach dem Abschneiden leer an -- „fehlt“ statt „ist zu kurz“
       if(e.type==='string_too_short'&&e.ctx&&Number.isInteger(e.ctx.min_length))art=e.ctx.min_length===1?'fehlt':`ist zu kurz (mindestens ${e.ctx.min_length} Zeichen)`;
+      // seit 1.9.357 (Runde V2c, Punkt 2): „ist zu groß“ / „ist zu klein“ mit der Grenze der Schemaprüfung (ctx.le, lt, ge, gt), deutsch geschrieben
+      const grenze={less_than_equal:['le','höchstens ',''],less_than:['lt','muss kleiner als ',' sein'],greater_than_equal:['ge','mindestens ',''],greater_than:['gt','muss größer als ',' sein']}[e.type];
+      if(art&&grenze&&e.ctx&&typeof e.ctx[grenze[0]]==='number')art+=` (${grenze[1]}${e.ctx[grenze[0]].toLocaleString('de-DE',{maximumFractionDigits:6})}${grenze[2]})`;
+      const stellen={decimal_max_digits:'max_digits',decimal_max_places:'decimal_places',decimal_whole_digits:'whole_digits'}[e.type];
+      if(art&&stellen&&e.ctx&&Number.isInteger(e.ctx[stellen]))art+=` (höchstens ${e.ctx[stellen]})`;
       if(art)return feld?`${feld} ${art}`:`Die Eingabe ${art}`;
       const text=typeof e.msg==='string'&&e.msg.trim()?e.msg.replace(/^Value error,\s*/,''):'ist ungültig';
       return feld?`${feld}: ${text}`:text;

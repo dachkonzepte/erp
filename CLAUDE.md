@@ -1677,6 +1677,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   **Pflicht-Textfelder** (seit 1.9.356): jedes Textfeld eines Eingabeschemas mit `min_length` ≥ 1 hat den Typ `Pflichttext` (bzw. `PflichttextWennDa`
   für ein Feld, das fehlen oder null sein darf -- der Validator um die ganze Union, nie `Pflichttext | None`): Leerzeichen am Rand fallen vor der Prüfung
   weg, nur Leerzeichen heißt 422 („fehlt“); Passwörter ausgenommen. Wächter `tests/test_v756_pflichttext.py` (`AUSNAHMEN` genau).
+  **Zahlenbereiche** (seit 1.9.357): jedes Eingabefeld, das in eine Spalte Numeric(p,s) oder Integer geht, hat `le`/`ge` bis zur Spalte -- Konstanten
+  `NUMERIC_p_s`, `INT4_MIN`/`INT4_MAX`, für Numeric(18,…) `ZAHL_12` (999.999.999.999, genau in JSON und Meldung) oben in `app/schemas.py`; eine engere
+  Grenze bleibt. Eine neue Spalte mit neuem (p,s) bekommt ihre Konstante. Wächter `tests/test_v757_zahlenbereiche.py` (`OFFEN` leer, `VORHER` je Feld).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
