@@ -524,7 +524,7 @@ def termine(db: Session, project: Project, order: Order | None, viewer_user_id: 
     out = []
     if is_module_enabled(db, "kalender"):
         for ev in db.scalars(select(CalendarEvent).where(CalendarEvent.project_id == project.id, CalendarEvent.end_at >= datetime.combine(heute, time.min))
-                             .order_by(CalendarEvent.start_at).limit(8)):
+                             .order_by(CalendarEvent.start_at, CalendarEvent.id).limit(8)):
             d = event_to_dict(db, ev)
             if is_redacted_for_viewer(d, viewer_user_id):
                 d = redact_for_busy(d)

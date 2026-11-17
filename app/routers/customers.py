@@ -47,7 +47,7 @@ def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUs
     customers = db.scalars(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
-        .order_by(*nach_namen(Customer.name), Customer.id)
+        .order_by(*nach_namen(Customer.last_name, Customer.first_name), Customer.id)  # seit 1.9.355 nach Nachname, dann Vorname (F1)
     ).all()
     # Seit 1.8.76 legt das Lesen kein fehlendes Profil mehr an (vorher samt Kundennummer aus dem Nummernkreis -- eine Anzeige
     # verbrauchte eine Nummer, Regel 23). Jeder Anlegeweg legt das Profil an; ein Altkunde ohne Profil zeigt keine Nummer, bis
@@ -241,7 +241,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db, scope
 def list_customer_documents(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
-    docs = db.scalars(select(CustomerDocument).where(CustomerDocument.customer_id == customer_id).order_by(CustomerDocument.uploaded_at.desc())).all()
+    docs = db.scalars(select(CustomerDocument).where(CustomerDocument.customer_id == customer_id).order_by(CustomerDocument.uploaded_at.desc(), CustomerDocument.id.desc())).all()
     return [_customer_document_out(d) for d in docs]
 
 

@@ -781,3 +781,53 @@ des Anlegens) -> „Leiter, Pritsche, Rüttelplatte, Hubsteiger“ (nach Namen; 
 
 Neu `tests/test_v754_reihenfolge.py` (8 Tests: Abfragen mit `order_by`, `OHNE_REIHENFOLGE` genau, Beziehungen, leere Werte in Beziehungen und Abfragen, Probe
 jeder Form, die Angebote eines Projekts nach einer Statusänderung und die Dauer-Buchung am Ende ihres Tags -- beide gegen PostgreSQL).
+
+## Runde V2c ab 1.9.355: Kundenliste, ID zuletzt, leere Pflichttexte, Zahlenbereiche, Suchmuster
+
+V2b geprüft (e74e5aa) und live; die 20 Festlegungen 1.9.352–1.9.354 bestätigt (17.11.2026). Antworten Tobias: **F1** ja -- die Kundenliste nach Nachname,
+dann Vorname, ohne Anrede und Titel (Firmen nach ihrem Namen); **F2** ja, in dieser Runde; **B1** und **B2** beide beheben.
+
+Runde ab 1.9.355, je Punkt eine Version: **0** F1 und F2 (die 54 Sortierungen enden auf der ID; Wächter) (1.9.355); **1** B1: `CustomerOut` ohne Prüfung wie
+die übrigen Antwortschemas; B2: bei allen Pflicht-Textfeldern Leerzeichen am Rand vor der Prüfung entfernen -- nur Leerzeichen heißt 422; Wächter (1.9.356);
+**2** Zahlenbereiche: jedes Eingabefeld, das in Numeric(p,s) oder Integer geht, bekommt passende Grenzen (die 98 und 150 aus dem Befund, Abschnitt 3 G); zu
+groß heißt 422 mit Feld und Grenze, nie 500; Wächter wie bei den Längen (1.9.357); **3** Suchmuster: ein Baustein für LIKE mit geschützten Zeichen und
+escape wie `app/search.py:198`, für alle 18 Muster (1.9.358); **4** Suche wie die Sortierung: die Büro-Suche vergleicht über `telefonbuch()`, sodass
+„muller“, „Müller“ und „MÜLLER“ dasselbe finden -- unter SQLite und PostgreSQL gleich; geht das nur mit großem Umbau: Vorschlag in den Bericht, erst fragen.
+
+### Umsetzung 1.9.355: Kundenliste nach Nachname, dann Vorname; jede Sortierung endet auf der ID (Punkt 0, F1 und F2)
+
+- **Kundenliste (F1):** `GET /api/customers` sortiert nach `nach_namen(Customer.last_name, Customer.first_name)`, dann ID -- statt nach dem ganzen Namen
+  samt Anrede und Titel („Frau Dr. Erika Probe“ stand unter F). Eine Firma trägt ihren Namen im Nachnamen (Vorname leer) und steht damit unter ihrem Namen.
+  Die Kunden der Büro-Suche in derselben Reihenfolge (`app/search.py::_search_customers()`). Ohne Vorname steht ein Kunde nach denen mit Vornamen bei gleichem
+  Nachnamen (leere Werte ans Ende, `nach_namen()` wie seit 1.9.353). Keine Migration: beide Spalten gibt es, `telefonbuch()` rechnet sie. Unverändert: das
+  Adressbuch sortiert einen Eintrag mit Verweis auf einen Kunden weiter nach dem angezeigten Namen (`contact_sort_columns()`).
+- **ID zuletzt (F2):** 54 `order_by` endeten nicht auf der ID (B3 im Bericht V2b; der Wächter zählt 57, darunter drei, die schon auf `modell.id` enden). 50 enden
+  jetzt auf der ID -- bei absteigender Sortierung absteigend (Dokumente „neueste zuerst“, Rechnungen, Revisionen, laufende Zeit). Zwei davon brauchten die ID
+  in Auswahl bzw. Gruppe: die Rechnungsnummern je Position (`app/order_locks.py::billed_items()`, DISTINCT verlangt die Sortierspalte in der Auswahl -- je
+  Rechnung eine Nummer, das Ergebnis bleibt gleich) und der Auftrag mit festgeschriebenem Vertrag beim Kundenwechsel
+  (`app/project_participants.py::check_client_change()`, GROUP BY über ID und Nummer -- die Nummer ist eindeutig). Ohne ID bleiben vier, mit Grund in
+  `AUSNAHMEN`: zwei Abfragen mit GROUP BY je Checkliste (sortiert nach ihrer ID), der Helfer der Büro-Suche (`_count_and_fetch()`, jeder Aufruf gibt die ID mit)
+  und die Werte einer Nummernspalte (`highest_existing()`). Dazu 18 Listen-Beziehungen (Positionen, Abschnitte, Revisionen, Fassungen, Mahnungen,
+  Pausenregeln, Optionen, Dokumente): jetzt `…, X.id`.
+- **Wächter** `tests/test_v755_kundenliste_und_id.py`: jedes `order_by` unter `app/` und jeder Aufruf von `_count_and_fetch()` endet auf der ID
+  (`X.id` oder Primärschlüssel; `*(…)` eines Tupels aufgelöst) -- ohne nur mit Grund in `AUSNAHMEN`, die Liste stimmt genau; jede Listen-Beziehung mit
+  Reihenfolge endet auf ihrem Primärschlüssel. Dazu die Kundenliste und die Büro-Suche (SQLite), die Kundenliste und zwei am selben Tag fällige
+  Wartungsverträge gegen PostgreSQL -- ohne ID tauschten sie nach einer Änderung des ersten die Plätze (Gegenprobe `355_4`).
+
+#### Festlegungen 1.9.355 (Bitte bestätigen)
+
+1. Die Kundenliste sortiert nach Nachname, dann Vorname wie im Telefonbuch, ohne Anrede und Titel; eine Firma steht unter ihrem Namen (im Nachnamen).
+2. Die Kunden der Büro-Suche stehen in derselben Reihenfolge wie die Kundenliste.
+3. Ohne Vorname steht ein Kunde nach denen mit Vornamen bei gleichem Nachnamen (leere Werte ans Ende); gleicher Name in der Reihenfolge des Anlegens.
+4. Jedes `order_by` endet auf der ID, bei absteigender Sortierung absteigend -- ohne nur mit Grund in `AUSNAHMEN` (GROUP BY je ID, nur der Wert einer Spalte,
+   Helfer der Suche), die Liste stimmt genau.
+5. Jede Listen-Beziehung mit Reihenfolge endet auf der ID.
+6. Jeder Aufruf der Büro-Suche (`_count_and_fetch()`) gibt die ID als letzten Schlüssel mit.
+7. Schließen DISTINCT oder GROUP BY die ID aus, kommt sie in Auswahl bzw. Gruppe, wenn das Ergebnis gleich bleibt.
+
+#### Tests und Prüfung 1.9.355
+
+Neu `tests/test_v755_kundenliste_und_id.py` (9 Tests). Angepasst: `tests/test_v753_telefonbuch.py`, die beiden Kundenlisten-Tests -- der Kunde ohne Namen
+bekommt den Nachnamen " " (wie über die Oberfläche) statt "-", weil die Liste jetzt nach dem Nachnamen sortiert; die Erwartung bleibt. Klicktest
+`klicktest_telefonbuch.py`: 17 statt 15 Kunden (dazu „Herr Bernd Abel“ und „Frau Dr. Erika Probe“), erwartet „Herr Bernd Abel, apfelbaum Gartenbau, …,
+Ökohaus Probe, Frau Dr. Erika Probe, Straßenbau Probe, …“ statt der Liste ohne die beiden.

@@ -1469,7 +1469,7 @@ def list_series_occurrences(db: Session, *, start: datetime | None = None, end: 
     """Reine Datenbeschaffung wie app/calendar_events.py::list_events() -- die
     Privatsphäre-Redaktion entscheidet der Router je Zeile mit denselben Funktionen."""
     start, end = zeitraum_berlin(start), zeitraum_berlin(end)  # seit 1.9.148 (P6)
-    stmt = select(OutlookSeriesOccurrence).order_by(OutlookSeriesOccurrence.start_at)
+    stmt = select(OutlookSeriesOccurrence).order_by(OutlookSeriesOccurrence.start_at, OutlookSeriesOccurrence.id)
     if start is not None:
         stmt = stmt.where(OutlookSeriesOccurrence.end_at >= start)
     if end is not None:

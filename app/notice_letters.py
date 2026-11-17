@@ -504,7 +504,7 @@ def _letters(db: Session, checklist_id: int, kind: str | None = None) -> list[No
     if kind is not None:
         query = query.where(NoticeLetter.kind == kind)
     return list(db.scalars(query.options(selectinload(NoticeLetter.sent_document))
-                          .order_by(NoticeLetter.kind, NoticeLetter.version_no.desc())).all())
+                          .order_by(NoticeLetter.kind, NoticeLetter.version_no.desc(), NoticeLetter.id.desc())).all())
 
 
 def _letter_for(db: Session, checklist_id: int, kind: str, signature_id: int) -> NoticeLetter | None:

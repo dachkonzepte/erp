@@ -1874,7 +1874,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
 
 def list_invoices_for_order(db: Session, order_id: int) -> list[Invoice]:
     return db.scalars(
-        select(Invoice).where(Invoice.order_id == order_id).order_by(Invoice.created_at)
+        select(Invoice).where(Invoice.order_id == order_id).order_by(Invoice.created_at, Invoice.id)
     ).all()
 
 
@@ -1917,7 +1917,7 @@ def compute_order_billing_progress(db: Session, order_id: int) -> dict:
 def list_all_invoices(db: Session, *, status: str | None = None) -> list[Invoice]:
     """Systemweite Rechnungsliste für die Finanzen-Übersicht -- unabhängig
     vom jeweiligen Auftrag/Projekt, mit optionalem Status-Filter."""
-    stmt = select(Invoice).order_by(Invoice.created_at.desc())
+    stmt = select(Invoice).order_by(Invoice.created_at.desc(), Invoice.id.desc())
     if status:
         stmt = stmt.where(Invoice.status == status)
     return db.scalars(stmt).all()
@@ -1930,7 +1930,7 @@ def list_invoices_for_project(db: Session, project_id: int) -> list[Invoice]:
         select(Invoice)
         .join(Order, Invoice.order_id == Order.id)
         .where(Order.project_id == project_id)
-        .order_by(Invoice.created_at.desc())
+        .order_by(Invoice.created_at.desc(), Invoice.id.desc())
     ).all()
 
 

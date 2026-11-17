@@ -244,7 +244,7 @@ def list_contracts(db: Session, status: str | None = None, include_archived: boo
         query = query.where(MaintenanceContract.status == status)
     if not include_archived:
         query = query.where(MaintenanceContract.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
-    query = query.order_by(MaintenanceContract.next_due_date)
+    query = query.order_by(MaintenanceContract.next_due_date, MaintenanceContract.id)
     return [
         contract_to_dict(c, settings.reminder_lead_days, settings.use_roof_area_items)
         for c in db.scalars(query).all()
@@ -265,7 +265,7 @@ def list_contracts_for_property(db: Session, property_id: int, include_archived:
     ).where(MaintenanceContract.property_id == property_id)
     if not include_archived:
         query = query.where(MaintenanceContract.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
-    query = query.order_by(MaintenanceContract.next_due_date)
+    query = query.order_by(MaintenanceContract.next_due_date, MaintenanceContract.id)
     return [
         contract_to_dict(c, settings.reminder_lead_days, settings.use_roof_area_items)
         for c in db.scalars(query).all()
@@ -313,7 +313,7 @@ def list_relevant_contracts_for_employee(db: Session, employee_id: int) -> list[
             selectinload(MaintenanceContract.customer), selectinload(MaintenanceContract.property),
             selectinload(MaintenanceContract.items),
         )
-        .order_by(MaintenanceContract.next_due_date)
+        .order_by(MaintenanceContract.next_due_date, MaintenanceContract.id)
     )
     contracts = db.scalars(query).all()
     if not contracts:

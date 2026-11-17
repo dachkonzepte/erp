@@ -43,7 +43,7 @@ def list_services(catalog_id: int | None = Query(default=None), db: Session = De
             selectinload(Service.material_overrides),
             selectinload(Service.catalog),
         )
-        .order_by(Service.external_id)
+        .order_by(Service.external_id, Service.id)
     )
     if catalog_id is not None:
         stmt = stmt.where(Service.catalog_id == catalog_id)

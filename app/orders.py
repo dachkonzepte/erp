@@ -1173,7 +1173,7 @@ def update_order_section(db: Session, order_id: int, section_id: int, *, title: 
 
 
 def list_order_revisions(db: Session, order_id: int) -> list[OrderRevision]:
-    return list(db.scalars(select(OrderRevision).where(OrderRevision.order_id == order_id).order_by(OrderRevision.revision_number.desc())).all())
+    return list(db.scalars(select(OrderRevision).where(OrderRevision.order_id == order_id).order_by(OrderRevision.revision_number.desc(), OrderRevision.id.desc())).all())
 
 
 def ensure_existing_order_revisions(db: Session) -> int:

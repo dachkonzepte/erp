@@ -79,7 +79,7 @@ def update_tax_key(db: Session, key_id: int, label: str, vat_rate: Decimal, noti
 
 
 def _next_sort_order(db: Session) -> int:
-    highest = db.scalar(select(TaxKey.sort_order).order_by(TaxKey.sort_order.desc()).limit(1))
+    highest = db.scalar(select(TaxKey.sort_order).order_by(TaxKey.sort_order.desc(), TaxKey.id.desc()).limit(1))
     return (highest or 0) + 10
 
 

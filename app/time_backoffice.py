@@ -109,7 +109,7 @@ def eingelesene_personalnummern(db: Session) -> list[dict]:
     Sortiert nach Nummer."""
     from .berlin_time import to_berlin
     zeilen = db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.vergeben_am)
-                        .where(PersonalnummerVergabe.employee_id.is_(None)).order_by(PersonalnummerVergabe.nummer)).all()
+                        .where(PersonalnummerVergabe.employee_id.is_(None)).order_by(PersonalnummerVergabe.nummer, PersonalnummerVergabe.id)).all()
     traeger = personalnummern_traeger(db, [n for n, _ in zeilen])
     from .lohndatei import personalnummern_der_ablage
     ablage = personalnummern_der_ablage(db)  # seit 1.9.226: steht sie in einer abgelegten Lohndatei, kein „freigeben“
@@ -328,7 +328,7 @@ def _sollzeiten_aller(db: Session) -> dict[int, list[dict]]:
     from .models import EmployeeTargetHours
     from .sollzeit import zeile_dict
     je: dict[int, list[dict]] = {}
-    for z in db.scalars(select(EmployeeTargetHours).order_by(EmployeeTargetHours.employee_id, EmployeeTargetHours.valid_from)).all():
+    for z in db.scalars(select(EmployeeTargetHours).order_by(EmployeeTargetHours.employee_id, EmployeeTargetHours.valid_from, EmployeeTargetHours.id)).all():
         je.setdefault(z.employee_id, []).append(zeile_dict(z))
     return je
 

@@ -108,7 +108,7 @@ def warranty_contract_lock(db: Session, order: Order) -> str | None:
     rows = db.execute(
         select(OrderContractVersion.version_no, OrderContractVersion.frozen_content)
         .join(OrderContract, OrderContract.id == OrderContractVersion.contract_id)
-        .where(OrderContract.order_id == order.id).order_by(OrderContractVersion.version_no)
+        .where(OrderContract.order_id == order.id).order_by(OrderContractVersion.version_no, OrderContractVersion.id)
     ).all()
     for version_no, frozen in rows:
         if CONTRACT_PLACEHOLDER in (json.loads(frozen).get("used_placeholders") or []):

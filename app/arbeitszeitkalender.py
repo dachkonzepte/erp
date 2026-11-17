@@ -67,7 +67,7 @@ def ensure_default_kalendertage(db: Session) -> None:
 
 
 def eintraege(db: Session) -> list[ArbeitszeitKalendertag]:
-    return list(db.scalars(select(ArbeitszeitKalendertag).order_by(ArbeitszeitKalendertag.monat, ArbeitszeitKalendertag.tag)).all())
+    return list(db.scalars(select(ArbeitszeitKalendertag).order_by(ArbeitszeitKalendertag.monat, ArbeitszeitKalendertag.tag, ArbeitszeitKalendertag.id)).all())
 
 
 def aktive(db: Session) -> list[ArbeitszeitKalendertag]:

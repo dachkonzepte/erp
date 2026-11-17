@@ -201,7 +201,7 @@ def search_orders_for_field(db: Session, query: str, *, limit: int = FIELD_ORDER
     rows = db.scalars(
         select(Order)
         .where(func.lower(func.coalesce(Order.status, "")) != "storniert", or_(*(f.ilike(muster, escape="\\") for f in felder)))
-        .order_by(Order.order_number.desc())
+        .order_by(Order.order_number.desc(), Order.id.desc())
         .limit(limit)
     ).all()
     return [auftrag_zeile(o) for o in rows]
@@ -257,7 +257,7 @@ def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .where(or_(Customer.name.ilike(pattern), CustomerProfile.customer_number.ilike(pattern)))
     )
-    return _count_and_fetch(db, stmt, (*nach_namen(Customer.name), Customer.id), limit)
+    return _count_and_fetch(db, stmt, (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
 
 
 def _customer_row(c: Customer) -> dict:

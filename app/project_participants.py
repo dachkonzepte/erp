@@ -214,7 +214,7 @@ def check_client_change(db: Session, project: Project, new_customer_id: int, *, 
         .join(OrderContract, OrderContract.order_id == Order.id)
         .join(OrderContractVersion, OrderContractVersion.contract_id == OrderContract.id)
         .where(Order.project_id == project.id)
-        .group_by(Order.order_number).order_by(Order.order_number)
+        .group_by(Order.id, Order.order_number).order_by(Order.order_number, Order.id)
     ).first()
     if frozen is not None:
         raise ClientChangeConflict(

@@ -285,7 +285,7 @@ class Customer(Base):
         back_populates="customer", cascade="all, delete-orphan", order_by="CustomerExtraInfo.id"
     )
     documents: Mapped[list["CustomerDocument"]] = relationship(
-        back_populates="customer", cascade="all, delete-orphan", order_by="CustomerDocument.uploaded_at.desc()"
+        back_populates="customer", cascade="all, delete-orphan", order_by="CustomerDocument.uploaded_at.desc(), CustomerDocument.id.desc()"
     )
 
 
@@ -451,7 +451,7 @@ class Property(Base):
     # NEBEN den bereits bestehenden ProjectDocument/CustomerDocument, siehe PropertyDocument
     # unten für die Begründung, warum es keine dritte, polymorphe Tabelle gibt.
     documents: Mapped[list["PropertyDocument"]] = relationship(
-        back_populates="property", cascade="all, delete-orphan", order_by="PropertyDocument.uploaded_at.desc()"
+        back_populates="property", cascade="all, delete-orphan", order_by="PropertyDocument.uploaded_at.desc(), PropertyDocument.id.desc()"
     )
 
 
@@ -527,7 +527,7 @@ class Project(Base):
     orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.id")
     source_inquiry: Mapped["Inquiry | None"] = relationship(back_populates="project", foreign_keys="Inquiry.project_id", uselist=False)
     documents: Mapped[list["ProjectDocument"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan", order_by="ProjectDocument.uploaded_at.desc()"
+        back_populates="project", cascade="all, delete-orphan", order_by="ProjectDocument.uploaded_at.desc(), ProjectDocument.id.desc()"
     )
     profile: Mapped["ProjectProfile | None"] = relationship(back_populates="project", uselist=False, cascade="all, delete-orphan")
     pipeline_column: Mapped["ProjectPipelineColumn"] = relationship()
@@ -868,7 +868,7 @@ class Quote(Base):
 
     project: Mapped[Project] = relationship(back_populates="quotes")
     items: Mapped[list["QuoteItem"]] = relationship(
-        back_populates="quote", cascade="all, delete-orphan", order_by="QuoteItem.sort_order"
+        back_populates="quote", cascade="all, delete-orphan", order_by="QuoteItem.sort_order, QuoteItem.id"
     )
 
 
@@ -1072,9 +1072,9 @@ class Order(Base):
     project: Mapped[Project] = relationship(back_populates="orders")
     customer: Mapped["Customer"] = relationship()  # seit 1.8.80, siehe customer_id
     source_quote: Mapped[Quote] = relationship()
-    sections: Mapped[list["OrderSection"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderSection.sort_order")
-    items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.sort_order")
-    revisions: Mapped[list["OrderRevision"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderRevision.revision_number")
+    sections: Mapped[list["OrderSection"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderSection.sort_order, OrderSection.id")
+    items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.sort_order, OrderItem.id")
+    revisions: Mapped[list["OrderRevision"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderRevision.revision_number, OrderRevision.id")
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="Invoice.id")
     caseworker: Mapped["Employee | None"] = relationship(foreign_keys=[caseworker_employee_id])
     project_manager: Mapped["Employee | None"] = relationship(foreign_keys=[project_manager_employee_id])
@@ -1449,7 +1449,7 @@ class ContractTemplate(Base):
 
     sections: Mapped[list["ContractTemplateSection"]] = relationship(
         back_populates="template", cascade="all, delete-orphan",
-        order_by="ContractTemplateSection.sort_order",
+        order_by="ContractTemplateSection.sort_order, ContractTemplateSection.id",
     )
 
 
@@ -1503,7 +1503,7 @@ class OrderContract(Base):
     # Seit 1.8.33: festgeschriebene Fassungen, nie geändert oder gelöscht (ORM-Sperre am Ende der
     # Datei) -- ein Auftrag mit festgeschriebenem Vertrag lässt sich deshalb nicht mehr löschen.
     versions: Mapped[list["OrderContractVersion"]] = relationship(
-        back_populates="contract", cascade="all, delete-orphan", order_by="OrderContractVersion.version_no"
+        back_populates="contract", cascade="all, delete-orphan", order_by="OrderContractVersion.version_no, OrderContractVersion.id"
     )
     # Seit 1.8.34: höchstens eine Unterschrift je Vertrag, unveränderlich (ORM-Sperre am Ende der Datei).
     signature: Mapped["OrderContractSignature | None"] = relationship(back_populates="contract", uselist=False)
@@ -1815,11 +1815,11 @@ class Invoice(Base):
     order: Mapped["Order"] = relationship(back_populates="invoices")
     customer: Mapped["Customer | None"] = relationship()  # seit 1.8.79, siehe customer_id
     pdf_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[pdf_document_id])  # seit 1.8.82
-    items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.sort_order")
+    items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.sort_order, InvoiceItem.id")
     # Seit 1.8.85 (R4b): die Abzüge einer Schlussrechnung (Endrechnung), beim Festschreiben eingefroren -- siehe InvoiceDeduction.
     deductions: Mapped[list["InvoiceDeduction"]] = relationship(
-        foreign_keys="InvoiceDeduction.invoice_id", cascade="all, delete-orphan", order_by="InvoiceDeduction.sort_order")
-    reminders: Mapped[list["Reminder"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="Reminder.level")
+        foreign_keys="InvoiceDeduction.invoice_id", cascade="all, delete-orphan", order_by="InvoiceDeduction.sort_order, InvoiceDeduction.id")
+    reminders: Mapped[list["Reminder"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="Reminder.level, Reminder.id")
 
 
 class InvoiceItem(Base):
@@ -2203,7 +2203,7 @@ class WorkPreparation(Base):
 
     order: Mapped[Order] = relationship()
     employees: Mapped[list["WorkPreparationEmployee"]] = relationship(back_populates="preparation", cascade="all, delete-orphan", order_by="WorkPreparationEmployee.id")
-    tasks: Mapped[list["WorkPreparationTask"]] = relationship(back_populates="preparation", cascade="all, delete-orphan", order_by="WorkPreparationTask.sort_order")
+    tasks: Mapped[list["WorkPreparationTask"]] = relationship(back_populates="preparation", cascade="all, delete-orphan", order_by="WorkPreparationTask.sort_order, WorkPreparationTask.id")
     materials: Mapped[list["WorkPreparationMaterial"]] = relationship(back_populates="preparation", cascade="all, delete-orphan", order_by="WorkPreparationMaterial.id")
 
 
@@ -2987,7 +2987,7 @@ class WorkTimeModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     break_rules: Mapped[list["WorkTimeBreakRule"]] = relationship(
-        back_populates="model", cascade="all, delete-orphan", order_by="WorkTimeBreakRule.threshold_hours"
+        back_populates="model", cascade="all, delete-orphan", order_by="WorkTimeBreakRule.threshold_hours, WorkTimeBreakRule.id"
     )
 
 
@@ -3390,7 +3390,7 @@ class SettingOptionGroup(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     options: Mapped[list["SettingOption"]] = relationship(
-        back_populates="group", cascade="all, delete-orphan", order_by="SettingOption.sort_order"
+        back_populates="group", cascade="all, delete-orphan", order_by="SettingOption.sort_order, SettingOption.id"
     )
 
 
@@ -4805,7 +4805,7 @@ class OperationalAsset(Base):
         back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetInspection.next_due_date.nulls_last(), OperationalAssetInspection.id"
     )
     documents: Mapped[list["OperationalAssetDocument"]] = relationship(
-        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetDocument.uploaded_at.desc()"
+        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetDocument.uploaded_at.desc(), OperationalAssetDocument.id.desc()"
     )
 
 
@@ -4989,7 +4989,7 @@ class RecurringCost(Base):
 
     asset: Mapped["OperationalAsset | None"] = relationship()
     documents: Mapped[list["RecurringCostDocument"]] = relationship(
-        back_populates="cost", cascade="all, delete-orphan", order_by="RecurringCostDocument.uploaded_at.desc()"
+        back_populates="cost", cascade="all, delete-orphan", order_by="RecurringCostDocument.uploaded_at.desc(), RecurringCostDocument.id.desc()"
     )
 
 
@@ -5571,7 +5571,7 @@ class ChecklistTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     versions: Mapped[list["ChecklistTemplateVersion"]] = relationship(
-        back_populates="template", cascade="all, delete-orphan", order_by="ChecklistTemplateVersion.version_no",
+        back_populates="template", cascade="all, delete-orphan", order_by="ChecklistTemplateVersion.version_no, ChecklistTemplateVersion.id",
     )
 
 

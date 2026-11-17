@@ -86,7 +86,7 @@ def update_payment_term(
 
 
 def _next_sort_order(db: Session) -> int:
-    highest = db.scalar(select(PaymentTerm.sort_order).order_by(PaymentTerm.sort_order.desc()).limit(1))
+    highest = db.scalar(select(PaymentTerm.sort_order).order_by(PaymentTerm.sort_order.desc(), PaymentTerm.id.desc()).limit(1))
     return (highest or 0) + 10
 
 

@@ -145,7 +145,7 @@ def sync_planning_school_holidays(start_year: int | None = None, years: int = 3,
 
 @router.get("/api/planning/holidays", response_model=list[PlanningHolidayOut])
 def list_planning_holidays(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    return db.scalars(select(PlanningHoliday).order_by(PlanningHoliday.holiday_date)).all()
+    return db.scalars(select(PlanningHoliday).order_by(PlanningHoliday.holiday_date, PlanningHoliday.id)).all()
 
 
 @router.post("/api/planning/holidays", response_model=PlanningHolidayOut)

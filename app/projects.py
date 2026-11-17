@@ -343,7 +343,7 @@ def add_service_to_quote(db: Session, quote: Quote, service_id: int, quantity: D
     db.add(item)
     db.flush()
     create_project_calculation_snapshot(db, item, service, catalog_calc)
-    max_layout = db.scalar(select(QuoteItemLayout.sort_order).join(QuoteItem).where(QuoteItem.quote_id == quote.id, QuoteItemLayout.section_id == section_id).order_by(QuoteItemLayout.sort_order.desc()).limit(1)) or 0
+    max_layout = db.scalar(select(QuoteItemLayout.sort_order).join(QuoteItem).where(QuoteItem.quote_id == quote.id, QuoteItemLayout.section_id == section_id).order_by(QuoteItemLayout.sort_order.desc(), QuoteItemLayout.id.desc()).limit(1)) or 0
     db.add(QuoteItemLayout(quote_item_id=item.id, section_id=section_id, sort_order=max_layout + 10, include_in_total=True))
     db.commit()
     return item
@@ -364,7 +364,7 @@ def create_free_quote_item(db: Session, quote: Quote, *, short_text: str, long_t
     )
     db.add(item)
     db.flush()
-    max_layout = db.scalar(select(QuoteItemLayout.sort_order).join(QuoteItem).where(QuoteItem.quote_id == quote.id, QuoteItemLayout.section_id == section_id).order_by(QuoteItemLayout.sort_order.desc()).limit(1)) or 0
+    max_layout = db.scalar(select(QuoteItemLayout.sort_order).join(QuoteItem).where(QuoteItem.quote_id == quote.id, QuoteItemLayout.section_id == section_id).order_by(QuoteItemLayout.sort_order.desc(), QuoteItemLayout.id.desc()).limit(1)) or 0
     db.add(QuoteItemLayout(quote_item_id=item.id, section_id=section_id, sort_order=max_layout + 10, include_in_total=include_in_total))
     if commit:
         db.commit()

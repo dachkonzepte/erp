@@ -374,7 +374,7 @@ def active_entry(db: Session, employee_id: int) -> TimeEntry | None:
         select(TimeEntry)
         .options(selectinload(TimeEntry.order), selectinload(TimeEntry.project), selectinload(TimeEntry.order_item))
         .where(TimeEntry.employee_id == employee_id, TimeEntry.status == "running")
-        .order_by(TimeEntry.started_at.desc().nulls_last())
+        .order_by(TimeEntry.started_at.desc().nulls_last(), TimeEntry.id.desc())
     )
 
 
@@ -797,7 +797,7 @@ def time_tracking_context(db: Session, employee_id: int | None = None, include_a
     order_stmt=(
         select(Order)
         .options(selectinload(Order.project), selectinload(Order.items))
-        .order_by(Order.order_number.desc())
+        .order_by(Order.order_number.desc(), Order.id.desc())
     )
     if not mit_geschlossenen:
         order_stmt=order_stmt.where(or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])))
@@ -1186,7 +1186,7 @@ def active_group_for_employee(db: Session, employee_id: int, *, initiated_only: 
         .join(TimeEntryGroupMember, TimeEntryGroupMember.group_id==TimeEntryGroup.id)
         .join(TimeEntry, TimeEntry.id==TimeEntryGroupMember.time_entry_id)
         .where(TimeEntryGroupMember.employee_id==employee_id, TimeEntryGroup.status=='running', TimeEntry.status=='running')
-        .order_by(TimeEntryGroup.started_at.desc().nulls_last())
+        .order_by(TimeEntryGroup.started_at.desc().nulls_last(), TimeEntryGroup.id.desc())
     )
     if initiated_only:
         stmt=stmt.where(TimeEntryGroup.initiated_by_employee_id==employee_id)

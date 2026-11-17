@@ -206,7 +206,7 @@ def school_holidays_for_range(db: Session, start: date, end: date, auto_sync: bo
         for year in years:
             result=sync_school_holidays(db,region.federal_state_code,year,force=False)
             if not result.get("success"): warnings.append(f"Ferien {year}: {result.get('error','Synchronisierung fehlgeschlagen')}")
-    rows=db.scalars(select(PlanningSchoolHoliday).where(PlanningSchoolHoliday.state_code==region.federal_state_code,PlanningSchoolHoliday.start_date<=end,PlanningSchoolHoliday.end_date>=start).order_by(PlanningSchoolHoliday.start_date)).all()
+    rows=db.scalars(select(PlanningSchoolHoliday).where(PlanningSchoolHoliday.state_code==region.federal_state_code,PlanningSchoolHoliday.start_date<=end,PlanningSchoolHoliday.end_date>=start).order_by(PlanningSchoolHoliday.start_date, PlanningSchoolHoliday.id)).all()
     return [{"id":x.id,"name":x.name,"start_date":x.start_date,"end_date":x.end_date,"state_code":x.state_code} for x in rows], warnings
 
 
@@ -289,7 +289,7 @@ def _holiday_rows(db: Session, start: date, end: date) -> list[PlanningHoliday]:
     return db.scalars(
         select(PlanningHoliday)
         .where(PlanningHoliday.active == True, PlanningHoliday.holiday_date >= start, PlanningHoliday.holiday_date <= end)
-        .order_by(PlanningHoliday.holiday_date)
+        .order_by(PlanningHoliday.holiday_date, PlanningHoliday.id)
     ).all()
 
 
@@ -310,7 +310,7 @@ def _absence_rows(db: Session, start: date, end: date, employee_ids: set[int] | 
         select(EmployeeAbsence)
         .options(selectinload(EmployeeAbsence.employee))
         .where(EmployeeAbsence.start_date <= end, EmployeeAbsence.end_date >= start)
-        .order_by(EmployeeAbsence.start_date, EmployeeAbsence.employee_id)
+        .order_by(EmployeeAbsence.start_date, EmployeeAbsence.employee_id, EmployeeAbsence.id)
     )
     if employee_ids:
         stmt = stmt.where(EmployeeAbsence.employee_id.in_(employee_ids))
@@ -1468,7 +1468,7 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
     query = (
         _slot_query_with_order_options().options(selectinload(PlanningSlot.besetzung))
         .where(PlanningSlot.start_date <= day, PlanningSlot.end_date >= day, _employee_assignment_slot_condition(employee_id))
-        .order_by(PlanningSlot.start_date)
+        .order_by(PlanningSlot.start_date, PlanningSlot.id)
     )
     # seit 1.9.262 (Stufe 6, R5a, Punkt 3): nur Einsätze, an denen sie an diesem Tag steht (ihre Tage am Einsatz)
     slots = [s for s in db.scalars(query).all() if any(x.employee_id == employee_id and day in _tage_der_zeile(s, x) for x in s.besetzung)]
@@ -1503,7 +1503,7 @@ def list_upcoming_assignments_for_employee(db: Session, employee_id: int, *, tod
             PlanningSlot.end_date >= today, PlanningSlot.start_date <= window_end,
             _employee_assignment_slot_condition(employee_id),
         )
-        .order_by(PlanningSlot.start_date)
+        .order_by(PlanningSlot.start_date, PlanningSlot.id)
     )
     # seit 1.9.262: nur Einsätze, an denen sie im Fenster an einem Tag steht
     slots = [s for s in db.scalars(query).all()
@@ -1705,7 +1705,7 @@ def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
             Order.id.in_(order_ids),
             or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])),
         )
-        .order_by(Order.order_number.desc())
+        .order_by(Order.order_number.desc(), Order.id.desc())
     ).all()
     return [auftrag_zeile(o) for o in rows]
 
@@ -1863,7 +1863,7 @@ def _termin_zeilen(db: Session, geraete: set[int], von: date, bis: date) -> list
         bedingung = [modell.resource_id.in_(geraete), modell.start_at <= datetime.combine(bis, time.max), modell.end_at >= datetime.combine(von, time.min)]
         if modell is CalendarEvent:
             bedingung.append(CalendarEvent.planning_slot_id.is_(None))  # seit 1.9.241: die Termine der Einsätze selbst sind keine fremde Belegung
-        out.extend(db.scalars(select(modell).where(*bedingung).order_by(modell.start_at)))
+        out.extend(db.scalars(select(modell).where(*bedingung).order_by(modell.start_at, modell.id)))
     return out
 
 

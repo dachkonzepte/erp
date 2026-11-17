@@ -232,3 +232,18 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 5 – jede Form | über die Probe in `test_der_waechter_erkennt_jede_form` (Schleife, `list()`) | -- (keine Änderung unter `app/`) |
 
 5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2c, 1.9.355 (Punkt 0): Kundenliste nach Nachname, jede Sortierung endet auf der ID
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Kundenliste nach Nachname, dann Vorname | wieder nach dem ganzen Namen (`355_1`) | 2 rot: v755 Kundenliste (SQLite, PostgreSQL) |
+| Nr. 2 – Büro-Suche wie die Kundenliste | Suche nach dem ganzen Namen (`355_2`) | 1 rot: v755 Büro-Suche |
+| Nr. 3 – ohne Vorname nach denen mit | Vorname ohne `nach_namen()` (`355_3`) | 3 rot: v755 Kundenliste, v753 Wächter, v754 leere Werte |
+| Nr. 4 – jedes `order_by` endet auf der ID | Wartungsverträge ohne ID (`355_4`) | 2 rot: v755 Wächter, zwei am selben Tag fällige Verträge unter PostgreSQL (Plätze getauscht) |
+| Nr. 5 – Listen-Beziehungen | `Invoice.reminders` ohne ID (`355_5`) | 1 rot: v755 Beziehungen |
+| Nr. 4 – `AUSNAHMEN` genau | eine Ausnahme mit ID (`355_6`) | 1 rot: v755 Liste genau |
+| Nr. 6 – Aufrufe der Büro-Suche | Lieferanten ohne ID (`355_7`) | 2 rot: v755 Wächter, Aufrufe der Suche |
+| Nr. 7 – ID in Auswahl bzw. Gruppe | -- | über Nr. 4 (der Wächter liest beide Stellen); das Ergebnis prüfen die bestehenden Tests der Sperren und des Kundenwechsels |
+
+7 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

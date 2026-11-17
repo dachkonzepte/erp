@@ -51,7 +51,7 @@ def beschaeftigt_am(payroll: EmployeePayrollSettings | None, tag: date) -> bool:
 
 def zeilen(db: Session, employee_id: int) -> list[EmployeeTargetHours]:
     return list(db.scalars(select(EmployeeTargetHours).where(EmployeeTargetHours.employee_id == employee_id)
-                           .order_by(EmployeeTargetHours.valid_from)).all())
+                           .order_by(EmployeeTargetHours.valid_from, EmployeeTargetHours.id)).all())
 
 
 def _eigene_zeile(reihe: list[EmployeeTargetHours], tag: date) -> EmployeeTargetHours | None:
@@ -100,7 +100,7 @@ def soll_fuer_personen(db: Session, employee_ids, start: date, ende: date) -> di
         return {}
     payrolls = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id.in_(ids)))}
     reihen: dict[int, list[EmployeeTargetHours]] = {i: [] for i in ids}
-    for z in db.scalars(select(EmployeeTargetHours).where(EmployeeTargetHours.employee_id.in_(ids)).order_by(EmployeeTargetHours.valid_from)):
+    for z in db.scalars(select(EmployeeTargetHours).where(EmployeeTargetHours.employee_id.in_(ids)).order_by(EmployeeTargetHours.valid_from, EmployeeTargetHours.id)):
         reihen[z.employee_id].append(z)
     gruppen = dict(db.execute(select(Employee.id, Employee.employee_group).where(Employee.id.in_(ids))).all())
     modelle = zuordnungen(db, ids)

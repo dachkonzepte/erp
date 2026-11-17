@@ -354,6 +354,7 @@ def list_open_tasks(db: Session, employee_id: int | None = None) -> list[dict]:
     query = query.order_by(
         case((WorkPreparationTask.due_date.is_(None), 1), else_=0),
         WorkPreparationTask.due_date.nulls_last(),
+        WorkPreparationTask.id,
     )
     result = []
     for t in db.scalars(query).all():

@@ -211,7 +211,7 @@ def konten(db: Session, employee_ids=None) -> list[dict]:
     personen = list(db.scalars(abfrage))
     ids = [e.id for e in personen] or [0]
     ansprueche: dict[int, list] = {}
-    for a in db.scalars(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id.in_(ids)).order_by(Urlaubsanspruch.jahr)):
+    for a in db.scalars(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id.in_(ids)).order_by(Urlaubsanspruch.jahr, Urlaubsanspruch.id)):
         ansprueche.setdefault(a.employee_id, []).append(_anspruch_dict(a, vorgabe, modus))
     startwerte = {s.employee_id: s for s in db.scalars(select(LohnStartwert).where(LohnStartwert.employee_id.in_(ids)))}
     return [{"employee_id": e.id, "employee_name": f"{e.first_name} {e.last_name}".strip(), "active": bool(e.active),

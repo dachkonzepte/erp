@@ -84,7 +84,7 @@ def create_category(db: Session, key: str, label: str, *, is_sensitive: bool = F
     _validate_combination(key, is_sensitive, is_field_visible)
     if db.scalar(select(DocumentCategory.id).where(DocumentCategory.key == key).limit(1)):
         raise ValueError(f'Die Kategorie "{key}" existiert bereits.')
-    max_sort = db.scalar(select(DocumentCategory.sort_order).order_by(DocumentCategory.sort_order.desc()).limit(1)) or 0
+    max_sort = db.scalar(select(DocumentCategory.sort_order).order_by(DocumentCategory.sort_order.desc(), DocumentCategory.id.desc()).limit(1)) or 0
     category = DocumentCategory(key=key, label=label, is_sensitive=is_sensitive, is_field_visible=is_field_visible, sort_order=max_sort + 10)
     db.add(category)
     db.commit()

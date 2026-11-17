@@ -83,7 +83,7 @@ def rate_to_dict(row: BaseInterestRate) -> dict:
 
 def list_rates(db: Session) -> list[dict]:
     """Alle Sätze, jüngstes Halbjahr zuerst, mit dem Halbjahr, das als Nächstes fehlt (für die Einstellungen)."""
-    return [rate_to_dict(r) for r in db.scalars(select(BaseInterestRate).order_by(BaseInterestRate.half_year_start.desc()))]
+    return [rate_to_dict(r) for r in db.scalars(select(BaseInterestRate).order_by(BaseInterestRate.half_year_start.desc(), BaseInterestRate.id.desc()))]
 
 
 def _clean(value: str | None) -> str | None:

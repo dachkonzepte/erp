@@ -44,7 +44,7 @@ def account_to_dict(account: Account) -> dict:
 
 
 def list_accounts(db: Session, *, include_inactive: bool = True) -> list[dict]:
-    stmt = select(Account).order_by(Account.account_number)
+    stmt = select(Account).order_by(Account.account_number, Account.id)
     if not include_inactive:
         stmt = stmt.where(Account.active == True)  # noqa: E712
     return [account_to_dict(a) for a in db.scalars(stmt).all()]

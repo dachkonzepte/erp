@@ -106,7 +106,7 @@ def protocol_copy_to(db: Session, checklist: Checklist) -> list[dict] | None:
 def versions_of(db: Session, checklist_id: int) -> list[ChecklistVersion]:
     return list(db.scalars(select(ChecklistVersion).options(selectinload(ChecklistVersion.sent_document))
                            .where(ChecklistVersion.checklist_id == checklist_id)
-                           .order_by(ChecklistVersion.version_no)).all())
+                           .order_by(ChecklistVersion.version_no, ChecklistVersion.id)).all())
 
 
 def shown_signature_ids(version: ChecklistVersion) -> list[int]:

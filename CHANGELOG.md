@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.355 – Kundenliste nach Nachname, jede Sortierung endet auf der ID
+
+Punkt 0 der Runde V2c (F1 und F2 aus dem Bericht V2b). Die Kundenliste und die Kunden der Büro-Suche sortieren nach Nachname, dann Vorname wie im Telefonbuch -- ohne Anrede und Titel; bis 1.9.354 stand „Frau Dr. Erika Probe“ unter F. Eine Firma trägt ihren Namen im Nachnamen und steht dort. Dazu endet jede Sortierung auf der ID: 50 `order_by` und 18 Listen-Beziehungen bekamen sie als letzten Schlüssel -- bei Gleichstand (gleiches Datum, gleicher Status) war die Reihenfolge unter PostgreSQL sonst offen; zwei am selben Tag fällige Wartungsverträge tauschten nach einer Änderung die Plätze. Vier Stellen bleiben mit Grund ohne (GROUP BY je ID, nur ein Wert, Helfer der Suche).
+
+Neu `tests/test_v755_kundenliste_und_id.py` mit Wächter und zwei Tests gegen PostgreSQL; Klicktest `klicktest_telefonbuch.py` mit zwei Personen mit Anrede. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.354 – Jede Liste mit fester Reihenfolge
 
 Punkt 2 der Runde V2b (Befund SQLite/PostgreSQL, Abschnitt 3 E). Ohne ORDER BY liefert PostgreSQL nach einer Änderung eine andere Reihenfolge -- im Befund tauschten die Angebote eines Projekts nach einer Statusänderung die Plätze --, und leere Werte stehen dort hinten statt vorn. Jetzt hat jede Listen-Beziehung eine Reihenfolge (26, meist die des Anlegens), jede Abfrage, deren Ergebnis eine Folge ist, ein `order_by` (66, auch Lösch- und Änderungsschleifen, Kopien und Zeilensperren), und leere Werte stehen ausdrücklich am Ende (14). Ohne Reihenfolge bleiben 61 Abfragen, deren Ergebnis eine Zuordnung, Menge oder Summe wird -- jede mit Grund.

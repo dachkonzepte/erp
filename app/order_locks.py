@@ -72,14 +72,14 @@ def tax_lock_reason(invoices: list[Invoice]) -> str | None:
 def billed_items(db: Session, order_id: int) -> dict[int, list[str]]:
     """Auftragsposition -> Nummern der gültigen Rechnungen, die sie abrechnen (Verweis und Ist ≠ 0)."""
     rows = db.execute(
-        select(InvoiceItem.source_order_item_id, Invoice.invoice_number)
+        select(InvoiceItem.source_order_item_id, Invoice.invoice_number, Invoice.id)
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
         .where(Invoice.order_id == order_id, Invoice.status.in_(VALID_STATUSES), Invoice.invoice_type != "storno",
                InvoiceItem.source_order_item_id.is_not(None), InvoiceItem.ist_quantity != 0)
-        .distinct().order_by(Invoice.invoice_number.nulls_last())
+        .distinct().order_by(Invoice.invoice_number.nulls_last(), Invoice.id)  # Invoice.id in der Auswahl: DISTINCT braucht die Sortierspalte
     ).all()
     result: dict[int, list[str]] = {}
-    for item_id, number in rows:
+    for item_id, number, _rechnung in rows:
         result.setdefault(item_id, []).append(number)
     return result
 

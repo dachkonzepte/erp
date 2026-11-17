@@ -311,7 +311,7 @@ def move_project_pipeline_column(project_id: int, payload: ProjectPipelineColumn
 def list_project_documents(project_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
-    docs = db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == project_id).order_by(ProjectDocument.uploaded_at.desc())).all()
+    docs = db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == project_id).order_by(ProjectDocument.uploaded_at.desc(), ProjectDocument.id.desc())).all()
     return [_project_document_out(d) for d in docs]
 
 

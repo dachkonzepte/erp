@@ -151,7 +151,7 @@ def ensure_default_reminder_levels(db: Session) -> None:
 
 
 def list_reminder_levels(db: Session) -> list[ReminderLevel]:
-    return db.scalars(select(ReminderLevel).order_by(ReminderLevel.sort_order, ReminderLevel.level)).all()
+    return db.scalars(select(ReminderLevel).order_by(ReminderLevel.sort_order, ReminderLevel.level, ReminderLevel.id)).all()
 
 
 LEVEL_FIELDS = ("label", "days_after_previous_step", "fee_amount", "text_template", "email_subject_template",

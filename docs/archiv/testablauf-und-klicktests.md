@@ -1445,6 +1445,12 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   Commit den neuen Stand und versandte die gültige Fassung 1. Dasselbe Muster, das 1.9.8 in `tests/test_v375_rechnungen_sperren.py::_run()` über
   `_wartet_auf_sperre()` behob; die Kopien in v363 und v365 haben es noch. Einzeln auf demselben Stand dreimal grün; die Runde änderte an Checklisten,
   Versand und Abnahme nichts. Stand: behoben mit 1.9.348 (Abschnitt „Umsetzung 1.9.348“ am Ende) -- beide Kopien warten jetzt an der Sperre.
+- **`klicktest_maengel_monteur`** -- 17.11.2026, Klicktests vor dem Commit von 1.9.355 (Hauptarbeitskopie, zu viert): 21 von 27 -- beim Wechsel der
+  Büro-Ansicht auf die Akte (`/orders/1#abnahme` -> `/projects/1?auftrag=1`) kam `GET /api/project-participant-roles` laut Verbindungsprotokoll nie beim
+  Server an, die Mängelliste blieb bei „Lädt“; die übrigen fünf Abweichungen folgten daraus (Elemente fehlten, Freigabe zurücknehmen 409). Bekannte Art
+  „Anfrage nie angekommen“; `klicktest_alle.py` wiederholte ihn nicht, weil das Netzprotokoll auch die beim Seitenwechsel offen gebliebenen (schon
+  beantworteten) Anfragen der Monteurin meldete und die Folgeabweichungen kein eigenes Netzprotokoll haben (`nur_nicht_angekommen()` verlangt beides
+  nicht). Einzeln auf demselben Stand 27 von 27; die Runde änderte an Akte, Mängeln und Beteiligten nur die Reihenfolge bei Gleichstand. Stand: Wackler.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)

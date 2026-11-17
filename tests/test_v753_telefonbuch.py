@@ -150,7 +150,7 @@ def test_kundenliste_in_der_reihenfolge_des_telefonbuchs(threaded_db_session, ro
     from app.routers.customers import router
     db = threaded_db_session
     for n in NAMEN:
-        db.add(Customer(name=n, last_name=n or "-"))
+        db.add(Customer(name=n, last_name=n or " "))  # seit 1.9.355 nach dem Nachnamen; leer als " " wie über die Oberfläche
     db.commit()
     client = router_test_client(db, router)
     assert [c["name"] for c in client.get("/api/customers").json()] == REIHENFOLGE
@@ -162,7 +162,7 @@ def test_kundenliste_unter_postgresql():
     from app.routers.customers import list_customers
     with pg_sitzung("telefonbuch") as db:
         for n in NAMEN:
-            db.add(Customer(name=n, last_name=n or "-"))
+            db.add(Customer(name=n, last_name=n or " "))  # seit 1.9.355 nach dem Nachnamen; leer als " " wie über die Oberfläche
         db.commit()
         assert [c.name for c in list_customers(db=db, _role=None)] == REIHENFOLGE
 

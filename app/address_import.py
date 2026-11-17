@@ -332,7 +332,7 @@ def _abgelehnt_liste(entries) -> list[dict]:
 
 
 def summarize_preview(db: Session, ids: list[int], filename: str) -> dict:
-    entries = db.scalars(select(ImportedAddress).where(ImportedAddress.id.in_(ids)).order_by(ImportedAddress.row_number)).all() if ids else []
+    entries = db.scalars(select(ImportedAddress).where(ImportedAddress.id.in_(ids)).order_by(ImportedAddress.row_number, ImportedAddress.id)).all() if ids else []
     counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0, ABGELEHNT: 0}
     for e in entries:
         counts[e.classification] = counts.get(e.classification, 0) + 1
@@ -346,7 +346,7 @@ def summarize_preview(db: Session, ids: list[int], filename: str) -> dict:
 
 
 def get_pending_preview(db: Session) -> dict | None:
-    entries = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.row_number)).all()
+    entries = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.row_number, ImportedAddress.id)).all()
     if not entries:
         return None
     counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0, ABGELEHNT: 0}
@@ -393,7 +393,7 @@ def confirm_import(db: Session, filename: str, employee_id: int | None) -> Impor
     """Schreibt die aktuelle Vorschau tatsächlich: legt für classification="customer"/"supplier"
     die jeweiligen Stammdaten an, lässt "unassigned" als offene Zeile in der Arbeitsliste stehen
     und "duplicate" unverändert (nur als Nachweis, dass diese Adressnummer erneut vorkam)."""
-    pending = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.row_number)).all()
+    pending = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.row_number, ImportedAddress.id)).all()
     if not pending:
         raise ValueError("Es liegt keine offene Vorschau vor.")
 
@@ -464,7 +464,7 @@ def _create_supplier_from_row(db: Session, entry: ImportedAddress) -> Supplier:
 
 
 def list_import_runs(db: Session) -> list[dict]:
-    runs = db.scalars(select(ImportRun).order_by(ImportRun.created_at.desc())).all()
+    runs = db.scalars(select(ImportRun).order_by(ImportRun.created_at.desc(), ImportRun.id.desc())).all()
     return [
         {
             "id": r.id, "source_filename": r.source_filename, "created_at": r.created_at,

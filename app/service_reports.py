@@ -282,7 +282,7 @@ def list_draft_reports_for_employee(db: Session, employee_id: int) -> list[dict]
         select(ServiceReport)
         .options(selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee))
         .where(ServiceReport.created_by_employee_id == employee_id, ServiceReport.status == "entwurf")
-        .order_by(ServiceReport.updated_at.desc())
+        .order_by(ServiceReport.updated_at.desc(), ServiceReport.id.desc())
     )
     return [report_to_dict(r) for r in db.scalars(query).all()]
 

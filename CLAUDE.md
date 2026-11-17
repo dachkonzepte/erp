@@ -1655,11 +1655,15 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Jede Liste mit fester Reihenfolge** (seit 1.9.354): jede Listen-Beziehung hat `order_by` (ohne eigene Ordnung die ID, mit `sort_order` dann ID); jede
   Abfrage, deren Ergebnis eine Folge ist (`.all()`, Schleife, `list()`), hat `order_by` -- ohne nur mit Grund in `OHNE_REIHENFOLGE` (Zuordnung, Menge, Summe,
   Prüfung, danach sortiert); jedes `order_by` auf einer Spalte, die leer sein darf, sagt `nulls_last()`. Wächter `tests/test_v754_reihenfolge.py`.
+  **Seit 1.9.355 endet jede Sortierung auf der ID** (bei absteigender Sortierung absteigend): jedes `order_by`, jede Listen-Beziehung, jeder Aufruf von
+  `_count_and_fetch()` der Büro-Suche -- ohne nur mit Grund in `AUSNAHMEN` von `tests/test_v755_kundenliste_und_id.py` (GROUP BY je ID, nur ein Wert).
 - **Listen nach Namen wie im Telefonbuch** (seit 1.9.353, F6): ohne Groß- und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie ss, leere
   Namen am Ende -- unter SQLite und PostgreSQL gleich, unabhängig von der Kollation des Servers. In der Datenbank nur über
   `app/telefonbuch.py::nach_namen()` (`.order_by(*nach_namen(X.name), X.id)`, die ID zuletzt), in Python über `sortierwert()`, nie `lower()`/`casefold()`;
   die Funktion `telefonbuch()` meldet sich an jeder SQLite-Verbindung an, unter PostgreSQL legt sie die Migration `9e4b2c7d1a35` an (Text wörtlich, eine
   geänderte Zeichentabelle braucht eine neue Migration) und jedes `create_all()`. Wächter `tests/test_v753_telefonbuch.py` (`AUSNAHMEN` leer, nur kürzer).
+  Die Kundenliste und die Kunden der Büro-Suche seit 1.9.355 nach Nachname, dann Vorname (`nach_namen(Customer.last_name, Customer.first_name)`), ohne
+  Anrede und Titel; eine Firma steht unter ihrem Namen (im Nachnamen).
 - **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
   `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante

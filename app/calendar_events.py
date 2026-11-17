@@ -198,7 +198,7 @@ def zeitraum_berlin(wert: datetime | None) -> datetime | None:
 
 def _events_query(*, start: datetime | None, end: datetime | None, project_id: int | None, quote_id: int | None):
     start, end = zeitraum_berlin(start), zeitraum_berlin(end)
-    stmt = select(CalendarEvent).order_by(CalendarEvent.start_at)
+    stmt = select(CalendarEvent).order_by(CalendarEvent.start_at, CalendarEvent.id)
     if start is not None:
         stmt = stmt.where(CalendarEvent.end_at >= start)
     if end is not None:
