@@ -939,3 +939,36 @@ im Klicktest gesehen und umformuliert).
 #### Tests und Prüfung 1.9.358
 
 Neu `tests/test_v758_suchmuster.py` (5 Tests, einer gegen PostgreSQL). Keine angepasste Erwartung.
+
+### Umsetzung 1.9.359: die Büro-Suche vergleicht wie die Sortierung (Punkt 4)
+
+- **Weg:** kein großer Umbau -- ein Helfer neben dem Baustein von 1.9.358: `app/suchmuster.py::passt(spalte, text)` =
+  `telefonbuch(spalte) LIKE enthaelt(schluessel(text)) ESCAPE …`. Der Schlüssel der Spalte enthält den Schlüssel des Suchtexts -- ohne Groß- und
+  Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie ss (dieselbe Funktion wie die Sortierung seit 1.9.353, unter PostgreSQL mit `COLLATE "C"`).
+  Keine Migration: `telefonbuch()` gibt es schon.
+- **Umgestellt:** jede Spalte in `app/search.py` -- die 16 Quellen der Büro-Suche, die Objektsuche (Büro und Monteurin teilen `_property_search_base_stmt()`)
+  und die Auftragssuche der Monteurin, 59 Vergleiche -- und der Filter des Adressbuchs (`app/contacts.py::contact_search_filter()`, 18 Vergleiche), den die
+  Büro-Suche teilt; damit suchen auch die Liste des Adressbuchs und der Dialog „Beteiligte“ so. Unverändert (ilike mit geschützten Zeichen, 1.9.358): die
+  Filter von Aufgaben, Material und Änderungshistorie -- sie gehören nicht zur Büro-Suche (Frage im Bericht).
+- **Verhalten:** „muller“, „Müller“, „MÜLLER“ finden „Müller Bau“, „MÜLLER Probe“ und „Muller GmbH“; „strasse“ findet „Straße…“, „olberg“ „Dach Ölberg“ --
+  unter SQLite und PostgreSQL gleich. Bis 1.9.358 fand unter SQLite „müller“ nicht „MÜLLER“ (ilike nur ASCII), unter PostgreSQL schon (Befund P3), und
+  „muller“ fand „Müller“ nirgends.
+- **Gemessen** (PostgreSQL der Spielwiese, Wegwerf-Schema, 5000 erfundene Kunden, Kundenquelle der Büro-Suche: Anzahl und erste Treffer): über
+  `telefonbuch()` rund 76 ms je Suche, mit `ilike` rund 6,5 ms -- die Kosten liegen in `translate`/`replace` je Zeile und Spalte (rund 6 µs); ohne `STRICT`
+  (die Funktion würde eingebettet) 62 ms. Bei heute 162 Kunden wenige Millisekunden je Quelle. Wird die Suche bei wachsendem Bestand spürbar, hilft ein
+  Index -- ein Trigramm-Index (`pg_trgm`, Erweiterung auf dem Server) auf `telefonbuch(spalte)` oder eine gespeicherte Spalte mit dem Schlüssel; beides
+  ein eigener Schritt mit Migration, Vorschlag im Bericht.
+- **Wächter** `tests/test_v759_suche_telefonbuch.py`: in `app/search.py` und in `contact_search_filter()` kein like/ilike außer über `passt()`; das Verhalten
+  unter SQLite und PostgreSQL. Der Wächter von 1.9.358 gilt weiter (das Muster in `passt()` kommt aus dem Baustein).
+
+#### Festlegungen 1.9.359 (Bitte bestätigen)
+
+1. Die Büro-Suche vergleicht jede Spalte über `telefonbuch()` (`passt()`): ohne Groß- und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie
+   ss -- unter SQLite und PostgreSQL gleich.
+2. Der Suchtext geht durch denselben Schlüssel (`schluessel()`); seine Zeichen gelten weiter wörtlich (`enthaelt()`, `ESCAPE`).
+3. Das gilt für jede Quelle in `app/search.py` (auch Objekt- und Auftragssuche der Monteurin) und für den Filter des Adressbuchs, den die Büro-Suche teilt.
+4. Aufgaben, Material und Änderungshistorie bleiben bei `ilike` mit geschützten Zeichen.
+
+#### Tests und Prüfung 1.9.359
+
+Neu `tests/test_v759_suche_telefonbuch.py` (4 Tests, einer gegen PostgreSQL). Keine angepasste Erwartung.

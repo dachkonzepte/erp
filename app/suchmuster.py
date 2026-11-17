@@ -11,6 +11,8 @@ Vorbild war die Auftragssuche der Monteurin (app/search.py::search_orders_for_fi
 jedes like/ilike unter app/, dessen Muster nicht aus diesem Baustein kommt oder das kein escape=ESCAPE trägt.
 """
 
+from .telefonbuch import schluessel, telefonbuch
+
 ESCAPE = "\\"
 
 
@@ -27,3 +29,11 @@ def enthaelt(text) -> str:
 def beginnt_mit(text) -> str:
     """Muster „beginnt mit dem Text“ -- jedes Zeichen gilt wörtlich."""
     return _schuetzen(text) + "%"
+
+
+def passt(spalte, text):
+    """Seit 1.9.359 (Runde V2c, Punkt 4): die Büro-Suche vergleicht wie die Sortierung -- `telefonbuch(spalte)` enthält `schluessel(text)`: ohne Groß-
+    und Kleinschreibung, Umlaute und Akzente beim Grundbuchstaben, ß wie ss (app/telefonbuch.py). „muller“, „Müller“ und „MÜLLER“ finden dasselbe, unter
+    SQLite und PostgreSQL gleich -- bis 1.9.358 fand ilike unter SQLite „müller“ nicht in „MÜLLER“ (nur ASCII), unter PostgreSQL schon (Befund P3). Die
+    Zeichen des Suchtexts gelten wörtlich (enthaelt(), ESCAPE)."""
+    return telefonbuch(spalte).like(enthaelt(schluessel(text) or ""), escape=ESCAPE)

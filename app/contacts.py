@@ -23,7 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import Contact, Customer, Project, ProjectParticipant, Supplier
-from .suchmuster import ESCAPE, enthaelt
+from .suchmuster import passt
 from .telefonbuch import nach_namen
 
 KINDS = {"person": "Person", "firma": "Firma"}
@@ -103,16 +103,15 @@ def contact_search_filter(term: str):
     """Ein Suchbegriff gegen Name, Firma, Funktion, Kontaktwege und Ort -- Adressbuch-Liste, Auswahl in der
     Projektmappe und Büro-Suche (app/search.py) suchen gleich; bei einem Eintrag mit Verweis in den Werten
     des Stammsatzes. Das Statement braucht with_sources()."""
-    pattern = enthaelt(term)
     return or_(
-        Contact.company_name.ilike(pattern, escape=ESCAPE), Contact.first_name.ilike(pattern, escape=ESCAPE), Contact.last_name.ilike(pattern, escape=ESCAPE),
-        Contact.function.ilike(pattern, escape=ESCAPE), Contact.email.ilike(pattern, escape=ESCAPE), Contact.phone.ilike(pattern, escape=ESCAPE),
-        Contact.mobile.ilike(pattern, escape=ESCAPE), Contact.city.ilike(pattern, escape=ESCAPE),
-        (func.coalesce(Contact.first_name, "") + " " + func.coalesce(Contact.last_name, "")).ilike(pattern, escape=ESCAPE),
-        Customer.name.ilike(pattern, escape=ESCAPE), Customer.email.ilike(pattern, escape=ESCAPE), Customer.phone.ilike(pattern, escape=ESCAPE),
-        Customer.mobile.ilike(pattern, escape=ESCAPE), Customer.city.ilike(pattern, escape=ESCAPE),
-        Supplier.name.ilike(pattern, escape=ESCAPE), Supplier.email.ilike(pattern, escape=ESCAPE), Supplier.phone.ilike(pattern, escape=ESCAPE),
-        Supplier.city.ilike(pattern, escape=ESCAPE),
+        passt(Contact.company_name, term), passt(Contact.first_name, term), passt(Contact.last_name, term),
+        passt(Contact.function, term), passt(Contact.email, term), passt(Contact.phone, term),
+        passt(Contact.mobile, term), passt(Contact.city, term),
+        passt(func.coalesce(Contact.first_name, "") + " " + func.coalesce(Contact.last_name, ""), term),
+        passt(Customer.name, term), passt(Customer.email, term), passt(Customer.phone, term),
+        passt(Customer.mobile, term), passt(Customer.city, term),
+        passt(Supplier.name, term), passt(Supplier.email, term), passt(Supplier.phone, term),
+        passt(Supplier.city, term),
     )
 
 

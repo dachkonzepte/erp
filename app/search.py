@@ -111,7 +111,7 @@ from .models import (
 from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from .tasks import list_tasks_for_user
-from .suchmuster import ESCAPE, enthaelt
+from .suchmuster import passt
 from .telefonbuch import nach_namen
 
 MIN_QUERY_LENGTH = 2
@@ -133,16 +133,15 @@ def _property_search_base_stmt(term: str):
     kann nicht auseinanderlaufen (Muster: die Lehre aus build_customer_and_meta_block(), siehe
     CLAUDE.md "Kopfbereich"). Trägt bewusst KEINE .options()/.order_by()/.limit() -- die setzt
     jeder Aufrufer selbst (search_properties() für sich, _count_and_fetch() für die Büro-Suche)."""
-    pattern = enthaelt(term)
     return (
         select(Property)
         .join(Customer, Property.customer_id == Customer.id)
         .where(or_(
-            Property.name.ilike(pattern, escape=ESCAPE),
-            Property.street.ilike(pattern, escape=ESCAPE),
-            Property.postal_code.ilike(pattern, escape=ESCAPE),
-            Property.city.ilike(pattern, escape=ESCAPE),
-            Customer.name.ilike(pattern, escape=ESCAPE),
+            passt(Property.name, term),
+            passt(Property.street, term),
+            passt(Property.postal_code, term),
+            passt(Property.city, term),
+            passt(Customer.name, term),
         ))
     )
 
@@ -197,11 +196,10 @@ def search_orders_for_field(db: Session, query: str, *, limit: int = FIELD_ORDER
     term = (query or "").strip()
     if len(term) < MIN_QUERY_LENGTH:
         return []
-    muster = enthaelt(term)
     felder = (Order.order_number, Order.title, Order.property_name, Order.customer_name, Order.property_address)
     rows = db.scalars(
         select(Order)
-        .where(func.lower(func.coalesce(Order.status, "")) != "storniert", or_(*(f.ilike(muster, escape=ESCAPE) for f in felder)))
+        .where(func.lower(func.coalesce(Order.status, "")) != "storniert", or_(*(passt(f, term) for f in felder)))
         .order_by(Order.order_number.desc(), Order.id.desc())
         .limit(limit)
     ).all()
@@ -252,11 +250,10 @@ def _count_and_fetch(db: Session, stmt, order_by, limit: int, *, options: tuple 
 # --- Kunden ---
 
 def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Customer)
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-        .where(or_(Customer.name.ilike(pattern, escape=ESCAPE), CustomerProfile.customer_number.ilike(pattern, escape=ESCAPE)))
+        .where(or_(passt(Customer.name, term), passt(CustomerProfile.customer_number, term)))
     )
     return _count_and_fetch(db, stmt, (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
 
@@ -282,8 +279,7 @@ def _property_office_row(p: Property) -> dict:
 # --- Dachflächen ---
 
 def _search_roof_areas(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
-    stmt = select(RoofArea).where(RoofArea.name.ilike(pattern, escape=ESCAPE))
+    stmt = select(RoofArea).where(passt(RoofArea.name, term))
     return _count_and_fetch(db, stmt, (*nach_namen(RoofArea.name), RoofArea.id), limit, options=(selectinload(RoofArea.property),))
 
 
@@ -294,14 +290,13 @@ def _roof_area_row(r: RoofArea) -> dict:
 # --- Projekte ---
 
 def _search_projects(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Project)
         .join(Customer, Project.customer_id == Customer.id)
         .where(or_(
-            Project.project_number.ilike(pattern, escape=ESCAPE),
-            Project.name.ilike(pattern, escape=ESCAPE),
-            Customer.name.ilike(pattern, escape=ESCAPE),
+            passt(Project.project_number, term),
+            passt(Project.name, term),
+            passt(Customer.name, term),
         ))
     )
     return _count_and_fetch(db, stmt, Project.id.desc(), limit, options=(selectinload(Project.customer),))
@@ -314,15 +309,14 @@ def _project_row(p: Project) -> dict:
 # --- Angebote ---
 
 def _search_quotes(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Quote)
         .join(Project, Quote.project_id == Project.id)
         .join(Customer, Project.customer_id == Customer.id)
         .where(or_(
-            Quote.quote_number.ilike(pattern, escape=ESCAPE),
-            Quote.title.ilike(pattern, escape=ESCAPE),
-            Customer.name.ilike(pattern, escape=ESCAPE),
+            passt(Quote.quote_number, term),
+            passt(Quote.title, term),
+            passt(Customer.name, term),
         ))
     )
     return _count_and_fetch(
@@ -338,16 +332,15 @@ def _quote_row(q: Quote) -> dict:
 # --- Aufträge (Entscheidung 3: Snapshot UND live durchsucht) ---
 
 def _search_orders(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Order)
         .join(Project, Order.project_id == Project.id)
         .join(Customer, Project.customer_id == Customer.id)
         .where(or_(
-            Order.order_number.ilike(pattern, escape=ESCAPE),
-            Order.title.ilike(pattern, escape=ESCAPE),
-            Order.customer_name.ilike(pattern, escape=ESCAPE),  # eingefroren
-            Customer.name.ilike(pattern, escape=ESCAPE),  # live
+            passt(Order.order_number, term),
+            passt(Order.title, term),
+            passt(Order.customer_name, term),  # eingefroren
+            passt(Customer.name, term),  # live
         ))
     )
     return _count_and_fetch(db, stmt, Order.id.desc(), limit)
@@ -360,16 +353,15 @@ def _order_row(o: Order) -> dict:
 # --- Rechnungen (Entscheidung 3: Snapshot UND live durchsucht, DER konkrete Fund) ---
 
 def _search_invoices(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Invoice)
         .join(Order, Invoice.order_id == Order.id)
         .join(Project, Order.project_id == Project.id)
         .join(Customer, Project.customer_id == Customer.id)
         .where(or_(
-            Invoice.invoice_number.ilike(pattern, escape=ESCAPE),
-            Invoice.customer_name.ilike(pattern, escape=ESCAPE),  # eingefroren -- findet die alte Rechnung
-            Customer.name.ilike(pattern, escape=ESCAPE),  # live -- findet den heutigen Kunden
+            passt(Invoice.invoice_number, term),
+            passt(Invoice.customer_name, term),  # eingefroren -- findet die alte Rechnung
+            passt(Customer.name, term),  # live -- findet den heutigen Kunden
         ))
     )
     return _count_and_fetch(db, stmt, Invoice.id.desc(), limit)
@@ -382,13 +374,12 @@ def _invoice_row(i: Invoice) -> dict:
 # --- Mahnungen ---
 
 def _search_reminders(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Reminder)
         .join(Invoice, Reminder.invoice_id == Invoice.id)
         .where(or_(
-            Reminder.reminder_number.ilike(pattern, escape=ESCAPE),
-            Invoice.customer_name.ilike(pattern, escape=ESCAPE),
+            passt(Reminder.reminder_number, term),
+            passt(Invoice.customer_name, term),
         ))
     )
     return _count_and_fetch(db, stmt, Reminder.id.desc(), limit, options=(selectinload(Reminder.invoice),))
@@ -404,14 +395,13 @@ def _reminder_row(r: Reminder) -> dict:
 # --- Anfragen ---
 
 def _search_inquiries(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Inquiry)
         .join(Customer, Inquiry.customer_id == Customer.id)
         .where(or_(
-            Inquiry.inquiry_number.ilike(pattern, escape=ESCAPE),
-            Inquiry.title.ilike(pattern, escape=ESCAPE),
-            Customer.name.ilike(pattern, escape=ESCAPE),
+            passt(Inquiry.inquiry_number, term),
+            passt(Inquiry.title, term),
+            passt(Customer.name, term),
         ))
     )
     return _count_and_fetch(db, stmt, Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))
@@ -465,11 +455,10 @@ def _task_row(t: dict) -> dict:
 # --- Mitarbeiter ---
 
 def _search_employees(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = select(Employee).where(or_(
-        Employee.first_name.ilike(pattern, escape=ESCAPE),
-        Employee.last_name.ilike(pattern, escape=ESCAPE),
-        Employee.employee_number.ilike(pattern, escape=ESCAPE),
+        passt(Employee.first_name, term),
+        passt(Employee.last_name, term),
+        passt(Employee.employee_number, term),
     ))
     return _count_and_fetch(db, stmt, (*nach_namen(Employee.last_name, Employee.first_name), Employee.id), limit)
 
@@ -481,14 +470,13 @@ def _employee_row(e: Employee) -> dict:
 # --- Einsatzberichte (Modul "wartungen") ---
 
 def _search_service_reports(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(ServiceReport)
         .join(Order, ServiceReport.order_id == Order.id)
         .where(or_(
-            Order.order_number.ilike(pattern, escape=ESCAPE),
-            Order.customer_name.ilike(pattern, escape=ESCAPE),
-            ServiceReport.description.ilike(pattern, escape=ESCAPE),
+            passt(Order.order_number, term),
+            passt(Order.customer_name, term),
+            passt(ServiceReport.description, term),
         ))
     )
     return _count_and_fetch(db, stmt, ServiceReport.id.desc(), limit, options=(selectinload(ServiceReport.order),))
@@ -504,14 +492,13 @@ def _service_report_row(r: ServiceReport) -> dict:
 # --- Mängel (Modul "wartungen") ---
 
 def _search_findings(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(Finding)
         .join(ServiceReport, Finding.service_report_id == ServiceReport.id)
         .join(Order, ServiceReport.order_id == Order.id)
         .where(or_(
-            Finding.description.ilike(pattern, escape=ESCAPE),
-            Order.order_number.ilike(pattern, escape=ESCAPE),
+            passt(Finding.description, term),
+            passt(Order.order_number, term),
         ))
     )
     return _count_and_fetch(
@@ -532,13 +519,12 @@ def _finding_row(f: Finding) -> dict:
 # --- Wartungsverträge (Modul "wartungen") ---
 
 def _search_maintenance_contracts(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(MaintenanceContract)
         .join(Customer, MaintenanceContract.customer_id == Customer.id)
         .where(or_(
-            MaintenanceContract.title.ilike(pattern, escape=ESCAPE),
-            Customer.name.ilike(pattern, escape=ESCAPE),
+            passt(MaintenanceContract.title, term),
+            passt(Customer.name, term),
         ))
     )
     return _count_and_fetch(db, stmt, MaintenanceContract.id.desc(), limit, options=(selectinload(MaintenanceContract.customer),))
@@ -551,10 +537,9 @@ def _maintenance_contract_row(m: MaintenanceContract) -> dict:
 # --- Leistungen ---
 
 def _search_services(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = select(Service).where(or_(
-        Service.short_text.ilike(pattern, escape=ESCAPE),
-        Service.external_id.ilike(pattern, escape=ESCAPE),
+        passt(Service.short_text, term),
+        passt(Service.external_id, term),
     ))
     return _count_and_fetch(db, stmt, Service.id.desc(), limit)
 
@@ -587,23 +572,22 @@ def _material_row(m) -> dict:
 # Betriebsmittelseite selbst. ---
 
 def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = (
         select(OperationalAsset)
         .outerjoin(OperationalResource, OperationalAsset.resource_id == OperationalResource.id)
         .where(or_(
-            OperationalAsset.name.ilike(pattern, escape=ESCAPE),
-            OperationalAsset.asset_type.ilike(pattern, escape=ESCAPE),
-            OperationalAsset.manufacturer.ilike(pattern, escape=ESCAPE),
-            OperationalAsset.model.ilike(pattern, escape=ESCAPE),
-            OperationalAsset.identifier.ilike(pattern, escape=ESCAPE),
-            OperationalAsset.article_number.ilike(pattern, escape=ESCAPE),
-            OperationalResource.name.ilike(pattern, escape=ESCAPE),
-            OperationalResource.resource_type.ilike(pattern, escape=ESCAPE),
-            OperationalResource.manufacturer.ilike(pattern, escape=ESCAPE),
-            OperationalResource.model.ilike(pattern, escape=ESCAPE),
-            OperationalResource.identifier.ilike(pattern, escape=ESCAPE),
-            OperationalResource.kurzname.ilike(pattern, escape=ESCAPE),  # seit 1.9.298 (Geräte-Runde, N5): der Kurzname auf der Plantafel
+            passt(OperationalAsset.name, term),
+            passt(OperationalAsset.asset_type, term),
+            passt(OperationalAsset.manufacturer, term),
+            passt(OperationalAsset.model, term),
+            passt(OperationalAsset.identifier, term),
+            passt(OperationalAsset.article_number, term),
+            passt(OperationalResource.name, term),
+            passt(OperationalResource.resource_type, term),
+            passt(OperationalResource.manufacturer, term),
+            passt(OperationalResource.model, term),
+            passt(OperationalResource.identifier, term),
+            passt(OperationalResource.kurzname, term),  # seit 1.9.298 (Geräte-Runde, N5): der Kurzname auf der Plantafel
         ))
     )
     anzahl, treffer = _count_and_fetch(db, stmt, OperationalAsset.id.desc(), limit, options=(selectinload(OperationalAsset.resource),))
@@ -612,12 +596,12 @@ def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int,
     frei = select(OperationalResource).where(
         ~select(OperationalAsset.id).where(OperationalAsset.resource_id == OperationalResource.id).exists(),
         or_(
-            OperationalResource.name.ilike(pattern, escape=ESCAPE),
-            OperationalResource.resource_type.ilike(pattern, escape=ESCAPE),
-            OperationalResource.manufacturer.ilike(pattern, escape=ESCAPE),
-            OperationalResource.model.ilike(pattern, escape=ESCAPE),
-            OperationalResource.identifier.ilike(pattern, escape=ESCAPE),
-            OperationalResource.kurzname.ilike(pattern, escape=ESCAPE),
+            passt(OperationalResource.name, term),
+            passt(OperationalResource.resource_type, term),
+            passt(OperationalResource.manufacturer, term),
+            passt(OperationalResource.model, term),
+            passt(OperationalResource.identifier, term),
+            passt(OperationalResource.kurzname, term),
         ),
     )
     anzahl_frei, geraete = _count_and_fetch(db, frei, (*nach_namen(OperationalResource.name), OperationalResource.id), max(limit - len(treffer), 0))
@@ -636,10 +620,9 @@ def _operational_asset_row(a: OperationalAsset | OperationalResource) -> dict:
 # --- Lieferanten ---
 
 def _search_suppliers(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = enthaelt(term)
     stmt = select(Supplier).where(or_(
-        Supplier.name.ilike(pattern, escape=ESCAPE),
-        Supplier.supplier_number.ilike(pattern, escape=ESCAPE),
+        passt(Supplier.name, term),
+        passt(Supplier.supplier_number, term),
     ))
     return _count_and_fetch(db, stmt, (*nach_namen(Supplier.name), Supplier.id), limit)
 

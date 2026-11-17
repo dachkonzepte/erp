@@ -289,3 +289,16 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 4 – keine Ausnahme | -- | über `358_2` bis `358_4` (der Wächter nennt jede Stelle; `AUSNAHMEN` ist leer) |
 
 4 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2c, 1.9.359 (Punkt 4): die Büro-Suche vergleicht wie die Sortierung
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – über `telefonbuch()` | `passt()` wieder `ilike` (`359_1`) | 2 rot: v759 Verhalten unter SQLite und PostgreSQL |
+| Nr. 2 – Suchtext über `schluessel()` | `passt()` ohne `schluessel()` (`359_2`) | 3 rot: v759 SQLite und PostgreSQL, v758 PostgreSQL |
+| Nr. 2 – Zeichen wörtlich | `passt()` ohne `escape` (`359_3`) | 2 rot: v758 Wächter, „a\b“ unter SQLite |
+| Nr. 3 – jede Spalte der Büro-Suche | Kundenname wieder `ilike` (`359_4`) | 6 rot: v759 Wächter und Verhalten, v758 Wächter und Verhalten |
+| Nr. 3 – Filter des Adressbuchs | Ort des Kontakts wieder `ilike` (`359_5`) | 2 rot: v759 Wächter, v758 Wächter |
+| Nr. 4 – Aufgaben, Material, Historie bleiben | -- | keine Änderung unter `app/` (der Wächter von 1.9.358 gilt dort weiter) |
+
+5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

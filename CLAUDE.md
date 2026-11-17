@@ -1682,7 +1682,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Grenze bleibt. Eine neue Spalte mit neuem (p,s) bekommt ihre Konstante. Wächter `tests/test_v757_zahlenbereiche.py` (`OFFEN` leer, `VORHER` je Feld).
 - **Suchmuster nur über `app/suchmuster.py`** (seit 1.9.358): jedes like/ilike nimmt sein Muster aus `enthaelt()`/`beginnt_mit()` und trägt
   `escape=ESCAPE` -- „%“, „_“ und der Backslash gelten wörtlich, unter SQLite und PostgreSQL gleich; nie `f"%{text}%"`. Wächter
-  `tests/test_v758_suchmuster.py` (`AUSNAHMEN` leer).
+  `tests/test_v758_suchmuster.py` (`AUSNAHMEN` leer). **Die Büro-Suche vergleicht wie die Sortierung** (seit 1.9.359): jede Spalte in `app/search.py` und
+  im Filter des Adressbuchs nur über `passt(spalte, text)` (`telefonbuch(spalte)` enthält `schluessel(text)`) -- „muller“ findet „MÜLLER“, unter SQLite
+  und PostgreSQL gleich. Wächter `tests/test_v759_suche_telefonbuch.py`.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
