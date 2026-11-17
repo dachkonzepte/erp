@@ -1451,6 +1451,14 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   „Anfrage nie angekommen“; `klicktest_alle.py` wiederholte ihn nicht, weil das Netzprotokoll auch die beim Seitenwechsel offen gebliebenen (schon
   beantworteten) Anfragen der Monteurin meldete und die Folgeabweichungen kein eigenes Netzprotokoll haben (`nur_nicht_angekommen()` verlangt beides
   nicht). Einzeln auf demselben Stand 27 von 27; die Runde änderte an Akte, Mängeln und Beteiligten nur die Reihenfolge bei Gleichstand. Stand: Wackler.
+- **`klicktest_protokoll_maengel`, `klicktest_ueberzahlung`, `klicktest_vertragsgrundlage`, `klicktest_abgleich_sperre`** -- 17.11.2026, Endlauf von
+  Runde V2c auf 9db0660 (1.9.359, frische Arbeitskopie, zu viert): alle vier, die gerade zugleich liefen, endeten nach rund 16 s mit
+  `FileNotFoundError` beim Speichern ihres ersten Bildes -- der Ordner `shots` ihres Arbeitsordners fehlte. Angelegt wird er beim Start
+  (`cdp_klicktest._ablauf()`), gelöscht nirgends im Projekt (kein rmtree/unlink unter `scripts/`). Zwischen 22:21:53 und 22:22:03 verschwanden
+  leere Unterordner (`shots`, Teile von `chrome-profile`) auch in den Ordnern zweier Klicktests, die Minuten vorher fertig waren
+  (`klicktest_daten_im_html`, `klicktest_verbindungsprotokoll`, ohne Bilder, grün) -- ein Vorgang außerhalb des Projekts, der leere Ordner unter
+  `%TEMP%` aufräumt. Auf demselben Stand die vier 4 von 4, danach alle Klicktests noch einmal (siehe Bericht). Stand: Umgebung, kein Fund im Code;
+  fällt es wieder auf, legt `cdp_klicktest` den Ordner vor jedem Bild an.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
