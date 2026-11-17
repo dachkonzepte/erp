@@ -41,7 +41,7 @@ from .roof_areas import list_roof_areas
 from .rounding import round_hours
 from .service_report_photos import delete_photo_file, resize_and_store_photo
 from .signature_image import MAX_SIGNATURE_PNG_BYTES as _MAX_SIGNATURE_PNG_BYTES, check_signature_png
-from .tasks import create_task
+from .tasks import aufgabe_loeschen, create_task
 from .time_tracking import employee_name as _person, list_entries
 from .zugehoerigkeit import order_property_id, require_in_order_property, roof_area_in_order_property
 
@@ -759,6 +759,7 @@ def delete_report(db: Session, report_id: int, user: AppUser | None = None) -> b
         return False
     if report.status == "unterschrieben":
         raise ValueError("Ein unterschriebener Bericht kann nicht mehr gelöscht werden.")
+    anlass = f"mit dem Berichtsentwurf Nr. {report.id}" + (f" (Auftrag {report.order.order_number})" if report.order else "") + ", unangetastet"
     folgen = []
     for finding in report.findings:
         task = db.get(Task, finding.follow_up_task_id) if finding.follow_up_task_id else None
@@ -778,7 +779,7 @@ def delete_report(db: Session, report_id: int, user: AppUser | None = None) -> b
         if angefasst:
             task.description = vermerk + (f"\n\n{task.description}" if task.description else "")
         else:
-            db.delete(task)
+            aufgabe_loeschen(db, task, anlass, user)  # seit 1.9.344 mit Eintrag in der Änderungshistorie
     db.commit()
     return True
 

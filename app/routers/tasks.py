@@ -111,7 +111,7 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db, sc
 def delete_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
-    if not delete_task(db, task_id):
+    if not delete_task(db, task_id, _role):
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
     return {"ok": True}
 

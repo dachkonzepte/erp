@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
 from .meldungen import KEIN_MITARBEITER
-from .audit import TASK_ENTITY_TYPE, record_audit_entry
+from .audit import LOESCHANLASS, TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .zugehoerigkeit import require_project
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
@@ -411,11 +411,23 @@ def set_task_archived(db: Session, task_id: int, archived: bool) -> dict | None:
     return task_to_dict(_load_task(db, task.id), _columns_by_key(db))
 
 
-def delete_task(db: Session, task_id: int) -> bool:
+ANLASS_VON_HAND = "von Hand"
+
+
+def aufgabe_loeschen(db: Session, task: Task, anlass: str, user: AppUser | None = None) -> None:
+    """Der eine Weg, eine Aufgabe zu löschen (seit 1.9.344): merkt Anlass und Konto an der Aufgabe und löscht sie, die Unteraufgaben gehen per
+    Kaskade mit. Den Eintrag in der Änderungshistorie (Titel, Konto, Zeitpunkt, Anlass) schreibt app/audit.py::collect_audit() im Flush -- auch
+    für ein Löschen an diesem Weg vorbei, dann „ohne Angabe“. Ein Löschen über die Tabelle (delete(Task), SQL) sähe sie nicht: verboten, Wächter
+    tests/test_v744_aufgaben_loeschen_historie.py. Committet nicht."""
+    setattr(task, LOESCHANLASS, (anlass, user))
+    db.delete(task)
+
+
+def delete_task(db: Session, task_id: int, user: AppUser | None = None) -> bool:
     task = db.get(Task, task_id)
     if task is None:
         return False
-    db.delete(task)
+    aufgabe_loeschen(db, task, ANLASS_VON_HAND, user)
     db.commit()
     return True
 

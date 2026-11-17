@@ -356,3 +356,58 @@ Vorgang, Priorität, Fälligkeit, Beschreibung, zugewiesen, übernommen, archivi
 angefasste, über die Route mit dem Namen des Kontos. Für die Arten, die nur über `updated_at` erkennbar sind, setzt der Test beide Zeitpunkte eine Stunde
 zurück (eine Änderung liegt dann wie im Betrieb nach dem Anlegen). Mit dem Stand bis 1.9.342 nachgestellt (`343_1`: jede Folgeaufgabe geht mit) sind 13
 rot -- alle außer den beiden unangetasteten. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.344: Löschen von Aufgaben in der Änderungshistorie (Punkt 2)
+
+- **Ein Weg:** `app/tasks.py::aufgabe_loeschen(db, task, anlass, user)` merkt Anlass und Konto an der Aufgabe und löscht sie (Unteraufgaben per Kaskade).
+  Den Eintrag schreibt `app/audit.py::collect_audit()` im Flush für **jede** Aufgabe in `session.deleted` (`_aufgabe_geloescht()`): Aktion „gelöscht“,
+  Art „Aufgabe“, Bezeichnung „Nr. <id> · <Titel>“, Projekt der Aufgabe, Feld „Anlass“ mit dem Anlass als neuem Wert, Konto aus `aufgabe_loeschen()` (sonst
+  das der Anfrage), Zeitpunkt wie jeder Eintrag (`occurred_at`). Ein Löschen an `aufgabe_loeschen()` vorbei steht trotzdem drin, mit „ohne Angabe (<Methode>
+  <Pfad>)“. `Task` bleibt außerhalb von `AUDITED_TYPES`: Anlegen und jede andere Änderung schreiben nichts (wie bisher nur „übernommen“, seit 1.8.18).
+- **Die Wege, die Aufgaben löschen** (gesucht: `db.delete`/`session.delete` auf einer Aufgabe, `delete(Task)`, `Task.__table__`, `query(Task)….delete()`,
+  SQL mit `tasks` unter `app/`, `scripts/` und `alembic/`; ORM-Kaskaden auf `Task`: keine):
+  1. **Von Hand:** `DELETE /api/tasks/{id}` -> `delete_task()` (Aufgabenboard, Editor) -- Anlass „von Hand“.
+  2. **Mit dem Berichtsentwurf:** `DELETE /api/service-reports/{id}` -> `delete_report()`, nur eine unangetastete Folgeaufgabe (1.9.343) -- Anlass „mit dem
+     Berichtsentwurf Nr. <id> (Auftrag <Nummer>), unangetastet“. Eine angefasste bleibt; ihr Vermerk ist keine Zeile der Historie.
+  3. **Mit dem Wartungsvertrag:** `DELETE /api/maintenance-contracts/{id}` -> `delete_contract()`, seine Erinnerungen (Vertrag und Positionen teilen den
+     Link) -- Anlass „mit dem Wartungsvertrag „<Titel>“ (Erinnerung)“. Bis 1.9.343 über die Tabelle (`delete(Task)`): ohne Eintrag, und eine Erinnerung mit
+     Unteraufgabe ließ das Löschen am Fremdschlüssel scheitern (live 500) -- jetzt einzeln, die Unteraufgaben per Kaskade.
+  Kein anderer Weg löscht eine Aufgabe: keine Migration, kein Skript, keine Kaskade; ein Projekt, ein Konto, ein Mitarbeiter nehmen ihre Aufgaben nicht mit
+  (siehe die Funde unten).
+- **Sichtbar** wie jeder Eintrag zu Aufgaben seit 1.8.18 nur für den Admin (`app/routers/audit.py::sichtbar()`: der Titel kann eine fremde oder eine
+  Finanz-Aufgabe nennen); im Verlauf der Akte (Projekt der Aufgabe) ebenso nur für den Admin. Die Anzeige „Datensatz gelöscht“ nennt den Anlass dahinter
+  (`_verlauf.html::verlaufAenderung()`): „Datensatz gelöscht – von Hand“.
+- **Wächter:** kein Löschen von Aufgaben über die Tabelle unter `app/` (`delete(Task)`, `Task.__table__.delete()`, `query(Task)….delete()`, SQL
+  „DELETE FROM tasks“) -- das sähe `collect_audit()` nicht.
+
+#### Funde dabei (nicht gebaut, erst fragen)
+
+- **E7 -- Aufgabe von Hand löschen, auf die etwas zeigt:** `DELETE /api/tasks/{id}` scheitert am Fremdschlüssel (live unter PostgreSQL 500, in der Suite
+  `FOREIGN KEY constraint failed`), wenn ein Befund (`findings.follow_up_task_id`, „Büro prüfen lassen“) oder eine Regel einer Checkliste
+  (`checklist_rule_executions.task_id`) auf die Aufgabe zeigt. Geprüft mit beiden Fällen. Live laut B2 nie vorgekommen. Vorschlag A: lösen -- der Verweis
+  wird leer, Befund bzw. Regel bleiben; beim Befund ließe sich „Büro prüfen lassen“ dann erneut auslösen (die Sperre hängt am Verweis), bei der Regel
+  stünde „Aufgabe angelegt“ ohne Aufgabe. Vorschlag B: 409 mit dem Grund und dem Rat, die Aufgabe zu archivieren oder zu erledigen.
+- **E8 -- Projekt ohne Auftrag mit Aufgabe löschen:** `delete_project()` scheitert am Fremdschlüssel `tasks.project_id` (live 500), sobald eine Aufgabe am
+  Projekt hängt (geprüft). Vorschlag A: die Aufgaben vom Projekt lösen -- sie bleiben ohne Projekt (kein Löschen, kein Eintrag). Vorschlag B: 409 mit
+  dem Grund. V3 (Rundgang gegen PostgreSQL) fände beides systematisch.
+
+#### Festlegungen 1.9.344 (Bitte bestätigen)
+
+1. Jedes Löschen einer Aufgabe steht in der Änderungshistorie: Aktion „gelöscht“, Art „Aufgabe“, Bezeichnung „Nr. … · Titel“, Konto, Zeitpunkt, Feld
+   „Anlass“. Keine andere Änderung an Aufgaben kommt dazu; was schon drinsteht, bleibt (seit 1.8.18 „übernommen“, seit 1.8.19 der geklärte Versand
+   einer Benachrichtigung).
+2. Eine Aufgabe löscht nur `app/tasks.py::aufgabe_loeschen()` mit Anlass und Konto. Ein Löschen daran vorbei steht trotzdem drin („ohne Angabe (Methode
+   Pfad)“); ein Löschen über die Tabelle ist verboten (Wächter).
+3. Die Anlässe: „von Hand“; „mit dem Berichtsentwurf Nr. … (Auftrag …), unangetastet“; „mit dem Wartungsvertrag „…“ (Erinnerung)“.
+4. Sichtbar nur für den Admin, wie jeder Eintrag zu Aufgaben seit 1.8.18 -- in der Änderungshistorie und im Verlauf der Akte.
+5. Die Erinnerungen eines Wartungsvertrags gehen einzeln mit ihm, ihre Unteraufgaben mit ihnen.
+6. Die Historie zeigt den Anlass hinter „Datensatz gelöscht“ („Datensatz gelöscht – von Hand“).
+
+#### Tests und Prüfung 1.9.344
+
+Neu `tests/test_v744_aufgaben_loeschen_historie.py` (9 Tests): von Hand über die Route (Titel, Konto, Zeitpunkt, Anlass, Projekt), mit dem
+Berichtsentwurf (nur die unangetastete, mit Anlass und Konto), mit dem Wartungsvertrag samt Unteraufgabe, an `aufgabe_loeschen()` vorbei („ohne Angabe“),
+keine Zeile für sonstige Änderungen, nur der Admin sieht die Einträge, Wächter gegen das Löschen über die Tabelle samt Probe jeder Form, Anzeige des
+Anlasses (node). Vorher rot (Stand bis 1.9.343 nachgestellt, `344_1` und `344_5`): jede Prüfung eines Eintrags; der Wartungsvertrag mit Unteraufgabe dazu
+am Fremdschlüssel. Eine Gegenprobe blieb zuerst grün (`344_10`, `Task` in `AUDITED_TYPES`): der Test zählte nur Einträge der Art „Aufgabe“, die Einträge
+hießen dann „Task“ -- nachgezogen, er zählt jetzt alle Einträge; danach rot. Angepasste Erwartungen: keine.

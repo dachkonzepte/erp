@@ -56,6 +56,12 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     `Project.archived`): blendet eine Aufgabe aus dem Standard-Board aus, ohne sie wie
     `delete_task()` unwiderruflich zu löschen – unabhängig von Spalte/`is_done`. `list_tasks()`
     nimmt dafür `include_archived` (Default `False`).
+  - **Löschen in der Änderungshistorie** (seit 1.9.344): eine Aufgabe löscht nur
+    `aufgabe_loeschen(db, task, anlass, user)`; jedes Löschen steht mit Titel, Konto, Zeitpunkt und Anlass in der
+    Historie (nur Admin), geschrieben von `app/audit.py::collect_audit()` -- auch an `aufgabe_loeschen()` vorbei
+    („ohne Angabe“). Kein Löschen über die Tabelle (`delete(Task)`, Wächter `tests/test_v744_aufgaben_loeschen_historie.py`).
+    Die Wege: von Hand, mit dem Berichtsentwurf (nur unangetastete Folgeaufgaben, seit 1.9.343), mit dem
+    Wartungsvertrag (Erinnerungen). Herleitung: `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.344“.
   - **"Vorgang erstellen" aus der Aufgabe heraus** (seit 1.2.21, für Aufgaben mit
     `source_module="wartungsbericht"`, siehe **Mängel und Fotos** oben): der eigentliche
     Folgeauftrag (Projekt + Auftrag über `create_quick_service_order()`) entsteht nicht mehr

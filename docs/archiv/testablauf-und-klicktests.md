@@ -1438,6 +1438,13 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   1.9.337) grün. Die Runde änderte an Checkliste, `_speichern.html`, `_unterschrift.html` und dem Klicktest nichts. Ursache offen -- Verdacht: unter
   Last zeichnet die Checkliste nach dem Speichern von „Nein“ neu, während `_unterschreiben()` schon klickt (das Muster von 1.9.55/1.9.64); nicht nachgestellt.
   Stand: offen.
+- **`test_v369_protokoll_versand.py::test_postgresql_send_waits_for_a_running_discard_and_sends_nothing`** -- 17.11.2026, voller Lauf vor dem Commit
+  von 1.9.344 (Hauptarbeitskopie, 16 Prozesse): der Versand wartete nicht auf das Verwerfen, sondern versandte (`newly_sent=True` nach 1,6 s statt
+  „überholt“). Ursache: `_run` aus `tests/test_v365_abnahme_aus_protokoll.py` (auch von v369 benutzt) gibt die erste Aktion nach einer festen Sekunde
+  frei (`time.sleep(1.0)`), nicht erst, wenn die zweite nachweislich an der Sperre wartet -- unter Last war die zweite noch nicht so weit, las nach dem
+  Commit den neuen Stand und versandte die gültige Fassung 1. Dasselbe Muster, das 1.9.8 in `tests/test_v375_rechnungen_sperren.py::_run()` über
+  `_wartet_auf_sperre()` behob; die Kopien in v363 und v365 haben es noch. Einzeln auf demselben Stand dreimal grün; die Runde änderte an Checklisten,
+  Versand und Abnahme nichts. Stand: Ursache geklärt, nicht behoben (Vorschlag: die beiden Kopien auf `_wartet_auf_sperre()` umstellen).
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)

@@ -1372,7 +1372,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an diesem Bereich lesen**
 (Regel 14). Reihenfolge ohne Wertung.
 
-- **Aufgabenmanagement** (`Task`, Modul `aufgabenmanagement`) -- `docs/archiv/modul-aufgaben.md`
+- **Aufgabenmanagement** (`Task`, Modul `aufgabenmanagement`; seit 1.9.344 löscht nur `app/tasks.py::aufgabe_loeschen()` eine Aufgabe, jedes Löschen
+  mit Titel, Konto, Zeitpunkt und Anlass in der Änderungshistorie, nur Admin; kein `delete(Task)`, Wächter `tests/test_v744_aufgaben_loeschen_historie.py`)
+  -- `docs/archiv/modul-aufgaben.md`
 - **Wartungen & Reparaturen + Monteursansicht** (`MaintenanceContract`, `ServiceReport`,
   `/mobil`, Modul `wartungen`) -- `docs/archiv/modul-wartungen-und-monteursansicht.md`
 - **PDF-Erzeugung** (gemeinsamer Rahmen `render_framed_pdf()`, DIN5008-Kopfbereich,
@@ -2385,6 +2387,8 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
   gleich „Deaktivieren“ (`POST /api/users/{id}/deaktivieren`), „Löschen“ nur für ein nie verwendetes (`verwendet_in` in `GET /api/users`).
 - ~~Folgeaufgaben eines gelöschten Berichtsentwurfs gehen spurlos mit~~ -- seit 1.9.343 geht nur eine unangetastete mit, eine angefasste bleibt mit
   Vermerk (`app/service_reports.py::folgeaufgabe_angefasst()`, `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.343“).
+- **Aufgabe löschen, auf die ein Befund oder eine Checklisten-Regel zeigt, und Projekt ohne Auftrag mit Aufgabe löschen scheitern am Fremdschlüssel**
+  (E7, E8; gefunden 17.11.2026, live 500, nicht gebaut): Vorschläge „lösen“ oder „409“ in `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.344“.
 - ~~Wartungsvertrag löschen scheitert unter PostgreSQL mit 500 (E6)~~ -- seit 1.9.341 lehnen Vertrag und Position mit Geschichte (Projekt oder
   Bericht, auch Entwurf) mit 409 ab, Rat: beenden bzw. archivieren (`app/maintenance_contracts.py`, `docs/archiv/sqlite-und-postgresql.md`).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-

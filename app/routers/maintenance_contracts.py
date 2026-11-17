@@ -158,7 +158,7 @@ def put_maintenance_contract_status(contract_id: int, payload: MaintenanceContra
 def delete_maintenance_contract(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
-        deleted = delete_contract(db, contract_id)
+        deleted = delete_contract(db, contract_id, _role)
     except VertragVerwendet as exc:  # seit 1.9.341: etwas ist aus dem Vertrag entstanden (bis dahin 400 nur für unterschriebene Berichte)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

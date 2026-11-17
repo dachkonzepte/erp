@@ -20,14 +20,14 @@ entfernt, die Modell-/Funktionsnamen im Code bleiben unverändert)."""
 import calendar
 from datetime import date, timedelta
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .models import (
-    MaintenanceContract, MaintenanceContractItem, MaintenanceSettings, MaintenanceWindow,
+    AppUser, MaintenanceContract, MaintenanceContractItem, MaintenanceSettings, MaintenanceWindow,
     Project, Property, RoofArea, ServiceReport, Task,
 )
 from .modules import is_module_enabled
@@ -36,7 +36,7 @@ from .projects import duplicate_project, get_or_create_project_profile
 from .quick_service_orders import create_quick_service_order
 from .roof_areas import list_roof_areas
 from .service_reports import create_report
-from .tasks import create_task
+from .tasks import aufgabe_loeschen, create_task
 from .zugehoerigkeit import require_confirmed_property
 
 STATUSES = ("aktiv", "pausiert", "beendet")
@@ -491,7 +491,7 @@ def _und(bereiche: list[str]) -> str:
     return bereiche[0] if len(bereiche) == 1 else ", ".join(bereiche[:-1]) + " und " + bereiche[-1]
 
 
-def delete_contract(db: Session, contract_id: int) -> bool:
+def delete_contract(db: Session, contract_id: int, user: AppUser | None = None) -> bool:
     """Kein GoBD-Dokument wie Invoice/Order/Reminder -- ein Wartungsvertrag ist reine
     Planungsinformation, echtes Löschen ist daher grundsätzlich erlaubt, nicht nur für
     Entwürfe -- AUSSER es existiert bereits ein unterschriebener Einsatzbericht dazu (seit
@@ -513,9 +513,12 @@ def delete_contract(db: Session, contract_id: int) -> bool:
             f"Aus dem Vertrag sind schon {_und(bereiche)} entstanden – sie gehören zu seiner Geschichte, deshalb lässt er sich nicht löschen. "
             "Beende den Vertrag stattdessen (⋮ → Beenden): dann erinnert er nicht mehr, und alles bleibt."
         )
-    db.execute(
-        delete(Task).where(Task.source_module == "wartungsvertrag", Task.source_url == f"/maintenance-contracts/{contract_id}")
-    )
+    # Seit 1.9.344 einzeln über aufgabe_loeschen() (Eintrag in der Änderungshistorie, Unteraufgaben per Kaskade) statt delete(Task) über die
+    # Tabelle -- das sah die Historie nicht, und mit einer Unteraufgabe scheiterte es am Fremdschlüssel.
+    erinnerungen = db.scalars(select(Task).where(Task.source_module == "wartungsvertrag",
+                                                 Task.source_url == f"/maintenance-contracts/{contract_id}")).all()
+    for erinnerung in erinnerungen:
+        aufgabe_loeschen(db, erinnerung, f"mit dem Wartungsvertrag „{contract.title}“ (Erinnerung)", user)
     db.delete(contract)
     db.commit()
     return True

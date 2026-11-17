@@ -87,3 +87,20 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 4 – Vermerk vorn, Beschreibung darunter | Vermerk hinten angehängt (`343_8`) | 11 rot: dieselben |
 
 8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde ab 1.9.343, 1.9.344 (Punkt 2): Löschen von Aufgaben in der Änderungshistorie
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jedes Löschen steht drin (Stand bis 1.9.343) | kein Eintrag für gelöschte Aufgaben (`344_1`, `app/audit.py`) | 5 rot: v744 von Hand, Berichtsentwurf, Wartungsvertrag, an `aufgabe_loeschen()` vorbei, nur der Admin sieht |
+| Nr. 1 – mit Titel | Bezeichnung ohne Titel (`344_7`) | 3 rot: v744 von Hand, Berichtsentwurf, vorbei |
+| Nr. 1 und 2 – Konto aus `aufgabe_loeschen()` | Konto nur aus der Anfrage (`344_6`) | 3 rot: v744 von Hand, Berichtsentwurf, Wartungsvertrag |
+| Nr. 1 – keine andere Änderung kommt dazu | `Task` in `AUDITED_TYPES` (`344_10`) | zuerst grün (der Test sah nur die Art „Aufgabe“), nachgezogen: 1 rot: v744::test_sonstige_aenderungen_an_aufgaben_nicht |
+| Nr. 2 – `aufgabe_loeschen()` merkt Anlass und Konto | ohne Merken (`344_2`, `app/tasks.py`) | 3 rot: v744 von Hand, Berichtsentwurf, Wartungsvertrag |
+| Nr. 2 und 3 – von Hand über `aufgabe_loeschen()` | `delete_task()` vorbei (`344_3`) | 1 rot: v744 von Hand |
+| Nr. 2 und 3 – Berichtsentwurf über `aufgabe_loeschen()` | `delete_report()` vorbei (`344_4`) | 1 rot: v744 Berichtsentwurf |
+| Nr. 2 und 5 – Wartungsvertrag einzeln, kein Löschen über die Tabelle | Stand bis 1.9.343: `delete(Task)` (`344_5`) | 2 rot: v744 Wartungsvertrag (am Fremdschlüssel der Unteraufgabe), Wächter |
+| Nr. 4 – nur der Admin | Aufgaben auch fürs Büro (`344_8`, `app/routers/audit.py`) | 1 rot: v744::test_nur_der_admin_sieht_die_eintraege |
+| Nr. 6 – Anlass in der Anzeige | ohne Anlass (`344_9`, `_verlauf.html`) | 1 rot: v744::test_historie_zeigt_den_anlass |
+
+10 Gegenproben, alle rot (eine nach dem Nachziehen); alle Dateien byte-gleich zurück, kein Marker unter `app/`.

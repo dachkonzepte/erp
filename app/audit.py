@@ -16,7 +16,7 @@ from .models import (
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange, BaseInterestRate, DunningLegalText,
-    OrderStatusChange, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent, Finding,
+    OrderStatusChange, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent, Finding, Task,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -132,6 +132,7 @@ def _privat(obj) -> bool:
     return isinstance(obj, CalendarEvent) and bool(obj.is_private)
 
 FIELD_LABELS = {
+    "anlass":"Anlass",  # seit 1.9.344: warum eine Aufgabe gelöscht wurde
     # seit 1.9.299: Betriebsmittel und Prüffristen
     "asset_number":"Betriebsmittelnummer","asset_type":"Typ","product_url":"Produktlink","usage_notes":"Bedienungshinweise","acquisition_date":"Anschaffungsdatum",
     "acquisition_cost":"Anschaffungskosten","cost_notes":"Kosten-Notizen","selectable_in_reports":"Im Einsatzbericht auswählbar","asset_id":"Betriebsmittel",
@@ -452,6 +453,8 @@ def current_actor() -> tuple[int | None, str]:
 
 
 TASK_ENTITY_TYPE = "Aufgabe"
+# Seit 1.9.344: (Anlass, Konto) an einer Aufgabe, die app/tasks.py::aufgabe_loeschen() löscht -- gelesen von _aufgabe_geloescht().
+LOESCHANLASS = "_dk_loeschanlass"
 
 
 def record_audit_entry(session, *, action, entity_type, entity_id, entity_label, project_id=None,
@@ -776,6 +779,21 @@ def _record(action, obj, field_name=None, old=None, new=None, details=None):
     return {"action":action,"obj":obj,"field_name":field_name,"old":_text(old),"new":_text(new),"details":details}
 
 
+def _aufgabe_geloescht(task) -> dict:
+    """Eintrag für eine gelöschte Aufgabe (seit 1.9.344, Entscheidung Tobias 17.11.2026): jedes Löschen, mit Titel (Bezeichnung „Nr. … · Titel“),
+    Konto, Zeitpunkt und Anlass (Feld „Anlass“). Anlass und Konto aus app/tasks.py::aufgabe_loeschen(); an ihr vorbei „ohne Angabe“ mit dem Weg der
+    Anfrage und das Konto der Anfrage. Sonst steht keine Änderung an Aufgaben in der Historie (Task steht nicht in AUDITED_TYPES)."""
+    anlass, user = getattr(task, LOESCHANLASS, (None, None))
+    if not anlass:
+        weg = " ".join(x for x in (_request_method.get(), _request_path.get()) if x)
+        anlass = f"ohne Angabe ({weg or 'ohne Anfrage'})"
+    rec = _record("gelöscht", task, "anlass", None, anlass)
+    rec["entity"] = (TASK_ENTITY_TYPE, str(task.id), f"Nr. {task.id} · {task.title}"[:255], task.project_id)
+    if user is not None:
+        rec["actor"] = (user.id, user.display_name or user.username)
+    return rec
+
+
 @event.listens_for(Session, "before_flush")
 def collect_audit(session, flush_context, instances):
     if session.info.get("audit_disabled") or _request_method.get() == "GET": return
@@ -803,6 +821,8 @@ def collect_audit(session, flush_context, instances):
                 old, new = role_label(old), role_label(new)
             pending.append(_record("geändert", obj, key, old, new))
     for obj in list(session.deleted):
+        if isinstance(obj, Task):  # seit 1.9.344: von einer Aufgabe nur das Löschen, auf jedem Weg (auch an aufgabe_loeschen() vorbei)
+            pending.append(_aufgabe_geloescht(obj)); continue
         if isinstance(obj, AuditLog) or not isinstance(obj, AUDITED_TYPES): continue
         pending.append(_record("gelöscht", obj, details=json.dumps(_snapshot(obj), ensure_ascii=False)))
 
@@ -826,9 +846,10 @@ def write_audit(session, flush_context):
     try:
         for p in pending:
             obj = p["obj"]
-            et, eid, label, project_id = _normalize(session, obj)
+            et, eid, label, project_id = p.get("entity") or _normalize(session, obj)
+            actor_id, actor_name = p.get("actor") or (_actor_id.get(), _actor_name.get())  # seit 1.9.344: Konto aus aufgabe_loeschen()
             session.add(AuditLog(
-                actor_user_id=_actor_id.get(), actor_name=_actor_name.get(), action=p["action"],
+                actor_user_id=actor_id, actor_name=actor_name, action=p["action"],
                 entity_type=et, entity_id=eid, entity_label=label, project_id=project_id,
                 field_name=p["field_name"], field_label=FIELD_LABELS.get(p["field_name"], p["field_name"]),
                 old_value=p["old"], new_value=p["new"], request_method=_request_method.get(),

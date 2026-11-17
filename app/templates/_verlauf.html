@@ -11,7 +11,7 @@ function verlaufAenderung(x){
   const einheit=x.einheit?' '+_verlaufEsc(x.einheit):'';
   const altNeu=()=>`<span class="old">${_verlaufEsc(x.old_value??'—')}</span> → <span class="new">${_verlaufEsc(x.new_value??'—')}</span>${einheit}`;
   if(x.action==='angelegt')return 'Datensatz angelegt';
-  if(x.action==='gelöscht')return 'Datensatz gelöscht';
+  if(x.action==='gelöscht')return 'Datensatz gelöscht'+(x.new_value?' – '+_verlaufEsc(x.new_value):'');  // seit 1.9.344: Anlass beim Löschen einer Aufgabe
   if(x.action==='verworfen')return 'Verworfen'+(x.new_value?' – Begründung: '+_verlaufEsc(x.new_value):'');
   if(x.action==='geändert'||x.old_value!=null||x.new_value!=null)return altNeu();
   return _verlaufEsc(x.action);
