@@ -215,7 +215,7 @@ FESTE_LITERALE = {
     "employees.employee_group": ("gewerblich", "kaufmaennisch"),
     "import_runs.status": ("completed", "reverted"),  # address_import.py
     "imported_addresses.status": ("previewing", "confirmed"),
-    "imported_addresses.classification": ("customer", "supplier", "unassigned", "duplicate"),
+    "imported_addresses.classification": ("customer", "supplier", "unassigned", "duplicate", "abgelehnt"),  # „abgelehnt“ seit 1.9.351
     "imported_addresses.resolution": ("created_as_customer", "assigned_as_property", "discarded"),
     "invoice_items.unit": ("pschl.", "Std."),  # invoices.py; sonst Einheit aus Auftragsposition/Material
     # invoices.py; "bezahlt" bis 1.8.77 (schreibt seit 1.8.78 nur noch der Rückweg der Migration c7d41e9a2b63)

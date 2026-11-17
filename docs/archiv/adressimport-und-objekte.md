@@ -235,3 +235,10 @@ Regressionstest: `tests/test_v209_quick_service_orders.py`.
 isoliert (Name-und-Adresse-Kriterium vs. nur-Name). `tests/test_v247_address_import.py` um eine
 Flag-Prüfung ergänzt. `tests/test_v209_quick_service_orders.py` um den Nebenbefund-Regressionstest
 ergänzt (mit und ohne hinterlegte Kundenadresse).
+
+## Zu lange Werte: die Zeile wird abgelehnt (seit 1.9.351, F7)
+
+Jede Zelle wird beim Hochladen gegen die kürzeste Spalte geprüft, in die ihr Wert geht (`zellen_grenzen()`, `zu_lang()` in
+`app/address_import.py`). Eine Zeile mit zu langem Wert wird abgelehnt, nie gekürzt -- Klasse „abgelehnt“ in der Vorschau, nie
+übernommen, Liste mit Zeile, Feld und Grenze auf der Seite. Herleitung, Festlegungen und Tests: `docs/archiv/sqlite-und-postgresql.md`,
+„Umsetzung 1.9.351“.

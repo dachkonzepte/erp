@@ -167,3 +167,18 @@ jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich 
 | Nr. 4 – Meldung mit Grenze | `fehlerText()` ohne Grenze (`350_3`) | 1 rot: v750::test_meldung_nennt_die_grenze |
 
 4 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2a, 1.9.351 (Punkt 2, F7): Adressimport je Zeile
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 und 2 – jede Zeile geprüft (Stand bis 1.9.350) | nichts geprüft (`351_1`) | 4 rot: v751, darunter die Probe unter PostgreSQL mit `StringDataRightTruncation` |
+| Nr. 1 – Grenze = kürzeste Zielspalte | PLZ mit Grenze 21 (`351_2`) | 3 rot: v751 an der Grenze (Prüfung wie PostgreSQL), PostgreSQL, Ablehnung |
+| Nr. 1 – zusammengesetzter Name | nicht geprüft (`351_3`) | 1 rot: v751::test_zusammengesetzter_name |
+| Nr. 1 – zweite Mail-Adresse | nicht geprüft (`351_4`) | 1 rot: v751::test_mehrere_zellen_einer_zeile_und_die_zweite_mail |
+| Nr. 2 – nie gekürzt | PLZ einer abgelehnten Zeile gekürzt gespeichert (`351_5`) | 1 rot: v751::test_zu_lange_zeile_abgelehnt_die_uebrigen_gehen_durch |
+| Nr. 3 und 4 – in der Vorschau, in der Antwort | abgelehnte Zeile nicht in der Vorschau (`351_6`) | 4 rot: v751 |
+| Nr. 3 – nie übernommen | als „customer“ eingestuft (`351_7`) | 4 rot: v751 |
+| Nr. 4 – die Seite zeigt die Liste | Liste nicht gezeichnet (`351_1k`) | Klicktest 15 von 17 |
+
+8 Gegenproben (7 über Tests, 1 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

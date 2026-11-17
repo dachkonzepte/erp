@@ -23,7 +23,7 @@
     input,select{padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}
     input:hover,select:hover{border-color:var(--field-border-hover)}
     .muted{color:var(--muted)}.small{font-size:12px}
-    .summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
     .metric{background:var(--soft);border:1px solid var(--line);padding:12px;border-radius:var(--ds-ecke-karte)}
     .metric .k{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase}
     .metric .v{font-size:20px;font-weight:800;margin-top:3px}
@@ -36,7 +36,10 @@
     .pill.supplier{color:var(--accent);border-color:color-mix(in srgb,var(--ds-aktion) 40%,var(--line))}
     .pill.unassigned{color:var(--warning);border-color:color-mix(in srgb,var(--ds-warn-text) 40%,var(--line))}
     .pill.duplicate{color:var(--muted)}
-    .note{color:var(--warning);font-size:11px}
+    .pill.abgelehnt{color:var(--danger);border-color:color-mix(in srgb,var(--ds-fehler) 40%,var(--line))}
+    .abgelehnt-box{border:1px solid color-mix(in srgb,var(--ds-fehler) 40%,var(--line));background:var(--danger-soft);padding:12px 14px;margin-bottom:14px;border-radius:var(--ds-ecke-karte)}
+    .abgelehnt-box ul{margin:8px 0 0;padding-left:18px}.abgelehnt-box li{margin:2px 0;overflow-wrap:anywhere}
+    .note{color:var(--warning);font-size:11px;min-width:260px}  /* seit 1.9.351: lange Hinweise (abgelehnte Zeilen) nicht in eine schmale Spalte */
     .status{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}
     .status.err{color:var(--danger)}.status.ok{color:var(--success)}
     .hidden{display:none!important}
@@ -77,6 +80,13 @@
       <div class="metric"><div class="k">Lieferanten</div><div class="v" id="countSuppliers">0</div></div>
       <div class="metric"><div class="k">Unzugeordnet</div><div class="v" id="countUnassigned">0</div></div>
       <div class="metric"><div class="k">Bereits importiert (übersprungen)</div><div class="v" id="countDuplicates">0</div></div>
+      <div class="metric"><div class="k">Abgelehnt (zu lang)</div><div class="v" id="countRejected">0</div></div>
+    </div>
+    {# seit 1.9.351 (Runde V2a, Punkt 2, F7): je zu langer Zelle Zeile, Feld und Grenze -- die Zeile wird nicht übernommen, nie gekürzt #}
+    <div id="rejectedBox" class="abgelehnt-box hidden" role="alert">
+      <b>Abgelehnte Zeilen – werden nicht übernommen</b>
+      <div class="small">Ein Wert ist länger, als das ERP ihn speichern kann. Gekürzt wird nichts: die Datei korrigieren und neu hochladen – oder ohne diese Zeilen bestätigen.</div>
+      <ul id="rejectedList"></ul>
     </div>
     <div class="table-wrap">
       <table>
@@ -123,7 +133,8 @@ async function api(url, options = {}) {
   if (!r.ok) throw new Error(Array.isArray(d?.detail) ? d.detail.map(x => x.msg).join(', ') : (d?.detail || r.statusText || 'Fehler'));
   return d;
 }
-const CLASS_LABELS = {customer: 'Kunde', supplier: 'Lieferant', unassigned: 'Unzugeordnet', duplicate: 'Bereits importiert'};
+const CLASS_LABELS = {customer: 'Kunde', supplier: 'Lieferant', unassigned: 'Unzugeordnet', duplicate: 'Bereits importiert', abgelehnt: 'Abgelehnt'};
+let abgelehntZahl = 0;
 
 async function uploadFile() {
   const input = document.getElementById('fileInput'), status = document.getElementById('uploadStatus');
@@ -147,6 +158,11 @@ function renderPreview(preview) {
   document.getElementById('countSuppliers').textContent = preview.counts.supplier || 0;
   document.getElementById('countUnassigned').textContent = preview.counts.unassigned || 0;
   document.getElementById('countDuplicates').textContent = preview.counts.duplicate || 0;
+  abgelehntZahl = preview.counts.abgelehnt || 0;
+  document.getElementById('countRejected').textContent = abgelehntZahl;
+  const abgelehnt = preview.abgelehnt || [];
+  document.getElementById('rejectedBox').classList.toggle('hidden', !abgelehnt.length);
+  document.getElementById('rejectedList').innerHTML = abgelehnt.map(a => `<li>Zeile ${esc(a.zeile)}: ${esc(a.feld)} hat ${esc(a.laenge)} Zeichen – höchstens ${esc(a.grenze)}.</li>`).join('');
   document.getElementById('previewRows').innerHTML = preview.rows.map(r => `<tr><td>${esc(r.row_number)}</td><td>${esc(r.legacy_address_number || '—')}</td><td>${esc([r.first_name, r.last_name].filter(Boolean).join(' ') || '—')}</td><td>${esc(r.city || '—')}</td><td><span class="pill ${esc(r.classification)}">${CLASS_LABELS[r.classification] || esc(r.classification)}</span></td><td class="note">${esc(r.validation_notes || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Keine Zeilen.</td></tr>';
 }
 
@@ -164,7 +180,7 @@ async function confirmPreview() {
     const filename = latestPreview ? latestPreview.filename : 'import.csv';
     const url = '/api/address-import/confirm?filename=' + encodeURIComponent(filename);
     const result = await speichern('vorschau', () => api(url, { method: 'POST' }), {neuLaden: () => Promise.all([loadWorklist(), loadRuns()])});
-    status.textContent = `Übernommen: ${result.row_count_customers} Kunde(n), ${result.row_count_suppliers} Lieferant(en), ${result.row_count_unassigned} unzugeordnet, ${result.row_count_skipped_duplicates} übersprungen.`;
+    status.textContent = `Übernommen: ${result.row_count_customers} Kunde(n), ${result.row_count_suppliers} Lieferant(en), ${result.row_count_unassigned} unzugeordnet, ${result.row_count_skipped_duplicates} übersprungen${abgelehntZahl ? `, ${abgelehntZahl} abgelehnt (nicht übernommen)` : ''}.`;
     status.className = 'status ok';
     document.getElementById('previewCard').classList.add('hidden');
     document.getElementById('fileInput').value = '';

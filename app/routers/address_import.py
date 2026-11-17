@@ -37,7 +37,7 @@ def upload_address_file(
 
 @router.get("/api/address-import/preview")
 def get_pending_preview(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
-    return svc.get_pending_preview(db) or {"total": 0, "counts": {}, "rows": []}
+    return svc.get_pending_preview(db) or {"total": 0, "counts": {}, "rows": [], "abgelehnt": []}
 
 
 @router.post("/api/address-import/discard-preview")

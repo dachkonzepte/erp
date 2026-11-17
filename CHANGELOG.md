@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.351 – Adressimport: zu lange Zeilen ablehnen, die übrigen übernehmen
+
+Punkt 2 der Runde V2a (F7, Entscheidung Tobias). Der Adressimport prüft jede Zeile: ist ein Wert länger, als das ERP ihn speichern kann, wird die Zeile abgelehnt -- nicht gekürzt --, und die übrigen Zeilen gehen durch. Die Grenze einer Spalte der Datei ist die kürzeste Spalte, in die ihr Wert geht (Vorschau, Kunde, Lieferant, Objekt, Kundennummer), dazu die zweite Mail-Adresse und der zusammengesetzte Name. Die Vorschau zeigt die Zeile als „abgelehnt“ und darüber eine Liste je Zelle mit Zeile, Feld und Grenze („Zeile 3: PLZ hat 21 Zeichen – höchstens 20.“), auch nach dem Neuladen; Bestätigen übernimmt sie nie. Bis 1.9.350 scheiterte unter PostgreSQL an einer einzigen zu langen Zelle die ganze Datei mit 500.
+
+Neu `tests/test_v751_adressimport_zeilen.py` (auch gegen PostgreSQL) und `scripts/klicktest_adressimport_abgelehnt.py` (Bilder bei 1440 und 412 px, hell und dunkel). Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.350 – Jedes Eingabefeld mit der Länge seiner Spalte
 
 Punkt 1 der Runde V2a (Befund SQLite/PostgreSQL, Abschnitt 3 A). 89 Spalten bekamen ihre Länge als Grenze an den Eingabefeldern, die in sie gehen -- 127 Felddefinitionen in `app/schemas.py`, darunter die Firmendaten, Kunde und Objekt (PLZ, Telefon, E-Mail …), Dachflächen und Bauteile, Prüfvorlagen, Aufgaben, Befunde, Material im Einsatzbericht, Einheiten in Angebot und Rechnung. Ein zu langer Wert ergibt 422 mit Feld und Grenze statt live unter PostgreSQL 500; unter SQLite wurde er bisher still gespeichert. Die Meldung auf der Seite nennt die Grenze („ist zu lang (höchstens 20 Zeichen)“), wo die Seite Meldungen über `fehlerText()` zeigt.

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from datetime import datetime
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from .crm import compose_customer_name, ensure_customer_profile
 from .models import Customer, CustomerProfile, ImportedAddress, ImportRun, Property, Supplier
+from .spaltenlaenge import laenge
 
 # Exakte Spaltennamen aus dem Altsystem-Export (19 Spalten insgesamt). Kurzname/Name 2/Name 3/
 # Bemerkung werden bewusst nicht gelesen -- sie entfallen laut Vorgabe vollständig.
@@ -27,6 +29,77 @@ REQUIRED_HEADERS = [
     "Adresse", "Kunde", "Lieferant", "Anrede", "Titel", "Vorname", "Name",
     "Straße", "Land", "PLZ", "Ort", "Telefon", "Fax", "Mobil", "Mail",
 ]
+
+
+# Seit 1.9.351 (Runde V2a, Punkt 2, F7, Entscheidung Tobias): eine Zeile mit einem zu langen Wert wird abgelehnt, nicht gekürzt; die übrigen gehen
+# durch. Bis 1.9.350 schrieb der Import jede Zelle ungekürzt: SQLite nahm sie still an, unter PostgreSQL scheiterte die ganze Datei mit 500, ohne
+# die Zeile zu nennen (Befund P11). Eine abgelehnte Zeile steht in der Vorschau als eigene Klasse -- ohne die Werte, die nicht passen --, wird nie
+# übernommen und bleibt nach dem Bestätigen als Nachweis im Lauf (wie „bereits importiert“).
+ABGELEHNT = "abgelehnt"
+NAME_ZUSAMMEN = "Name (zusammengesetzt aus Anrede, Titel, Vorname und Name)"
+
+
+def zellen_grenzen() -> dict[str, tuple[str, int]]:
+    """Datei-Spalte -> (Schlüssel im Rohdaten-Dict, Grenze). Die Grenze ist die kürzeste Spalte, in die der Wert geht -- die Vorschau
+    (ImportedAddress), Kunde, Lieferant, die Hauptadresse als Objekt, die Kundennummer --, gelesen aus dem Modell (app/spaltenlaenge.py)."""
+    return {
+        "Adresse": ("legacy_address_number", laenge(ImportedAddress.legacy_address_number, Customer.legacy_address_number,
+                                                    Supplier.legacy_address_number)),
+        "Kunde": ("customer_number_raw", laenge(ImportedAddress.customer_number_raw, CustomerProfile.customer_number)),
+        "Lieferant": ("supplier_number_raw", laenge(ImportedAddress.supplier_number_raw, Supplier.supplier_number)),
+        "Anrede": ("salutation", laenge(ImportedAddress.salutation, Customer.salutation)),
+        "Titel": ("title", laenge(ImportedAddress.title, Customer.title)),
+        "Vorname": ("first_name", laenge(ImportedAddress.first_name, Customer.first_name)),
+        "Name": ("last_name", laenge(ImportedAddress.last_name, Customer.last_name)),
+        "Straße": ("street", laenge(ImportedAddress.street, Customer.street, Supplier.street, Property.street, Property.name)),
+        "Land": ("country", laenge(ImportedAddress.country, Customer.country, Supplier.country, Property.country)),
+        "PLZ": ("postal_code", laenge(ImportedAddress.postal_code, Customer.postal_code, Supplier.postal_code, Property.postal_code)),
+        "Ort": ("city", laenge(ImportedAddress.city, Customer.city, Supplier.city, Property.city)),
+        "Telefon": ("phone", laenge(ImportedAddress.phone, Customer.phone, Supplier.phone)),
+        "Fax": ("fax", laenge(ImportedAddress.fax, Customer.fax)),
+        "Mobil": ("mobile", laenge(ImportedAddress.mobile, Customer.mobile)),
+    }
+
+
+def zu_lang(row: dict) -> list[dict]:
+    """Je zu langer Zelle der Rohzeile {"feld", "grenze", "laenge"} -- leer, wenn alles passt. Dazu die beiden Adressen aus „Mail“ (die zweite
+    geht nur in Customer.email_2) und der zusammengesetzte Name (Customer.name, als Nachname, wenn „Name“ fehlt, und Supplier.name), wenn keiner
+    seiner Teile schon zu lang ist."""
+    treffer = []
+    for feld, (schluessel, grenze) in zellen_grenzen().items():
+        wert = row.get(schluessel)
+        if wert and len(wert) > grenze:
+            treffer.append({"feld": feld, "grenze": grenze, "laenge": len(wert)})
+    email, email_2 = split_emails(row.get("email_raw"))
+    for feld, wert, grenze in (("Mail", email, laenge(ImportedAddress.email, Customer.email, Supplier.email)),
+                               ("Mail (zweite Adresse)", email_2, laenge(ImportedAddress.email_2, Customer.email_2))):
+        if wert and len(wert) > grenze:
+            treffer.append({"feld": feld, "grenze": grenze, "laenge": len(wert)})
+    if not any(t["feld"] in ("Anrede", "Titel", "Vorname", "Name") for t in treffer):
+        name = compose_customer_name(row.get("salutation"), row.get("title"), row.get("first_name"), row.get("last_name") or "")
+        grenze = laenge(Customer.name, Customer.last_name, Supplier.name)
+        if len(name) > grenze:
+            treffer.append({"feld": NAME_ZUSAMMEN, "grenze": grenze, "laenge": len(name)})
+    return treffer
+
+
+def _ablehnung(e: ImportedAddress) -> list[dict]:
+    """Die Treffer einer abgelehnten Zeile (gespeichert als JSON in validation_notes, nur bei der Klasse ABGELEHNT)."""
+    if e.classification != ABGELEHNT or not e.validation_notes:
+        return []
+    try:
+        return list(json.loads(e.validation_notes).get("abgelehnt", []))
+    except (ValueError, AttributeError):
+        return []
+
+
+def ablehnung_text(treffer: list[dict]) -> str:
+    return "Zeile abgelehnt – " + "; ".join(f"{t['feld']} hat {t['laenge']} Zeichen, höchstens {t['grenze']}" for t in treffer) + "."
+
+
+def _passt(wert: str | None, spalte) -> str | None:
+    """Ein Wert einer abgelehnten Zeile, nur wenn er passt -- zum Wiedererkennen in der Vorschau, nie gekürzt."""
+    return wert if wert and len(wert) <= laenge(spalte) else None
 
 
 class AddressImportError(ValueError):
@@ -205,6 +278,19 @@ def create_preview(db: Session, data: bytes, filename: str) -> dict:
     seen_numbers: set[str] = set()
     created_ids = []
     for row in rows:
+        treffer = zu_lang(row)
+        if treffer:  # seit 1.9.351: abgelehnt, nicht gekürzt -- nur Zeilennummer und was passt, zum Wiedererkennen
+            entry = ImportedAddress(
+                import_run_id=None, row_number=row["row_number"],
+                legacy_address_number=_passt(row["legacy_address_number"], ImportedAddress.legacy_address_number),
+                first_name=_passt(row["first_name"], ImportedAddress.first_name), last_name=_passt(row["last_name"], ImportedAddress.last_name),
+                city=_passt(row["city"], ImportedAddress.city), classification=ABGELEHNT, status="previewing",
+                validation_notes=json.dumps({"abgelehnt": treffer}, ensure_ascii=False),
+            )
+            db.add(entry)
+            db.flush()
+            created_ids.append(entry.id)
+            continue
         classification, notes = classify_row(db, row, seen_numbers)
         if row["legacy_address_number"]:
             seen_numbers.add(row["legacy_address_number"])
@@ -240,9 +326,14 @@ def create_preview(db: Session, data: bytes, filename: str) -> dict:
     return summarize_preview(db, created_ids, filename)
 
 
+def _abgelehnt_liste(entries) -> list[dict]:
+    """Seit 1.9.351: je zu langer Zelle einer abgelehnten Zeile Zeilennummer, Feld, Grenze und Länge."""
+    return [{"zeile": e.row_number, **t} for e in entries for t in _ablehnung(e)]
+
+
 def summarize_preview(db: Session, ids: list[int], filename: str) -> dict:
     entries = db.scalars(select(ImportedAddress).where(ImportedAddress.id.in_(ids)).order_by(ImportedAddress.row_number)).all() if ids else []
-    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0}
+    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0, ABGELEHNT: 0}
     for e in entries:
         counts[e.classification] = counts.get(e.classification, 0) + 1
     return {
@@ -250,6 +341,7 @@ def summarize_preview(db: Session, ids: list[int], filename: str) -> dict:
         "total": len(entries),
         "counts": counts,
         "rows": [_row_to_dict(e) for e in entries],
+        "abgelehnt": _abgelehnt_liste(entries),
     }
 
 
@@ -257,10 +349,10 @@ def get_pending_preview(db: Session) -> dict | None:
     entries = db.scalars(select(ImportedAddress).where(ImportedAddress.status == "previewing").order_by(ImportedAddress.row_number)).all()
     if not entries:
         return None
-    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0}
+    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0, ABGELEHNT: 0}
     for e in entries:
         counts[e.classification] = counts.get(e.classification, 0) + 1
-    return {"total": len(entries), "counts": counts, "rows": [_row_to_dict(e) for e in entries]}
+    return {"total": len(entries), "counts": counts, "rows": [_row_to_dict(e) for e in entries], "abgelehnt": _abgelehnt_liste(entries)}
 
 
 def discard_pending_preview(db: Session) -> None:
@@ -292,7 +384,7 @@ def _row_to_dict(e: ImportedAddress) -> dict:
         "email": e.email,
         "email_2": e.email_2,
         "classification": e.classification,
-        "validation_notes": e.validation_notes,
+        "validation_notes": ablehnung_text(_ablehnung(e)) if e.classification == ABGELEHNT else e.validation_notes,
         "resolution": e.resolution,
     }
 
@@ -309,7 +401,7 @@ def confirm_import(db: Session, filename: str, employee_id: int | None) -> Impor
     db.add(run)
     db.flush()
 
-    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0}
+    counts = {"customer": 0, "supplier": 0, "unassigned": 0, "duplicate": 0, ABGELEHNT: 0}
     for entry in pending:
         entry.import_run_id = run.id
         entry.status = "confirmed"

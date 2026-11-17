@@ -74,6 +74,7 @@ KARTEN_OHNE_NAMEN = {
     "source-box": "Hinweis zur Quelle (Leistungskatalog)",
     "calc-box": "Rechenkasten (Leistungskatalog)",
     "concern-alert": "Hinweis „Offene Bedenken“",
+    "abgelehnt-box": "Abgelehnte Zeilen im Adressimport (seit 1.9.351)",
     "office-hint": "Hinweis fürs Büro (Einsatzbericht)",
     "bericht-zeile": "Bericht in der Liste je Auftrag (seit 1.9.67)",
     "group-note": "Hinweis zur Gruppe (Zeiterfassung Büro)",

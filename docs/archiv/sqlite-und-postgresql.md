@@ -606,3 +606,42 @@ ohne Grenze. Angepasste Erwartung (Regel 28): `test_v351_maengel` -- eine Ortsan
 (höchstens 500 Zeichen)“ (`defFeldnamen()`); die Prüfung in `app/defects.py` bleibt für andere Aufrufer.
 Angepasste Erwartung des Klicktests (Regel 28): `klicktest_zahleneingaben`, Prüfung „422: Text“ -- „Fehler: Bitte die Eingabe prüfen – Bezeichnung
 ist zu lang.“ -> „… ist zu lang (höchstens 120 Zeichen).“ (die Meldung nennt jetzt die Grenze; aufgefallen im Lauf aller Klicktests vor dem Commit).
+
+### Umsetzung 1.9.351: Adressimport prüft jede Zeile (Punkt 2, F7)
+
+- `app/address_import.py::zellen_grenzen()`: je Datei-Spalte die Grenze = die kürzeste Spalte, in die ihr Wert geht -- die Vorschau (`ImportedAddress`),
+  Kunde, Lieferant, die Hauptadresse als Objekt (die Straße auch als Name eines Objekts aus der Arbeitsliste), die Kundennummer --, gelesen aus dem Modell
+  (`app/spaltenlaenge.py::laenge()`). Dazu `zu_lang()`: die beiden Adressen aus „Mail“ (die zweite geht nur in `Customer.email_2`) und der zusammengesetzte
+  Name (Anrede, Titel, Vorname, Name -> `Customer.name`, als Nachname, wenn „Name“ fehlt, und `Supplier.name`), wenn keiner seiner Teile schon zu lang ist.
+- **Eine Zeile mit zu langem Wert** wird abgelehnt, nicht gekürzt; die übrigen gehen durch. Sie steht in der Vorschau mit der neuen Klasse „abgelehnt“:
+  nur Zeilennummer und die Werte, die passen (Adressnummer, Vor- und Nachname, Ort -- zum Wiedererkennen), die Treffer in `validation_notes` (JSON, nur bei
+  dieser Klasse). Bestätigen übernimmt sie nie; sie bleibt als Nachweis im Lauf wie „bereits importiert“ und geht beim Rückgängigmachen mit. Eine neue Spalte
+  für die Zahl im Importlauf gibt es nicht (keine Migration) -- die Tabelle „Importläufe“ nennt abgelehnte Zeilen nicht.
+- **Antwort** von `POST /api/address-import/upload` und `GET /api/address-import/preview`: `abgelehnt` -- je zu langer Zelle `zeile`, `feld` (Name der
+  Datei-Spalte), `grenze`, `laenge`; `counts.abgelehnt`; die Zeile selbst mit dem Hinweis „Zeile abgelehnt – PLZ hat 21 Zeichen, höchstens 20.“
+- **Seite** (`address_import.html`): Kennzahl „Abgelehnt (zu lang)“, darüber der Tabelle der Kasten „Abgelehnte Zeilen – werden nicht übernommen“ mit je
+  einer Zeile „Zeile 3: PLZ hat 21 Zeichen – höchstens 20.“ und dem Rat (Datei korrigieren und neu hochladen, oder ohne diese Zeilen bestätigen); in der
+  Tabelle die Zeile mit „Abgelehnt“; nach dem Bestätigen „…, 1 abgelehnt (nicht übernommen).“ Die Spalte „Hinweise“ hat eine Mindestbreite (bei 412 px rollt
+  die Tabelle in ihrem Rahmen, ein langer Hinweis machte die Zeile sonst sehr hoch).
+- Bis 1.9.350 schrieb der Import jede Zelle ungekürzt: SQLite nahm sie still an, unter PostgreSQL scheiterte die ganze Datei mit 500, ohne die Zeile zu
+  nennen (Befund P11).
+
+#### Festlegungen 1.9.351 (Bitte bestätigen)
+
+1. Jede Zelle wird gegen die kürzeste Spalte geprüft, in die ihr Wert geht (Vorschau, Kunde, Lieferant, Objekt, Kundennummer), aus dem Modell gelesen;
+   dazu die zweite Adresse aus „Mail“ und der zusammengesetzte Name.
+2. Eine Zeile mit zu langem Wert wird abgelehnt, nie gekürzt; die übrigen Zeilen gehen durch.
+3. Die abgelehnte Zeile steht in der Vorschau als „abgelehnt“ (nur Zeilennummer und die Werte, die passen) und bleibt nach dem Bestätigen als Nachweis im
+   Lauf; übernommen wird sie nie.
+4. Die Antwort nennt je zu langer Zelle Zeile, Feld, Grenze und Länge; die Seite zeigt die Liste, die Kennzahl und die Zahl beim Bestätigen.
+
+#### Tests und Prüfung 1.9.351
+
+Neu `tests/test_v751_adressimport_zeilen.py` (5 Tests): zu lange Zeile abgelehnt, die übrigen gehen durch, auch nach dem Neuladen, Bestätigen übernimmt sie
+nicht; mehrere Zellen einer Zeile samt zweiter Mail-Adresse; zusammengesetzter Name (genau an der Grenze geht, ein Zeichen mehr nicht); jede Zelle genau an
+ihrer Grenze bis in Kunde, Lieferant, Objekt und Kundennummer, mit einer Prüfung wie unter PostgreSQL (jeder Flush bricht ab, wenn ein Text länger als
+seine Spalte ist) -- der Wächter für die Grenzen; die Probe P11 gegen PostgreSQL (Wegwerf-Schema). Mit dem Stand bis 1.9.350 (`351_1`) scheitert die Probe
+unter PostgreSQL an `StringDataRightTruncation` (live 500), drei weitere Tests sind rot. Neu `scripts/klicktest_adressimport_abgelehnt.py` (17 Prüfungen,
+Bilder 1440 und 412 px, hell und dunkel). Angepasste Erwartungen (Regel 28): `test_v364` -- die festen Werte von `imported_addresses.classification`
+um „abgelehnt“ erweitert; `test_v460` -- der Kasten `.abgelehnt-box` in `KARTEN_OHNE_NAMEN` (Hinweiskasten mit der Ecke einer Karte; aufgefallen im vollen
+Lauf vor dem Commit).
