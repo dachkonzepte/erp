@@ -1,13 +1,16 @@
-"""Klicktest: die Rückfrage bei „Deaktivieren“ und „Löschen“ nennt Anzeigename und Benutzername (1.9.345, Runde ab 1.9.343, Punkt 3).
+"""Klicktest: die Rückfrage bei „Deaktivieren“ und „Löschen“ nennt Anzeigename und Benutzername (1.9.345, Runde ab 1.9.343, Punkt 3), seit 1.9.347
+auch bei „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ (Runde ab 1.9.346, Punkt 3).
 
 Bei 412 px rollt die Tabelle in ihrem Rahmen; neben dem Knopf steht kein Name. Die Rückfrage ist ein confirm() des Browsers (Regel 4, Antwort Tobias
 17.11.2026) -- der Test fängt ihren Text ab (ein Bildschirmfoto zeigt den Dialog nicht).
 
-Testdaten: Anna Admin (angemeldet), Bea Büro (aktiv, hat eine Aufgabe angelegt), Carl Neu (aktiv, nie verwendet).
+Testdaten: Anna Admin (angemeldet), Bea Büro (aktiv, hat eine Aufgabe angelegt, eine Sitzung), Carl Neu (aktiv, nie verwendet), Dirk Zweit
+(zweiter Administrator).
 
     412 px        Tabelle zu den Knöpfen gerollt: Benutzername und Anzeigename der Zeile nicht im Bild, der Knopf schon
     Rückfrage     „Deaktivieren“ bei Bea und „Löschen“ bei Carl, jeweils abgebrochen: die Rückfrage nennt „Bea Büro“ und „bea“ bzw. „Carl Neu“ und
-                  „carl“; nichts geändert (Server). Danach „Löschen“ bei Carl bestätigt: Carl ist weg
+                  „carl“; „Zweiten Faktor zurücksetzen“ bei Dirk und „Alle Sitzungen beenden“ bei Bea ebenso (seit 1.9.347); nichts geändert
+                  (Server). Danach „Löschen“ bei Carl bestätigt: Carl ist weg
     Bilder        412 px, hell und dunkel, die Zeilen mit den Knöpfen
     überall       keine JS-Fehler
 
@@ -25,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
-BEREIT = "document.querySelectorAll('#rows tr').length>=3&&!document.getElementById('rows').textContent.includes('Noch keine')"
+BEREIT = "document.querySelectorAll('#rows tr').length>=4&&!document.getElementById('rows').textContent.includes('Noch keine')"
 # Der Rahmen, in dem die Tabelle rollt, nach rechts zu den Knöpfen; die Zeilen ins Bild.
 ZU_DEN_KNOEPFEN = "(()=>{const r=document.getElementById('rows');r.closest('div').scrollLeft=1e6;r.scrollIntoView({block:'center'})})()"
 # Je Zeile: steht der Name (Spalten Benutzername und Anzeigename) im sichtbaren Teil des Rahmens? Steht der Knopf dort?
@@ -41,17 +44,21 @@ def befuellen(db, k):
     anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
     carl = AppUser(username="carl", display_name="Carl Neu", role="buero_auftrag", password_hash=k.passwort())
-    db.add_all([anna, bea, carl])
+    dirk = AppUser(username="dirk", display_name="Dirk Zweit", role="admin", password_hash=k.passwort())
+    db.add_all([anna, bea, carl, dirk])
     db.flush()
     db.add(Task(title="Rückruf Kunde", created_by_user_id=bea.id))
     db.commit()
-    return {"anna": k.cookies(anna), "bea_id": bea.id, "carl_id": carl.id}
+    k.cookies(bea)  # eine Sitzung: Bea bekommt „Alle Sitzungen beenden“
+    return {"anna": k.cookies(anna), "bea_id": bea.id, "carl_id": carl.id, "dirk_id": dirk.id}
 
 
-async def _rueckfrage(tab, klick, konto_id):
-    """Knopf klicken, die Rückfrage abbrechen, ihren Text zurückgeben."""
+async def _rueckfrage(tab, klick, konto_id, *, knopf=None):
+    """Knopf klicken, die Rückfrage abbrechen, ihren Text zurückgeben. knopf: ein eigener Selektor (der Knopf „Zweiten Faktor zurücksetzen“ trägt
+    noch onclick statt data-klick)."""
     await tab.js("window.__rueckfragen=[];window.__rueckfrageJa=false")
-    await tab.js(f"document.querySelector('[data-klick=\"{klick}\"][data-id=\"{konto_id}\"]').click()")
+    selektor = knopf or f'[data-klick="{klick}"][data-id="{konto_id}"]'
+    await tab.js(f"document.querySelector({json.dumps(selektor)}).click()")
     await tab.warten("window.__rueckfragen.length===1", 5)
     await tab.warte_auf_ruhe()
     return await tab.js("window.__rueckfragen[0]")
@@ -69,7 +76,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await tab.js(ZU_DEN_KNOEPFEN)
     p.pruefe("412 px: neben dem Knopf kein Name im Bild (Benutzername, Anzeigename, Knopf)", await tab.js(IM_BILD),
-             [["anna", False, False, None], ["bea", False, False, True], ["carl", False, False, True]])
+             [["anna", False, False, None], ["bea", False, False, True], ["carl", False, False, True], ["dirk", False, False, True]])
 
     deaktivieren = await _rueckfrage(tab, "deaktivieren", seed["bea_id"])
     p.pruefe("Rückfrage „Deaktivieren“ nennt Anzeigename und Benutzername", deaktivieren.split("\n")[0],
@@ -77,10 +84,18 @@ async def pruefen(tab, seed, p):
     loeschen = await _rueckfrage(tab, "loeschen", seed["carl_id"])
     p.pruefe("Rückfrage „Löschen“ nennt Anzeigename und Benutzername", loeschen.split("\n")[0],
              "Benutzer „Carl Neu“ (Benutzername „carl“) wirklich löschen?")
-    print("Rückfrage Deaktivieren:", json.dumps(deaktivieren, ensure_ascii=False))
-    print("Rückfrage Löschen:", json.dumps(loeschen, ensure_ascii=False))
+    zweiter_faktor = await _rueckfrage(tab, None, seed["dirk_id"], knopf=f'button[onclick="resetTwoFactor({seed["dirk_id"]})"]')
+    p.pruefe("Rückfrage „Zweiten Faktor zurücksetzen“ nennt Anzeigename und Benutzername", zweiter_faktor.split("\n")[0],
+             "Zweiten Faktor von Benutzer „Dirk Zweit“ (Benutzername „dirk“) wirklich zurücksetzen?")
+    sitzungen = await _rueckfrage(tab, "sitzungen-beenden", seed["bea_id"])
+    p.pruefe("Rückfrage „Alle Sitzungen beenden“ nennt Anzeigename und Benutzername", sitzungen.split("\n")[0],
+             "Alle Sitzungen von Benutzer „Bea Büro“ (Benutzername „bea“) beenden?")
+    for name, text in (("Deaktivieren", deaktivieren), ("Löschen", loeschen), ("Zweiten Faktor zurücksetzen", zweiter_faktor),
+                       ("Alle Sitzungen beenden", sitzungen)):
+        print(f"Rückfrage {name}:", json.dumps(text, ensure_ascii=False))
     p.pruefe("abgebrochen: nichts geändert (Server)", await tab.js(
-        "fetch('/api/users').then(r=>r.json()).then(l=>l.map(u=>[u.username,u.active]))"), [["anna", True], ["bea", True], ["carl", True]])
+        "fetch('/api/users').then(r=>r.json()).then(l=>l.map(u=>[u.username,u.active,u.active_sessions>0]))"),
+        [["anna", True, True], ["bea", True, True], ["carl", True, False], ["dirk", True, False]])
 
     for thema, name in (("light", "hell"), ("dark", "dunkel")):
         await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
@@ -93,7 +108,7 @@ async def pruefen(tab, seed, p):
     await tab.js("window.__rueckfragen=[];window.__rueckfrageJa=true")
     await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=\"loeschen\"][data-id=\"{seed['carl_id']}\"]').click()", "#rows")
     p.pruefe("bestätigt: Carl gelöscht", await tab.js(
-        "fetch('/api/users').then(r=>r.json()).then(l=>l.map(u=>u.username))"), ["anna", "bea"])
+        "fetch('/api/users').then(r=>r.json()).then(l=>l.map(u=>u.username))"), ["anna", "bea", "dirk"])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

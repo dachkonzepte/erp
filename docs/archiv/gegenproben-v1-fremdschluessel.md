@@ -132,3 +132,12 @@ Punkt 1 der Runde (nur geprüft) hat keine Festlegung und keine Gegenprobe: er b
 | Nr. 4 – jeder Fremdschlüssel auf `projects` eingeordnet | ein Eintrag aus der Einordnung genommen (`346_9`, im Test) | 1 rot: v746::test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet |
 
 9 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde ab 1.9.346, 1.9.347 (Punkt 3): beide Namen in allen Rückfragen der Zeile
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Zweiten Faktor zurücksetzen“ über `kontoName()` | alter Text (`347_1`, `347_1k`) | 1 rot: v745; Klicktest 12 von 13 |
+| Nr. 1 – „Alle Sitzungen beenden“ über `kontoName()` | alter Text (`347_2`, `347_2k`) | 1 rot: v745; Klicktest 12 von 13 |
+
+4 Gegenproben (2 über den Test, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

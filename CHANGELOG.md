@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.347 – Benutzer: alle Rückfragen der Zeile mit beiden Namen
+
+Punkt 3 der Runde ab 1.9.346 (Entscheidung Tobias). Auch „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ nennen in ihrer Rückfrage Anzeigename und Benutzername, wie seit 1.9.345 „Löschen“ und „Deaktivieren“ -- aus einer Stelle (`kontoName()`). Test und Klicktest erweitert; Festlegung und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.346 – Aufgabe mit Verweis und Projekt mit Aufgaben nicht löschen (E7, E8)
 
 Punkt 2 der Runde ab 1.9.346 (Entscheidung Tobias: je 409 mit Grund und Rat). Eine Aufgabe, auf die ein Befund („Büro prüfen lassen“) oder eine Regel einer Checkliste zeigt, löscht `DELETE /api/tasks/{id}` nicht mehr, sondern antwortet mit 409: „Die Aufgabe gehört zu einem Befund im Einsatzbericht – deshalb lässt sie sich nicht löschen. Erledige oder archiviere sie stattdessen.“ Ein Projekt ohne Auftrag, an dem eine Aufgabe hängt, ebenso: „Am Projekt hängt noch 1 Aufgabe – … Archiviere das Projekt stattdessen oder lösche zuerst seine Aufgaben.“ Bis 1.9.345 scheiterten beide am Fremdschlüssel, live mit 500.

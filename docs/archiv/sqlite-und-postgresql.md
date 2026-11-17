@@ -495,3 +495,21 @@ Neu `tests/test_v746_aufgabe_und_projekt_loeschen.py` (7 Tests): Folgeaufgabe ei
 Verweis bleiben, kein Eintrag „gelöscht“), Aufgabe ohne Verweis geht, Wächter `tasks`; Projekt mit einer und mit zwei Aufgaben 409, Projekt ohne Aufgabe
 geht, Wächter `projects`. Ohne die Prüfungen (`346_1`, `346_5`) scheitern die drei Fälle mit Verweis am Fremdschlüssel -- vorher rot. Angepasste
 Erwartungen: keine.
+
+### Umsetzung 1.9.347: „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ mit beiden Namen (Punkt 3)
+
+- `app/templates/users.html`: beide Rückfragen nennen das Konto über `kontoName(u)` -- „Zweiten Faktor von Benutzer „Dirk Zweit“ (Benutzername „dirk“)
+  wirklich zurücksetzen?“, „Alle Sitzungen von Benutzer „Bea Büro“ (Benutzername „bea“) beenden?“; der Rest bleibt. Damit nennen alle vier Rückfragen
+  der Zeile eines Kontos beide Namen aus einer Stelle. Der Knopf „Zweiten Faktor zurücksetzen“ trägt weiter `onclick` mit der ID (Ausnahmeliste der
+  Regel 32, unverändert).
+
+#### Festlegungen 1.9.347 (Bitte bestätigen)
+
+1. Auch die Rückfragen „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ nennen das Konto über `kontoName()`.
+
+#### Tests und Prüfung 1.9.347
+
+`tests/test_v745_benutzer_rueckfrage.py` und `scripts/klicktest_benutzer_rueckfrage.py` erweitert (der Klicktest mit Dirk Zweit als zweitem Administrator
+und einer Sitzung für Bea, 13 Prüfungen). Angepasste Erwartungen (Regel 28): v745 liest 5 statt 3 Funktionen und prüft 4 statt 2 Rückfragen; der Klicktest
+„kein Name im Bild“ mit Dirk (4 statt 3 Zeilen), „nichts geändert“ mit den Sitzungen je Konto, „Carl gelöscht“ `["anna", "bea"]` -> `["anna", "bea", "dirk"]`
+(Testdaten um Dirk erweitert).
