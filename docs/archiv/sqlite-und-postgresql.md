@@ -513,3 +513,9 @@ Erwartungen: keine.
 und einer Sitzung für Bea, 13 Prüfungen). Angepasste Erwartungen (Regel 28): v745 liest 5 statt 3 Funktionen und prüft 4 statt 2 Rückfragen; der Klicktest
 „kein Name im Bild“ mit Dirk (4 statt 3 Zeilen), „nichts geändert“ mit den Sitzungen je Konto, „Carl gelöscht“ `["anna", "bea"]` -> `["anna", "bea", "dirk"]`
 (Testdaten um Dirk erweitert).
+
+### Umsetzung 1.9.348: `_run` in v363 und v365 (Punkt 4)
+
+Nur Testablauf: `_run` gibt die erste Aktion frei, sobald eine Verbindung nachweislich auf ihre Sperre wartet (`pg_blocking_pids()`), statt nach einer festen
+Sekunde; der Wackler `test_v369` vom 17.11.2026 ist damit behoben. Herleitung, zwei Festlegungen zu Werkzeug und Testablauf, sieben angepasste
+Erwartungen und die Gegenprobe: `docs/archiv/testablauf-und-klicktests.md`, „Umsetzung 1.9.348“.

@@ -2022,7 +2022,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   sondern bis er eintritt (`_bis()`, Zeitgrenze nur als Sicherheitsnetz), und prüft keine Dauer gegen eine feste Schranke; seit 1.8.87 schließt `_run` auch die Sitzung der zweiten Aktion (sie hielt nach einem Fehler die Sperre der
   Auftragszeile) -- die zweite Aktion gibt Werte zurück, keine Objekte, die erst danach nachladen. Seit 1.8.111 schließen auch die
   Kopien in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` die zweite Sitzung, bevor sie auf die
-  erste warten; eine hängende Aktion macht den Test rot.
+  erste warten; eine hängende Aktion macht den Test rot. Seit 1.9.348 warten auch diese Kopien statt einer festen Sekunde, bis eine Verbindung
+  nachweislich auf die Sperre der ersten Aktion wartet (`_wartet_auf_halter()`, `pg_blocking_pids()` -- eine Aktion kann nach einem Commit auf einer
+  anderen Verbindung weiterlaufen), und prüfen das.
 
 - **Mahnung zustellen in Tests** (seit 1.8.80): eine Stufe ist erst mit Versand oder Zustellung erreicht --
   `tests/mahnung.py::zustellen(db, reminder)` trägt eine Zustellung ins Versandprotokoll ein (ohne PDF), `festschreiben_und_ablaufen()`

@@ -437,7 +437,7 @@ def test_postgresql_send_waits_for_a_running_discard_and_sends_nothing(pg):
     first, second = _run(Session, verwerfen, senden)
     assert not isinstance(first, Exception), first
     assert isinstance(second["result"], ValueError) and "überholt" in str(second["result"]), second
-    assert second["seconds"] >= 0.9 and FakeSMTP.sent == []
+    assert FakeSMTP.sent == []  # gewartet hat die zweite: _run prüft es (seit 1.9.348, statt „≥ 0,9 s“)
     s = Session()
     try:
         assert [d.status for d in s.scalars(select(EmailDispatch))] == ["fehlgeschlagen"]

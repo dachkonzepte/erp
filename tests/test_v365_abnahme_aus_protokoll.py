@@ -42,7 +42,8 @@ from app.routers import defects as defects_router
 from app.routers.checklists import router as checklists_router
 from tests.test_v349_abnahme_und_gewaehrleistung import _welt, ablage, welt  # noqa: F401  (Fixtures)
 from tests.test_v358_unterschrift_pruefung import SIGNATUR
-from tests.test_v363_zweck_abnahme import A, AG, _answer, _konten, _mangel, _sig, _sign_ag, _vorlage
+from tests.test_v363_zweck_abnahme import A, AG, _answer, _konten, _mangel, _sig, _sign_ag, _vorlage, _wartet_auf_halter
+from tests.test_v375_rechnungen_sperren import _bis
 
 ROOT = Path(__file__).resolve().parent.parent
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
@@ -584,8 +585,10 @@ def _held(Session, action, ready):
 
     def angehalten():
         holder.flush()
+        # seit 1.9.348: wer hält die Sperren -- _wartet_auf_halter() fragt, ob jemand auf diese Verbindung wartet
+        holder.info["backend_pid"] = holder.connection().connection.dbapi_connection.info.backend_pid
         ready.set()
-        release.wait(timeout=30)
+        release.wait(timeout=300)  # seit 1.9.348 nur Sicherheitsnetz: _run() gibt frei, sobald die zweite Aktion nachweislich wartet
         commit()
     holder.commit = angehalten
     result = {}
@@ -614,15 +617,25 @@ def _run(Session, first, second):
     """Seit 1.8.111 (Vorgabe "Vor dem Abnahmetest" Punkt 7, Nebenbefund 5 aus 1.8.108) wie
     tests/test_v375_rechnungen_sperren.py::_run(): die Sitzung der zweiten Aktion wird geschlossen, bevor auf die erste gewartet wird
     -- wirft sie nach der Sperre (wie erwartet), hielte ihre offene Transaktion sonst Sperren, auf die die erste nach der Freigabe
-    noch warten kann, und der Lauf hinge. Hängt eine der beiden trotzdem, wird der Test rot statt den Lauf anzuhalten."""
+    noch warten kann, und der Lauf hinge. Hängt eine der beiden trotzdem, wird der Test rot statt den Lauf anzuhalten.
+    Seit 1.9.348 (Runde ab 1.9.346, Punkt 4) wie tests/test_v375_rechnungen_sperren.py::_run() seit 1.9.8: die erste Aktion wird erst freigegeben,
+    wenn die zweite nachweislich an ihrer Sperre wartet (Sicherheitsnetz _bis()) -- bis dahin nach einer festen Sekunde; unter Last war die
+    zweite dann manchmal noch nicht so weit, las den neuen Stand und lief anders (Wackler test_v369, 17.11.2026). Beobachtet wird von der
+    Seite der Sperre aus (_wartet_auf_halter(): wartet irgendeine Verbindung auf die erste Aktion?), nicht an der Verbindung der zweiten
+    Sitzung wie in v375 -- der Versand des Protokolls committet vor dem Senden seinen Eintrag und wartet danach auf einer anderen Verbindung
+    aus dem Pool. Dass die zweite gewartet hat, prüft _run selbst; die Prüfung „zweite Aktion ≥ 0,9 s“ in den Tests entfällt dafür."""
     ready = threading.Event()
     holder, release, thread, first_result = _held(Session, first, ready)
-    assert ready.wait(timeout=10)
+    _bis(lambda: ready.is_set() or not thread.is_alive(), "die erste Aktion erreicht ihren Commit nicht")
+    assert ready.is_set(), first_result.get("result")
     result = {}
+    wartet = _wartet_auf_halter(holder)
     second_session = Session()
     other = threading.Thread(target=lambda: result.update(_timed(lambda: second(second_session))))
     other.start()
-    time.sleep(1.0)
+    gewartet = []
+    _bis(lambda: gewartet.append(True) or True if wartet() else not other.is_alive(),
+         "die zweite Aktion wartet weder auf die Sperre der ersten noch ist sie fertig")
     release.set()
     other.join(timeout=30)
     assert not other.is_alive(), "die zweite Aktion hängt"
@@ -630,6 +643,7 @@ def _run(Session, first, second):
     thread.join(timeout=30)
     assert not thread.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
     holder.close()
+    assert gewartet, ("die zweite Aktion hat nicht auf die Sperre der ersten gewartet", result)
     return first_result.get("result"), result
 
 
@@ -653,7 +667,7 @@ def _count(Session):
 def test_postgresql_concurrent_follow_ups_give_one_acceptance(pg):
     Session, w = pg
     first, second = _run(Session, lambda s: _anlegen(s, w).id, lambda s: _anlegen(s, w).id)
-    assert not isinstance(first, Exception) and second["seconds"] >= 0.9, (first, second)
+    assert not isinstance(first, Exception), (first, second)  # gewartet hat die zweite: _run (seit 1.9.348 statt „≥ 0,9 s“)
     assert second["result"] == first
     acceptances, defect_acceptance = _count(Session)
     assert [a.id for a in acceptances] == [first] and defect_acceptance == first
@@ -663,7 +677,7 @@ def test_postgresql_discard_waits_for_the_follow_up_and_is_rejected(pg):
     Session, w = pg
     first, second = _run(Session, lambda s: _anlegen(s, w).id, lambda s: _verwerfen_unterschrift(s, w))
     assert not isinstance(first, Exception), first
-    assert isinstance(second["result"], checklists_module.ChecklistLocked) and second["seconds"] >= 0.9, second
+    assert isinstance(second["result"], checklists_module.ChecklistLocked), second  # gewartet: _run (seit 1.9.348)
     s = Session()
     try:
         assert s.get(ChecklistAttachment, w["signature_id"]).discarded_at is None
@@ -675,7 +689,7 @@ def test_postgresql_follow_up_waits_for_the_discard_and_creates_nothing(pg):
     Session, w = pg
     first, second = _run(Session, lambda s: _verwerfen_unterschrift(s, w), lambda s: _anlegen(s, w))
     assert not isinstance(first, Exception), first
-    assert isinstance(second["result"], SignatureNotValid) and second["seconds"] >= 0.9, second
+    assert isinstance(second["result"], SignatureNotValid), second  # gewartet: _run (seit 1.9.348)
     acceptances, defect_acceptance = _count(Session)
     assert acceptances == [] and defect_acceptance is None
 

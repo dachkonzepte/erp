@@ -1444,7 +1444,7 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   frei (`time.sleep(1.0)`), nicht erst, wenn die zweite nachweislich an der Sperre wartet -- unter Last war die zweite noch nicht so weit, las nach dem
   Commit den neuen Stand und versandte die gültige Fassung 1. Dasselbe Muster, das 1.9.8 in `tests/test_v375_rechnungen_sperren.py::_run()` über
   `_wartet_auf_sperre()` behob; die Kopien in v363 und v365 haben es noch. Einzeln auf demselben Stand dreimal grün; die Runde änderte an Checklisten,
-  Versand und Abnahme nichts. Stand: Ursache geklärt, nicht behoben (Vorschlag: die beiden Kopien auf `_wartet_auf_sperre()` umstellen).
+  Versand und Abnahme nichts. Stand: behoben mit 1.9.348 (Abschnitt „Umsetzung 1.9.348“ am Ende) -- beide Kopien warten jetzt an der Sperre.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
@@ -1620,3 +1620,35 @@ Mit 1.9.300 fehlte hier die Zeile zum Bestätigen (Regel 28) -- die Regel stand 
 1. Ein Test, der ein inneres pytest auf Dateien außerhalb des Projekts startet (`tmp_path`), gibt `--confcutdir` auf deren Ordner mit -- sonst liest das
    Sammeln jeden Ordner darüber, auch `%TEMP%`, und ein dort gleichzeitig gelöschter Ordner bricht es ab. Geprüft am Sammelbaum
    (`tests/test_v596_reihenfolge.py::test_sammelt_nur_im_eigenen_ordner`).
+
+## Umsetzung 1.9.348: `_run` in v363 und v365 wartet an der Sperre (Runde ab 1.9.346, Punkt 4)
+
+Entscheidung Tobias (17.11.2026): die beiden Kopien von `_run` auf das Warten an der Sperre umstellen wie 1.9.8 in `tests/test_v375_rechnungen_sperren.py`;
+Wackler-Liste nachtragen (Eintrag `test_v369` oben, Stand jetzt „behoben mit 1.9.348“).
+
+- `_run` in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` (v365 benutzen auch v368 und v369) gibt die erste Aktion nicht
+  mehr nach einer festen Sekunde frei, sondern sobald nachweislich eine Verbindung auf ihre Sperre wartet (`_bis()` aus v375 als Sicherheitsnetz); danach
+  prüft `_run`, dass gewartet wurde. Das Sicherheitsnetz in `_held()` steht jetzt wie in v375 auf 300 s.
+- **Abweichung von v375:** beobachtet wird von der Seite der Sperre aus -- `_wartet_auf_halter()` (v363, von v365 benutzt): `_held()` merkt sich die
+  Verbindung der ersten Aktion (`backend_pid`), gefragt wird `pg_blocking_pids()` über `pg_stat_activity`, je Frage eine Verbindung aus dem Pool.
+  `_wartet_auf_sperre()` aus v375 sieht nur die Verbindung, die die zweite Sitzung zu Beginn hatte. Erster Versuch damit: v369 rot -- die zweite Aktion
+  wartete 30 s bis zum Sicherheitsnetz, gesehen wurde nichts. Ursache: der Versand des Protokolls committet vor dem Senden seinen Eintrag ins
+  Versandprotokoll und wartet danach auf einer anderen Verbindung aus dem Pool an der Sperre der Checkliste.
+- Die sieben Tests prüften bisher „zweite Aktion ≥ 0,9 s“ -- das hing an der festen Sekunde. Jetzt prüft `_run`, dass die zweite gewartet hat; die Prüfung
+  der Dauer entfällt (angepasste Erwartungen unten).
+- Laufzeit der acht PostgreSQL-Tests der vier Dateien: 32 s statt 56 s (keine feste Sekunde je Test, kein Ablauf eines Sicherheitsnetzes).
+
+**Festlegungen 1.9.348 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. `_run` in v363 und v365 gibt die erste Aktion erst frei, wenn eine Verbindung nachweislich auf ihre Sperre wartet, und prüft danach, dass gewartet wurde --
+   keine feste Wartezeit, keine Prüfung der Dauer im Test.
+2. Beobachtet wird an der Sperre der ersten Aktion (`pg_blocking_pids()`), nicht an der Verbindung der zweiten Sitzung -- eine Aktion kann nach einem
+   Commit auf einer anderen Verbindung weiterlaufen.
+
+**Tests und Prüfung 1.9.348.** Angepasste Erwartungen (Regel 28), je „zweite Aktion ≥ 0,9 s“ -> „hat an der Sperre gewartet“ (in `_run`):
+v363::test_postgresql_signature_waits_for_the_discard_and_is_rejected, v363::test_postgresql_discard_waits_for_the_signature_and_stays_in_the_copy,
+v365::test_postgresql_concurrent_follow_ups_give_one_acceptance, v365::test_postgresql_discard_waits_for_the_follow_up_and_is_rejected,
+v365::test_postgresql_follow_up_waits_for_the_discard_and_creates_nothing, v368::test_postgresql_two_signatures_at_once_give_two_numbered_versions,
+v369::test_postgresql_send_waits_for_a_running_discard_and_sends_nothing. Gegenprobe (`348_1a`, `348_1b`): `_run` gibt frei, ohne zu warten -- alle sieben
+rot („die zweite Aktion hat nicht auf die Sperre der ersten gewartet“), Dateien danach byte-gleich. Unter Last: vier Läufe der vier Dateien nebeneinander,
+je fünfmal hintereinander -- 20 von 20 grün (8 Tests je Lauf, 44–55 s).

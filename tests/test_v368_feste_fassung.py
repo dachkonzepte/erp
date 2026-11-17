@@ -411,7 +411,7 @@ def test_postgresql_two_signatures_at_once_give_two_numbered_versions(pg):
     first, second = _run(Session, unterschreibe("unterschrift_auftragnehmer", account_user_id=1, account_name="Olga"),
                          unterschreibe("unterschrift_auftraggeber", signer_person="Herbert Halle"))
     assert not isinstance(first, Exception) and not isinstance(second["result"], Exception), (first, second)
-    assert second["seconds"] >= 0.9, second
+    # gewartet hat die zweite: _run prüft es (seit 1.9.348, statt „≥ 0,9 s“)
     s = Session()
     try:
         versions = versions_of(s, w["checklist_id"])

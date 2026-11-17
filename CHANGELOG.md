@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.348 – Tests: Gleichzeitigkeit in v363 und v365 ohne feste Sekunde
+
+Punkt 4 der Runde ab 1.9.346 (Entscheidung Tobias). Die Hilfsfunktion `_run` in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` gab die erste Aktion nach einer festen Sekunde frei; unter Last war die zweite dann manchmal noch nicht an der Sperre (Wackler `test_v369` vom 17.11.2026). Jetzt gibt sie erst frei, wenn nachweislich eine Verbindung auf die Sperre der ersten Aktion wartet, und prüft das -- wie seit 1.9.8 in v375, nur von der Seite der Sperre aus beobachtet (`pg_blocking_pids()`), weil der Versand des Protokolls nach einem Commit auf einer anderen Verbindung wartet. Sieben Prüfungen „zweite Aktion ≥ 0,9 s“ entfallen dafür. Unter Last 20 von 20 grün. Nur Tests, keine Änderung an `app/`; Herleitung: `docs/archiv/testablauf-und-klicktests.md`, „Umsetzung 1.9.348“.
+
 ## 1.9.347 – Benutzer: alle Rückfragen der Zeile mit beiden Namen
 
 Punkt 3 der Runde ab 1.9.346 (Entscheidung Tobias). Auch „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ nennen in ihrer Rückfrage Anzeigename und Benutzername, wie seit 1.9.345 „Löschen“ und „Deaktivieren“ -- aus einer Stelle (`kontoName()`). Test und Klicktest erweitert; Festlegung und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.

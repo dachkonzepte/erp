@@ -43,6 +43,7 @@ from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.test_v349_abnahme_und_gewaehrleistung import PDF, _welt, ablage, welt  # noqa: F401  (Fixtures)
 from tests.test_v358_unterschrift_pruefung import SIGNATUR
+from tests.test_v375_rechnungen_sperren import _bis
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSIONS = ROOT / "alembic" / "versions"
@@ -520,13 +521,28 @@ def _held(Session, action, ready):
 
     def angehalten():
         holder.flush()
+        # seit 1.9.348: wer hält die Sperren -- _wartet_auf_halter() fragt, ob jemand auf diese Verbindung wartet
+        holder.info["backend_pid"] = holder.connection().connection.dbapi_connection.info.backend_pid
         ready.set()
-        release.wait(timeout=30)
+        release.wait(timeout=300)  # seit 1.9.348 nur Sicherheitsnetz: _run() gibt frei, sobald die zweite Aktion nachweislich wartet
         commit()
     holder.commit = angehalten
     thread = threading.Thread(target=lambda: _swallow(lambda: action(holder)))
     thread.start()
     return holder, release, thread
+
+
+def _wartet_auf_halter(holder):
+    """Seit 1.9.348: ein Prüfer, ob irgendeine Verbindung auf eine Sperre der ersten Aktion wartet -- pg_blocking_pids() nennt für jede
+    wartende Verbindung, wer sie aufhält. Je Frage eine Verbindung aus dem Pool (pg_stat_activity hält seinen Stand bis zum Ende einer
+    Transaktion)."""
+    pid, engine = holder.info["backend_pid"], holder.get_bind()
+
+    def wartet():
+        with engine.connect() as conn:
+            return conn.execute(text("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE :pid = ANY(pg_blocking_pids(pid)))"),
+                                {"pid": pid}).scalar()
+    return wartet
 
 
 def _swallow(fn):
@@ -558,15 +574,25 @@ def _run(Session, first, second):
     """Seit 1.8.111 (Vorgabe "Vor dem Abnahmetest" Punkt 7, Nebenbefund 5 aus 1.8.108) wie
     tests/test_v375_rechnungen_sperren.py::_run(): die Sitzung der zweiten Aktion wird geschlossen, bevor auf die erste gewartet wird
     -- wirft sie nach der Sperre (wie erwartet), hielte ihre offene Transaktion sonst Sperren, auf die die erste nach der Freigabe
-    noch warten kann, und der Lauf hinge. Hängt eine der beiden trotzdem, wird der Test rot statt den Lauf anzuhalten."""
+    noch warten kann, und der Lauf hinge. Hängt eine der beiden trotzdem, wird der Test rot statt den Lauf anzuhalten.
+    Seit 1.9.348 (Runde ab 1.9.346, Punkt 4) wie tests/test_v375_rechnungen_sperren.py::_run() seit 1.9.8: die erste Aktion wird erst freigegeben,
+    wenn die zweite nachweislich an ihrer Sperre wartet (Sicherheitsnetz _bis()) -- bis dahin nach einer festen Sekunde; unter Last war die
+    zweite dann manchmal noch nicht so weit, las den neuen Stand und lief anders (Wackler test_v369, 17.11.2026). Beobachtet wird von der
+    Seite der Sperre aus (_wartet_auf_halter(): wartet irgendeine Verbindung auf die erste Aktion?), nicht an der Verbindung der zweiten
+    Sitzung wie in v375 -- der Versand des Protokolls committet vor dem Senden seinen Eintrag und wartet danach auf einer anderen Verbindung
+    aus dem Pool. Dass die zweite gewartet hat, prüft _run selbst; die Prüfung „zweite Aktion ≥ 0,9 s“ in den Tests entfällt dafür."""
     ready = threading.Event()
     holder, release, thread = _held(Session, first, ready)
-    assert ready.wait(timeout=10)
+    _bis(lambda: ready.is_set() or not thread.is_alive(), "die erste Aktion erreicht ihren Commit nicht")
+    assert ready.is_set(), "die erste Aktion endete vor ihrem Commit"
     result = {}
+    wartet = _wartet_auf_halter(holder)
     second_session = Session()
     other = threading.Thread(target=lambda: result.update(_timed(lambda: second(second_session))))
     other.start()
-    time.sleep(1.0)
+    gewartet = []
+    _bis(lambda: gewartet.append(True) or True if wartet() else not other.is_alive(),
+         "die zweite Aktion wartet weder auf die Sperre der ersten noch ist sie fertig")
     release.set()
     other.join(timeout=30)
     assert not other.is_alive(), "die zweite Aktion hängt"
@@ -574,13 +600,14 @@ def _run(Session, first, second):
     thread.join(timeout=30)
     assert not thread.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
     holder.close()
+    assert gewartet, ("die zweite Aktion hat nicht auf die Sperre der ersten gewartet", result)
     return result
 
 
 def test_postgresql_signature_waits_for_the_discard_and_is_rejected(pg):
     Session, w = pg
     result = _run(Session, lambda s: _discard(s, w), lambda s: _sign(s, w))
-    assert isinstance(result["result"], ValueError) and result["seconds"] >= 0.9, result
+    assert isinstance(result["result"], ValueError), result  # gewartet hat sie: _run (seit 1.9.348 statt „≥ 0,9 s“)
     assert "Vorbehalt wegen Mängeln, aber im Protokoll steht kein Mangel" in str(result["result"])
     check = Session()
     try:
@@ -592,7 +619,7 @@ def test_postgresql_signature_waits_for_the_discard_and_is_rejected(pg):
 def test_postgresql_discard_waits_for_the_signature_and_stays_in_the_copy(pg):
     Session, w = pg
     result = _run(Session, lambda s: _sign(s, w), lambda s: _discard(s, w))
-    assert not isinstance(result["result"], Exception) and result["seconds"] >= 0.9, result
+    assert not isinstance(result["result"], Exception), result  # gewartet hat sie: _run (seit 1.9.348 statt „≥ 0,9 s“)
     check = Session()
     try:
         sig = check.scalar(select(ChecklistAttachment).where(ChecklistAttachment.kind == "unterschrift"))
