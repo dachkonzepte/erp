@@ -144,13 +144,14 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_auswahl.html" %}
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 function fmtMoney(v){if(v==null)return'–';return Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const BILLING_LABELS={monatlich:'Monatlich',vierteljaehrlich:'Vierteljährlich',halbjaehrlich:'Halbjährlich',jaehrlich:'Jährlich',einmalig:'Einmalig'};
@@ -329,7 +330,7 @@ async function submitDocument(){
   const id=currentEditId;
   try{
     const r=await speichern('kostenposten',()=>fetch(`/api/recurring-costs/${id}/documents`,{method:'POST',body:form}));
-    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));
     document.getElementById('docFile').value='';
     document.getElementById('docNotes').value='';
     st.textContent='';

@@ -120,6 +120,7 @@
 </div>
 </div>
 {% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_seitenkopf.html" %}
 <script>
@@ -130,7 +131,7 @@ const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt
 async function api(url, options = {}) {
   const r = await fetch(url, options);
   let d = null; try { d = await r.json(); } catch (_) {}
-  if (!r.ok) throw new Error(Array.isArray(d?.detail) ? d.detail.map(x => x.msg).join(', ') : (d?.detail || r.statusText || 'Fehler'));
+  if (!r.ok) throw new Error(fehlerText(d, r.status));
   return d;
 }
 const CLASS_LABELS = {customer: 'Kunde', supplier: 'Lieferant', unassigned: 'Unzugeordnet', duplicate: 'Bereits importiert', abgelehnt: 'Abgelehnt'};

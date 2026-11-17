@@ -7,8 +7,13 @@
    fehlerText(body, status, felder) -> Text
      body    die gelesene JSON-Antwort (null, wenn sie kein JSON war)
      status  HTTP-Status, für die Meldung ohne verwertbares detail
-     felder  {API-Feldname: Beschriftung auf der Seite}; ohne Eintrag erscheint der API-Name */
-const _FEHLERARTEN={
+     felder  {API-Feldname: Beschriftung auf der Seite}; ohne Eintrag erscheint der API-Name
+     ersatz  (seit 1.9.352) der Text, wenn die Antwort keine verwertbare Meldung trägt -- statt des Texts zum Status
+
+   Seit 1.9.352 (Runde V2b, Punkt 0) zeigt jede Vorlage eine abgelehnte Antwort nur hierüber (Wächter tests/test_v752_fehlertext_ueberall.py)
+   und bindet diesen Baustein selbst ein, wo ihr eigenes Skript ihn aufruft -- auch die Bausteine (Leiste, Versand, Checklisten). Er lässt
+   sich deshalb mehrfach einbinden: nur var und eine Funktionsdeklaration, kein const auf oberster Ebene. */
+var _FEHLERARTEN={
   missing:'fehlt',string_too_long:'ist zu lang',string_too_short:'ist zu kurz',string_type:'muss ein Text sein',
   int_parsing:'muss eine ganze Zahl sein',int_type:'muss eine ganze Zahl sein',int_from_float:'muss eine ganze Zahl sein',
   float_parsing:'muss eine Zahl sein',float_type:'muss eine Zahl sein',decimal_parsing:'muss eine Zahl sein (ohne Tausenderpunkt)',
@@ -20,7 +25,7 @@ const _FEHLERARTEN={
   too_long:'hat zu viele Einträge',too_short:'hat zu wenige Einträge',json_invalid:'ist kein gültiges JSON',
   dict_type:'hat das falsche Format',list_type:'hat das falsche Format'
 };
-function fehlerText(body,status,felder){
+function fehlerText(body,status,felder,ersatz){
   const d=body&&typeof body==='object'?body.detail:undefined;
   if(typeof d==='string'&&d.trim())return d;
   if(Array.isArray(d)&&d.length){
@@ -39,6 +44,7 @@ function fehlerText(body,status,felder){
     return 'Bitte die Eingabe prüfen – '+[...new Set(teile)].join('; ')+'.';
   }
   if(d&&typeof d==='object'&&typeof d.message==='string'&&d.message.trim())return d.message;
+  if(typeof ersatz==='string'&&ersatz)return ersatz;
   if(status===409)return 'Der Stand hat sich inzwischen geändert. Bitte die Seite neu laden und es erneut versuchen.';
   if(status===422)return 'Eingabe unvollständig oder ungültig.';
   if(status===401)return 'Nicht angemeldet – bitte neu anmelden.';

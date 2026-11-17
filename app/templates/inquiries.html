@@ -102,6 +102,7 @@
 </div>
 </div>
 {% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_seitenkopf.html" %}
 {% include "_auswahl.html" %}
@@ -110,7 +111,7 @@
 let customers=[], properties=[], inquiries=[], currentInquiry=null, defaultVat=19;
 const q=new URLSearchParams(location.search);const presetCustomer=Number(q.get('customer_id')||0);
 const el=id=>document.getElementById(id);const val=id=>el(id).value;const nv=id=>val(id).trim()||null;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let m=`HTTP ${r.status}`;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(m)}if(r.status===204)return null;return r.json()}
+async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let j=null;try{j=await r.json()}catch{}throw new Error(fehlerText(j,r.status))}if(r.status===204)return null;return r.json()}
 function isoOrNull(x){return x?x+':00':null}function inputDate(x){return x?String(x).slice(0,16):''}function fmtDate(x){if(!x)return '—';const d=new Date(x);return d.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}
 function isClosed(i){return ['gewonnen','verloren'].includes(i.status)}function isDue(i){return !isClosed(i)&&i.follow_up_at&&new Date(i.follow_up_at)<=new Date()}
 function priorityLabel(x){return({niedrig:'Niedrig',normal:'Normal',hoch:'Hoch',dringend:'Dringend'}[x]||x)}function statusLabel(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}

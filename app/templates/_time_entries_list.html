@@ -1,3 +1,4 @@
+{% include "_fehlertext.html" %}{# seit 1.9.352: dieser Baustein ruft fehlerText() selbst auf #}
 
 <script>
 /* Geteilter Helfer (seit 1.8.9) für jede Seite, die eine Liste über GET /api/time-entries lädt.
@@ -12,7 +13,7 @@ async function fetchTimeEntries(url) {
   const r = await fetch(url);
   let data = null;
   try { data = await r.json(); } catch {}
-  if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(fehlerText(data, r.status));
   const rows = Array.isArray(data) ? data : [];
   const total = Number(r.headers.get('X-Total-Count'));
   return { rows, total: Number.isFinite(total) && total > rows.length ? total : rows.length };

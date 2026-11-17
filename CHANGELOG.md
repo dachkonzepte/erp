@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.352 – Jede Seite zeigt Fehler lesbar
+
+Punkt 0 der Runde V2b (Entscheidung Tobias). 37 Seiten und Bausteine zeigten eine abgelehnte Antwort an `fehlerText()` vorbei -- eine 422 aus der Prüfung der Eingaben erschien dort als „Fehler: [object Object]“, ein Status ohne Text auf Englisch. Jetzt geht jede abgelehnte Antwort über `fehlerText()`: „Bitte die Eingabe prüfen – … ist zu lang (höchstens 20 Zeichen).“ Ein Text des Servers erscheint wie bisher, die eigenen Sätze der Seiten für Antworten ohne Text bleiben (neuer Parameter `ersatz`). Jede Vorlage, die `fehlerText()` aufruft, bindet den Baustein selbst ein; er lässt sich dafür mehrfach einbinden.
+
+Neu `tests/test_v752_fehlertext_ueberall.py`: ein Wächter über die Skripte jeder Vorlage -- keine liest `detail` an `fehlerText()` vorbei, jeder Zweig einer abgelehnten Antwort, der etwas zeigt, nutzt ihn -- und eine Probe des Bausteins gegen jede Form der Antwort. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.351 – Adressimport: zu lange Zeilen ablehnen, die übrigen übernehmen
 
 Punkt 2 der Runde V2a (F7, Entscheidung Tobias). Der Adressimport prüft jede Zeile: ist ein Wert länger, als das ERP ihn speichern kann, wird die Zeile abgelehnt -- nicht gekürzt --, und die übrigen Zeilen gehen durch. Die Grenze einer Spalte der Datei ist die kürzeste Spalte, in die ihr Wert geht (Vorschau, Kunde, Lieferant, Objekt, Kundennummer), dazu die zweite Mail-Adresse und der zusammengesetzte Name. Die Vorschau zeigt die Zeile als „abgelehnt“ und darüber eine Liste je Zelle mit Zeile, Feld und Grenze („Zeile 3: PLZ hat 21 Zeichen – höchstens 20.“), auch nach dem Neuladen; Bestätigen übernimmt sie nie. Bis 1.9.350 scheiterte unter PostgreSQL an einer einzigen zu langen Zelle die ganze Datei mit 500.

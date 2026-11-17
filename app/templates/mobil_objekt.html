@@ -232,7 +232,7 @@
     if(r.status===403)return r.json().catch(function(){return {}}).then(function(d){
       var el=document.getElementById('historyList');
       el.className='empty';
-      el.textContent=d.detail||'Keine Wartungshistorie für dieses Objekt.';
+      el.textContent=fehlerText(d,r.status,null,'Keine Wartungshistorie für dieses Objekt.');
     });
     if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(fehlerText(d,r.status,FELDNAMEN))});  // seit 1.9.118
     return r.json().then(renderHistory);

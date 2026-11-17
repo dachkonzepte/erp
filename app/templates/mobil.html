@@ -687,7 +687,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   function feierabend(){
     return speichern('feierabend',()=>fetch('/api/field-view/feierabend',{method:'POST'})).then(function(r){
       if(r.ok||r.status===401){location.href='/login?next='+encodeURIComponent(location.pathname);return}
-      return r.json().catch(function(){return {}}).then(function(d){feierabendFehler((d&&d.detail)||('HTTP '+r.status+'.'))});
+      return r.json().catch(function(){return {}}).then(function(d){feierabendFehler(fehlerText(d,r.status))});
     },function(e){feierabendFehler((e&&e.message)||'keine Verbindung.')});
   }
   // Seit 1.9.45 über lesen() (_speichern.html), Bereich 'heute' wie jede Aktion an der Arbeitszeit: eine ältere Antwort überschreibt nie
@@ -701,7 +701,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       }
       // Seit 1.9.33: die Einsätze gibt es nur für die Rollen der Monteursansicht -- für jede andere eine Meldung, einmal oben
       if(a.status===403){
-        var box=el('assignmentsList');box.className='error';box.textContent=d.detail||'Für deine Rolle nicht verfügbar.';
+        var box=el('assignmentsList');box.className='error';box.textContent=fehlerText(d,a.status,null,'Für deine Rolle nicht verfügbar.');
         return;
       }
       if(a.status!==200){showError(fehlerText(d,a.status,{}));return}

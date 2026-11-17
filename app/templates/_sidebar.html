@@ -1,3 +1,4 @@
+{% include "_fehlertext.html" %}{# seit 1.9.352: dieser Baustein ruft fehlerText() selbst auf #}
 {# _sidebar.html -- gemeinsame Navigations-Sidebar, per {% include %} eingebunden. Erwartet: request (von Jinja2Templates
    bereitgestellt) und bereich (die Seite setzt ihn als erste Anweisung, {% set bereich = "…" -%}; Wächter in
    tests/test_v441_rahmen_baustein.py). Rollenprüfung über can(current_user, …) (app/routers/pages.py) -- kein Rollenvergleich hier.
@@ -172,7 +173,7 @@
       })).then(function(resp){
         return resp.json().catch(function(){return {}}).then(function(data){
           if(!resp.ok){
-            errorEl.textContent=data.detail||'Anmeldung fehlgeschlagen.';
+            errorEl.textContent=fehlerText(data,resp.status,null,'Anmeldung fehlgeschlagen.');
             return;
           }
           // Seit 1.3.34: Administratoren müssen den zweiten Faktor erst bestätigen, bevor der

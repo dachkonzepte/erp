@@ -1,3 +1,4 @@
+{% include "_fehlertext.html" %}{# seit 1.9.352: dieser Baustein ruft fehlerText() selbst auf #}
 {% include "_speichern.html" %}
 {% include "_aktionen.html" %}
 <script>
@@ -70,8 +71,7 @@ async function postEmailDispatch(slot, url, payload, button) {
   if (r.status < 500) _dispatchKeys[slot] = newDispatchKey(slot);
   if (!r.ok) {
     if (r.status >= 500) throw Error('Serverfehler – ob die Mail hinausging, ist unklar. Bitte im Versandprotokoll prüfen; erneut klicken sendet nicht doppelt.');
-    const d = await r.json().catch(() => ({detail: r.statusText}));
-    throw Error(typeof d.detail === 'string' ? d.detail : 'Eingabe unvollständig oder ungültig.');
+    throw Error(fehlerText(await r.json().catch(() => null), r.status));
   }
   return r.json();
 }
@@ -205,8 +205,7 @@ async function saveDispatchOutcome(id, slot) {
     return;
   }
   if (!r.ok) {
-    const d = await r.json().catch(() => ({}));
-    msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : `Eingabe unvollständig oder ungültig (${r.status}).`);
+    msg.textContent = 'Fehler: ' + fehlerText(await r.json().catch(() => null), r.status);
     button.disabled = false;
   }
 }
@@ -257,7 +256,7 @@ function _dhRow(d, containerId, canRecord, mitDokument = false) {
 }
 async function _dhJson(url) {
   const r = await fetch(url);
-  if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  if (!r.ok) throw Error(fehlerText(await r.json().catch(() => null), r.status));
   return r.json();
 }
 /* Seit 1.8.95 über lesen() (_speichern.html): je Container ein Bereich -- ein spät ankommender, älterer Verlauf überschreibt nie
@@ -392,8 +391,8 @@ async function saveManualDelivery(containerId, type, id) {
   }
   if (r.status < 500) _dispatchKeys[slot] = newDispatchKey(slot);
   if (!r.ok) {
-    const d = r.status < 500 ? await r.json().catch(() => ({})) : {};
-    msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : (r.status >= 500 ? 'Serverfehler – bitte im Versandprotokoll prüfen; erneut klicken trägt nicht doppelt ein.' : 'Eingabe unvollständig oder ungültig.'));
+    const d = r.status < 500 ? await r.json().catch(() => null) : null;
+    msg.textContent = 'Fehler: ' + fehlerText(d, r.status, null, r.status >= 500 ? 'Serverfehler – bitte im Versandprotokoll prüfen; erneut klicken trägt nicht doppelt ein.' : undefined);
     button.disabled = false;
   }
 }

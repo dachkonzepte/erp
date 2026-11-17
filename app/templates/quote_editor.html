@@ -155,6 +155,7 @@ dialog{border:1px solid var(--line);padding:0;max-width:720px;width:calc(100% - 
 </div>
 </div>
 
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
@@ -162,7 +163,7 @@ dialog{border:1px solid var(--line);padding:0;max-width:720px;width:calc(100% - 
 <script>
 const quoteId={{ quote_id }};let contractBases=[],quote=null,services=[],catalogs=[],currentItem=null,currentCalc=null,dragNode=null,optionGroups=[],caseworkers=[],employees=[],existingOrder=null,legacyContactName=null,taxKeys=[],calendarEvents=[];
 const calendarModuleEnabled={{ 'true' if is_module_enabled('kalender') else 'false' }};
-const api=async(u,o={})=>{const r=await fetch(u,o);if(!r.ok){let m=`HTTP ${r.status}`;try{m=(await r.json()).detail||m}catch{}throw Error(m)}return r.headers.get('content-type')?.includes('json')?r.json():r.text()};
+const api=async(u,o={})=>{const r=await fetch(u,o);if(!r.ok){let j=null;try{j=await r.json()}catch{}throw Error(fehlerText(j,r.status))}return r.headers.get('content-type')?.includes('json')?r.json():r.text()};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(n||0));const fmt=n=>new Intl.NumberFormat('de-DE',{maximumFractionDigits:3}).format(Number(n||0));const v=id=>document.getElementById(id).value;const setv=(id,x)=>document.getElementById(id).value=x??'';
 function optionGroup(key){return optionGroups.find(g=>g.group_key===key)||{options:[]}}
 function activeOptions(key){return optionGroup(key).options.filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order)}

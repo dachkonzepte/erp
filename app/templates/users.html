@@ -26,6 +26,7 @@
 </div>
 </div>
 {% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_aktionen.html" %}
 {% include "_seitenkopf.html" %}
@@ -42,7 +43,7 @@ const ROLE_LABELS={admin:'Administrator',buero_finanzen:'Büro – Finanzen',bue
 function roleLabel(role){return ROLE_LABELS[role]||role}
 function onRoleFieldChange(){roleTouched=true}
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Error(d.detail||r.statusText);return d}
+async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Error(fehlerText(d,r.status));return d}
 function employeeName(id){const e=employees.find(x=>x.id===id);return e?`${e.employee_number||''} ${e.first_name} ${e.last_name}`.trim():'—'}
 function isAdmin(){return status.authenticated&&status.user?.role==='admin'}  // seit 1.8.130 ohne Ersteinrichtung im Browser
 function activeAdminCount(){return users.filter(u=>u.role==='admin'&&u.active).length}

@@ -182,3 +182,15 @@ jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich 
 | Nr. 4 – die Seite zeigt die Liste | Liste nicht gezeichnet (`351_1k`) | Klicktest 15 von 17 |
 
 8 Gegenproben (7 über Tests, 1 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2b, 1.9.352 (Punkt 0): fehlerText() überall
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 und 2 – keine Seite an fehlerText() vorbei (Stand bis 1.9.351) | Aufgaben: api() wie vorher, `detail` roh (`352_1`) | 2 rot: v752 Regel A, Regel B |
+| Nr. 2 – auch ohne `detail` | Änderungshistorie: `throw Error(r.statusText)` (`352_2`) | 1 rot: v752 Regel B |
+| Nr. 3 – wer aufruft, bindet ein | Aufgaben ohne Include (`352_3`) | 1 rot: v752::test_wer_fehlertext_aufruft_bindet_ihn_ein |
+| Nr. 3 – mehrfach einbindbar | `const _FEHLERARTEN` wie vorher (`352_4`) | 1 rot: v752 node (zweimal geladen: SyntaxError) |
+| Nr. 4 – Rückfalltext | ohne `ersatz` (`352_5`) | 1 rot: v752 node |
+
+5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

@@ -253,7 +253,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
     btn.textContent='Wird angelegt…';
     speichern('wartung',()=>fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'})).then(function(r){
       if(!r.ok){
-        return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Anlegen.')});
+        return r.json().catch(function(){return {}}).then(function(d){throw new Error(fehlerText(d,r.status,null,'Fehler beim Anlegen.'))});
       }
       return r.json();
     }).then(function(data){

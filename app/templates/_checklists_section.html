@@ -1,3 +1,4 @@
+{% include "_fehlertext.html" %}{# seit 1.9.352: dieser Baustein ruft fehlerText() selbst auf #}
 {# _checklists_section.html -- Abschnitt "Checklisten" für einen Kontext (seit 1.8.1, Modul
    "checklisten", siehe docs/archiv/modul-checklisten.md). EINE Implementierung für Büro- UND
    Monteursseiten (Auftrag, Objekt, Betriebsmittel, Betrieb) statt je Seite nachgebaut. Nur
@@ -50,13 +51,9 @@ if(!window.renderChecklistSection){
     var esc=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
     var param={auftrag:'order_id',objekt:'property_id',betriebsmittel:'operational_asset_id'}[context];
     var listUrl='/api/checklists?'+(param?param+'='+encodeURIComponent(contextId):'context='+encodeURIComponent(context));
-    // Lesbare Meldung über fehlerText(), wenn die einbindende Seite _fehlertext.html einbindet (seit
-    // 1.8.38); sonst nur ein Text-detail -- nie "[object Object]" aus einer 422-Liste.
-    var errText=function(d,status){
-      if(typeof window.fehlerText==='function')return window.fehlerText(d,status,{template_id:'Vorlage',order_id:'Auftrag'});
-      return d&&typeof d.detail==='string'?d.detail:'Fehler '+status;
-    };
-    var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(errText(d,r.status))});return r.json()})};
+    // Lesbare Meldung über fehlerText() (seit 1.8.38; seit 1.9.352 bindet dieser Baustein _fehlertext.html selbst ein).
+    var CL_FELDER={template_id:'Vorlage',order_id:'Auftrag'};
+    var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(fehlerText(d,r.status,CL_FELDER))});return r.json()})};
     el.innerHTML='<div class="cl-empty">Lädt …</div>';
     // Seit 1.8.97 über lesen() (_speichern.html), Bereich je Container: eine späte Antwort eines früheren Aufrufs für denselben
     // Container überschreibt nie eine neuere (veraltet -> nichts gezeichnet, auch kein Fehler).
@@ -97,7 +94,7 @@ if(!window.renderChecklistSection){
           var body={template_id:Number(btn.dataset.templateId),context_type:context,client_uuid:window.newClientUuid()};
           if(param)body[param]=contextId;
           speichern('checkliste-anlegen',()=>fetch('/api/checklists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).then(function(r){
-            return r.json().catch(function(){return null}).then(function(d){if(!r.ok)throw new Error(errText(d,r.status));return d});
+            return r.json().catch(function(){return null}).then(function(d){if(!r.ok)throw new Error(fehlerText(d,r.status,CL_FELDER));return d});
           }).then(function(c){location.href='/checklisten/'+c.id}).catch(function(err){
             btn.disabled=false;var e=el.querySelector('.cl-error');e.style.display='';e.textContent='Fehler: '+err.message;
           });

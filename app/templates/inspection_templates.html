@@ -86,6 +86,7 @@ td select{width:100%;max-width:360px;height:40px;padding:0 10px}
 </main>
 </div>
 </div>
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_auswahl.html" %}
 {% include "_zahl.html" %}{# seit 1.9.17: _auswahl.html formatiert Steuersätze über zahlText() #}
@@ -93,7 +94,7 @@ td select{width:100%;max-width:360px;height:40px;padding:0 10px}
 {% include "_seitenkopf.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
 
 let authStatus=null,templates=[],roofTypes=[],roofTypeDefaults=[],archivierteZeigen=false;
 

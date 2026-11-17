@@ -258,7 +258,7 @@ def test_mobil_meldet_nach_feierabend_per_post_ab():
     ("{ok:false,status:403,json:async()=>({detail:'Anfrage von einer fremden Seite abgelehnt.'})}", False,
      "Anfrage von einer fremden Seite abgelehnt."),
     ("{ok:false,status:409,json:async()=>({detail:'Noch kein Feierabend -- die Anmeldung bleibt bestehen.'})}", False, "Noch kein Feierabend"),
-    ("{ok:false,status:502,json:async()=>{throw new Error('kein JSON')}}", False, "HTTP 502."),
+    ("{ok:false,status:502,json:async()=>{throw new Error('kein JSON')}}", False, "Serverfehler (502)"),  # seit 1.9.352 über fehlerText()
     ("Promise.reject(new Error('Failed to fetch'))", False, "Failed to fetch"),
 ])
 def test_mobil_geht_nur_mit_beendeter_sitzung_zur_anmeldung(antwort, navigiert, meldung):
@@ -268,7 +268,10 @@ def test_mobil_geht_nur_mit_beendeter_sitzung_zur_anmeldung(antwort, navigiert, 
     text = _mobil()
     # seit 1.9.45 („Heute“) folgt auf feierabend() das Laden über lesen() (ladeHeute()), bis dahin der direkte fetch()
     js = text[text.index("  function feierabendFehler(text){"):text.index("  // Seit 1.9.45 über lesen()")]
-    script = ("const location={pathname:'/mobil',href:''};const fehler=[];function showError(m){fehler.push(m)}\n"
+    # seit 1.9.352 zeigt feierabend() die Ablehnung über fehlerText() -- der Baustein gehört dazu
+    from tests.vorlagen_js import TEMPLATES
+    baustein = "\n".join(re.findall(r"<script>(.*?)</script>", (TEMPLATES / "_fehlertext.html").read_text(encoding="utf-8"), re.S))
+    script = (baustein + "\nconst location={pathname:'/mobil',href:''};const fehler=[];function showError(m){fehler.push(m)}\n"
               "const gesendet=[];function fetch(u,o){gesendet.push([u,(o||{}).method]);return Promise.resolve(" + antwort + ")}\n"
               "async function speichern(b,f){return await f()}\n" + js
               + "\nfeierabend().then(()=>process.stdout.write(JSON.stringify({href:location.href,fehler,gesendet})))")

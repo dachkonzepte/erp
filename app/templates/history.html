@@ -18,12 +18,13 @@
 {% include "_seitenkopf.html" %}
 {% include "_berlin_date.html" %}
 {% include "_verlauf.html" %}
+{% include "_fehlertext.html" %}
 <script>
 // Seit 1.8.138 seitenweise (100 je Seite; ob ältere folgen, sagt der Server in X-DK-Weitere) statt bis zu 500 Einträge auf einmal;
 // Art lesbar (entity_type_label, app/verlauf_namen.py), der Filter schickt weiter die gespeicherte Art.
 let rows=[],seite=0,weitere=false;const SEITE=100;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(u){const r=await fetch(u);if(!r.ok)throw Error(r.statusText);return {zeilen:await r.json(),weitere:r.headers.get('X-DK-Weitere')==='1'}}
+async function api(u){const r=await fetch(u);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return {zeilen:await r.json(),weitere:r.headers.get('X-DK-Weitere')==='1'}}
 async function load(neueSeite=0){const t=document.getElementById('type').value,a=document.getElementById('actor').value.trim();
   const d=await api(`/api/audit-logs?limit=${SEITE}&offset=${neueSeite*SEITE}`+(t?'&entity_type='+encodeURIComponent(t):'')+(a?'&actor='+encodeURIComponent(a):''));
   seite=neueSeite;rows=d.zeilen;weitere=d.weitere;

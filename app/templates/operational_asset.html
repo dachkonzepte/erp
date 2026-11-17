@@ -181,6 +181,7 @@ tr:last-child td{border-bottom:none}
   <img id="printLabelImg" alt="QR-Code">
   <div id="printLabelName"></div>
 </div>
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_links.html" %}
@@ -188,7 +189,7 @@ tr:last-child td{border-bottom:none}
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 // seit 1.9.296 mit Status und Rückfrage am Fehler (409 „noch eingeplant“ beim Entfernen des Hakens)
-async function api(u,o){const r=await fetch(u,o);if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));const f=Error(d.detail||r.statusText);f.status=r.status;f.rueckfrage=d.rueckfrage||null;throw f}return r.json()}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok){const d=await r.json().catch(()=>({}));const f=Error(fehlerText(d,r.status));f.status=r.status;f.rueckfrage=d.rueckfrage||null;throw f}return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const assetId={{ asset_id }};
@@ -358,13 +359,13 @@ async function saveRecurringCost(netAmount,forceRemove){
   }),{anwenden:async r=>{asset=await r.json();render()}});
   if(resp.status===409){
     const body=await resp.json().catch(()=>({}));
-    const msg=(body.detail&&body.detail.message)||'Der verknüpfte Kostenposten trägt weitere Angaben.';
+    const msg=fehlerText(body,resp.status,null,'Der verknüpfte Kostenposten trägt weitere Angaben.');
     if(confirm(msg+'\n\nTrotzdem entfernen?')){
       return saveRecurringCost(netAmount,true);
     }
     throw Error('Laufende Kosten unverändert gelassen -- Entfernen abgebrochen.');
   }
-  if(!resp.ok)throw Error((await resp.json().catch(()=>({detail:resp.statusText}))).detail||resp.statusText);
+  if(!resp.ok)throw Error(fehlerText(await resp.json().catch(()=>null),resp.status));
   return asset;
 }
 
@@ -494,7 +495,7 @@ async function uploadInspectionDocument(id){
   const form=new FormData();form.append('file',file);
   try{
     const r=await speichern('betriebsmittel',()=>fetch(`/api/operational-asset-inspections/${id}/document`,{method:'POST',body:form}));
-    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));
     await reloadAsset();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -540,7 +541,7 @@ async function submitDocument(){
   if(notes)form.append('notes',notes);
   try{
     const r=await speichern('betriebsmittel',()=>fetch(`/api/operational-assets/${assetId}/documents`,{method:'POST',body:form}));
-    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));
     document.getElementById('docFile').value='';
     document.getElementById('docNotes').value='';
     st.textContent='';
@@ -626,7 +627,7 @@ async function markRepaired(){
   try{
     const r=await speichern('einsatzbereitschaft',()=>fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
     const data=await r.json().catch(()=>({}));
-    if(!r.ok){st.textContent=data.detail||'Fehler beim Speichern.';btn.disabled=false;return}
+    if(!r.ok){st.textContent=fehlerText(data,r.status,null,'Fehler beim Speichern.');btn.disabled=false;return}
     renderReadiness(data);
   }catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
 }

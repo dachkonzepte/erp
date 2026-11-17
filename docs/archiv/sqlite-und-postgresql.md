@@ -645,3 +645,50 @@ unter PostgreSQL an `StringDataRightTruncation` (live 500), drei weitere Tests s
 Bilder 1440 und 412 px, hell und dunkel). Angepasste Erwartungen (Regel 28): `test_v364` -- die festen Werte von `imported_addresses.classification`
 um „abgelehnt“ erweitert; `test_v460` -- der Kasten `.abgelehnt-box` in `KARTEN_OHNE_NAMEN` (Hinweiskasten mit der Ecke einer Karte; aufgefallen im vollen
 Lauf vor dem Commit).
+
+## Runde V2b ab 1.9.352: lesbare Fehler überall, Telefonbuch-Sortierung, Reihenfolge
+
+V2a geprüft (3578f0f) und live; die 12 Festlegungen 1.9.349–1.9.351 bestätigt (17.11.2026). Antworten Tobias: „[object Object]“ umstellen -- Punkt 0
+dieser Runde; Berater- und Mandantennummer nicht rot markieren, die Meldung unter den Feldern reicht.
+
+Runde ab 1.9.352, je Punkt eine Version: **0** jede Seite, die eine abgelehnte Antwort zeigt, nutzt fehlerText() (die Vorlagen aus H1 und CLAUDE.md),
+Wächter: keine Seite kann „[object Object]“ zeigen (1.9.352); **1** F6 Telefonbuch-Sortierung: Listen nach Namen ohne Groß- und Kleinschreibung, Umlaute
+beim Grundbuchstaben (Ä wie A, ß wie ss), unter SQLite und PostgreSQL gleich, unabhängig von der Kollation des Servers (C.UTF-8); Liste der betroffenen
+Listen in den Bericht; eine Migration ist erlaubt, wenn der Weg sie braucht; Bilder der Kundenliste mit Umlauten, Kleinbuchstaben und leerem Namen, 1440
+und 412 px, hell und dunkel (1.9.353); **2** Reihenfolge: die 26 Beziehungen und 49 Abfragen aus dem Befund (Abschnitt 3 E) sichten, jede Liste, die eine
+Antwort zeigt, bekommt eine feste Reihenfolge, leere Werte ausdrücklich ans Ende, Wächter (1.9.354).
+
+### Umsetzung 1.9.352: jede Seite zeigt eine abgelehnte Antwort über fehlerText() (Punkt 0)
+
+- **Bestand:** 37 Vorlagen zeigten eine abgelehnte Antwort an `fehlerText()` vorbei -- meist `throw Error(d.detail || r.statusText)` in der eigenen
+  `api()`: eine 422-Liste wurde zu „Fehler: [object Object]“, ein Status ohne Text zu Englisch („Unprocessable Entity“). Dazu eigene Ersatzlösungen (nur
+  ein Text-`detail`, sonst ein fester Satz) in Versand, Checklisten-Sektion, Leiste, Anmeldung.
+- **Umgestellt:** jede dieser Stellen ruft `fehlerText(body, status)`; wo die Seite bisher einen eigenen Satz zeigte, wenn die Antwort keinen Text trug
+  („Anmeldung fehlgeschlagen.“, „Für deine Rolle nicht verfügbar.“, „Keine Wartungshistorie für dieses Objekt.“, „Fehler beim Anlegen.“, „Fehler beim
+  Speichern.“, im Versand bei 5xx der Satz zum Versandprotokoll), bleibt er über den neuen vierten Parameter `ersatz`. Ein Text-`detail` erscheint wie
+  bisher unverändert. Neu ist nur, was vorher roh oder englisch war.
+- **Einbinden:** jede Vorlage, deren eigenes Skript `fehlerText()` aufruft, bindet `_fehlertext.html` selbst ein -- 31 kamen dazu, auch die Bausteine
+  Leiste, Versand, Checklisten-Sektion, Zeitliste, Abnahme und Mängel. Damit eine Seite den Baustein doppelt einbinden darf (selbst und über einen
+  Baustein), trägt er auf oberster Ebene nur `var` und eine Funktionsdeklaration (`_FEHLERARTEN` war `const`: ein zweites Einbinden wäre ein SyntaxError).
+- **Ausnahme:** `master_data_form.html` liest `detail` als Objekt (Teams: Rückfrage „laufende Gruppenzeit“ aus `detail.code`/`detail.message`); die
+  Meldung jeder anderen Ablehnung zeigt seine `api()` über `fehlerText()` -- in `AUSNAHMEN` mit Grund, die Liste darf nur kürzer werden.
+- **Wächter** `tests/test_v752_fehlertext_ueberall.py` (über die Skripte jeder Vorlage, Tokenizer aus `tests/vorlagen_js.py`): Regel A -- keine Vorlage liest
+  `.detail` (außer dem Baustein und `AUSNAHMEN`); Regel B -- jeder Zweig `if(!x.ok)`, der etwas zeigt oder wirft (throw, Error, alert, textContent,
+  innerHTML, confirm, eine Funktion „…Fehler…“), ruft `fehlerText()`; still endende Zweige (`return []`, `null`) zeigen nichts. Dazu: wer `fehlerText()`
+  aufruft, bindet ihn ein; der Baustein gibt für keine Form der Antwort „[object Object]“ zurück und lässt sich zweimal laden (node).
+- Seiten ohne eigene Feldnamen (`FELDNAMEN`) nennen in einer 422 den Namen des Felds aus der Schnittstelle („priority ist zu lang …“) -- wie seit 1.8.35
+  jede Seite ohne Feldnamen; nicht geändert, Hinweis im Bericht.
+
+#### Festlegungen 1.9.352 (Bitte bestätigen)
+
+1. Jede Vorlage zeigt eine abgelehnte Antwort nur über `fehlerText()`; keine liest `.detail` an ihm vorbei (Ausnahme mit Grund in `AUSNAHMEN`, die Liste
+   darf nur kürzer werden).
+2. Jeder Zweig einer Prüfung `!x.ok`, der etwas zeigt oder wirft, ruft `fehlerText()`; still endende Zweige bleiben still.
+3. Wer `fehlerText()` im eigenen Skript aufruft, bindet `_fehlertext.html` selbst ein, auch ein Baustein; der Baustein lässt sich mehrfach einbinden.
+4. `fehlerText()` nimmt einen Rückfalltext (`ersatz`) für Antworten ohne verwertbare Meldung; die bisherigen eigenen Sätze der Seiten bleiben so erhalten.
+
+#### Tests und Prüfung 1.9.352
+
+Neu `tests/test_v752_fehlertext_ueberall.py` (5 Tests: Regel A, Regel B, Einbinden, Probe jeder Form des Wächters, Baustein in node). Auf dem Stand von
+1.9.351 meldet der Wächter 103 Stellen in 37 Vorlagen (Regel A und B). Angepasste Erwartung (Regel 28): `test_v411_vorweg`, Feierabend in `/mobil`
+bei 502 ohne JSON -- „HTTP 502.“ -> „Serverfehler (502) …“ (Text aus `fehlerText()`); der Test führt das Skript in node jetzt mit dem Baustein aus.

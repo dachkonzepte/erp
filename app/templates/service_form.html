@@ -136,6 +136,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 </div>
 
 {% include "_auswahl.html" %}
+{% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
@@ -172,7 +173,7 @@ const v = id => document.getElementById(id)?.value ?? '';
 async function api(u, o) {
   const r = await fetch(u, o);
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw Error(d.detail || r.statusText);
+  if (!r.ok) throw Error(fehlerText(d, r.status));
   return d;
 }
 function money(n) { return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'}).format(Number(n||0)); }

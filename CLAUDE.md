@@ -1648,8 +1648,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Abgelehnte API-Antworten lesbar über `app/templates/_fehlertext.html`** (seit 1.8.35, `fehlerText(body, status,
   felder)`): `detail` als Text unverändert, als 422-Liste "Bitte die Eingabe prüfen – <Feld> <Art>." mit den
   Feldnamen der Seite, sonst ein Text je Status. Auftragsseite, seit 1.8.37 Projektmappe und Stammdaten (Liste,
-  Formular), seit 1.8.109 Einstellungen, Plantafel und Arbeitsvorbereitung; 28 weitere Vorlagen reichen `detail` noch roh an
-  `Error()` weiter ("[object Object]" bei 422) -- eine Seite, die man anfasst, stellt um.
+  Formular), seit 1.8.109 Einstellungen, Plantafel und Arbeitsvorbereitung; **seit 1.9.352 jede Vorlage** (bis dahin reichten 37 `detail` roh weiter,
+  "[object Object]" bei 422): keine liest `.detail` an `fehlerText()` vorbei, jeder Zweig `if(!x.ok)`, der etwas zeigt, ruft ihn, wer ihn aufruft, bindet
+  `_fehlertext.html` selbst ein (mehrfach einbindbar: nur `var` und Funktion); vierter Parameter `ersatz` für eine Antwort ohne Text. Wächter
+  `tests/test_v752_fehlertext_ueberall.py` (Ausnahme mit Grund in `AUSNAHMEN`, nur kürzer).
 - **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
   `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante
