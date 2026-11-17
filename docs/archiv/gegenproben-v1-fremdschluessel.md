@@ -277,3 +277,15 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 8 – Vorgabe über default_factory | Zweig entfernt (`357_9`) | 1 rot: v673 `test_vorgabe_ueber_default_factory_bleibt` |
 
 9 Gegenproben, alle rot (eine nach nachgezogenem Test); alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2c, 1.9.358 (Punkt 3): ein Baustein für LIKE
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jedes Zeichen wörtlich | `_schuetzen()` schützt nichts (`358_1`) | 3 rot: v758 Baustein, Verhalten unter SQLite und PostgreSQL |
+| Nr. 1, 3 – jedes Muster aus dem Baustein | Aufgaben wieder `f"%{search}%"` (`358_2`) | 3 rot: v758 Wächter, „50%“ fand „500“ unter SQLite und PostgreSQL |
+| Nr. 1 – Fluchtzeichen ausdrücklich | Material ohne `escape=ESCAPE` (`358_3`) | 2 rot: v758 Wächter, „A_1“ unter SQLite (PostgreSQL nimmt den Backslash ohnehin) |
+| Nr. 2 – interne Muster | Folgen je Unterschrift wieder mit rohem Präfix (`358_4`) | 1 rot: v758 Wächter |
+| Nr. 4 – keine Ausnahme | -- | über `358_2` bis `358_4` (der Wächter nennt jede Stelle; `AUSNAHMEN` ist leer) |
+
+4 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

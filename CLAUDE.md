@@ -1680,6 +1680,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   **Zahlenbereiche** (seit 1.9.357): jedes Eingabefeld, das in eine Spalte Numeric(p,s) oder Integer geht, hat `le`/`ge` bis zur Spalte -- Konstanten
   `NUMERIC_p_s`, `INT4_MIN`/`INT4_MAX`, für Numeric(18,…) `ZAHL_12` (999.999.999.999, genau in JSON und Meldung) oben in `app/schemas.py`; eine engere
   Grenze bleibt. Eine neue Spalte mit neuem (p,s) bekommt ihre Konstante. Wächter `tests/test_v757_zahlenbereiche.py` (`OFFEN` leer, `VORHER` je Feld).
+- **Suchmuster nur über `app/suchmuster.py`** (seit 1.9.358): jedes like/ilike nimmt sein Muster aus `enthaelt()`/`beginnt_mit()` und trägt
+  `escape=ESCAPE` -- „%“, „_“ und der Backslash gelten wörtlich, unter SQLite und PostgreSQL gleich; nie `f"%{text}%"`. Wächter
+  `tests/test_v758_suchmuster.py` (`AUSNAHMEN` leer).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,

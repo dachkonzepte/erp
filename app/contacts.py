@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import Contact, Customer, Project, ProjectParticipant, Supplier
+from .suchmuster import ESCAPE, enthaelt
 from .telefonbuch import nach_namen
 
 KINDS = {"person": "Person", "firma": "Firma"}
@@ -102,16 +103,16 @@ def contact_search_filter(term: str):
     """Ein Suchbegriff gegen Name, Firma, Funktion, Kontaktwege und Ort -- Adressbuch-Liste, Auswahl in der
     Projektmappe und Büro-Suche (app/search.py) suchen gleich; bei einem Eintrag mit Verweis in den Werten
     des Stammsatzes. Das Statement braucht with_sources()."""
-    pattern = f"%{term}%"
+    pattern = enthaelt(term)
     return or_(
-        Contact.company_name.ilike(pattern), Contact.first_name.ilike(pattern), Contact.last_name.ilike(pattern),
-        Contact.function.ilike(pattern), Contact.email.ilike(pattern), Contact.phone.ilike(pattern),
-        Contact.mobile.ilike(pattern), Contact.city.ilike(pattern),
-        (func.coalesce(Contact.first_name, "") + " " + func.coalesce(Contact.last_name, "")).ilike(pattern),
-        Customer.name.ilike(pattern), Customer.email.ilike(pattern), Customer.phone.ilike(pattern),
-        Customer.mobile.ilike(pattern), Customer.city.ilike(pattern),
-        Supplier.name.ilike(pattern), Supplier.email.ilike(pattern), Supplier.phone.ilike(pattern),
-        Supplier.city.ilike(pattern),
+        Contact.company_name.ilike(pattern, escape=ESCAPE), Contact.first_name.ilike(pattern, escape=ESCAPE), Contact.last_name.ilike(pattern, escape=ESCAPE),
+        Contact.function.ilike(pattern, escape=ESCAPE), Contact.email.ilike(pattern, escape=ESCAPE), Contact.phone.ilike(pattern, escape=ESCAPE),
+        Contact.mobile.ilike(pattern, escape=ESCAPE), Contact.city.ilike(pattern, escape=ESCAPE),
+        (func.coalesce(Contact.first_name, "") + " " + func.coalesce(Contact.last_name, "")).ilike(pattern, escape=ESCAPE),
+        Customer.name.ilike(pattern, escape=ESCAPE), Customer.email.ilike(pattern, escape=ESCAPE), Customer.phone.ilike(pattern, escape=ESCAPE),
+        Customer.mobile.ilike(pattern, escape=ESCAPE), Customer.city.ilike(pattern, escape=ESCAPE),
+        Supplier.name.ilike(pattern, escape=ESCAPE), Supplier.email.ilike(pattern, escape=ESCAPE), Supplier.phone.ilike(pattern, escape=ESCAPE),
+        Supplier.city.ilike(pattern, escape=ESCAPE),
     )
 
 

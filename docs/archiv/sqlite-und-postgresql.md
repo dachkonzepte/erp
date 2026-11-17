@@ -913,3 +913,29 @@ Neu `tests/test_v757_zahlenbereiche.py` (319 Tests, 313 davon je Feld). Ergänzt
 `test_vorgabe_ueber_default_factory_bleibt`. Angepasste Erwartung: Klicktest `klicktest_zahleneingaben.py`, „Anfahrt 30: Text“ -- „… Anfahrt je Tag
 ist zu groß.“ -> „… Anfahrt je Tag ist zu groß (muss kleiner als 24 sein).“ (die Meldung nennt jetzt die Grenze; zuerst stand dort „(kleiner als 24)“,
 im Klicktest gesehen und umformuliert).
+
+### Umsetzung 1.9.358: ein Baustein für LIKE (Punkt 3)
+
+- **Baustein** `app/suchmuster.py`: `enthaelt(text)` und `beginnt_mit(text)` schützen Backslash, „%“ und „_“, `ESCAPE` ist das Fluchtzeichen
+  (`x.ilike(enthaelt(t), escape=ESCAPE)`) -- wie bisher nur die Auftragssuche der Monteurin (`app/search.py::search_orders_for_field()`, seit 1.9.80).
+- **Umgestellt:** die 18 Muster des Befunds -- 17 in `app/search.py` (16 Quellen der Büro-Suche und die Objektsuche, mit 58 Spalten; dazu die schon
+  geschützte Auftragssuche jetzt über den Baustein) und das Adressbuch (`app/contacts.py::contact_search_filter()`, 18 Spalten). Dazu, über den Befund hinaus,
+  drei Filter mit Text vom Benutzer: Aufgaben (`app/tasks.py::list_tasks()`, Titel), Material (`app/materials.py::list_materials()`, Name und Artikelnummer)
+  und die Änderungshistorie (`app/audit.py::audit_rows()`, „Wer“); und zwei interne: der Verlauf des Kunden (`app/kunde_verlauf.py`, Kennung im
+  Schnappschuss) und die Folgen je Unterschrift (`app/checklist_follow_ups.py`, Schlüssel als Präfix -- „_“ in einem Schlüssel war dort ein Platzhalter).
+- **Verhalten:** „a\b“ findet unter PostgreSQL nicht mehr „ab“ (Befund P8), „50%“ nicht mehr „500“, „A_1“ nicht mehr „AB1“ -- unter SQLite und PostgreSQL
+  gleich. Ohne `ESCAPE` hätte unter SQLite der Backslash im Muster kein Fluchtzeichen (Gegenprobe `358_3`: nur SQLite rot).
+- **Wächter** `tests/test_v758_suchmuster.py`: jedes like/ilike unter `app/` nimmt sein Muster aus dem Baustein (direkt oder über eine Variable, die nur
+  aus ihm kommt, kein Parameter) und trägt `escape=ESCAPE`; `AUSNAHMEN` leer.
+
+#### Festlegungen 1.9.358 (Bitte bestätigen)
+
+1. Jedes LIKE-Muster unter `app/` kommt aus `app/suchmuster.py` (`enthaelt()`, `beginnt_mit()`) und trägt `escape=ESCAPE`: „%“, „_“ und der Backslash gelten
+   wörtlich, unter SQLite und PostgreSQL gleich.
+2. Auch interne Muster (Präfix eines Schlüssels, Kennung im Schnappschuss) gehen über den Baustein.
+3. Über die 18 des Befunds hinaus die Filter von Aufgaben, Material und Änderungshistorie.
+4. Der Wächter kennt keine Ausnahme (`AUSNAHMEN` leer, nur kürzer).
+
+#### Tests und Prüfung 1.9.358
+
+Neu `tests/test_v758_suchmuster.py` (5 Tests, einer gegen PostgreSQL). Keine angepasste Erwartung.

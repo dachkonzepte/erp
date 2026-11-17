@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from . import akte_verlauf
 from .akte_verlauf import Gruppe
 from .models import AuditLog, CustomerDocument, CustomerExtraInfo, Inquiry, Payment, Property, RoofArea
+from .suchmuster import ESCAPE, enthaelt
 
 ARTEN = ("aenderung", "versand", "zahlung")
 # Art im Änderungsprotokoll -> (Modell, Spalte mit dem Kunden)
@@ -38,7 +39,7 @@ def _aus_schnappschuss(db: Session, typ: str, spalte: str, werte) -> dict[str, d
     werte = [str(w) for w in werte]
     if not werte:
         return {}
-    muster = or_(*[AuditLog.details.like(f'%"{spalte}": "{w}"%') for w in werte])
+    muster = or_(*[AuditLog.details.like(enthaelt(f'"{spalte}": "{w}"'), escape=ESCAPE) for w in werte])
     out: dict[str, dict] = {}
     for kennung, aktion, zeit in db.execute(select(AuditLog.entity_id, AuditLog.action, AuditLog.occurred_at).where(
             AuditLog.entity_type == typ, AuditLog.action.in_(("angelegt", "gelöscht")), muster)):

@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.358 – Suchmuster mit geschützten Zeichen
+
+Punkt 3 der Runde V2c (Befund SQLite/PostgreSQL, Abschnitt 3 F). Ein Suchtext ging roh in ein LIKE-Muster: „%“ und „_“ wirkten als Platzhalter, der Backslash unter PostgreSQL als Fluchtzeichen -- die Büro-Suche „a\b“ fand dort „ab“, „50%“ fand „500“. Jetzt baut jedes Muster ein Baustein (`app/suchmuster.py`: `enthaelt()`, `beginnt_mit()`, Fluchtzeichen ausdrücklich), für die 18 Muster des Befunds und dazu die Filter von Aufgaben, Material und Änderungshistorie sowie zwei interne.
+
+Neu `tests/test_v758_suchmuster.py` mit Wächter und einem Test gegen PostgreSQL. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.357 – Jedes Zahlenfeld mit Grenzen bis zur Spalte
 
 Punkt 2 der Runde V2c (Befund SQLite/PostgreSQL, Abschnitt 3 G). SQLite speichert jede Zahl, PostgreSQL lehnt einen Wert ab, der nicht in seine Spalte passt -- live 500 statt einer Meldung (Befund P6: Wochenstunden 100000). Jetzt hat jedes Eingabefeld, das in eine Spalte Numeric(p,s) oder Integer geht, Grenzen bis zur Spalte: 98 Numeric- und 150 Integer-Felder, gesetzt in 239 Definitionen; eine engere Grenze, die schon da war, bleibt. Zu groß heißt 422, und die Seite nennt die Grenze („Dachneigung ist zu groß (höchstens 999,99)“). Dabei behoben: seit 1.9.356 gab das Antwortschema des Kunden beim Import eine Warnung (die Vorgabe der Zusatzinfos ging verloren).

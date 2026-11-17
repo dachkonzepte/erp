@@ -46,6 +46,7 @@ from .models import (
     ChecklistTemplateVersion, OrderAcceptance, Task,
 )
 from .modules import is_module_enabled
+from .suchmuster import ESCAPE, beginnt_mit
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ def _close_lapsed_rows(db: Session, checklist: Checklist, specs) -> None:
         valid = row_key(spec, current) if current is not None else None
         rows = db.scalars(select(ChecklistFollowUp).where(
             ChecklistFollowUp.checklist_id == checklist.id, ChecklistFollowUp.status.in_(OPEN_STATUSES),
-            ChecklistFollowUp.follow_up_key.like(spec.key + SIGNATURE_KEY_SEPARATOR + "%")).order_by(ChecklistFollowUp.id)).all()
+            ChecklistFollowUp.follow_up_key.like(beginnt_mit(spec.key + SIGNATURE_KEY_SEPARATOR), escape=ESCAPE)).order_by(ChecklistFollowUp.id)).all()
         for row in rows:
             if row.follow_up_key != valid:
                 db.execute(update(ChecklistFollowUp)
