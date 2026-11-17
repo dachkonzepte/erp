@@ -141,3 +141,18 @@ Punkt 1 der Runde (nur geprüft) hat keine Festlegung und keine Gegenprobe: er b
 | Nr. 1 – „Alle Sitzungen beenden“ über `kontoName()` | alter Text (`347_2`, `347_2k`) | 1 rot: v745; Klicktest 12 von 13 |
 
 4 Gegenproben (2 über den Test, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2a, 1.9.349 (Punkt 0): E9 und E10
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Vorlage eines Wartungsvertrags sperrt | Eintrag aus `PROJEKT_SPERREN` genommen (`349_2`) | 2 rot: v749 Vertrag (am Fremdschlüssel), Wächter `projects` |
+| Nr. 1 – Vorlage einer Position sperrt | Eintrag herausgenommen (`349_3`) | 2 rot: v749 Position (am Fremdschlüssel), Wächter `projects` |
+| Nr. 2 – Eingangsrechnung sperrt | Eintrag herausgenommen (`349_4`) | 3 rot: v749 Eingangsrechnungen, mehrere Gründe (am Fremdschlüssel), Wächter `projects` |
+| Nr. 1–3 – `delete_project()` prüft | ohne Prüfung (`349_1`) | 5 rot: die vier aus v749 und v746 Aufgabe (je am Fremdschlüssel) |
+| Nr. 3 – Zahl und Verb | immer „hängt“ (`349_5`) | 3 rot: v746 zwei Aufgaben, v749 zwei Eingangsrechnungen, mehrere Gründe |
+| Nr. 1–3 – mit Rat | Meldung ohne Rat (`349_6`) | 5 rot: v749 alle vier, v746 Aufgabe |
+| Nr. 4 – jeder Fremdschlüssel eingeordnet | siehe `349_2`–`349_4` (der Wächter ist je rot) | -- |
+
+6 Gegenproben, alle rot; dazu zuerst `349_2`–`349_4` mit umbenannter Tabelle statt herausgenommenem Eintrag -- rot aus dem falschen Grund (KeyError in
+jedem Löschen), verworfen und so wie oben wiederholt. Alle Dateien byte-gleich zurück, kein Marker unter `app/`.

@@ -95,7 +95,7 @@ def test_projekt_ohne_aufgabe_geht_wie_bisher(threaded_db_session, router_test_c
 
 
 # Was delete_project() mit jedem Fremdschlüssel auf projects tut. OFFEN: scheitert heute am Fremdschlüssel (live 500), nicht entschieden -- darf nur
-# kürzer werden (Funde 17.11.2026, Bericht der Runde ab 1.9.346).
+# kürzer werden (Funde 17.11.2026, Bericht der Runde ab 1.9.346); seit 1.9.349 leer (E9, E10 sperren mit 409, app/projects.py::PROJEKT_SPERREN).
 PROJEKT_FREMDSCHLUESSEL = {
     ("project_profiles", "project_id"): "geht mit (Kaskade)",
     ("project_documents", "project_id"): "geht mit (Kaskade)",
@@ -105,15 +105,14 @@ PROJEKT_FREMDSCHLUESSEL = {
     ("calendar_events", "project_id"): "gelöst (unlink_calendar_events_for_project)",
     ("orders", "project_id"): "sperrt (400, nur archivieren)",
     ("tasks", "project_id"): "sperrt (409, E8)",
+    ("maintenance_contracts", "template_project_id"): "sperrt (409, E9, seit 1.9.349)",
+    ("maintenance_contract_items", "template_project_id"): "sperrt (409, E9, seit 1.9.349)",
+    ("incoming_invoices", "project_id"): "sperrt (409, E10, seit 1.9.349)",
     ("time_entries", "project_id"): "nur mit Auftrag -- sperrt über orders",
     ("time_entry_groups", "project_id"): "nur mit Auftrag -- sperrt über orders",
     ("findings", "follow_up_project_id"): "Vorgang aus einem Befund hat einen Auftrag -- sperrt über orders",
 }
-OFFEN = {
-    ("maintenance_contracts", "template_project_id"): "Vorlage eines Wartungsvertrags",
-    ("maintenance_contract_items", "template_project_id"): "Vorlage einer Position eines Wartungsvertrags",
-    ("incoming_invoices", "project_id"): "Eingangsrechnung am Projekt",
-}
+OFFEN: dict = {}
 
 
 def test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet():
@@ -121,3 +120,6 @@ def test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet():
     eingeordnet = set(PROJEKT_FREMDSCHLUESSEL) | set(OFFEN)
     assert not set(PROJEKT_FREMDSCHLUESSEL) & set(OFFEN)
     assert alle == eingeordnet, f"nicht eingeordnet: {sorted(alle - eingeordnet)}; veraltet: {sorted(eingeordnet - alle)}"
+    # seit 1.9.349: was mit 409 sperrt, prüft delete_project() über PROJEKT_SPERREN
+    from app.projects import PROJEKT_SPERREN
+    assert {k for k, v in PROJEKT_FREMDSCHLUESSEL.items() if v.startswith("sperrt (409")} == set(PROJEKT_SPERREN)

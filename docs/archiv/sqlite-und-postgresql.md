@@ -519,3 +519,48 @@ und einer Sitzung für Bea, 13 Prüfungen). Angepasste Erwartungen (Regel 28): v
 Nur Testablauf: `_run` gibt die erste Aktion frei, sobald eine Verbindung nachweislich auf ihre Sperre wartet (`pg_blocking_pids()`), statt nach einer festen
 Sekunde; der Wackler `test_v369` vom 17.11.2026 ist damit behoben. Herleitung, zwei Festlegungen zu Werkzeug und Testablauf, sieben angepasste
 Erwartungen und die Gegenprobe: `docs/archiv/testablauf-und-klicktests.md`, „Umsetzung 1.9.348“.
+
+## Runde V2a ab 1.9.349: E9, E10, Längen, Adressimport, Berater- und Mandantennummer
+
+Runde ab 1.9.346 geprüft (6e78ae8) und live; die 5 Festlegungen 1.9.346–1.9.347 und die 2 zum Testablauf aus 1.9.348 bestätigt, 1.9.343-2 gilt ohne
+Vorbehalt (17.11.2026). Antworten Tobias:
+- **E9 und E10:** B wie empfohlen -- 409 mit Grund und Rat wie bei E8.
+- **V2** kommt in drei Runden: V2a Längen und Adressimport, V2b Sortierung und Reihenfolge (F6), V2c Zahlenbereiche und Suchmuster. Jetzt V2a.
+
+Runde ab 1.9.349, je Punkt eine Version: **0** E9 und E10, je mit einem Test, der vorher rot war (1.9.349); **1** Längen: jedes Eingabefeld, das in eine
+Spalte String(n) geht, bekommt max_length ≤ n (die 89 aus dem Befund, Abschnitt 3 A), zu lang heißt 422 mit Feld und Grenze, nie 500; Wächter: die Liste
+der offenen Felder darf nur kürzer werden und ist am Ende leer (1.9.350); **2** Adressimport (F7): jede Zeile einzeln prüfen, eine Zeile mit zu langem
+Wert abgelehnt, nicht gekürzt, die übrigen gehen durch; die Antwort nennt je abgelehnter Zeile Zeilennummer, Feld und Grenze, die Seite zeigt die
+Liste; Bilder 1440 und 412 px, hell und dunkel (1.9.351); **3** Berater- und Mandantennummer in den Zeitregeln: nur Ziffern, höchstens 7 bzw. 5
+Stellen, Meldung am Feld statt 500, falls es das nicht schon gibt (1.9.352).
+
+### Umsetzung 1.9.349: Projekt als Vorlage eines Wartungsvertrags oder mit Eingangsrechnung nicht löschen (Punkt 0, E9, E10)
+
+- `app/projects.py::PROJEKT_SPERREN` und `projekt_sperren()`: was das Löschen eines Projekts ohne Auftrag sperrt, je Fremdschlüssel mit Bezeichnung in
+  Einzahl und Mehrzahl und Rat -- Aufgaben (E8, seit 1.9.346), Vorlage eines Wartungsvertrags (`maintenance_contracts.template_project_id`) und einer
+  Position (`maintenance_contract_items.template_project_id`, E9), Eingangsrechnungen (`incoming_invoices.project_id`, E10). `delete_project()` antwortet
+  mit einer Meldung für alles zusammen, 409:
+  „Am Projekt hängt noch 1 Wartungsvertrag, der es als Vorlage nimmt – deshalb lässt es sich nicht löschen. Archiviere das Projekt stattdessen oder
+  wähle im Wartungsvertrag eine andere Vorlage.“
+  „Am Projekt hängen noch 2 Eingangsrechnungen – … oder ordne die Eingangsrechnungen einem anderen Projekt zu.“
+  „Am Projekt hängen noch 1 Aufgabe und 1 Eingangsrechnung – … oder lösche zuerst seine Aufgaben und ordne die Eingangsrechnung einem anderen Projekt zu.“
+  Nur Aufgaben: unverändert wie 1.9.346. Der Rat nennt, was es im Bestand gibt: die Vorlage wählt man im Vertrag und in der Position beim Bearbeiten
+  („Vorlage“), das Projekt einer Eingangsrechnung in ihrem Formular („Projekt“).
+- Bis 1.9.348 scheiterte das Löschen an jedem davon am Fremdschlüssel (live 500). Der Wächter über die Fremdschlüssel auf `projects`
+  (`tests/test_v746_aufgabe_und_projekt_loeschen.py`) hat kein `OFFEN` mehr; was dort „sperrt (409“ heißt, steht genau in `PROJEKT_SPERREN`.
+
+#### Festlegungen 1.9.349 (Bitte bestätigen)
+
+1. Ein Projekt ohne Auftrag, das Vorlage eines Wartungsvertrags oder einer Position ist, wird nicht gelöscht: 409 mit dem Rat, es zu archivieren oder im
+   Vertrag bzw. in der Position eine andere Vorlage zu wählen.
+2. Ein Projekt ohne Auftrag, an dem eine Eingangsrechnung hängt, wird nicht gelöscht: 409 mit dem Rat, es zu archivieren oder die Eingangsrechnung einem
+   anderen Projekt zuzuordnen.
+3. Hängt mehreres daran, nennt eine Meldung alles mit Zahl und alle Räte; nur Aufgaben wie seit 1.9.346.
+4. Was das Löschen mit 409 sperrt, steht in `PROJEKT_SPERREN`; jeder Fremdschlüssel auf `projects` ist im Wächter eingeordnet, `OFFEN` ist leer.
+
+#### Tests und Prüfung 1.9.349
+
+Neu `tests/test_v749_projekt_vorlage_und_eingangsrechnung.py` (4 Tests): Vorlage eines Wartungsvertrags, Vorlage einer Position, zwei
+Eingangsrechnungen, Aufgabe und Eingangsrechnung zusammen. Ohne den jeweiligen Eintrag in `PROJEKT_SPERREN` (`349_2`–`349_4`) scheitern die Fälle am
+Fremdschlüssel -- vorher rot. Angepasste Erwartung (Regel 28): `test_v746::test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet` -- die drei
+Fremdschlüssel stehen nicht mehr in `OFFEN`, sondern als „sperrt (409, E9/E10)“, und alles, was mit 409 sperrt, muss in `PROJEKT_SPERREN` stehen.

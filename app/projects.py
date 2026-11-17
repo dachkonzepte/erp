@@ -12,7 +12,7 @@ from .contract_basis import clause_is_reviewed, contract_basis_label, default_co
 from .models import (
     ContractBasisClause, Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
-    QuoteEmployeeAssignment, Task, TaxKey,
+    QuoteEmployeeAssignment, TaxKey,
 )
 from .project_documents import project_directory
 from .project_pipeline_columns import default_pipeline_column_id
@@ -938,7 +938,49 @@ def set_project_archived(db: Session, project: Project, archived: bool) -> Proje
 
 
 class ProjektVerwendet(ValueError):
-    """Am Projekt hängt noch etwas, das nicht mit ihm gehen darf (seit 1.9.346, E8: Aufgaben) -- der Router antwortet mit 409."""
+    """Am Projekt hängt noch etwas, das nicht mit ihm gehen darf (seit 1.9.346, E8: Aufgaben; seit 1.9.349 E9, E10) -- der Router antwortet mit
+    409."""
+
+
+# Was das Löschen eines Projekts ohne Auftrag sperrt (seit 1.9.346 E8, seit 1.9.349 E9 und E10, Entscheidung Tobias 17.11.2026: 409 mit Grund und
+# Rat): je Fremdschlüssel auf projects die Bezeichnung in Einzahl und Mehrzahl und der Rat, wie man es löst. Bis dahin scheiterte das Löschen an
+# jedem davon am Fremdschlüssel (live 500). Was delete_project() mit jedem anderen Fremdschlüssel tut, hält
+# tests/test_v746_aufgabe_und_projekt_loeschen.py fest -- ein neuer kommt dort oder hier hinein.
+PROJEKT_SPERREN = {
+    ("tasks", "project_id"): ("Aufgabe", "Aufgaben", "lösche zuerst seine Aufgaben", "lösche zuerst seine Aufgaben"),
+    ("maintenance_contracts", "template_project_id"): (
+        "Wartungsvertrag, der es als Vorlage nimmt", "Wartungsverträge, die es als Vorlage nehmen",
+        "wähle im Wartungsvertrag eine andere Vorlage", "wähle in den Wartungsverträgen eine andere Vorlage"),
+    ("maintenance_contract_items", "template_project_id"): (
+        "Position eines Wartungsvertrags, die es als Vorlage nimmt", "Positionen von Wartungsverträgen, die es als Vorlage nehmen",
+        "wähle in der Position eine andere Vorlage", "wähle in den Positionen eine andere Vorlage"),
+    ("incoming_invoices", "project_id"): ("Eingangsrechnung", "Eingangsrechnungen", "ordne die Eingangsrechnung einem anderen Projekt zu",
+                                          "ordne die Eingangsrechnungen einem anderen Projekt zu"),
+}
+
+
+def _und(teile: list[str]) -> str:
+    return teile[0] if len(teile) == 1 else ", ".join(teile[:-1]) + " und " + teile[-1]
+
+
+def projekt_sperren(db: Session, project_id: int) -> str | None:
+    """Die Meldung, warum das Projekt nicht gelöscht wird (PROJEKT_SPERREN), oder None. Nur ein Bereich: wie seit 1.9.346 „Am Projekt hängt noch 1
+    Aufgabe – …“."""
+    from .database import Base
+
+    teile, raete, gesamt = [], [], 0
+    for (tabelle, spalte), (einzahl, mehrzahl, rat_einzahl, rat_mehrzahl) in PROJEKT_SPERREN.items():
+        t = Base.metadata.tables[tabelle]
+        n = db.scalar(select(func.count()).select_from(t).where(t.c[spalte] == project_id))
+        if n:
+            teile.append(f"{n} {einzahl if n == 1 else mehrzahl}")
+            raete.append(rat_einzahl if n == 1 else rat_mehrzahl)
+            gesamt += n
+    if not teile:
+        return None
+    verb = "hängt" if gesamt == 1 else "hängen"
+    return (f"Am Projekt {verb} noch {_und(teile)} – deshalb lässt es sich nicht löschen. "
+            f"Archiviere das Projekt stattdessen oder {_und(raete)}.")
 
 
 def delete_project(db: Session, project: Project) -> None:
@@ -978,13 +1020,11 @@ def delete_project(db: Session, project: Project) -> None:
     Regel 6) samt Vollmacht-Belegen -- die Kontakte selbst bleiben im Adressbuch."""
     if project.orders:
         raise ValueError("Projekte mit bestehendem Auftrag können nicht gelöscht werden, nur archiviert.")
-    # Seit 1.9.346 (E8, Entscheidung Tobias 17.11.2026): Aufgaben am Projekt gehen nicht mit -- 409 mit dem Rat, zu archivieren oder zuerst die
-    # Aufgaben zu löschen. Bis 1.9.345 scheiterte das Löschen am Fremdschlüssel tasks.project_id (live 500).
-    aufgaben = db.scalar(select(func.count()).select_from(Task).where(Task.project_id == project.id))
-    if aufgaben:
-        raise ProjektVerwendet(
-            ("Am Projekt hängt noch 1 Aufgabe" if aufgaben == 1 else f"Am Projekt hängen noch {aufgaben} Aufgaben")
-            + " – deshalb lässt es sich nicht löschen. Archiviere das Projekt stattdessen oder lösche zuerst seine Aufgaben.")
+    # Seit 1.9.346 (E8) Aufgaben, seit 1.9.349 (E9, E10) auch Vorlage eines Wartungsvertrags oder einer Position und Eingangsrechnungen: gehen nicht
+    # mit -- 409 mit Grund und Rat (projekt_sperren()). Bis dahin scheiterte das Löschen am Fremdschlüssel (live 500).
+    sperre = projekt_sperren(db, project.id)
+    if sperre:
+        raise ProjektVerwendet(sperre)
     from .calendar_events import unlink_calendar_events_for_project
     from .project_participants import delete_participants_of_project, power_of_attorney_path
     unlink_calendar_events_for_project(db, project.id)

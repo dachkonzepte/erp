@@ -2393,8 +2393,8 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
   Vermerk (`app/service_reports.py::folgeaufgabe_angefasst()`, `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.343“).
 - ~~Aufgabe löschen, auf die ein Befund oder eine Checklisten-Regel zeigt, und Projekt ohne Auftrag mit Aufgabe löschen scheitern am Fremdschlüssel~~
   (E7, E8) -- seit 1.9.346 je 409 mit Grund und Rat (`app/tasks.py::aufgabe_verwendungen()`, `app/projects.py::delete_project()`).
-- **Projekt löschen, das Vorlage eines Wartungsvertrags ist oder an dem eine Eingangsrechnung hängt, scheitert am Fremdschlüssel** (E9, E10; gefunden
-  17.11.2026, live 500, nicht gebaut): `OFFEN` in `tests/test_v746_aufgabe_und_projekt_loeschen.py`, `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.346“.
+- ~~Projekt löschen, das Vorlage eines Wartungsvertrags ist oder an dem eine Eingangsrechnung hängt, scheitert am Fremdschlüssel~~ (E9, E10) -- seit
+  1.9.349 409 mit Grund und Rat (`app/projects.py::PROJEKT_SPERREN`, `projekt_sperren()`); jeder Fremdschlüssel auf `projects` eingeordnet.
 - ~~Wartungsvertrag löschen scheitert unter PostgreSQL mit 500 (E6)~~ -- seit 1.9.341 lehnen Vertrag und Position mit Geschichte (Projekt oder
   Bericht, auch Entwurf) mit 409 ab, Rat: beenden bzw. archivieren (`app/maintenance_contracts.py`, `docs/archiv/sqlite-und-postgresql.md`).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
