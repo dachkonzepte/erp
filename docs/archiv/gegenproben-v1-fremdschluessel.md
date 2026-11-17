@@ -114,3 +114,21 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 1 – „Deaktivieren“ nimmt `kontoName()` | alter Text bei „Deaktivieren“ (`345_3`) | 1 rot: v745 |
 
 5 Gegenproben (3 über den Test, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde ab 1.9.346, 1.9.346 (Punkt 2): E7 und E8
+
+Punkt 1 der Runde (nur geprüft) hat keine Festlegung und keine Gegenprobe: er bestätigt 1.9.343-2 durch eine Probe, ändert nichts.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Aufgabe mit Verweis nicht löschen (Stand bis 1.9.345) | ohne Prüfung in `aufgabe_loeschen()` (`346_1`) | 2 rot, je am Fremdschlüssel: v746 Befund, Checklisten-Regel |
+| Nr. 1 – Antwort 409 | 400 statt 409 (`346_4`, `app/routers/tasks.py`) | 2 rot: dieselben |
+| Nr. 1 – mit Rat | Meldung ohne Rat (`346_8`) | 2 rot: dieselben |
+| Nr. 1 und 2 – Befund eingeordnet | Befund aus `VERWEISE_AUF_AUFGABEN` genommen (`346_2`) | 2 rot: v746 Befund (am Fremdschlüssel), Wächter `tasks` |
+| Nr. 1 und 2 – Regel eingeordnet | Regel aus `VERWEISE_AUF_AUFGABEN` genommen (`346_3`) | 2 rot: v746 Checklisten-Regel (am Fremdschlüssel), Wächter `tasks` |
+| Nr. 3 – Projekt mit Aufgabe nicht löschen (Stand bis 1.9.345) | ohne Prüfung in `delete_project()` (`346_5`) | 1 rot (am Fremdschlüssel): v746::test_projekt_mit_aufgabe_nicht_loeschen |
+| Nr. 3 – Antwort 409 | 400 statt 409 (`346_6`, `app/routers/projects.py`) | 1 rot: derselbe |
+| Nr. 3 – mit Rat | Meldung ohne Rat (`346_7`) | 1 rot: derselbe |
+| Nr. 4 – jeder Fremdschlüssel auf `projects` eingeordnet | ein Eintrag aus der Einordnung genommen (`346_9`, im Test) | 1 rot: v746::test_jeder_fremdschluessel_auf_projekte_ist_eingeordnet |
+
+9 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

@@ -13,7 +13,7 @@ referenziert aber TaskColumn.key statt eines Literals."""
 
 from datetime import date, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
@@ -413,12 +413,41 @@ def set_task_archived(db: Session, task_id: int, archived: bool) -> dict | None:
 
 ANLASS_VON_HAND = "von Hand"
 
+# Seit 1.9.346 (E7, Entscheidung Tobias 17.11.2026): zeigt etwas auf eine Aufgabe, wird sie nicht gelöscht -- 409 mit dem Grund und dem Rat, sie zu
+# erledigen oder zu archivieren (bis 1.9.345 scheiterte das Löschen am Fremdschlüssel, live 500). Jeder Fremdschlüssel auf tasks steht in
+# MIT_DER_AUFGABE oder VERWEISE_AUF_AUFGABEN; ein neuer kommt dort hinein (Wächter tests/test_v746_aufgabe_und_projekt_loeschen.py).
+MIT_DER_AUFGABE = {("task_checklist_items", "task_id"): "Unteraufgaben (Kaskade an Task.checklist_items)"}
+VERWEISE_AUF_AUFGABEN = {
+    ("findings", "follow_up_task_id"): "einem Befund im Einsatzbericht",
+    ("checklist_rule_executions", "task_id"): "einer Regel einer Checkliste",
+}
+
+
+class AufgabeVerwendet(ValueError):
+    """Etwas zeigt auf die Aufgabe (seit 1.9.346, E7) -- der Router antwortet mit 409."""
+
+
+def aufgabe_verwendungen(db: Session, task_id: int) -> list[str]:
+    """Wozu die Aufgabe gehört (Bereiche aus VERWEISE_AUF_AUFGABEN), leer = nichts zeigt auf sie."""
+    from .database import Base
+
+    bereiche = []
+    for (tabelle, spalte), bereich in VERWEISE_AUF_AUFGABEN.items():
+        t = Base.metadata.tables[tabelle]
+        if db.scalar(select(func.count()).select_from(t).where(t.c[spalte] == task_id)):
+            bereiche.append(bereich)
+    return bereiche
+
 
 def aufgabe_loeschen(db: Session, task: Task, anlass: str, user: AppUser | None = None) -> None:
     """Der eine Weg, eine Aufgabe zu löschen (seit 1.9.344): merkt Anlass und Konto an der Aufgabe und löscht sie, die Unteraufgaben gehen per
     Kaskade mit. Den Eintrag in der Änderungshistorie (Titel, Konto, Zeitpunkt, Anlass) schreibt app/audit.py::collect_audit() im Flush -- auch
     für ein Löschen an diesem Weg vorbei, dann „ohne Angabe“. Ein Löschen über die Tabelle (delete(Task), SQL) sähe sie nicht: verboten, Wächter
-    tests/test_v744_aufgaben_loeschen_historie.py. Committet nicht."""
+    tests/test_v744_aufgaben_loeschen_historie.py. Seit 1.9.346 nicht, wenn etwas auf die Aufgabe zeigt (AufgabeVerwendet). Committet nicht."""
+    bereiche = aufgabe_verwendungen(db, task.id)  # seit 1.9.346 (E7)
+    if bereiche:
+        raise AufgabeVerwendet(f"Die Aufgabe gehört zu {' und '.join(bereiche)} – deshalb lässt sie sich nicht löschen. "
+                               "Erledige oder archiviere sie stattdessen.")
     setattr(task, LOESCHANLASS, (anlass, user))
     db.delete(task)
 

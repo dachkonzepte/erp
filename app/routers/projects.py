@@ -26,7 +26,7 @@ from ..permissions import GELD_DOKUMENTE, ROLE_OFFICE_AUFTRAG, darf_geld, requir
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..project_participants import ClientChangeConflict, check_client_change
 from ..project_pipeline_columns import default_pipeline_column_id
-from ..projects import delete_project, duplicate_project, ensure_quote_structure, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
+from ..projects import ProjektVerwendet, delete_project, duplicate_project, ensure_quote_structure, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
 from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectPipelineColumnMove, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
 from ..settings import load_general_settings
@@ -122,6 +122,8 @@ def delete_project_endpoint(project_id: int, db: Session = Depends(get_db, scope
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     try:
         delete_project(db, project)
+    except ProjektVerwendet as e:  # seit 1.9.346 (E8): Aufgaben am Projekt
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"deleted": True}

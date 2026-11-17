@@ -432,3 +432,66 @@ hießen dann „Task“ -- nachgezogen, er zählt jetzt alle Einträge; danach r
 Neu `tests/test_v745_benutzer_rueckfrage.py` (node: beide Rückfragen mit einem Konto, dessen Anzeigename Markup enthält -- `confirm()` zeigt Text) und
 `scripts/klicktest_benutzer_rueckfrage.py` (11 Prüfungen: bei 412 px kein Name neben dem Knopf, beide Rückfragen abgebrochen ohne Änderung, Löschen
 bestätigt, Bilder 412 px hell und dunkel). Angepasste Erwartungen: keine.
+
+## Runde ab 1.9.346: E7, E8, Rückfragen auf „Benutzer“, `_run` in v363 und v365
+
+Runde ab 1.9.343 geprüft (e0f1c16) und live; die 11 Festlegungen 1.9.343–1.9.345 bestätigt (17.11.2026), 1.9.343-2 unter dem Vorbehalt von Punkt 1.
+Antworten Tobias:
+- **E7:** B -- 409 mit Grund und dem Rat, die Aufgabe zu erledigen oder zu archivieren.
+- **E8:** B -- 409 mit Grund und dem Rat, das Projekt abzusagen oder zuerst die Aufgaben zu löschen. Rückfrage 17.11.2026: „absagen“ gibt es für ein
+  Projekt nicht (vorhanden: „Archivieren“ am Projekt, „abgelehnt“ am Angebot) -- Antwort: der Rat heißt „archivieren“.
+- **„Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“:** ja, beide Namen wie `kontoName()`.
+- **v363 und v365:** ja, `_run` auf das Warten an der Sperre umstellen wie 1.9.8 in v375; Wackler-Liste nachtragen.
+
+Runde ab 1.9.346: **1** nur prüfen, vorweg (keine Version): berührt nach dem Anlegen einer Folgeaufgabe irgendetwas Automatisches ihre Zeile? **2** E7
+und E8 (1.9.346); **3** die beiden Rückfragen (1.9.347); **4** v363 und v365 (1.9.348).
+
+### Punkt 1 (nur geprüft): nichts Automatisches berührt die Zeile einer Folgeaufgabe
+
+- **Statisch:** jeder schreibende Weg an Aufgaben unter `app/` (Zuweisung an ein Feld einer Aufgabe, `update_task()`, `set_task_archived()`,
+  `release_task()`, `claim_task()`, `update(Task)`). Außerhalb von `app/tasks.py` schreiben nur drei Stellen, alle in ihre eigenen Aufgaben:
+  `app/checklist_follow_ups.py` (Aufgaben aus Folgen einer Checkliste, über `ChecklistFollowUp.target_id`), `app/defects.py` und
+  `app/acceptance_protocol.py` (Aufgaben eines Mangels, über `Defect.task_id`/`DefectEvent.task_id`). Eine Folgeaufgabe eines Befunds ist keine davon.
+  Die Benachrichtigung (`notify_task_assignment()` -> `dispatch_email()`) schreibt nur ins Versandprotokoll; `mark_document_sent()` gilt nur für
+  Angebot, Auftrag, Rechnung und Mahnung. Übernehmen und „zurück in den Büro-Eingang“ sind Klicks eines Menschen. Zähler gibt es an der Aufgabe nicht.
+- **Datenbank:** `tasks.updated_at` setzt nur die Anwendung (`onupdate` in Python) -- kein Trigger, keine Vorgabe der Datenbank; keine Migration ändert
+  Zeilen von `tasks` (nur Spalten).
+- **Probe (Wegwerf-Test, nicht im Repo):** jedes UPDATE auf `tasks` mitgezählt, während das Büro über die Route einen Befund mit „Büro prüfen lassen“
+  anlegt (Folgeaufgabe an die Sachbearbeiterin, Mail ging hinaus) und danach: Aufgabenliste, Aufgabenliste ohne Zuständigkeit, Befund zur Aufgabe,
+  Startseite, Suche, Bericht ändern, Befund erledigt und wieder offen, die vier Erinnerungsläufe (Wartung, Prüffristen, Kündigung, Skonto) -- 0 UPDATE
+  auf `tasks`; `updated_at` 2 µs nach `created_at`.
+- **Ergebnis:** Variante A läuft nicht ins Leere; 1.9.343-2 gilt ohne Vorbehalt. Kein Vorschlag nötig.
+
+### Umsetzung 1.9.346: E7 und E8 (Punkt 2)
+
+- **E7:** `app/tasks.py::aufgabe_loeschen()` prüft vor dem Löschen `aufgabe_verwendungen()`: zeigt ein Befund (`findings.follow_up_task_id`) oder eine
+  Regel einer Checkliste (`checklist_rule_executions.task_id`) auf die Aufgabe, `AufgabeVerwendet` -> `DELETE /api/tasks/{id}` 409: „Die Aufgabe gehört zu
+  einem Befund im Einsatzbericht – deshalb lässt sie sich nicht löschen. Erledige oder archiviere sie stattdessen.“ (bzw. „… zu einer Regel einer
+  Checkliste …“). Die Prüfung sitzt im einen Weg, gilt also für jeden; Berichtsentwurf und Wartungsvertrag treffen sie nicht (der Befund ist dann schon
+  weg, auf Erinnerungen zeigt nichts). Jeder Fremdschlüssel auf `tasks` steht in `MIT_DER_AUFGABE` oder `VERWEISE_AUF_AUFGABEN` (Wächter). Aufgaben eines
+  Mangels und aus Folgen einer Checkliste haben keinen Fremdschlüssel und bleiben löschbar (so gebaut: `Defect.task_id`, `DefectEvent.task_id`,
+  `ChecklistFollowUp.target_id` in `app/models.py`).
+- **E8:** `app/projects.py::delete_project()` prüft nach dem Auftrag die Aufgaben am Projekt: `ProjektVerwendet` -> `DELETE /api/projects/{id}` 409: „Am
+  Projekt hängt noch 1 Aufgabe – deshalb lässt es sich nicht löschen. Archiviere das Projekt stattdessen oder lösche zuerst seine Aufgaben.“ (ab zwei
+  „hängen noch n Aufgaben“). Ein Projekt mit Auftrag bleibt bei 400 („nur archiviert“), unverändert. Akte und Projektliste zeigen die Meldung als „Fehler: …“.
+- **Funde dabei (nicht gebaut):** ein Projekt ohne Auftrag scheitert beim Löschen auch, wenn es **Vorlage eines Wartungsvertrags** oder einer Position ist
+  (`maintenance_contracts.template_project_id`, `maintenance_contract_items.template_project_id`; ein Mustervorgang) oder eine **Eingangsrechnung** an ihm
+  hängt (`incoming_invoices.project_id`) -- beide nachgestellt, `FOREIGN KEY constraint failed`, live 500 (E9, E10). Der Test ordnet jeden Fremdschlüssel
+  auf `projects` ein; diese drei stehen dort in `OFFEN` (darf nur kürzer werden). Eine Anfrage am Projekt löst die Beziehung (`source_inquiry`), geprüft.
+
+#### Festlegungen 1.9.346 (Bitte bestätigen)
+
+1. Eine Aufgabe, auf die ein Befund oder eine Regel einer Checkliste zeigt, wird nicht gelöscht: 409 mit dem Grund und dem Rat „Erledige oder archiviere sie
+   stattdessen.“ Die Prüfung sitzt in `aufgabe_loeschen()`.
+2. Jeder Fremdschlüssel auf `tasks` steht in `MIT_DER_AUFGABE` oder `VERWEISE_AUF_AUFGABEN`; ein neuer kommt dort hinein (Wächter).
+3. Ein Projekt ohne Auftrag, an dem eine Aufgabe hängt, wird nicht gelöscht: 409 mit der Zahl der Aufgaben und dem Rat „Archiviere das Projekt stattdessen
+   oder lösche zuerst seine Aufgaben.“
+4. Jeder Fremdschlüssel auf `projects` ist eingeordnet (was `delete_project()` mit ihm tut); was heute noch scheitert, steht in `OFFEN` und darf nur kürzer
+   werden.
+
+#### Tests und Prüfung 1.9.346
+
+Neu `tests/test_v746_aufgabe_und_projekt_loeschen.py` (7 Tests): Folgeaufgabe eines Befunds und Aufgabe einer Checklisten-Regel von Hand 409 (Aufgabe und
+Verweis bleiben, kein Eintrag „gelöscht“), Aufgabe ohne Verweis geht, Wächter `tasks`; Projekt mit einer und mit zwei Aufgaben 409, Projekt ohne Aufgabe
+geht, Wächter `projects`. Ohne die Prüfungen (`346_1`, `346_5`) scheitern die drei Fälle mit Verweis am Fremdschlüssel -- vorher rot. Angepasste
+Erwartungen: keine.

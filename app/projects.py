@@ -3,7 +3,7 @@ from decimal import Decimal
 import re
 import shutil
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today, to_berlin
@@ -12,7 +12,7 @@ from .contract_basis import clause_is_reviewed, contract_basis_label, default_co
 from .models import (
     ContractBasisClause, Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
-    QuoteEmployeeAssignment, TaxKey,
+    QuoteEmployeeAssignment, Task, TaxKey,
 )
 from .project_documents import project_directory
 from .project_pipeline_columns import default_pipeline_column_id
@@ -937,6 +937,10 @@ def set_project_archived(db: Session, project: Project, archived: bool) -> Proje
     return project
 
 
+class ProjektVerwendet(ValueError):
+    """Am Projekt hängt noch etwas, das nicht mit ihm gehen darf (seit 1.9.346, E8: Aufgaben) -- der Router antwortet mit 409."""
+
+
 def delete_project(db: Session, project: Project) -> None:
     """Löscht ein Projekt unwiderruflich (seit 1.0.94) -- nur möglich, wenn
     noch kein Auftrag daraus entstanden ist. Order.invoices trägt
@@ -974,6 +978,13 @@ def delete_project(db: Session, project: Project) -> None:
     Regel 6) samt Vollmacht-Belegen -- die Kontakte selbst bleiben im Adressbuch."""
     if project.orders:
         raise ValueError("Projekte mit bestehendem Auftrag können nicht gelöscht werden, nur archiviert.")
+    # Seit 1.9.346 (E8, Entscheidung Tobias 17.11.2026): Aufgaben am Projekt gehen nicht mit -- 409 mit dem Rat, zu archivieren oder zuerst die
+    # Aufgaben zu löschen. Bis 1.9.345 scheiterte das Löschen am Fremdschlüssel tasks.project_id (live 500).
+    aufgaben = db.scalar(select(func.count()).select_from(Task).where(Task.project_id == project.id))
+    if aufgaben:
+        raise ProjektVerwendet(
+            ("Am Projekt hängt noch 1 Aufgabe" if aufgaben == 1 else f"Am Projekt hängen noch {aufgaben} Aufgaben")
+            + " – deshalb lässt es sich nicht löschen. Archiviere das Projekt stattdessen oder lösche zuerst seine Aufgaben.")
     from .calendar_events import unlink_calendar_events_for_project
     from .project_participants import delete_participants_of_project, power_of_attorney_path
     unlink_calendar_events_for_project(db, project.id)

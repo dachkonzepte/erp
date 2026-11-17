@@ -62,6 +62,9 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     („ohne Angabe“). Kein Löschen über die Tabelle (`delete(Task)`, Wächter `tests/test_v744_aufgaben_loeschen_historie.py`).
     Die Wege: von Hand, mit dem Berichtsentwurf (nur unangetastete Folgeaufgaben, seit 1.9.343), mit dem
     Wartungsvertrag (Erinnerungen). Herleitung: `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.344“.
+    **Seit 1.9.346 (E7)** nicht, wenn ein Befund oder eine Regel einer Checkliste auf die Aufgabe zeigt (409, Rat: erledigen
+    oder archivieren; `aufgabe_verwendungen()`, jeder Fremdschlüssel auf `tasks` eingeordnet). Ein Projekt ohne Auftrag mit
+    Aufgaben wird nicht gelöscht (E8, 409, Rat: archivieren oder zuerst die Aufgaben löschen).
   - **"Vorgang erstellen" aus der Aufgabe heraus** (seit 1.2.21, für Aufgaben mit
     `source_module="wartungsbericht"`, siehe **Mängel und Fotos** oben): der eigentliche
     Folgeauftrag (Projekt + Auftrag über `create_quick_service_order()`) entsteht nicht mehr

@@ -23,7 +23,7 @@ from ..schemas import (
     TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate,
 )
 from ..tasks import (
-    add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
+    AufgabeVerwendet, add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
     load_task_settings, list_tasks_for_user, release_task, set_task_archived,
     task_visible_for_user, update_checklist_item, update_task, update_task_settings,
 )
@@ -111,7 +111,11 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db, sc
 def delete_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
-    if not delete_task(db, task_id, _role):
+    try:
+        geloescht = delete_task(db, task_id, _role)
+    except AufgabeVerwendet as exc:  # seit 1.9.346 (E7): ein Befund oder eine Regel einer Checkliste zeigt auf sie
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not geloescht:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
     return {"ok": True}
 
