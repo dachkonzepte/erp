@@ -411,3 +411,24 @@ keine Zeile für sonstige Änderungen, nur der Admin sieht die Einträge, Wächt
 Anlasses (node). Vorher rot (Stand bis 1.9.343 nachgestellt, `344_1` und `344_5`): jede Prüfung eines Eintrags; der Wartungsvertrag mit Unteraufgabe dazu
 am Fremdschlüssel. Eine Gegenprobe blieb zuerst grün (`344_10`, `Task` in `AUDITED_TYPES`): der Test zählte nur Einträge der Art „Aufgabe“, die Einträge
 hießen dann „Task“ -- nachgezogen, er zählt jetzt alle Einträge; danach rot. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.345: Rückfrage auf „Benutzer“ nennt Anzeigename und Benutzername (Punkt 3)
+
+- `app/templates/users.html`: die Rückfrage bei „Löschen“ und „Deaktivieren“ beginnt mit `kontoName(u)` -- „Benutzer „Bea Büro“ (Benutzername „bea“)
+  deaktivieren?“ bzw. „… wirklich löschen?“; der Rest der Rückfrage bleibt. Anlass: bei 412 px rollt die Tabelle in ihrem Rahmen, neben dem Knopf steht
+  kein Name (der Klicktest misst es: Benutzername und Anzeigename der Zeile außerhalb des sichtbaren Rahmens, der Knopf darin).
+- Die Rückfrage bleibt ein `confirm()` (Regel 4, Antwort Tobias 17.11.2026). Ein Bildschirmfoto zeigt sie nicht; der Klicktest fängt ihren Text ab
+  (`window.confirm` umgeleitet) und prüft ihn, die Bilder zeigen die Zeilen mit den Knöpfen.
+- Nicht geändert: „Zweiten Faktor zurücksetzen“ und „Alle Sitzungen beenden“ nennen weiter nur den Anzeigenamen (bei 412 px dieselbe Lage) -- nicht
+  verlangt, Hinweis im Bericht.
+
+#### Festlegungen 1.9.345 (Bitte bestätigen)
+
+1. Die Rückfrage bei „Löschen“ und „Deaktivieren“ nennt das Konto als „Benutzer „<Anzeigename>“ (Benutzername „<Benutzername>“)“ -- eine Stelle,
+   `kontoName()`.
+
+#### Tests und Prüfung 1.9.345
+
+Neu `tests/test_v745_benutzer_rueckfrage.py` (node: beide Rückfragen mit einem Konto, dessen Anzeigename Markup enthält -- `confirm()` zeigt Text) und
+`scripts/klicktest_benutzer_rueckfrage.py` (11 Prüfungen: bei 412 px kein Name neben dem Knopf, beide Rückfragen abgebrochen ohne Änderung, Löschen
+bestätigt, Bilder 412 px hell und dunkel). Angepasste Erwartungen: keine.

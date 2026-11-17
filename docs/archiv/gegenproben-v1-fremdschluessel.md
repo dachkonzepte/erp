@@ -104,3 +104,13 @@ der Tabelle. Herleitung: `docs/archiv/sqlite-und-postgresql.md`.
 | Nr. 6 – Anlass in der Anzeige | ohne Anlass (`344_9`, `_verlauf.html`) | 1 rot: v744::test_historie_zeigt_den_anlass |
 
 10 Gegenproben, alle rot (eine nach dem Nachziehen); alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde ab 1.9.343, 1.9.345 (Punkt 3): Rückfrage auf „Benutzer“ nennt Anzeigename und Benutzername
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Benutzername in der Rückfrage | `kontoName()` ohne Benutzername (`345_1`, `345_1k`) | 1 rot: v745; Klicktest 9 von 11 |
+| Nr. 1 – „Löschen“ nimmt `kontoName()` | alter Text bei „Löschen“ (`345_2`, `345_2k`) | 1 rot: v745; Klicktest 10 von 11 |
+| Nr. 1 – „Deaktivieren“ nimmt `kontoName()` | alter Text bei „Deaktivieren“ (`345_3`) | 1 rot: v745 |
+
+5 Gegenproben (3 über den Test, 2 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

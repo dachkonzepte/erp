@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.345 – Benutzer: Rückfrage nennt Anzeigename und Benutzername
+
+Punkt 3 der Runde ab 1.9.343. Auf der Seite „Benutzer und Zugriff“ nennt die Rückfrage bei „Löschen“ und „Deaktivieren“ jetzt Anzeigename und Benutzername („Benutzer „Bea Büro“ (Benutzername „bea“) deaktivieren?“) -- bei 412 px rollt die Tabelle in ihrem Rahmen, und neben dem Knopf ist kein Name zu sehen. Die Rückfrage bleibt ein Dialog des Browsers (Entscheidung Tobias).
+
+Neu `tests/test_v745_benutzer_rueckfrage.py` und `scripts/klicktest_benutzer_rueckfrage.py` (fängt den Text der Rückfrage ab, Bilder bei 412 px hell und dunkel). Festlegung und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.344 – Löschen von Aufgaben in der Änderungshistorie
 
 Punkt 2 der Runde ab 1.9.343 (Entscheidung Tobias). Jedes Löschen einer Aufgabe steht jetzt in der Änderungshistorie -- mit Titel, Konto, Zeitpunkt und Anlass; sonstige Änderungen an Aufgaben kommen nicht dazu. Eine Aufgabe löscht nur noch `app/tasks.py::aufgabe_loeschen()`, den Eintrag schreibt die Historie selbst im Flush, auch für ein Löschen an diesem Weg vorbei („ohne Angabe“). Die Wege: von Hand („von Hand“), mit dem Berichtsentwurf („mit dem Berichtsentwurf Nr. … (Auftrag …), unangetastet“), mit dem Wartungsvertrag („mit dem Wartungsvertrag „…“ (Erinnerung)“). Die Erinnerungen eines Wartungsvertrags gehen jetzt einzeln statt über die Tabelle -- bis 1.9.343 ohne Eintrag, und eine Erinnerung mit Unteraufgabe ließ das Löschen live mit 500 scheitern. Sichtbar wie jeder Eintrag zu Aufgaben nur für den Admin; die Historie zeigt den Anlass hinter „Datensatz gelöscht“.

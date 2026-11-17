@@ -2384,7 +2384,8 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
   Idempotenzmuster des Checklisten-Moduls, siehe `docs/archiv/modul-checklisten.md`.
 - ~~Benutzer löschen scheitert unter PostgreSQL mit 500~~ -- seit 1.9.340 409 mit den Bereichen, in denen das Konto steht, und dem Rat zu
   deaktivieren (`app/konto_loeschen.py`, jeder Fremdschlüssel auf `app_users` eingeordnet); seit 1.9.342 bietet die Seite bei einem verwendeten Konto
-  gleich „Deaktivieren“ (`POST /api/users/{id}/deaktivieren`), „Löschen“ nur für ein nie verwendetes (`verwendet_in` in `GET /api/users`).
+  gleich „Deaktivieren“ (`POST /api/users/{id}/deaktivieren`), „Löschen“ nur für ein nie verwendetes (`verwendet_in` in `GET /api/users`); seit 1.9.345
+  nennt die Rückfrage beider Knöpfe Anzeigename und Benutzername (`kontoName()`, Klicktest `klicktest_benutzer_rueckfrage.py`).
 - ~~Folgeaufgaben eines gelöschten Berichtsentwurfs gehen spurlos mit~~ -- seit 1.9.343 geht nur eine unangetastete mit, eine angefasste bleibt mit
   Vermerk (`app/service_reports.py::folgeaufgabe_angefasst()`, `docs/archiv/sqlite-und-postgresql.md`, „Umsetzung 1.9.343“).
 - **Aufgabe löschen, auf die ein Befund oder eine Checklisten-Regel zeigt, und Projekt ohne Auftrag mit Aufgabe löschen scheitern am Fremdschlüssel**
