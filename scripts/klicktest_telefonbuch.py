@@ -1,8 +1,8 @@
 """Klicktest: Kundenliste in der Reihenfolge des Telefonbuchs (1.9.353, Runde V2b, Punkt 1, F6).
 
 Testdaten: Anna Admin (angemeldet); 17 Kunden mit Groß- und Kleinbuchstaben am Anfang, Umlauten, ß, Akzenten, Bindestrich und Leerzeichen und einem
-leeren Namen -- so, wie ihn die Oberfläche anlegt, wenn der Nachname nur ein Leerzeichen ist (CustomerCreate lässt " " durch, compose_customer_name()
-macht daraus ""). Die Kunden kommen in einer Reihenfolge in die Datenbank, die weder binär noch nach dem Telefonbuch sortiert ist.
+leeren Namen -- ein Altbestand mit dem Nachnamen " " (bis 1.9.355 nahm die API ihn an, compose_customer_name() macht daraus ""; die Formulare
+prüfen selbst, seit 1.9.356 lehnt auch der Server ihn ab, B2). Die Kunden kommen in einer Reihenfolge in die Datenbank, die weder binär noch nach dem Telefonbuch sortiert ist.
 
     Liste       Stammdaten → Kunden: nach Nachname, dann Vorname (seit 1.9.355, ohne Anrede und Titel: „Herr Bernd Abel“ zuerst) in der
                 Reihenfolge des Telefonbuchs -- „apfelbaum“ vor „Äpfelmann“ vor „bauhof“ vor „Bauhof“,
@@ -47,7 +47,7 @@ def befuellen(db, k):
     db.add(anna)
     for i, eintrag in enumerate(ANGELEGT, start=1):
         anrede, titel, vorname, nachname = eintrag if isinstance(eintrag, tuple) else (None, None, None, eintrag)
-        nachname = nachname or " "  # der leere Name: Nachname aus einem Leerzeichen, wie über die Oberfläche
+        nachname = nachname or " "  # der leere Name: Nachname aus einem Leerzeichen (Altbestand, siehe oben)
         kunde = Customer(name=compose_customer_name(anrede, titel, vorname, nachname), salutation=anrede, title=titel, first_name=vorname,
                          last_name=nachname, city="Musterstadt")
         db.add(kunde)

@@ -365,7 +365,7 @@ def test_resolution_is_refused_where_it_does_not_belong(stuck_invoice, router_te
     db, invoice, row = stuck_invoice
     office = _office(db, router_test_client, role="buero_finanzen")
     url = f"/api/email-dispatches/{row.id}/resolve"
-    assert office.post(url, json={"outcome": "gesendet", "note": "   "}).status_code == 400
+    assert office.post(url, json={"outcome": "gesendet", "note": "   "}).status_code == 422  # seit 1.9.356 das Schema (Pflichttext), bis dahin 400
     assert office.post(url, json={"outcome": "gesendet"}).status_code == 422
     assert office.post(url, json={"outcome": "vielleicht", "note": "x"}).status_code == 422
     assert office.post("/api/email-dispatches/999999/resolve", json={"outcome": "gesendet", "note": "geprüft"}).status_code == 404

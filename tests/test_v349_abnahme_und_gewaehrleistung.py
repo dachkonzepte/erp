@@ -562,7 +562,7 @@ def test_discard_with_reason_once_and_history(welt, buero):
     a = _erfassen(buero, welt["order_id"]).json()
     url = f"/api/order-acceptances/{a['id']}/discard"
     assert buero.post(url, json={"reason": ""}).status_code == 422
-    assert buero.post(url, json={"reason": "   "}).status_code == 400
+    assert buero.post(url, json={"reason": "   "}).status_code == 422  # seit 1.9.356 das Schema (Pflichttext), bis dahin 400
     r = buero.post(url, json={"reason": "Falsches Datum erfasst (richtig: 16.09.)"})
     assert r.status_code == 200
     v = r.json()

@@ -5,8 +5,9 @@ IncomingInvoiceItemOut (validate_tax_rate) die Prüfung ihres Eingabeschemas: st
 Liste mit 500. Ein echter Fall: ein Ausfalltag Schlechtwetter (Kategorie schlechtwetter, seit 1.9.170) in GET /api/planning/absences für Admin und Büro –
 Finanzen. Die Prüfung gilt nur beim Speichern.
 
-Wächter: kein Antwortschema (…Out in app/schemas.py) hat einen Validator; geerbte Grenzen (min_length, max_length, ge …) nur noch bei den acht in BEKANNT
--- die Liste darf nur kürzer werden."""
+Wächter: kein Antwortschema (…Out in app/schemas.py) hat einen Validator; geerbte Grenzen (min_length, max_length, ge …) nur noch bei denen in BEKANNT
+-- die Liste darf nur kürzer werden; seit 1.9.356 (Runde V2c, B1) leer: auch Kunde, Zusatzinfo, Gerät, Feiertag, Objekt, Angebotskopf, Option und
+Lieferant über _felder_ohne_pruefung() -- ein gespeicherter Nachname "" brachte bis dahin die ganze Kundenliste auf 500 (tests/test_v756_pflichttext.py)."""
 
 import inspect
 from datetime import date
@@ -21,16 +22,23 @@ from app.routers.accounts import router as accounts_router
 from app.routers.incoming_invoices import router as incoming_invoices_router
 from app.routers.planning import router as planning_router
 from app.routers.settings import router as settings_router
-from app.schemas import (AccountCreate, AccountOut, EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeFunctionCreate, EmployeeFunctionOut,
-                         IncomingInvoiceItemIn, IncomingInvoiceItemOut)
+from app.schemas import (AccountCreate, AccountOut, CustomerCreate, CustomerExtraInfoCreate, CustomerExtraInfoOut, CustomerOut,
+                         EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeFunctionCreate, EmployeeFunctionOut, IncomingInvoiceItemIn,
+                         IncomingInvoiceItemOut, OperationalResourceCreate, OperationalResourceOut, PlanningHolidayCreate, PlanningHolidayOut,
+                         PropertyCreate, PropertyOut, QuoteDocumentMetaOut, QuoteDocumentMetaUpdate, SettingOptionCreate, SettingOptionOut,
+                         SupplierCreate, SupplierOut)
 from tests.test_v633_besetzung_je_einsatz import _person
 
 PAARE = [(EmployeeFunctionOut, EmployeeFunctionCreate), (EmployeeAbsenceOut, EmployeeAbsenceCreate), (AccountOut, AccountCreate),
-         (IncomingInvoiceItemOut, IncomingInvoiceItemIn)]
+         (IncomingInvoiceItemOut, IncomingInvoiceItemIn),
+         # seit 1.9.356 (B1)
+         (CustomerExtraInfoOut, CustomerExtraInfoCreate), (CustomerOut, CustomerCreate), (OperationalResourceOut, OperationalResourceCreate),
+         (PlanningHolidayOut, PlanningHolidayCreate), (PropertyOut, PropertyCreate), (QuoteDocumentMetaOut, QuoteDocumentMetaUpdate),
+         (SettingOptionOut, SettingOptionCreate), (SupplierOut, SupplierCreate)]
+OHNE_ORM = {QuoteDocumentMetaOut, SettingOptionOut}  # entstehen nur aus Wörterbüchern -- ohne from_attributes wie vorher
 
 # Antwortschemata, die Grenzen ihres Eingabeschemas noch erben (keine Validatoren) -- Nebenbefund 1.9.273, darf nur kürzer werden
-BEKANNT = {"CustomerExtraInfoOut", "CustomerOut", "OperationalResourceOut", "PlanningHolidayOut", "PropertyOut", "QuoteDocumentMetaOut",
-           "SettingOptionOut", "SupplierOut"}
+BEKANNT: set[str] = set()  # seit 1.9.356 leer
 
 
 def _antwortschemata():
@@ -46,7 +54,8 @@ def test_antwort_ohne_pruefung_mit_allen_feldern(aus, ein):
     assert not deko.model_validators and not deko.field_validators
     for name, feld in aus.model_fields.items():
         assert not feld.metadata, (aus.__name__, name, feld.metadata)
-    assert aus.model_config.get("from_attributes") is True
+        assert "Annotated" not in str(feld.annotation), (aus.__name__, name, feld.annotation)  # seit 1.9.356: Pflichttext | None
+    assert aus.model_config.get("from_attributes") is (None if aus in OHNE_ORM else True)
 
 
 def test_kein_antwortschema_hat_einen_validator():

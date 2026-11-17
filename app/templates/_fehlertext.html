@@ -37,6 +37,8 @@ function fehlerText(body,status,felder,ersatz){
       let art=_FEHLERARTEN[e.type];
       // seit 1.9.350 (Runde V2a, Punkt 1): „ist zu lang“ mit der Grenze, wenn die Antwort sie nennt (ctx.max_length der Schemaprüfung)
       if(art&&e.type==='string_too_long'&&e.ctx&&Number.isInteger(e.ctx.max_length))art+=` (höchstens ${e.ctx.max_length} Zeichen)`;
+      // seit 1.9.356 (Runde V2c, B2): ein Pflichtfeld nur aus Leerzeichen kommt nach dem Abschneiden leer an -- „fehlt“ statt „ist zu kurz“
+      if(e.type==='string_too_short'&&e.ctx&&Number.isInteger(e.ctx.min_length))art=e.ctx.min_length===1?'fehlt':`ist zu kurz (mindestens ${e.ctx.min_length} Zeichen)`;
       if(art)return feld?`${feld} ${art}`:`Die Eingabe ${art}`;
       const text=typeof e.msg==='string'&&e.msg.trim()?e.msg.replace(/^Value error,\s*/,''):'ist ungültig';
       return feld?`${feld}: ${text}`:text;

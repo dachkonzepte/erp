@@ -831,3 +831,43 @@ Neu `tests/test_v755_kundenliste_und_id.py` (9 Tests). Angepasst: `tests/test_v7
 bekommt den Nachnamen " " (wie über die Oberfläche) statt "-", weil die Liste jetzt nach dem Nachnamen sortiert; die Erwartung bleibt. Klicktest
 `klicktest_telefonbuch.py`: 17 statt 15 Kunden (dazu „Herr Bernd Abel“ und „Frau Dr. Erika Probe“), erwartet „Herr Bernd Abel, apfelbaum Gartenbau, …,
 Ökohaus Probe, Frau Dr. Erika Probe, Straßenbau Probe, …“ statt der Liste ohne die beiden.
+
+### Umsetzung 1.9.356: Antworten ohne Prüfung, Pflicht-Textfelder ohne Rand (Punkt 1, B1 und B2)
+
+- **B1:** `CustomerOut` erbte die Prüfung von `CustomerCreate` (Nachname `min_length=1`) -- ein gespeicherter Nachname "" brachte die ganze Kundenliste auf
+  500. Jetzt über `_felder_ohne_pruefung()` wie die Antwortschemas seit 1.9.265/1.9.273. Ebenso die übrigen sieben, die noch Grenzen erbten (`BEKANNT` in
+  `tests/test_v673_antworten_ohne_pruefung.py`, jetzt leer): Zusatzinfo des Kunden, Gerät, Feiertag, Objekt, Angebotskopf, Option, Lieferant. Nötig auch
+  wegen B2: ein Antwortschema, das von einem Eingabeschema erbt, hätte den neuen Validator mitgenommen -- ein gespeicherter Wert aus Leerzeichen wäre dann
+  in der Antwort leer und zu kurz gewesen, die Liste wieder 500. `_felder_ohne_pruefung()` steht jetzt oben in `app/schemas.py` (vor dem ersten Gebrauch).
+- **B2:** jedes Textfeld eines Eingabeschemas mit `min_length` ≥ 1 -- 156 Felder aus 139 Definitionen (die übrigen erben), dazu 3 Passwörter -- hat den
+  Typ `Pflichttext` (`Annotated[str, BeforeValidator(_ohne_rand)]`, 119 Definitionen) bzw. `PflichttextWennDa` (`Annotated[str | None, …]`, für
+  Teil-Updates, 20 Definitionen): Leerzeichen am Rand (auch Tabulator, Zeilenumbruch) fallen vor der Prüfung weg, nur Leerzeichen heißt 422 mit
+  `string_too_short`, gespeichert wird der Text ohne Rand. Bei `PflichttextWennDa` liegt der Validator um die ganze Union: `Pflichttext | None` hätte Pydantic
+  die Länge der Union prüfen lassen („too_long“, „hat zu viele Einträge“) statt der des Texts. Ausgenommen die drei Passwörter (`AppUserCreate.password`,
+  `AppUserUpdate.new_password`, `ChangePasswordRequest.new_password`): dort zählt jedes Zeichen. `fehlerText()` sagt bei `string_too_short` mit
+  `min_length` 1 „fehlt“, sonst „ist zu kurz (mindestens n Zeichen)“.
+- **Korrektur zum Bericht V2b:** dort stand, ein Nachname aus Leerzeichen entstehe „über die Oberfläche“. Beide Kundenformulare (Stammdaten, Kundenakte)
+  prüfen den Nachnamen selbst (`trim()`); durch ging " " nur über die API. Kommentare im Klicktest `klicktest_telefonbuch.py` und in
+  `tests/test_v753_telefonbuch.py` nennen den leeren Namen jetzt Altbestand.
+- **Wächter** `tests/test_v756_pflichttext.py`: jedes Textfeld mit `min_length` ≥ 1 schneidet ab, außer `AUSNAHMEN` (genau die drei Passwörter); je Feld:
+  nur Leerzeichen -> `string_too_short`, „  x  “ verhält sich wie „x“; das Passwort behält seine Leerzeichen; über echte Routen ein Nachname "   " 422
+  (Anlegen und Teil-Update), „  Probe  “ gespeichert als „Probe“; die Kundenliste mit gespeichertem "" und " " (200, der Wert, wie er ist); die Meldung
+  in node. `tests/test_v673_antworten_ohne_pruefung.py`: die acht in `PAARE`, `BEKANNT` leer, kein `Annotated` im Typ einer Antwort.
+
+#### Festlegungen 1.9.356 (Bitte bestätigen)
+
+1. Kein Antwortschema prüft: auch Kunde, Zusatzinfo, Gerät, Feiertag, Objekt, Angebotskopf, Option und Lieferant über `_felder_ohne_pruefung()` -- ein
+   gespeicherter Wert erscheint, wie er ist (`BEKANNT` leer).
+2. Jedes Textfeld eines Eingabeschemas mit `min_length` ≥ 1 ist ein Pflichttext: Leerzeichen am Rand fallen vor der Prüfung weg, nur Leerzeichen heißt 422.
+3. Gespeichert wird der Text ohne Rand (auch bei einem Wert, der sonst passt).
+4. Ein Feld, das fehlen oder null sein darf, nimmt `PflichttextWennDa` (Validator um die ganze Union), damit die Meldung „zu lang“/„fehlt“ bleibt.
+5. Passwörter sind ausgenommen: jedes Zeichen zählt, auch ein Leerzeichen am Rand.
+6. `fehlerText()` sagt bei einem leeren Pflichtfeld „fehlt“, bei einer längeren Mindestlänge „ist zu kurz (mindestens n Zeichen)“.
+
+#### Tests und Prüfung 1.9.356
+
+Neu `tests/test_v756_pflichttext.py` (318 Tests, 312 davon je Feld). Angepasst: `tests/test_v673_antworten_ohne_pruefung.py` -- `BEKANNT` (acht
+Namen) -> leer, `PAARE` um die acht Paare erweitert, `from_attributes` je Paar wie vorher (Angebotskopf und Option ohne), neu: kein `Annotated` im Typ.
+Angepasste Erwartungen (Folge von B2, das Schema lehnt jetzt vor der Geschäftslogik ab): `tests/test_v323_dispatch_completion.py`, Notiz "   " beim Klären:
+400 -> 422; `tests/test_v349_abnahme_und_gewaehrleistung.py`, Begründung "   " beim Verwerfen einer Abnahme: 400 -> 422;
+`tests/test_v338_vertrag_abschrift.py`, Meldung der Auftragsseite bei leerer Bezeichnung: „Bezeichnung ist zu kurz.“ -> „Bezeichnung fehlt.“.

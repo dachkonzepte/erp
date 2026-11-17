@@ -1271,7 +1271,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   **Stufe 6, R5b (ab 1.9.265, Tag-Aktionen):** vorweg prüft die Antwort von `GET /api/employees` nicht mehr wie das Formular (`EmployeeOut` aus
   `app/schemas.py::_felder_ohne_pruefung()`, ohne Validatoren und Grenzen; `tests/test_v665_mitarbeiter_ohne_stundenlohn.py`; seit 1.9.273 ebenso Funktion,
   Abwesenheit, Konto und Position einer Eingangsrechnung -- kein Antwortschema hat einen Validator, ein neues nimmt `_felder_ohne_pruefung()`, geerbte Grenzen
-  nur noch in `BEKANNT` von `tests/test_v673_antworten_ohne_pruefung.py`); ein ganz leerer Einsatz
+  nur noch in `BEKANNT` von `tests/test_v673_antworten_ohne_pruefung.py`, seit 1.9.356 leer); ein ganz leerer Einsatz
   („niemand“) meldet keine Kapazität (`tests/test_v666_niemand_ohne_kapazitaet.py`). Tag-Aktionen in `app/tag_aktionen.py`: seit 1.9.267 Tag setzen
   (`tag_setzen()`, `POST /api/planning/tag-setzen`: dazu, verlängert -- auch Fr -> Mo, `anschliessend()` -- oder neu; Ziel nach Antwort 6/8 in `ziel_finden()`;
   die Falle über `_update_slot(alle_tage_mitnehmen=False, dazu=…)`; gefragt nur bei neuen Warnungen, `neue_warnungen()`; `pruefen` schreibt nichts;
@@ -1674,6 +1674,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   (`app/spaltenlaenge.py`: `laenge()`, `eindeutig_gekuerzt()`). **Freie Eingaben** (seit 1.9.350): jedes Feld eines Eingabeschemas, das in eine Spalte
   `String(n)` geht, hat `max_length` ≤ n -- zu lang ist 422 mit Feld und Grenze, nie 500; ein Update-Schema, das vom Antwortschema erbt, bekommt die
   Grenze in einer eigenen Definition. Wächter `tests/test_v750_laengen.py` (Zuordnung: Schemaname beginnt mit dem Modell, Feld = Spalte; `OFFEN` leer).
+  **Pflicht-Textfelder** (seit 1.9.356): jedes Textfeld eines Eingabeschemas mit `min_length` ≥ 1 hat den Typ `Pflichttext` (bzw. `PflichttextWennDa`
+  für ein Feld, das fehlen oder null sein darf -- der Validator um die ganze Union, nie `Pflichttext | None`): Leerzeichen am Rand fallen vor der Prüfung
+  weg, nur Leerzeichen heißt 422 („fehlt“); Passwörter ausgenommen. Wächter `tests/test_v756_pflichttext.py` (`AUSNAHMEN` genau).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,

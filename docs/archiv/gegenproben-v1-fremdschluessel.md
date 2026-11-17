@@ -247,3 +247,17 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 7 – ID in Auswahl bzw. Gruppe | -- | über Nr. 4 (der Wächter liest beide Stellen); das Ergebnis prüfen die bestehenden Tests der Sperren und des Kundenwechsels |
 
 7 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V2c, 1.9.356 (Punkt 1): Antworten ohne Prüfung, Pflicht-Textfelder ohne Rand
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Kundenliste mit gespeichertem leeren Nachnamen | `CustomerOut` wieder von `CustomerCreate` (`356_1`) | 4 rot: v756 Kundenliste ("" und " "), v673 Paar und `BEKANNT` |
+| Nr. 1 – kein Antwortschema prüft | `SupplierOut` wieder von `SupplierCreate` (`356_2`) | 2 rot: v673 Paar und `BEKANNT` |
+| Nr. 2, 3 – Rand weg, nur Leerzeichen 422 | `_ohne_rand()` lässt den Wert (`356_3`) | 223 rot: v756 je Feld, Route Nachname |
+| Nr. 4 – Validator um die Union | `Pflichttext | None` statt `PflichttextWennDa` (`356_4`) | 37 rot: v750 „zu lang“ (17 Felder), v756 „fehlt“ (20 Felder) |
+| Nr. 5 – Passwörter ausgenommen | neues Passwort als `Pflichttext` (`356_5`) | 2 rot: v756 Wächter (`AUSNAHMEN` genau), Passwort behält Leerzeichen |
+| Wächter – jedes Pflichtfeld | Nachname des Kunden wieder `str` (`356_6`), im Teil-Update `str | None` (`356_6b`) | je 2 rot: v756 Wächter, Route Nachname |
+| Nr. 6 – Meldung „fehlt“ | Zeile in `_fehlertext.html` entfernt (`356_7`) | 1 rot: v756 Meldung in node |
+
+8 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

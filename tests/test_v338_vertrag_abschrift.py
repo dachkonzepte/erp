@@ -423,7 +423,7 @@ def test_order_page_shows_422_and_409_readably(world, router_test_client):
     ])
     assert not any("[object Object]" in m for m in messages), messages
     assert messages[0] == "Bitte die Eingabe prüfen – Auftragsdatum ist kein gültiges Datum."
-    assert messages[1] == "Bitte die Eingabe prüfen – Bezeichnung ist zu kurz."
+    assert messages[1] == "Bitte die Eingabe prüfen – Bezeichnung fehlt."  # seit 1.9.356 „fehlt“ bei Mindestlänge 1, bis dahin „ist zu kurz“
     assert messages[2] == "Bitte die Eingabe prüfen – Betrag netto muss eine Zahl sein (ohne Tausenderpunkt)."
     assert messages[3] == conflict.json()["detail"] and "bewusst wählen" in messages[3]
     assert messages[4] == "Der verknüpfte Kostenposten trägt weitere Angaben."
