@@ -29,7 +29,7 @@ from app.checklist_templates import (
 from app.concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from app.database import Base
 from app.models import (
-    ChecklistAttachment, ChecklistFollowUp, ChecklistTemplate, EmailDispatch, EnabledModule, PlanningSlot, Task,
+    AppUser, ChecklistAttachment, ChecklistFollowUp, ChecklistTemplate, EmailDispatch, EnabledModule, PlanningSlot, Task,
     TaskColumn, Team, WorkPreparationTeamAssignment,
 )
 from app.routers.field_view import router as field_view_router
@@ -88,6 +88,9 @@ def kworld(world):
     db.commit()
     world["concern_tpl"] = publish_draft(db, _template_id(db))
     world["orders"]["mine"].caseworker_employee_id = world["emps"]["office"].id
+    # seit 1.9.369 (F2 c): die Sachbearbeiterin hat ein Konto Büro – Auftrag -- ohne Konto legten die Module ihre Aufgaben in den Büro-Eingang
+    db.add(AppUser(username="olga", display_name="Olga Office", role="buero_auftrag", employee_id=world["emps"]["office"].id, active=True,
+                   password_hash="-"))
     db.commit()
     return world
 

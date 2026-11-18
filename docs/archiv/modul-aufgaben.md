@@ -259,3 +259,42 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     die Büro-Suche zählt und begrenzt sie in SQL (`_count_and_fetch()`), statt die Liste zweimal ganz zu laden. Offen gemeldet: der Kommentar am Modell und der
     Docstring von `create_task()` sagen, eine zugewiesene Aufgabe ignoriere `min_visible_role` -- die Regel wendet sie seit 1.5.0 immer an. Herleitung und
     Messung: `docs/archiv/sqlite-und-postgresql.md`, „Nach Runde V3: 1.9.364“.
+
+  - **Zuweisung mit Mindestrolle (seit 1.9.369, Urlaubsrunde Punkt 5; F2 c aus dem Bericht 1.9.364, Antworten Tobias 18.11.2026)**:
+    - Befund: Kommentar am Modell (`Task.min_visible_role`) und Docstring von `create_task()` sagten, eine zugewiesene Aufgabe ignoriere die Mindestrolle;
+      `task_visible_for_user()` wendet sie seit 1.5.0 immer an. Eine Finanz-Aufgabe, die jemandem aus Büro – Auftrag zugewiesen war (über „Bearbeiten“ möglich,
+      die Zuweisung prüfte die Rolle nicht), sah diese Person nirgends. Entscheidung c): die Zuweisung an jemanden ohne die Mindestrolle wird abgelehnt.
+    - Regel `app/tasks.py::zuweisung_grund(db, Person, Mindestrolle)`: nur mit Zuweisung und Mindestrolle; es zählt jedes aktive Konto der Person nach derselben
+      Regel wie das Lesen (`task_visible_for_user()`, also auch die Grundvoraussetzung Büro -- ein Monteur-Konto sieht keine Aufgabe). Sieht keines sie, der
+      Grund „Diese Aufgabe sieht nur <Rollen> – <Name> hat kein Konto mit dieser Rolle.“ (die Rollen, die sie sehen, in Worten aus `ROLE_LABELS`).
+    - Von Hand: `POST /api/tasks` (über `create_task(…, zuweisung="ablehnen")`) und `PUT /api/tasks/{id}` (`update_task()` prüft eine neue Zuweisung gegen die
+      Mindestrolle der Aufgabe) antworten mit 422 und dem Grund (`ZuweisungOhneRolle`), nichts gespeichert. Zurück in den Eingang (leer) geht immer.
+    - Module (`create_task()` ohne `zuweisung`, Vorgabe "eingang"): Behinderungs- und Bedenkenanzeige, Checklisten-Regeln u. a. weisen dem Sachbearbeiter zu --
+      sähe er die Aufgabe nicht, entsteht sie empfängerlos mit ihrer Mindestrolle im Büro-Eingang (wie ohne Sachbearbeiter, Antwort auf die Rückfrage). Nur der
+      Endpunkt übergibt "ablehnen" (Wächter in `tests/test_v769_zuweisung_mit_mindestrolle.py`).
+    - Bestand: bleibt (Vorgabe: nur zählen, nichts ändern). `scripts/pruefe_aufgaben_zuweisung.py` zählt die so zugewiesenen Aufgaben nach derselben Regel, nur
+      lesend (schreibgeschützte Sitzung wie `pruefe_stornos.py`), ohne Namen und Titel: Zahl, je Mindestrolle, je Treffer Nummer, Mindestrolle, archiviert und was
+      die Person hat („kein Konto“ bzw. die Rollen ihrer aktiven Konten). Auf dem Server: `set -a; source .env; set +a` und
+      `.venv/bin/python scripts/pruefe_aufgaben_zuweisung.py`. Lokal läuft es nicht gegen die echte Datenbank (Regel 16) -- die Zahl gibt es erst vom Server.
+    - Kommentar am Modell und Docstrings von `create_task()` und `list_tasks_for_user()` berichtigt.
+    - Offen gemeldet, nicht geändert: eine Aufgabe OHNE Mindestrolle lässt sich weiter jemandem ohne Büro-Konto zuweisen (z. B. einem Monteur oder einer Person
+      ohne Konto) -- auch sie sieht diese Person nicht (Aufgaben sieht nur das Büro). Frage im Bericht.
+
+    Festlegungen 1.9.369 (Bitte bestätigen):
+    1. Ob eine Person eine Aufgabe sähe, entscheidet dieselbe Regel wie das Lesen (`task_visible_for_user()`) für jedes aktive Konto der Person; nur bei einer
+       Mindestrolle.
+    2. Der Grund nennt, wer die Aufgabe sieht, und die Person: „Diese Aufgabe sieht nur Büro – Finanzen und Administrator – <Name> hat kein Konto mit dieser
+       Rolle.“
+    3. Von Hand (Anlegen, Bearbeiten) 422 mit dem Grund, nichts gespeichert; zurück in den Eingang geht immer.
+    4. Ein Modul legt eine solche Aufgabe empfängerlos in den Büro-Eingang, mit ihrer Mindestrolle.
+    5. Nur der Endpunkt lehnt ab; kein Modul übergibt "ablehnen".
+    6. Bestehende Zuweisungen bleiben; das Prüfskript zählt sie nur lesend, ohne Namen und Titel.
+    7. Kommentar und Docstrings berichtigt: die Mindestrolle gilt auch für eine zugewiesene Aufgabe.
+
+    Tests und Prüfung: neu `tests/test_v769_zuweisung_mit_mindestrolle.py` (7 Tests: Regel mit aktiven Konten, ohne Konto, Monteur-Konto; von Hand anlegen und
+    zuweisen 422, zurück in den Eingang; Module in den Eingang; nur der Endpunkt lehnt ab; Bestand gezählt ohne Namen und Titel, nichts geändert, ohne
+    DATABASE_URL 2; Kommentar und Docstring). Aufbau geändert, Erwartungen unverändert (Regel 28): die Sachbearbeiterin Olga hat in den Fixtures von
+    `tests/test_v341_behinderungsanzeige.py` (`bworld`), `tests/test_v346_bedenkenanzeige.py` und `tests/test_v307_checklist_rules.py` (`rules`) ein Konto Büro –
+    Auftrag -- ohne legten die Module ihre Aufgaben jetzt in den Eingang (vier Tests im ersten vollen Lauf rot: „versenden“, „Antwort prüfen“, Tagesbericht,
+    Regel bei Abschluss); `tests/test_v330_aufgaben_sichtbarkeit_aendern.py` (`welt`): Otto hat ein Konto Büro – Finanzen -- seine Finanz-Aufgabe wäre sonst im
+    Eingang gelandet. Den Fall ohne Konto prüft `test_v769`.

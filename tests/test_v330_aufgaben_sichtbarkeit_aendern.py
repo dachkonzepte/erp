@@ -28,6 +28,9 @@ TITEL = "Skonto Lieferant Dachbaustoffe Nord ziehen"
 def welt(threaded_db_session):
     db = threaded_db_session
     erika, otto = make_employees(db)       # Erika ist "ich", Otto der Kollege
+    # seit 1.9.369: Otto hat ein Konto Büro – Finanzen -- sonst legte create_task() seine Finanz-Aufgabe in den Büro-Eingang (er sähe sie nicht)
+    db.add(AppUser(username="otto", display_name="Otto", role="buero_finanzen", employee_id=otto.id, active=True, password_hash="-"))
+    db.commit()
     aufgaben = {
         "eingang": create_task(db, title="Eingang offen"),
         "eingang_finanzen": create_task(db, title=TITEL, min_visible_role="buero_finanzen"),

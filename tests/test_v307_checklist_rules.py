@@ -13,7 +13,7 @@ import app.tasks as tasks_module
 from app.berlin_time import to_berlin
 from app.checklist_rules import _claim_open, run_checklist_rules
 from app.checklist_templates import add_field, add_option, add_rule, create_template, publish_draft, start_draft
-from app.models import ChecklistRuleExecution, EnabledModule, Task
+from app.models import AppUser, ChecklistRuleExecution, EnabledModule, Task
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, world  # noqa: F401 -- Fixture
 
 EXPECTED = {"Immer Regeltest / Auftrag AU-2026-0001 / Anna Alpha", "nein-frei", "hat-geruest", "wind-30",
@@ -57,6 +57,9 @@ def _rule_template(db):
 def rules(world):
     db = world["db"]
     world["orders"]["mine"].caseworker_employee_id = world["emps"]["office"].id
+    # seit 1.9.369 (F2 c): die Sachbearbeiterin hat ein Konto Büro – Auftrag -- ohne Konto legten die Module ihre Aufgaben in den Büro-Eingang
+    db.add(AppUser(username="olga", display_name="Olga Office", role="buero_auftrag", employee_id=world["emps"]["office"].id, active=True,
+                   password_hash="-"))
     db.commit()
     world["rule_tpl"] = _rule_template(db)
     return world

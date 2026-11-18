@@ -22,9 +22,13 @@ from .audit import LOESCHANLASS, TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .suchmuster import passt
 from .zugehoerigkeit import require_project
-from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
+from .permissions import ROLE_ADMIN, ROLE_LABELS, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
+
+
+class ZuweisungOhneRolle(ValueError):
+    """Seit 1.9.369 (F2 c aus dem Bericht 1.9.364): die Person, der eine Aufgabe zugewiesen werden soll, sähe sie nicht -- 422 mit Grund."""
 TASK_ALREADY_TAKEN = "Diese Aufgabe hat bereits jemand anderes übernommen."
 
 
@@ -180,6 +184,21 @@ def aufgaben_abfrage(user: AppUser, *, status: str | None = None, project_id: in
     return _filter(query, status=status, project_id=project_id, include_archived=include_archived, search=search)
 
 
+def zuweisung_grund(db: Session, assigned_employee_id: int | None, min_visible_role: str | None) -> str | None:
+    """Seit 1.9.369 (F2 c aus dem Bericht 1.9.364): sähe die Person, der die Aufgabe zugewiesen wird, sie? Nur bei einer Mindestrolle; es zählt jedes
+    aktive Konto der Person nach DERSELBEN Regel wie das Lesen (task_visible_for_user()). Nein: der Grund, z. B. „Diese Aufgabe sieht nur Büro – Finanzen
+    und Administrator – Erika Eins hat kein Konto mit dieser Rolle.“; ja (oder ohne Zuweisung, ohne Mindestrolle): None."""
+    if assigned_employee_id is None or min_visible_role is None:
+        return None
+    konten = db.scalars(select(AppUser).where(AppUser.employee_id == assigned_employee_id, AppUser.active.is_(True)).order_by(AppUser.id)).all()
+    if any(task_visible_for_user(k, assigned_employee_id, min_visible_role) for k in konten):
+        return None
+    sehen = [ROLE_LABELS[r] for r in ROLES if has_min_role(AppUser(role=r), ROLE_OFFICE_AUFTRAG) and has_min_role(AppUser(role=r), min_visible_role)]
+    rollen = ", ".join(sehen[:-1]) + " und " + sehen[-1] if len(sehen) > 1 else (sehen[0] if sehen else "niemand")
+    name = _employee_name(db.get(Employee, assigned_employee_id)) or "diese Person"
+    return f"Diese Aufgabe sieht nur {rollen} – {name} hat kein Konto mit dieser Rolle."
+
+
 def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None,
                          project_id: int | None = None, include_archived: bool = False,
                          employee_id: int | None = None, unassigned_only: bool = False,
@@ -208,9 +227,9 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
     für Betriebskosten -- siehe CLAUDE.md "Aufgabe"): eine empfängerlose Aufgabe kann optional
     eine Ziel-Mindestrolle tragen. Der Filter gilt UNBEDINGT für jede Zeile (seit 1.9.364 in SQL,
     sichtbar_in_sql(); bis dahin je Zeile über task_visible_for_user()), nicht nur im
-    unassigned_only-Zweig -- für Konsistenz, auch wenn er praktisch nur dort greift (eine bereits
-    einem konkreten Mitarbeiter zugewiesene Aufgabe ist ohnehin nur für diesen selbst oder Admin
-    sichtbar, unabhängig von min_visible_role). Ein buero_auftrag-Konto sieht dadurch eine
+    unassigned_only-Zweig -- auch eine zugewiesene Aufgabe sieht ihre Person nur mit der Mindestrolle
+    (bis 1.9.368 stand hier, das sei unabhängig von min_visible_role -- falsch; seit 1.9.369 lehnt
+    die Zuweisung von Hand eine solche Person ab, zuweisung_grund()). Ein buero_auftrag-Konto sieht dadurch eine
     finanz-adressierte Aufgabe an KEINER Stelle -- weder in der Liste noch im gemeinsamen
     Büro-Eingang."""
     query = aufgaben_abfrage(user, status=status, project_id=project_id, include_archived=include_archived,
@@ -374,17 +393,22 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
                  project_id: int | None = None, created_by_user_id: int | None = None,
                  source_module: str | None = None, source_label: str | None = None,
                  source_url: str | None = None, status: str | None = None,
-                 min_visible_role: str | None = None) -> dict:
+                 min_visible_role: str | None = None, zuweisung: str = "eingang") -> dict:
     """Legt eine neue Aufgabe an. Wird sowohl vom manuellen "+Aufgabe"-Endpunkt als auch
     -- künftig -- direkt von anderen Modulen aufgerufen (siehe Modul-Docstring oben).
 
-    min_visible_role (seit 1.5.0): optionale Ziel-Mindestrolle für eine empfängerlose Aufgabe
-    (siehe list_tasks_for_user()/claim_task()). Wirkt unabhängig von assigned_employee_id --
-    bewusst nicht dagegen validiert, ob beide gleichzeitig gesetzt sind: eine bereits
-    zugewiesene Aufgabe wird über die Zuweisung selbst gesteuert, ein zusätzlich gesetztes
-    min_visible_role ist dann folgenlos, aber kein Fehler."""
+    min_visible_role (seit 1.5.0): optionale Ziel-Mindestrolle; sie gilt für jede Aufgabe, auch eine
+    zugewiesene (task_visible_for_user(); bis 1.9.368 stand hier fälschlich, sie sei dann folgenlos).
+    Seit 1.9.369 (F2 c): sähe die zugewiesene Person die Aufgabe nicht (zuweisung_grund()), lehnt
+    zuweisung="ablehnen" (der Endpunkt, von Hand) mit ZuweisungOhneRolle ab; die Vorgabe "eingang" (die
+    Module) legt sie empfängerlos in den Büro-Eingang -- wie ohne Sachbearbeiter."""
     if min_visible_role is not None and min_visible_role not in ROLES:
         raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
+    grund = zuweisung_grund(db, assigned_employee_id, min_visible_role)  # seit 1.9.369
+    if grund is not None:
+        if zuweisung == "ablehnen":
+            raise ZuweisungOhneRolle(grund)
+        assigned_employee_id = None
     if project_id is not None:  # seit 1.8.71: unbekannt 404 statt Fremdschlüssel (PostgreSQL 500)
         require_project(db, project_id)
     columns_by_key = _columns_by_key(db)
@@ -424,6 +448,10 @@ def update_task(db: Session, task_id: int, **changes) -> dict | None:
         return None
     if changes.get("project_id") is not None:  # seit 1.8.71: unbekannt 404 statt Fremdschlüssel (PostgreSQL 500)
         require_project(db, changes["project_id"])
+    if changes.get("assigned_employee_id") is not None:  # seit 1.9.369 (F2 c): nicht an jemanden, der die Aufgabe nicht sähe
+        grund = zuweisung_grund(db, changes["assigned_employee_id"], task.min_visible_role)
+        if grund is not None:
+            raise ZuweisungOhneRolle(grund)
     columns_by_key = _columns_by_key(db)
     if "status" in changes:
         _validate_status(changes["status"], columns_by_key)

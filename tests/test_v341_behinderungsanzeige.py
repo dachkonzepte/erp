@@ -37,7 +37,7 @@ from app.checklist_templates import (
 )
 from app.database import Base
 from app.models import (
-    ChecklistAttachment, ChecklistFollowUp, ChecklistRuleExecution, ChecklistTemplate, ChecklistTemplateField,
+    AppUser, ChecklistAttachment, ChecklistFollowUp, ChecklistRuleExecution, ChecklistTemplate, ChecklistTemplateField,
     ChecklistTemplateRule, ChecklistTemplateVersion, Employee, EnabledModule, Task,
 )
 from app.orders import create_order_from_quote
@@ -94,6 +94,9 @@ def bworld(world):
     db.commit()
     world["obstruction_tpl"] = publish_draft(db, _template_id(db))
     world["orders"]["mine"].caseworker_employee_id = world["emps"]["office"].id
+    # seit 1.9.369 (F2 c): die Sachbearbeiterin hat ein Konto Büro – Auftrag -- ohne Konto legten die Module ihre Aufgaben in den Büro-Eingang
+    db.add(AppUser(username="olga", display_name="Olga Office", role="buero_auftrag", employee_id=world["emps"]["office"].id, active=True,
+                   password_hash="-"))
     db.commit()
     return world
 

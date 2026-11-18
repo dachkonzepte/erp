@@ -3680,12 +3680,13 @@ class Task(Base):
     source_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    # Rollen-Zielgruppe für empfängerlose Aufgaben (seit 1.5.0) -- allgemeine Erweiterung des
-    # claim/release-Modells (1.4.3), nicht nur für Betriebskosten. NULL = wie bisher an jedes
-    # Büro-/Admin-Konto (list_tasks_for_user()); z. B. "buero_finanzen" grenzt eine
-    # empfängerlose Aufgabe auf Finanzen+Admin ein (ROLE_RANK-Hierarchie, has_min_role()) -- ein
-    # buero_auftrag-Konto sieht/übernimmt sie dann nicht. Wirkt NUR auf empfängerlose Aufgaben;
-    # eine bereits zugewiesene Aufgabe ignoriert dieses Feld, die Zuweisung selbst entscheidet.
+    # Rollen-Zielgruppe einer Aufgabe (seit 1.5.0) -- allgemeine Erweiterung des claim/release-Modells
+    # (1.4.3), nicht nur für Betriebskosten. NULL = wie bisher an jedes Büro-/Admin-Konto
+    # (list_tasks_for_user()); z. B. "buero_finanzen" grenzt die Aufgabe auf Finanzen+Admin ein
+    # (ROLE_RANK-Hierarchie, has_min_role()) -- ein buero_auftrag-Konto sieht/übernimmt sie dann nicht.
+    # Wirkt auf JEDE Aufgabe, auch eine zugewiesene (task_visible_for_user(), seit 1.5.0; bis 1.9.368 stand
+    # hier fälschlich, eine zugewiesene ignoriere das Feld). Seit 1.9.369 (F2 c) lehnt die Zuweisung von Hand
+    # eine Person ab, deren Konto die Aufgabe nicht sähe (422); ein Modul legt sie dann empfängerlos an.
     min_visible_role: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
 
     assigned_employee: Mapped["Employee | None"] = relationship()

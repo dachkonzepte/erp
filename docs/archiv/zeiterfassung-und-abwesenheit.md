@@ -3644,3 +3644,8 @@ Angepasste Erwartungen:
 - `tests/test_v710_urlaub_und_startwerte.py::test_modelle` -- alt: ohne die drei Spalten des Verfalls; neu: mit (im ersten vollen Lauf rot, ich hatte sie nicht
   nachgezogen).
 Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.368“.
+
+### Punkt 5 (1.9.369): Aufgabe nur an jemanden, der sie sieht
+
+Gehört zum Aufgabenmodul -- Umsetzung, Festlegungen und Tests: `docs/archiv/modul-aufgaben.md`, „Zuweisung mit Mindestrolle (seit 1.9.369)“; Gegenproben:
+`gegenproben-urlaubsrunde.md`, „1.9.369“.

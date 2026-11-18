@@ -90,3 +90,22 @@ gemacht: zwei „Gelesen“ in derselben Sekunde hätten auch ohne Schutz densel
 14 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Zwei zuerst unvollständig: `368_2` machte „Lesen bucht nichts“ nicht rot -- im
 Test hatte Mia keine Anspruchszeile, die Gegenprobe konnte nichts schreiben; der Test legt jetzt eine an, wiederholt: rot. `368_8` änderte Zeitpunkt und Namen
 zugleich, rot wurde nur der Name; der Zeitpunkt in `368_8b` für sich: rot.
+
+## 1.9.369 (Punkt 5): Aufgabe nur an jemanden, der sie sieht
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – dieselbe Regel wie das Lesen | nur `has_min_role()` statt `task_visible_for_user()` (`369_1`) | 1 rot: das Monteur-Konto gilt als „sieht sie“ |
+| Nr. 1 – nur aktive Konten | ohne Filter `active` (`369_1b`) | 1 rot: ein inaktives Konto zählt |
+| Nr. 2 – der Grund | allgemeiner Text (`369_2`) | 3 rot: Regel, Anlegen, Zuweisen |
+| Nr. 3 – von Hand anlegen 422 | der Endpunkt übergibt nicht „ablehnen“ (`369_3`) | 2 rot: 200 statt 422, Wächter „nur der Endpunkt“ |
+| Nr. 3 – von Hand zuweisen 422 | `update_task()` prüft nicht (`369_3b`) | 1 rot: 200 statt 422 |
+| Nr. 4 – Module in den Eingang | die Zuweisung bleibt (`369_4`) | 1 rot |
+| Nr. 5 – nur der Endpunkt lehnt ab | ein Modul (Bedenkenanzeige) übergibt „ablehnen“ (`369_5`) | 1 rot: Wächter |
+| Nr. 6 – ohne Namen und Titel | das Skript nennt den Titel (`369_6`) | 1 rot |
+| Nr. 6 – nur lesend | keine Gegenprobe im Code: die Sitzung ist schreibgeschützt (`nur_lesende_sitzung()` aus `pruefe_stornos.py`, dort geprüft) und das Skript schreibt nicht | – |
+| Nr. 7 – Kommentar und Docstrings | keine: reine Doku (der Test prüft nur, dass der falsche Satz weg ist) | – |
+
+8 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `369_3` und `369_3b` scheiterten zuerst an einem KeyError (die Antwort 200 hatte
+kein `detail`) -- der Test prüft jetzt zuerst den Status, wiederholt: rot am Status. `369_6` zuerst mit einem undefinierten Namen gebaut (wäre am NameError rot
+gewesen) und vor dem Lauf durch eine gültige Ersetzung ersetzt.
