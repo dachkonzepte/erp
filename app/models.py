@@ -2780,7 +2780,8 @@ class TimeTrackingSettings(Base):
     # allgemeine Formular der Zeitregeln.
     urlaub_vorgabe_tage: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal("30"), server_default="30")
     urlaub_uebertrag: Mapped[str] = mapped_column(String(20), default="von_hand", server_default="von_hand")
-    urlaub_verfall: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    # seit 1.9.366 (Urlaubsrunde, Punkt 2): ausgeliefert „31.03.“ -- die Migration c5e2f8a1d047 setzt ihn im Bestand, wo er leer war
+    urlaub_verfall: Mapped[str | None] = mapped_column(String(6), nullable=True, default="31.03.")
     # Seit 1.9.336 (Lohn L2c-3, Punkt 3; Antwort B9): Grenzen des Arbeitszeitkontos -- „Hinweis ab Plus … h“ und „Hinweis ab Minus … h“ (beide als Betrag größer 0,
     # leer = kein Hinweis); nur Hinweise in „Prüfen“ und an der Person (app/arbeitszeitkonto.py::grenze_text()), nie eine Sperre. Gesetzt nur über
     # PUT /api/time-backoffice/konten/vorgaben (darf_lohnregeln()).

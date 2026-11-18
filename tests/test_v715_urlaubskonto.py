@@ -100,7 +100,8 @@ def test_hinweise(w):
     urlaub(w, ada, date(2027, 1, 4), date(2027, 1, 15))  # 10 Tage
     k = konto(w, ada)
     assert (k.anspruch, k.anspruch_vorgabe, k.uebertrag, k.rest) == (D("2.0"), False, D("4.5"), D("-3.5"))  # der doppelte zählt nicht
-    assert k.hinweise == [DOPPELT, "Verfall des Übertrags vorgemerkt am 31.03.2027 – nichts verfällt von selbst", "Rest unter 0 (-3,5 Tage)"]
+    # seit 1.9.366: kein „Verfall … vorgemerkt“ mehr -- der Urlaub im Januar hat den Übertrag verbraucht (Übertrag zuerst), nichts bleibt zu verfallen
+    assert k.hinweise == [DOPPELT, "Rest unter 0 (-3,5 Tage)"]
     assert konto(w, bo).hinweise == [ANSPRUCH_PRUEFEN]  # seit 1.9.320 ohne „Startwert folgt“: Eintritt 2027, kein Startwert (Antwort B16)
 
 
@@ -110,11 +111,12 @@ def test_ab_2028_von_hand_und_automatisch(w):
     db.add(Urlaubsanspruch(employee_id=ada.id, jahr=2028, uebertrag=D("2")))
     db.commit()
     k = konto(w, ada, 2028, heute=date(2028, 1, 1))
-    assert (k.uebertrag_quelle, k.uebertrag, k.hinweise) == ("von_hand", D("2"), [])
+    assert (k.uebertrag_quelle, k.uebertrag, k.hinweise) == ("von_hand", D("2"), ["davon Übertrag noch 2 Tage, verfällt am 31.03.2028"])  # seit 1.9.366
     db.get(TimeTrackingSettings, 1).urlaub_uebertrag = "automatisch"
     db.commit()
     k = konto(w, ada, 2028, heute=date(2028, 1, 1))
-    assert (k.uebertrag_quelle, k.uebertrag, k.rest, k.hinweise) == ("automatisch", D("29.5"), D("59.5"), [DOPPELT])
+    assert (k.uebertrag_quelle, k.uebertrag, k.rest, k.hinweise) == ("automatisch", D("29.5"), D("59.5"),
+                                                                     [DOPPELT, "davon Übertrag noch 29,5 Tage, verfällt am 31.03.2028"])  # seit 1.9.366
 
 
 def test_personen_aktiv_oder_mit_urlaub_im_jahr(w):

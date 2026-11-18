@@ -24,3 +24,24 @@ Datei byte-gleich zurück (SHA-256), kein Marker unter `app/`. „Grund“ = die
 
 14 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `365_8` lief zuerst gegen einen Test, der vorab nur prüfte, ob das Feld in der
 Liste steht -- rot, aber nicht am Verhalten; der Test prüft jetzt zuerst die Historie, wiederholt: rot an „Büro – Auftrag sieht das Feld“.
+
+## 1.9.366 (Punkt 2): Übertrag zuerst
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur Urlaub bis zum Verfall | jeder Urlaub nimmt den Übertrag (`366_1`) | 1 rot: „Urlaub bis zum Verfall nimmt zuerst den Übertrag“ (noch 0 statt 2,5) |
+| Nr. 1 – einschließlich | am Verfallstag zählt nicht (`366_1b`) | 1 rot: halber Tag am 31.03. (2,5 statt 2) |
+| Nr. 2 – nie unter 0 | ohne `max` (`366_2`) | 1 rot: -3 statt 0 |
+| Nr. 3 – ohne Verfall jeder Urlaub | ohne Verfall nimmt keiner (`366_3`) | 1 rot: „ohne Verfall …“ (4,5 statt 2,5) |
+| Nr. 4 – am Anspruch zuerst | nur die Vorgabe (`366_4`) | 1 rot: Verfall am Anspruch |
+| Nr. 5 – vor und nach dem Verfall | immer „davon …, verfällt am“ (`366_5`) | 1 rot: „nach dem Verfall nicht genommen“ |
+| Nr. 6 – der Rest bleibt | Rest aus `uebertrag_noch` (`366_6`) | 3 rot: Rest im Konto, nach dem Verfall, „danach Rest“ |
+| Nr. 7 – „danach Rest“ nennt den Übertrag | Satz weg (`366_7`) | 1 rot: „danach Rest …“ |
+| Nr. 7 – nur, wenn etwas bleibt | auch bei 0 (`366_7b`) | 1 rot: „alles verbraucht“ |
+| Nr. 7 – nur bis zum Verfall | auch danach (`366_7c`) | 1 rot: „danach Rest“ nach dem Verfall |
+| Nr. 8 – ausgeliefert 31.03. | Modell ohne Vorgabe (`366_8`) | 4 rot: Vorgabe, Übertrag zuerst, nach dem Verfall, „danach Rest“ |
+| Nr. 8 – die Migration nur, wo leer | jede Zeile auf 31.03. (`366_8b`) | 1 rot: Migration mit eigenem Wert „30.06.“ |
+| Nr. 9 – „nur vorgemerkt“ entfällt | der alte Satz zurück (`366_9`, Vorlage) | 1 rot: Einstellungen |
+
+13 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Nr. 8 „downgrade ändert nichts“ ohne eigene Gegenprobe im Code: der Test prüft
+nach dem downgrade denselben Wert -- eine Gegenprobe wäre ein downgrade, das zurücksetzt; das prüft derselbe Test (`assert … == nachher`).

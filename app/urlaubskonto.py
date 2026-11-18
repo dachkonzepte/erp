@@ -16,6 +16,9 @@ Je Person und Jahr (ab ERSTES_JAHR, 2027; app/lohnkonten.py):
                   (app/tagesbilanz.py); ein von Hand eingetragener betriebsfreier Tag zählt (Antwort 4, Befund 7.2)
     beantragt     die Tage der offenen Anträge auf Urlaub im Jahr, nach derselben Regel (Antwort 5)
     rest          Anspruch + Übertrag − genehmigt; rest_nach_antraegen = rest − beantragt
+    Übertrag zuerst  seit 1.9.366 (Urlaubsrunde, Punkt 2): genehmigter Urlaub bis zum Verfall des Übertrags (am Anspruch, sonst die Vorgabe „Verfall“,
+                  ausgeliefert 31.03.) verbraucht zuerst den Übertrag -- uebertrag_noch = Übertrag − dieser Urlaub, nie unter 0; Urlaub danach verbraucht
+                  den Anspruch. Ohne Verfall verbraucht jeder Urlaub des Jahrs zuerst den Übertrag. Der Rest bleibt Anspruch + Übertrag − genehmigt
     hinweise      nur Hinweise, keine Sperre: „ohne Übertrag – Startwert folgt“, „Übertrag doppelt – prüfen“, „Anspruch prüfen“ (Eintritt oder
                   Austritt im Jahr), der vorgemerkte Verfall des Übertrags (nichts verfällt von selbst), „Rest unter 0“
 
@@ -60,6 +63,8 @@ class Konto:
     beantragt: Decimal = NULL
     hinweise: list[str] = field(default_factory=list)
     anteilig: dict | None = None  # seit 1.9.365: Vorschlag bei Eintritt oder Austritt im Jahr (vorschlag_anteilig())
+    verfall_am: date | None = None  # seit 1.9.366: Verfall des Übertrags im Jahr (am Anspruch, sonst die Vorgabe; leer = nie)
+    uebertrag_noch: Decimal = NULL  # seit 1.9.366: Übertrag, den kein genehmigter Urlaub bis zum Verfall verbraucht hat
 
     @property
     def rest(self) -> Decimal:
@@ -77,6 +82,7 @@ class Konto:
                 "anspruch_vorgabe": self.anspruch_vorgabe, "uebertrag": t(self.uebertrag), "uebertrag_quelle": self.uebertrag_quelle,
                 "genehmigt": t(self.genehmigt), "vorbei": t(self.vorbei), "kuenftig": t(self.kuenftig), "beantragt": t(self.beantragt),
                 "rest": t(self.rest), "rest_nach_antraegen": t(self.rest_nach_antraegen), "hinweise": list(self.hinweise),
+                "verfall_am": self.verfall_am, "uebertrag_noch": t(self.uebertrag_noch),  # seit 1.9.366
                 "anteilig": None if self.anteilig is None else {**self.anteilig, "basis": t(self.anteilig["basis"]), "roh": t(self.anteilig["roh"]),
                                                                 "vorschlag": t(self.anteilig["vorschlag"])}}
 
@@ -195,6 +201,8 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                 k.uebertrag = a.uebertrag
             if a is not None and a.uebertrag is not None and quelle != "von_hand":
                 k.hinweise.append(DOPPELT)
+            verfall = _verfall(a, vorgabe_verfall, j)  # seit 1.9.366: Übertrag zuerst -- Urlaub bis zum Verfall verbraucht ihn
+            k.verfall_am, bis_verfall = verfall, NULL
             for t, x in tage.items():
                 if t.year != j:
                     continue
@@ -205,6 +213,10 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                             k.vorbei += posten.anteil
                         else:
                             k.kuenftig += posten.anteil
+                        if verfall is None or t <= verfall:
+                            bis_verfall += posten.anteil
+            if k.uebertrag > 0:
+                k.uebertrag_noch = max(NULL, k.uebertrag - bis_verfall)
             if j == jahr:
                 for r in offen.get(emp.id, []):
                     k.beantragt += abwesenheit_tage(db, emp.id, max(r.start_date, date(j, 1, 1)), min(r.end_date, date(j, 12, 31)), kategorie=URLAUB,
@@ -222,9 +234,8 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                         k.hinweise.append(ANSPRUCH_PRUEFEN)
                     elif aus is not None:
                         k.hinweise.append(f"Anspruch anteilig: {k.anteilig['rechnung']}")
-                verfall = _verfall(a, vorgabe_verfall, j)
-                if verfall is not None and k.uebertrag > 0:
-                    k.hinweise.append(f"Verfall des Übertrags vorgemerkt am {verfall:%d.%m.%Y} – nichts verfällt von selbst")
+                if k.uebertrag_noch > 0:  # seit 1.9.366 statt „Verfall des Übertrags vorgemerkt am …“
+                    k.hinweise.append(uebertrag_hinweis(k.uebertrag_noch, verfall, heute))
                 if k.rest < 0:
                     k.hinweise.append(f"Rest unter 0 ({_tage_text(k.rest)} Tage)")
                 ergebnis.append(k)
@@ -234,6 +245,16 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
 def tage_wort(wert: Decimal) -> str:
     """Seit 1.9.316: „1 Tag“, „0,5 Tage“, „21,5 Tage“, „-2 Tage“."""
     return f"{_tage_text(wert)} {'Tag' if wert == 1 else 'Tage'}"
+
+
+def uebertrag_hinweis(noch: Decimal, verfall: date | None, heute: date) -> str:
+    """Seit 1.9.366 (Urlaubsrunde, Punkt 2): was vom Übertrag noch übrig ist -- bis zum Verfall „davon Übertrag noch 2,5 Tage, verfällt am
+    31.03.2027“ (ohne Verfall ohne Datum), danach „Übertrag nicht genommen: 2,5 Tage – Verfall am 31.03.2027, nichts verfällt von selbst“."""
+    if verfall is None:
+        return f"davon Übertrag noch {tage_wort(noch)}"
+    if heute <= verfall:
+        return f"davon Übertrag noch {tage_wort(noch)}, verfällt am {verfall:%d.%m.%Y}"
+    return f"Übertrag nicht genommen: {tage_wort(noch)} – Verfall am {verfall:%d.%m.%Y}, nichts verfällt von selbst"
 
 
 def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
@@ -252,14 +273,25 @@ def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_t
     from .zeiten import feiertage_bundesland
 
     # das Bundesland wie die Tagesbilanz: die Einstellung der Plantafel, ohne sie Nordrhein-Westfalen (abwesenheit_tage() läse sie ohne Rückfall)
+    from .berlin_time import berlin_today
     feiertage = automatic_public_holidays(feiertage_bundesland(db), range(von.year, bis.year + 1))
-    jahre = []
+    heute = heute or berlin_today()
+    jahre, uebertrag = [], []
     for j in range(max(von.year, ERSTES_JAHR), bis.year + 1):
         k = konten(db, j, [employee_id], heute=heute)
         if not k:
             continue
         tage = abwesenheit_tage(db, employee_id, max(von, date(j, 1, 1)), min(bis, date(j, 12, 31)), kategorie=URLAUB, halber_tag=halber_tag,
                                 feiertage=feiertage, kalendertag_urlaub=kalendertag_urlaub)["tage"]
+        # seit 1.9.366: Übertrag zuerst -- was dieser Urlaub bis zum Verfall vom Übertrag nimmt; bleibt danach etwas, steht es im Text
+        verfall = k[0].verfall_am
+        if k[0].uebertrag_noch > 0 and (verfall is None or heute <= verfall):
+            anfang, ende = max(von, date(j, 1, 1)), min(bis, date(j, 12, 31) if verfall is None else verfall)
+            davor = abwesenheit_tage(db, employee_id, anfang, ende, kategorie=URLAUB, halber_tag=halber_tag, feiertage=feiertage,
+                                     kalendertag_urlaub=kalendertag_urlaub)["tage"] if anfang <= ende else NULL
+            noch = max(NULL, k[0].uebertrag_noch - davor)
+            if noch > 0:
+                uebertrag.append((j, uebertrag_hinweis(noch, verfall, heute)))
         jahre.append({"jahr": j, "tage": tage, "rest_danach": k[0].rest - tage, "ohne_startwert": OHNE_STARTWERT in k[0].hinweise,
                       "mit_anderen": k[0].rest_nach_antraegen - tage if andere_offene and k[0].beantragt > 0 else None})
     if not jahre:
@@ -267,6 +299,8 @@ def rest_danach(db: Session, employee_id: int, von: date, bis: date, *, halber_t
     summe = sum((x["tage"] for x in jahre), NULL)
     text = "danach Rest " + (tage_wort(jahre[0]["rest_danach"]) if len(jahre) == 1 else
                              " · ".join(f"{x['jahr']}: {tage_wort(x['rest_danach'])}" for x in jahre))
+    for j, satz in uebertrag:  # seit 1.9.366: „ · davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027“ (über den Jahreswechsel mit dem Jahr)
+        text += " · " + (satz if len(jahre) == 1 else f"{j}: {satz}")
     anderen = [x for x in jahre if x["mit_anderen"] is not None]  # seit 1.9.319
     if anderen:
         text += " · mit den anderen offenen Anträgen " + (tage_wort(anderen[0]["mit_anderen"]) if len(jahre) == 1 else

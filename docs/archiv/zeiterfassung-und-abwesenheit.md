@@ -3503,3 +3503,52 @@ Angepasste Erwartungen:
 - `tests/test_v720_startwert_nur_am_stichtag.py::test_hinweis_nur_wer_am_stichtag_beschaeftigt_war` -- alt: Bo (Eintritt 01.01.2027) mit „Anspruch prüfen“;
   neu: ohne Hinweis (12 volle Monate, der Vorschlag ist der Anspruch -- Festlegung 1.9.365 Nr. 4). Gefunden im ersten vollen Lauf.
 Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.365“.
+
+### Umsetzung 1.9.366 (Punkt 2): Übertrag zuerst
+
+- `app/urlaubskonto.py::konten()`: je Jahr `verfall_am` (am Anspruch, sonst die Vorgabe „Verfall“; `_verfall()` wie bisher) und `uebertrag_noch` -- der Übertrag
+  minus der genehmigte Urlaub (Posten der Tagesbilanz, Kategorie Urlaub, mit Anteil) an Tagen bis einschließlich zum Verfall, nie unter 0; nur bei Übertrag über 0.
+  Ohne Verfall nimmt jeder Urlaub des Jahrs zuerst den Übertrag. Der Rest bleibt Anspruch + Übertrag − genehmigt (verfallen wird erst in Punkt 4, nur gebucht).
+- Hinweis (ersetzt „Verfall des Übertrags vorgemerkt am … – nichts verfällt von selbst“), nur bei `uebertrag_noch` über 0, über `uebertrag_hinweis()`: bis zum
+  Verfall „davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027“, ohne Verfall „davon Übertrag noch 2,5 Tage“, danach „Übertrag nicht genommen: 2,5 Tage –
+  Verfall am 31.03.2027, nichts verfällt von selbst“. Er steht überall, wo das Konto seine Hinweise zeigt (Karte unter „Zeiten“, „Meine Zeiten“). In der Antwort
+  dazu `verfall_am` und `uebertrag_noch`.
+- `rest_danach()`: bis zum Verfall (heute) zieht es vom `uebertrag_noch` die Tage dieses Urlaubs bis zum Verfall ab; bleibt etwas, folgt auf „danach Rest …“
+  „ · davon Übertrag noch 0,5 Tage, verfällt am 31.03.2027“ (über den Jahreswechsel mit dem Jahr davor). Ein Urlaub nach dem Verfall nimmt nichts vom Übertrag --
+  der Satz nennt dann, was vom Übertrag bleibt (und verfallen würde).
+- Vorgabe: `TimeTrackingSettings.urlaub_verfall` ausgeliefert „31.03.“ (Modell); Migration `c5e2f8a1d047` setzt im Bestand „31.03.“, wo die Vorgabe leer war; ein
+  eigener Wert bleibt. `downgrade()` ändert nichts: die Fassung davor kennt den Wert (dort „nur vorgemerkt“), und ob er vor dem Upgrade leer war, lässt sich nicht
+  mehr unterscheiden -- ein Zurücksetzen könnte einen eigenen Eintrag löschen.
+- Einstellungen (Zeitregeln, „Urlaub und Startwerte“): statt „… sind sie nur vorgemerkt“ „Bis zum Verfall verbraucht Urlaub zuerst den Übertrag aus dem Vorjahr;
+  was danach übrig ist, zeigt das Urlaubskonto als nicht genommen – nichts verfällt von selbst.“
+
+#### Festlegungen 1.9.366 (Bitte bestätigen)
+
+1. Genehmigter Urlaub bis einschließlich zum Verfall verbraucht zuerst den Übertrag, Urlaub danach den Anspruch.
+2. Was vom Übertrag bleibt (`uebertrag_noch`), ist nie unter 0; ohne Übertrag über 0 gibt es nichts zu verbrauchen.
+3. Ohne Verfall verbraucht jeder Urlaub des Jahrs zuerst den Übertrag.
+4. Das Datum: am Anspruch, sonst die Vorgabe „Verfall“ (unverändert).
+5. Bis zum Verfall „davon Übertrag noch n Tage, verfällt am TT.MM.JJJJ“, danach „Übertrag nicht genommen: n Tage – Verfall am TT.MM.JJJJ, nichts verfällt von
+   selbst“; ersetzt „Verfall des Übertrags vorgemerkt am …“.
+6. Der Rest bleibt Anspruch + Übertrag − genehmigt.
+7. „danach Rest“ nennt bis zum Verfall, was nach diesem Urlaub vom Übertrag bleibt -- nur, wenn etwas bleibt.
+8. Die Vorgabe „Verfall“ ist ausgeliefert „31.03.“; die Migration setzt sie im Bestand, wo sie leer war; ein eigener Wert bleibt; `downgrade()` ändert nichts.
+9. „nur vorgemerkt“ entfällt in den Einstellungen.
+
+#### Tests und Prüfung 1.9.366
+
+Neu: `tests/test_v766_uebertrag_zuerst.py` (11 Tests: Vorgabe, Urlaub vor und nach dem Verfall, halber Tag am Verfallstag, nie unter 0, nach dem Verfall, ohne Verfall,
+Verfall am Anspruch, ohne Übertrag, „danach Rest“ auch über den Jahreswechsel, Einstellungen; Migration mit leerer und eigener Vorgabe unter SQLite, leer unter
+PostgreSQL). `klicktest_urlaubsrunde.py`: Mia mit genehmigtem Urlaub 01.–02.02.2027 -- Karte mit „davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027“, Dialog
+„2 Urlaubstage · danach Rest 30,5 Tage · davon Übertrag noch 0,5 Tage, verfällt am 31.03.2027“. Angepasste Erwartungen (die Vorgabe ist jetzt 31.03., der neue
+Hinweis ersetzt „vorgemerkt“):
+- `tests/test_v715_urlaubskonto.py::test_hinweise` -- alt: `[DOPPELT, "Verfall des Übertrags vorgemerkt am 31.03.2027 – nichts verfällt von selbst", "Rest unter
+  0 (-3,5 Tage)"]`; neu: ohne den Verfall-Satz (der Urlaub im Januar hat den Übertrag verbraucht).
+- `tests/test_v715_urlaubskonto.py::test_ab_2028_von_hand_und_automatisch` -- alt: 2028 von Hand ohne Hinweis, automatisch `[DOPPELT]`; neu: dazu „davon Übertrag
+  noch 2 Tage, verfällt am 31.03.2028“ bzw. „… 29,5 Tage …“.
+- `tests/test_v718_ohne_startwert.py::test_konto_in_meine_zeiten_mit_dem_hinweis` -- alt: Ada (Startwert 4,5) ohne Hinweis; neu: „davon Übertrag noch 4,5 Tage,
+  verfällt am 31.03.2027“.
+- `tests/test_v710_urlaub_und_startwerte.py::test_vorgaben_lesen_und_teil_update` -- alt: `urlaub_verfall` None; neu: „31.03.“.
+- `klicktest_konten.py` „Fin: Vorgaben 30 Tage, von Hand, kein Verfall“ (umbenannt „… Verfall 31.03.“) -- alt: Feld leer; neu: „31.03.“.
+- `klicktest_urlaubsrunde.py` (aus 1.9.365) „Fin: Konto 2027 mit Vorschlägen“ -- alt: Mia ohne Hinweis; neu: mit „davon Übertrag noch 2,5 Tage, …“.
+Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.366“.

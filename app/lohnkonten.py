@@ -3,8 +3,9 @@
 Nur die Daten und ihre Pflege; gerechnet wird mit ihnen erst im Urlaubskonto (L2b) und im Arbeitszeitkonto (L2c).
 
     Vorgaben    in den Zeitregeln (TimeTrackingSettings): Urlaubsanspruch je Jahr in Tagen (halbe erlaubt) -- gilt für jede Person ohne eigenen Wert im
-                Jahr; Übertrag ins Folgejahr („von_hand“ | „automatisch“) und sein Verfall („TT.MM.“ im Folgejahr, leer = kein Verfall). Übertrag und Verfall
-                wirken erst mit dem Urlaubskonto; bis Frage 2 des Befunds beantwortet ist, sind sie nur vorgemerkt.
+                Jahr; Übertrag ins Folgejahr („von_hand“ | „automatisch“) und sein Verfall („TT.MM.“ im Folgejahr, leer = kein Verfall; ausgeliefert seit
+                1.9.366 „31.03.“). Seit 1.9.366 wirkt der Verfall: bis dahin verbraucht Urlaub zuerst den Übertrag (app/urlaubskonto.py); verfallen wird
+                nichts von selbst.
     Übertrag    seit 1.9.312 (L2b, Punkt 0): im ersten Jahr (2027) der Startwert „Resturlaub“, kein zweites Feld; ab 2028 nach der Vorgabe -- „von_hand“
                 das Feld am Anspruch, „automatisch“ der Rest des Vorjahres (uebertrag_quelle()). Ein Übertrag am Anspruch, wo er nicht gilt, wird nie still
                 gelöscht: „Übertrag doppelt – prüfen“, entfernt nur von Hand (null).

@@ -33,7 +33,8 @@ def w(threaded_db_session, router_test_client, fester_tag):
 def test_konto_in_meine_zeiten_mit_dem_hinweis(w):
     eigen = meine_zeiten(w["db"], w["bo"].id, monat=date(2026, 11, 1), heute=date(2026, 11, 10))["urlaub"]
     assert (eigen["jahr"], eigen["uebertrag"], eigen["hinweise"]) == (2027, D("0.0"), [OHNE_STARTWERT])
-    assert meine_zeiten(w["db"], w["ada"].id, monat=date(2026, 11, 1), heute=date(2026, 11, 10))["urlaub"]["hinweise"] == []
+    assert meine_zeiten(w["db"], w["ada"].id, monat=date(2026, 11, 1), heute=date(2026, 11, 10))["urlaub"]["hinweise"] == [
+        "davon Übertrag noch 4,5 Tage, verfällt am 31.03.2027"]  # seit 1.9.366: Übertrag zuerst, Vorgabe „Verfall“ 31.03.
 
 
 def test_danach_rest_mit_dem_hinweis(w):

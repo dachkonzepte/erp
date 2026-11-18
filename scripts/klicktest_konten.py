@@ -3,7 +3,7 @@
 Stehende Uhr Mi 11.11.2026 10:00. Mia (gewerblich), Kai (gewerblich), Bea (kaufmännisch, Konto Büro – Auftrag); Fin (Büro – Finanzen, ohne Mitarbeiter);
 seit 1.9.312 Ute (gewerblich, inaktiv) und am Anspruch 2027 von Kai ein Übertrag von 2 Tagen aus der Zeit vor 1.9.312 (Bestand).
 
-    Büro – Finanzen  Block „Urlaub und Startwerte der Konten“: Vorgabe 30 Tage, Übertrag „von Hand“, Verfall leer; jede Person mit „30 Tage (Vorgabe)“ und „—“;
+    Büro – Finanzen  Block „Urlaub und Startwerte der Konten“: Vorgabe 30 Tage, Übertrag „von Hand“, Verfall 31.03. (seit 1.9.366 die Vorgabe); jede Person mit „30 Tage (Vorgabe)“ und „—“;
                      Vorgaben 28,5 Tage und Verfall 31.03. gespeichert; „Ändern“ an Mia: Dialog „Urlaub und Startwert – Mia Monteurin“, Jahr 2027 (dazu
                      2028), Urlaubstage leer mit „Vorgabe 28,5“; 24 Tage, Notiz gespeichert -> „24 Tage“; Startwert Resturlaub 4,5, Saldo -12,25 h,
                      Bemerkung, „geprüft“ -> „Geprüft am 11.11.2026 durch Fin Finanzen.“, in der Zeile „24 Tage · Übertrag 4,5“, „4,5 Tage“,
@@ -128,9 +128,9 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1440, 1000)
     p.pruefe("Fin: Zeitregeln geladen", await tab.oeffnen("/settings#time-rules", BEREIT), True)
     await tab.warte_auf_ruhe()
-    p.pruefe("Fin: Vorgaben 30 Tage, von Hand, kein Verfall", await tab.js(
+    p.pruefe("Fin: Vorgaben 30 Tage, von Hand, Verfall 31.03.", await tab.js(
         "[document.getElementById('kvTage').value,document.getElementById('kvUebertrag').value,document.getElementById('kvVerfall').value,"
-        "document.getElementById('kontenJahrKopf').textContent]"), ["30", "von_hand", "", "Urlaub 2027"])
+        "document.getElementById('kontenJahrKopf').textContent]"), ["30", "von_hand", "31.03.", "Urlaub 2027"])  # seit 1.9.366 Verfall 31.03.
     p.pruefe("Fin: jede Person mit der Vorgabe, ohne Startwert", await tab.js(ZEILEN),
              [["Bea Büro", "30 Tage (Vorgabe)", "30 Tage", "—", "—", "—", "Ändern"],  # seit 1.9.316 die Spalte „Rest 2027“
               ["Kai Kolonne", "30 Tage (Vorgabe) · Übertrag doppelt – prüfen", "30 Tage", "—", "—", "—", "Ändern"],
