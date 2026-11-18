@@ -71,6 +71,7 @@ from ..schemas import (
     ChecklistRuleExecutionOut, ChecklistRulesRunOut, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
+from ..ids import Id
 from .orders import require_field_order_access
 
 router = APIRouter()
@@ -210,8 +211,8 @@ def get_startable_templates(context: str, db: Session = Depends(get_db, scope="f
 
 
 @router.get("/api/checklists", response_model=list[ChecklistSummaryOut])
-def get_checklists(context: str | None = None, order_id: int | None = None, property_id: int | None = None,
-                   operational_asset_id: int | None = None, status: str | None = None, template_id: int | None = None,
+def get_checklists(context: str | None = None, order_id: Id | None = None, property_id: Id | None = None,
+                   operational_asset_id: Id | None = None, status: str | None = None, template_id: Id | None = None,
                    open_rules: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Büro: frei filterbar. Monteur: genau EIN Bezug (Auftrag, Objekt oder Betriebsmittel) mit
     Zugriffsprüfung -- keine auftragsübergreifende Liste."""
@@ -257,7 +258,7 @@ def get_my_checklists(status: str | None = "entwurf", db: Session = Depends(get_
 
 
 @router.get("/api/orders/{order_id}/open-concerns")
-def get_open_concerns(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_open_concerns(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Offene Bedenken am Auftrag (seit 1.8.43, app/concern_notices.py): Bedenkenanzeigen ohne Entscheidung -- für
     den Hinweis auf der Auftragsseite (Büro), seit 1.8.45 auch auf der Einsatzbericht- und der Checklisten-Seite des
     Auftrags, für Büro und Monteur. Der Monteur nur für einen Auftrag, den er sehen darf (require_field_order_access(),
@@ -278,7 +279,7 @@ def get_open_concerns(order_id: int, db: Session = Depends(get_db, scope="functi
 
 
 @router.get("/api/checklists/asset-readiness/{asset_id}", response_model=ChecklistAssetReadinessOut)
-def get_asset_readiness(asset_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_asset_readiness(asset_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Letzte Meldung zur Einsatzbereitschaft (Entscheidung B, Zusatz) -- bewusst für jede Rolle,
     unabhängig von field_readable: der Hinweis "nicht einsatzbereit" ist eine Sicherheitsangabe."""
     _require_module_enabled(db)
@@ -287,7 +288,7 @@ def get_asset_readiness(asset_id: int, db: Session = Depends(get_db, scope="func
 
 
 @router.post("/api/checklists/asset-readiness/{asset_id}/repaired", response_model=ChecklistAssetReadinessOut)
-def post_asset_repaired(asset_id: int, payload: ChecklistAssetReleaseWrite, db: Session = Depends(get_db, scope="function"),
+def post_asset_repaired(asset_id: Id, payload: ChecklistAssetReleaseWrite, db: Session = Depends(get_db, scope="function"),
                         _role: AppUser = _office_dep):
     """Büro markiert ein als "nicht einsatzbereit" gemeldetes Gerät als repariert (seit 1.8.2) --
     mit Wer (Anzeigename des Kontos) und Wann. Monteure heben eine Meldung nur über eine neue
@@ -321,14 +322,14 @@ def post_checklist(payload: ChecklistCreate, db: Session = Depends(get_db, scope
 
 
 @router.get("/api/checklists/{checklist_id}", response_model=ChecklistOut)
-def get_checklist_endpoint(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_checklist_endpoint(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id)
     return _detail(db, _role, checklist_id)
 
 
 @router.put("/api/checklists/{checklist_id}/answers/{field_id}", response_model=ChecklistOut)
-def put_checklist_answer(checklist_id: int, field_id: int, payload: ChecklistAnswerWrite,
+def put_checklist_answer(checklist_id: Id, field_id: Id, payload: ChecklistAnswerWrite,
                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     checklist = _checklist_for(db, _role, checklist_id, write=True)
@@ -339,9 +340,9 @@ def put_checklist_answer(checklist_id: int, field_id: int, payload: ChecklistAns
 
 
 @router.post("/api/checklists/{checklist_id}/attachments", response_model=ChecklistOut)
-def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file: UploadFile = File(...),
+def post_checklist_attachment(checklist_id: Id, field_id: Id = Form(...), file: UploadFile = File(...),
                               signer_name: str | None = Form(None), client_uuid: str | None = Form(None),
-                              participant_id: int | None = Form(None), signer_person: str | None = Form(None),
+                              participant_id: Id | None = Form(None), signer_person: str | None = Form(None),
                               signer_function: str | None = Form(None),
                               db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.57: participant_id für einen Unterzeichner "Beteiligter"; das angemeldete Konto (für "konto") reicht der
@@ -358,7 +359,7 @@ def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file
 
 
 @router.get("/api/checklist-attachments/{attachment_id}/file")
-def get_checklist_attachment_file(attachment_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_checklist_attachment_file(attachment_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     attachment = get_attachment(db, attachment_id)
     if attachment is None:
@@ -374,7 +375,7 @@ def get_checklist_attachment_file(attachment_id: int, db: Session = Depends(get_
 
 
 @router.get("/api/checklist-attachments/{attachment_id}/power-of-attorney")
-def get_checklist_signer_poa(attachment_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_checklist_signer_poa(attachment_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Die beim Unterschreiben eingefrorene Vollmacht eines Beteiligten (seit 1.8.57) -- nur das Büro, wie die Vollmacht
     am Beteiligten selbst. 409, wenn die Datei nicht mehr zu ihrer Prüfsumme passt."""
     _require_module_enabled(db)
@@ -392,7 +393,7 @@ def get_checklist_signer_poa(attachment_id: int, db: Session = Depends(get_db, s
 
 
 @router.delete("/api/checklist-attachments/{attachment_id}", response_model=ChecklistOut)
-def delete_checklist_attachment(attachment_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def delete_checklist_attachment(attachment_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     attachment = get_attachment(db, attachment_id)
     if attachment is None:
@@ -405,7 +406,7 @@ def delete_checklist_attachment(attachment_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/checklists/{checklist_id}/complete", response_model=ChecklistOut)
-def post_complete_checklist(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def post_complete_checklist(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id, write=True)
     _call(complete_checklist, db, checklist_id, completed_by_employee_id=_role.employee_id, user_id=_role.id,
@@ -414,7 +415,7 @@ def post_complete_checklist(checklist_id: int, db: Session = Depends(get_db, sco
 
 
 @router.post("/api/checklists/{checklist_id}/discard-signatures", response_model=ChecklistOut)
-def post_discard_signatures(checklist_id: int, payload: ChecklistDiscardSignaturesWrite,
+def post_discard_signatures(checklist_id: Id, payload: ChecklistDiscardSignaturesWrite,
                             db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """"Unterschrift verwerfen" (seit 1.8.13): nur Büro, Begründung Pflicht. Seit 1.8.15 mit
     gewählter Unterschrift (signature_id): sie und die Unterschriften in Feldern darunter fallen,
@@ -428,7 +429,7 @@ def post_discard_signatures(checklist_id: int, payload: ChecklistDiscardSignatur
 
 
 @router.post("/api/checklists/{checklist_id}/void", response_model=ChecklistOut)
-def post_void_checklist(checklist_id: int, payload: ChecklistVoidWrite, db: Session = Depends(get_db, scope="function"),
+def post_void_checklist(checklist_id: Id, payload: ChecklistVoidWrite, db: Session = Depends(get_db, scope="function"),
                         _role: AppUser = _office_dep):
     """"Als gegenstandslos abschließen" (seit 1.8.41): nur Büro, nur Behinderungs- und Bedenkenanzeige im
     Entwurf, Begründung Pflicht. Bleibt als Beleg (versiegelt mit Prüfsumme), fällt aus den offenen Listen, die offene
@@ -442,7 +443,7 @@ def post_void_checklist(checklist_id: int, payload: ChecklistVoidWrite, db: Sess
 
 
 @router.get("/api/checklists/{checklist_id}/pdf")
-def get_checklist_pdf(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_checklist_pdf(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """PDF einer abgeschlossenen Checkliste (seit 1.8.4) -- dieselbe Leseprüfung wie der
     Einzelabruf: Büro alles, Monteur die eigene und fremde nur bei field_readable, Betrieb nie.
     Gewöhnliche def-Route: das Rendern ist CPU-gebunden (Befund 1.3.62). Seit 1.8.66 die feste Fassung des Abschlusses
@@ -466,7 +467,7 @@ def get_checklist_pdf(checklist_id: int, db: Session = Depends(get_db, scope="fu
 
 
 @router.get("/api/checklists/{checklist_id}/versions")
-def get_checklist_versions(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_checklist_versions(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Feste Fassungen der Checkliste (seit 1.8.66) mit gilt/überholt -- nur fürs Büro, wie die Ablage selbst; die PDFs
     liefert GET /api/sent-documents/{id}/file (ab buero_auftrag, nur mit stimmender Prüfsumme)."""
     _require_module_enabled(db)
@@ -474,7 +475,7 @@ def get_checklist_versions(checklist_id: int, db: Session = Depends(get_db, scop
 
 
 @router.get("/api/checklists/{checklist_id}/email-recipient")
-def get_checklist_email_recipient(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_checklist_email_recipient(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Vorbelegung für das Feld "An" (seit 1.8.20) -- nur fürs Büro, der Monteur sieht keine
     Kundenadresse über die Checkliste."""
     _require_module_enabled(db)
@@ -483,7 +484,7 @@ def get_checklist_email_recipient(checklist_id: int, db: Session = Depends(get_d
 
 
 @router.post("/api/checklists/{checklist_id}/send-email")
-def post_send_checklist_email(checklist_id: int, payload: ChecklistEmailSend, db: Session = Depends(get_db, scope="function"),
+def post_send_checklist_email(checklist_id: Id, payload: ChecklistEmailSend, db: Session = Depends(get_db, scope="function"),
                               _role: AppUser = _office_dep):
     """Abgeschlossene Checkliste per E-Mail (seit 1.8.20) -- nur Büro/Admin, Versand-PDF mit
     verkleinerten Fotos unter 3 MB, über Protokoll und Ablage. Gewöhnliche def-Route: das Rendern
@@ -501,7 +502,7 @@ def post_send_checklist_email(checklist_id: int, payload: ChecklistEmailSend, db
 
 
 @router.delete("/api/checklists/{checklist_id}")
-def delete_checklist_endpoint(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def delete_checklist_endpoint(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id, write=True)
     _call(delete_checklist, db, checklist_id)
@@ -511,7 +512,7 @@ def delete_checklist_endpoint(checklist_id: int, db: Session = Depends(get_db, s
 # --- Regeln → Aufgaben (seit 1.8.3, nur Büro) ------------------------------------------------
 
 @router.get("/api/checklists/{checklist_id}/rule-executions", response_model=list[ChecklistRuleExecutionOut])
-def get_rule_executions(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_rule_executions(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Ausgelöste Regeln und angelegte Aufgaben -- Büro-intern, Monteure sehen das nie."""
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id)
@@ -519,7 +520,7 @@ def get_rule_executions(checklist_id: int, db: Session = Depends(get_db, scope="
 
 
 @router.post("/api/checklists/{checklist_id}/run-rules", response_model=ChecklistRulesRunOut)
-def post_run_rules(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def post_run_rules(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """"Aufgaben nachholen" für eine Checkliste -- idempotent, legt nur Fehlendes an."""
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id)
@@ -541,7 +542,7 @@ def post_run_open_rules(db: Session = Depends(get_db, scope="function"), _role: 
 # --- Abnahmeprotokoll: Erklärungen und Mängel gebündelt (seit 1.8.64, nur Büro) ---------------
 
 @router.get("/api/checklists/{checklist_id}/protocol-summary")
-def get_protocol_summary(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_protocol_summary(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Erklärungen des Auftraggebers, Mängel mit ihrem Stand und die Abnahme am Auftrag (oder warum sie aussteht) -- null,
     wenn die Checkliste kein Abnahmeprotokoll ist. Liest nur."""
     _require_module_enabled(db)
@@ -551,7 +552,7 @@ def get_protocol_summary(checklist_id: int, db: Session = Depends(get_db, scope=
 # --- Folgen des Zwecks (seit 1.8.16, nur Büro) -----------------------------------------------
 
 @router.get("/api/checklists/{checklist_id}/follow-ups", response_model=list[ChecklistFollowUpOut])
-def get_follow_ups(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def get_follow_ups(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Folgen des Abschlusses mit ihrem Ziel -- Büro-intern wie die Regeln, Monteure sehen das nie."""
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id)
@@ -559,7 +560,7 @@ def get_follow_ups(checklist_id: int, db: Session = Depends(get_db, scope="funct
 
 
 @router.post("/api/checklists/{checklist_id}/run-follow-ups", response_model=ChecklistFollowUpsRunOut)
-def post_run_follow_ups(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
+def post_run_follow_ups(checklist_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """"Folgen nachholen" für eine Checkliste -- idempotent, führt nur Offenes aus."""
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id)

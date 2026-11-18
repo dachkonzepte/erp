@@ -15,6 +15,7 @@ from ..tax_keys import (
     set_default_tax_key, set_tax_key_archived, update_tax_key,
 )
 from ..schemas import TaxKeyCreate, TaxKeyOut, TaxKeyUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -37,7 +38,7 @@ def post_tax_key(payload: TaxKeyCreate, db: Session = Depends(get_db, scope="fun
 
 
 @router.put("/api/tax-keys/{key_id}", response_model=TaxKeyOut)
-def put_tax_key(key_id: int, payload: TaxKeyUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def put_tax_key(key_id: Id, payload: TaxKeyUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     key = update_tax_key(db, key_id, payload.label, payload.vat_rate, payload.notice_text)
     if key is None:
         raise HTTPException(status_code=404, detail="Steuerschlüssel nicht gefunden.")
@@ -45,7 +46,7 @@ def put_tax_key(key_id: int, payload: TaxKeyUpdate, db: Session = Depends(get_db
 
 
 @router.post("/api/tax-keys/{key_id}/set-default", response_model=TaxKeyOut)
-def post_set_default_tax_key(key_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_set_default_tax_key(key_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     key = set_default_tax_key(db, key_id)
     if key is None:
         raise HTTPException(status_code=404, detail="Steuerschlüssel nicht gefunden.")
@@ -53,7 +54,7 @@ def post_set_default_tax_key(key_id: int, db: Session = Depends(get_db, scope="f
 
 
 @router.post("/api/tax-keys/{key_id}/archive", response_model=TaxKeyOut)
-def post_archive_tax_key(key_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_archive_tax_key(key_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         key = set_tax_key_archived(db, key_id, True)
     except ValueError as e:
@@ -64,7 +65,7 @@ def post_archive_tax_key(key_id: int, db: Session = Depends(get_db, scope="funct
 
 
 @router.post("/api/tax-keys/{key_id}/unarchive", response_model=TaxKeyOut)
-def post_unarchive_tax_key(key_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_unarchive_tax_key(key_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     key = set_tax_key_archived(db, key_id, False)
     if key is None:
         raise HTTPException(status_code=404, detail="Steuerschlüssel nicht gefunden.")

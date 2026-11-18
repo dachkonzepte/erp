@@ -20,6 +20,7 @@ from ..models import AppUser, Employee, EmployeeAbsenceRequest
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_im_abschluss_aendern, darf_konten_aller, require_min_role
 from ..urlaubskonto import rest_danach
 from ..schemas import AbwesenheitSammel, EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
+from ..ids import Id
 
 router = APIRouter()
 
@@ -64,7 +65,7 @@ def get_absence_types(alle: bool = False, db: Session = Depends(get_db, scope="f
 
 
 @router.get("/api/absence-requests/rest-danach")
-def get_rest_danach(employee_id: int, von: date, bis: date, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
+def get_rest_danach(employee_id: Id, von: date, bis: date, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
                     db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.316 (Lohn L2b, Punkt 4): „5 Urlaubstage · danach Rest 21,5 Tage“ für einen Urlaub, der gerade beantragt wird
     (app/urlaubskonto.py::rest_danach()) -- für die eigene Person, Admin und Büro – Finanzen für jede (darf_konten_aller(), wie das Konto).
@@ -80,7 +81,7 @@ def get_rest_danach(employee_id: int, von: date, bis: date, halber_tag: bool = F
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])
-def get_absence_requests(request: Request, employee_id: int | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_absence_requests(request: Request, employee_id: Id | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     user=getattr(request.state,"erp_user",None)
     if not darf_abwesenheiten_aller(user):  # seit 1.9.101 sehen Admin und Büro – Finanzen alle (bis 1.9.100 nur der Admin)
         if user.employee_id is None:
@@ -137,7 +138,7 @@ def post_absence_sammel(payload: AbwesenheitSammel, request: Request, db: Sessio
 
 
 @router.post("/api/absence-requests/{request_id}/review", response_model=EmployeeAbsenceRequestOut)
-def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,db:Session=Depends(get_db, scope="function"),user=Depends(require_admin("Nur Administratoren dürfen Abwesenheitsanträge freigeben oder ablehnen."))):
+def review_absence_request(request_id:Id,payload:EmployeeAbsenceRequestReview,db:Session=Depends(get_db, scope="function"),user=Depends(require_admin("Nur Administratoren dürfen Abwesenheitsanträge freigeben oder ablehnen."))):
     try:
         row=review_absence_request_row(db,request_id,decision=payload.decision,reviewed_by_user_id=getattr(user,"id",None),review_notes=payload.review_notes,abschluss_erlaubt=darf_im_abschluss_aendern(user))
     except AbschlussGesperrt as exc:  # seit 1.9.309 (entscheiden darf ohnehin nur der Admin -- der Vollständigkeit halber)
@@ -148,7 +149,7 @@ def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,d
 
 
 @router.delete("/api/absence-requests/{request_id}")
-def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get_db, scope="function"),_role:AppUser=_any_role_dep):
+def delete_absence_request(request_id:Id,request:Request,db:Session=Depends(get_db, scope="function"),_role:AppUser=_any_role_dep):
     row=db.get(EmployeeAbsenceRequest,request_id)
     if row is None: raise HTTPException(status_code=404,detail="Abwesenheitsantrag wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)

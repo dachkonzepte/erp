@@ -15,6 +15,7 @@ from ..employees import apply_employee_payload, austritt_hinweis, employee_to_di
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -73,7 +74,7 @@ def list_caseworkers(db: Session = Depends(get_db, scope="function"), _role: App
 
 
 @router.get("/api/employees/{employee_id}", response_model=EmployeeOut | EmployeeRosterOut)
-def get_employee(employee_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_employee(employee_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     employee = db.scalar(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
         .where(Employee.id == employee_id)
@@ -118,7 +119,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db, scope
 
 
 @router.put("/api/employees/{employee_id}", response_model=EmployeeOut)
-def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep):
+def update_employee(employee_id: Id, payload: EmployeeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep):
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
     if employee is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")

@@ -29,6 +29,7 @@ from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
 from ..zeiten import buchungen, feiertage_bundesland, konto_hinweise, monat, monat_ende, monat_lesen, pruef_beginn, pruefen
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -173,7 +174,7 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
 
 
 @router.get("/api/zeiten/arbeitszeitkonto")
-def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_length=7), mitarbeiter: int | None = None,
+def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_length=7), mitarbeiter: Id | None = None,
                             db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
     """Seit 1.9.321 (Lohn L2c-1, Punkt 1; seit 1.9.323 eine Vorschau: „vorläufig – maßgeblich ist die Lohnabrechnung“, vorlaeufig): das Arbeitszeitkonto eines Monats (Vorgabe: der laufende, frühestens Januar 2027) -- je gewerblicher Person
     die Tage (Soll, Arbeit, Gutschrift, Saldo, Posten), der Monat und der Stand ab dem Startwert (app/arbeitszeitkonto.py), gezählt bis gestern. Nur
@@ -195,14 +196,14 @@ def zeiten_arbeitszeitkonto(monat_: str | None = Query(None, alias="monat", max_
 # Büro – Finanzen (wie das Konto, B11; die Monteurin bekommt hier 403, „Meine Zeiten“ zeigt den Stand erst mit L2c-4). Ohne Konto (keine gewerbliche Person,
 # ganz vor dem Kontobeginn) null.
 @router.get("/api/zeiten/konto-danach")
-def zeiten_konto_danach(employee_id: int, von: date, bis: date, db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
+def zeiten_konto_danach(employee_id: Id, von: date, bis: date, db: Session = Depends(get_db, scope="function"), user: AppUser = _konto_dep):
     if bis < von:
         raise HTTPException(status_code=422, detail="Bis liegt vor Von.")
     return stand_danach(db, employee_id, von, bis)
 
 
 @router.get("/api/zeiten/buchungen")
-def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="monat"), mitarbeiter: int | None = None, auftrag: int | None = None,
+def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="monat"), mitarbeiter: Id | None = None, auftrag: Id | None = None,
                      zeitart: str | None = Query(None, max_length=40), zeitraum: str | None = Query(None, max_length=10),
                      db: Session = Depends(get_db, scope="function"), user: AppUser = _buero_dep):
     """„Buchungen“ eines Monats nach den Filtern, mit der „Summe der Auswahl“; je Buchung darf_aendern (Ändern und Löschen). Seit 1.9.128

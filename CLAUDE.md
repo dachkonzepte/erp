@@ -1687,6 +1687,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   im Filter des Adressbuchs nur über `passt(spalte, text)` (`telefonbuch(spalte)` enthält `schluessel(text)`) -- „muller“ findet „MÜLLER“, unter SQLite
   und PostgreSQL gleich. Wächter `tests/test_v759_suche_telefonbuch.py`. Seit 1.9.360 ebenso Aufgaben, Material und Änderungshistorie: jedes like/ilike unter
   `app/` steht in `passt()`, außer Mustern ohne Text vom Benutzer, die genau vergleichen (`INTERN` in `tests/test_v760_suche_und_kundenliste.py`, genau).
+- **IDs in Pfad, Abfrage und Formular über `app/ids.py::Id`** (seit 1.9.361): außerhalb von int4 404 „Nicht gefunden.“, bevor der Endpunkt läuft -- nie 500
+  unter PostgreSQL. Eine Klasse, keine `Annotated`-Angabe (FastAPI wirft deren Prüfung bei `Query()`/`Path()`/`Form()` als Vorgabe weg). Eine ID heißt `…_id`,
+  `…_ids`, `auftrag`, `mitarbeiter` oder `vorwahl`; jede andere ganze Zahl in Pfad, Abfrage oder Formular steht mit Grund in `KEINE_ID` von
+  `tests/test_v761_ids_im_pfad.py` (je Route, genau): mit `ge`/`le` innerhalb von int4 oder geprüft (die Geschäftslogik beantwortet jeden Wert ohne 500). Ein neuer Parameter: `x_id: Id`, `x_id: Id | None = None`, `ids: list[Id] = Query(default=[])`.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,

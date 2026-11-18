@@ -15,6 +15,7 @@ from ..document_categories import create_category, list_categories, set_category
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import DocumentCategoryCreate, DocumentCategoryOut, DocumentCategoryUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ def post_document_category(payload: DocumentCategoryCreate, db: Session = Depend
 
 
 @router.put("/api/document-categories/{category_id}", response_model=DocumentCategoryOut)
-def put_document_category(category_id: int, payload: DocumentCategoryUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_document_category(category_id: Id, payload: DocumentCategoryUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         result = update_category(db, category_id, label=payload.label, is_field_visible=payload.is_field_visible, is_sensitive=payload.is_sensitive)
     except ValueError as exc:
@@ -46,7 +47,7 @@ def put_document_category(category_id: int, payload: DocumentCategoryUpdate, db:
 
 
 @router.post("/api/document-categories/{category_id}/activate", response_model=DocumentCategoryOut)
-def activate_document_category(category_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def activate_document_category(category_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_category_active(db, category_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Kategorie nicht gefunden.")
@@ -54,7 +55,7 @@ def activate_document_category(category_id: int, db: Session = Depends(get_db, s
 
 
 @router.post("/api/document-categories/{category_id}/deactivate", response_model=DocumentCategoryOut)
-def deactivate_document_category(category_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def deactivate_document_category(category_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_category_active(db, category_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Kategorie nicht gefunden.")

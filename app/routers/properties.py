@@ -15,6 +15,7 @@ from ..models import AppUser, Customer, Property
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import PropertyCreate, PropertyOut, PropertyUpdate
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/properties", response_model=list[PropertyOut])
-def list_properties(customer_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_properties(customer_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     stmt = select(Property).order_by(*nach_namen(Property.name), Property.id)
     if customer_id is not None:
         stmt = stmt.where(Property.customer_id == customer_id)
@@ -32,7 +33,7 @@ def list_properties(customer_id: int | None = None, db: Session = Depends(get_db
 
 
 @router.get("/api/properties/{property_id}", response_model=PropertyOut)
-def get_property(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_property(property_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
@@ -40,7 +41,7 @@ def get_property(property_id: int, db: Session = Depends(get_db, scope="function
 
 
 @router.put("/api/properties/{property_id}", response_model=PropertyOut)
-def update_property(property_id: int, payload: PropertyUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_property(property_id: Id, payload: PropertyUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")

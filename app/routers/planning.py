@@ -7,7 +7,7 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 
 from fastapi import APIRouter
 from datetime import date
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -28,6 +28,7 @@ from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, KranTerminPruefung, KranTerminUebernahme, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest, EinsatzPruefungNeu, EinsatzPruefungAenderung, Rueckgaengig, TagHerausnehmen, TagSetzen, TagUmsetzen, TagVerlaengern, EinsatzVerschieben
 from ..auftragsliste import auftragsliste
 from ..tag_aktionen import RueckgaengigNichtMoeglich, herausnehmen, rueckgaengig, tag_setzen, umsetzen, verlaengern, verschieben
+from ..ids import Id
 
 router = APIRouter()
 
@@ -135,7 +136,7 @@ def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session 
 
 
 @router.post("/api/planning/school-holidays/sync")
-def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _grundlagen_dep):
+def sync_planning_school_holidays(start_year: int | None = Query(None, ge=2000, le=2100), years: int = 3, force: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _grundlagen_dep):
     region = load_region_settings(db)
     start_year = start_year or berlin_today().year
     years = max(1, min(int(years), 6))
@@ -156,7 +157,7 @@ def create_planning_holiday(payload: PlanningHolidayCreate, db: Session = Depend
 
 
 @router.put("/api/planning/holidays/{holiday_id}", response_model=PlanningHolidayOut)
-def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
+def update_planning_holiday(holiday_id:Id, payload:PlanningHolidayCreate, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     duplicate=db.scalar(select(PlanningHoliday).where(PlanningHoliday.holiday_date==payload.holiday_date, PlanningHoliday.id!=holiday_id))
@@ -166,14 +167,14 @@ def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Se
 
 
 @router.delete("/api/planning/holidays/{holiday_id}")
-def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
+def delete_planning_holiday(holiday_id:Id, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     db.delete(row); db.commit(); return {"deleted":True}
 
 
 @router.get("/api/planning/absences", response_model=list[EmployeeAbsenceOut] | list[EmployeeAbsencePlanningOut])
-def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:int|None=None,absence_category:str|None=None,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:Id|None=None,absence_category:str|None=None,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     stmt=select(EmployeeAbsence).options(selectinload(EmployeeAbsence.employee)).order_by(EmployeeAbsence.start_date.desc(),EmployeeAbsence.id.desc())
     if start is not None: stmt=stmt.where(EmployeeAbsence.end_date>=start)
     if end is not None: stmt=stmt.where(EmployeeAbsence.start_date<=end)
@@ -205,7 +206,7 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
 
 
 @router.delete("/api/planning/absences/{absence_id}")
-def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_abwesenheit_loeschen_dep):
+def delete_employee_absence(absence_id:Id,db:Session=Depends(get_db, scope="function"),_role:AppUser=_abwesenheit_loeschen_dep):
     """Seit 1.9.146 (P1): der Antrag folgt, nie ein 500; nur der Admin (er entscheidet auch die Anträge)."""
     try:
         abwesenheit_loeschen(db,absence_id,geloescht_von_user_id=_role.id,abschluss_erlaubt=darf_im_abschluss_aendern(_role))
@@ -223,7 +224,7 @@ def get_planning_suggestion(payload:PlanningSuggestionRequest,db:Session=Depends
 
 
 @router.get("/api/planning/auftraege/{order_id}")
-def get_planning_order_state(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_planning_order_state(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.155 (L6): warum es für einen Auftrag keinen neuen Einsatz gibt -- für ?auftrag=<id> an einem Auftrag, der nicht mehr in der Auswahl steht."""
     order = db.get(Order, order_id)
     if order is None:
@@ -296,7 +297,7 @@ def pruefe_neuen_einsatz(payload: EinsatzPruefungNeu, db: Session = Depends(get_
 
 
 @router.post("/api/planning/slots/{slot_id}/pruefen")
-def pruefe_einsatz(slot_id: int, payload: EinsatzPruefungAenderung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def pruefe_einsatz(slot_id: Id, payload: EinsatzPruefungAenderung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.248: der Dialog „Einsatz bearbeiten“ prüft mit den geänderten Feldern (Teil-Update wie PUT), schreibt nichts. Alle Warnungen des Einsatzes,
     auch ohne Änderung."""
     werte = payload.model_dump(exclude_unset=True)
@@ -311,7 +312,7 @@ def pruefe_einsatz(slot_id: int, payload: EinsatzPruefungAenderung, db: Session 
 
 
 @router.post("/api/planning/kran-termine/{event_id}/pruefen")
-def pruefe_kran_termin(event_id: int, payload: KranTerminPruefung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def pruefe_kran_termin(event_id: Id, payload: KranTerminPruefung, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.251 (Stufe 6, R4, Punkt 5): der Dialog „Als Kranvermietung übernehmen …“ prüft, bevor übernommen wird -- dieselben Regeln und Antworten
     wie POST …/kranvermietung (404, 409, 422), schreibt nichts."""
     werte = payload.model_dump()
@@ -328,7 +329,7 @@ def pruefe_kran_termin(event_id: int, payload: KranTerminPruefung, db: Session =
 
 
 @router.post("/api/planning/kran-termine/{event_id}/kranvermietung")
-def post_kran_termin_uebernehmen(event_id: int, payload: KranTerminUebernahme, db: Session = Depends(get_db, scope="function"),
+def post_kran_termin_uebernehmen(event_id: Id, payload: KranTerminUebernahme, db: Session = Depends(get_db, scope="function"),
                                  _role: AppUser = _role_dep):
     """Seit 1.9.241 (Stufe 6, R3b, Punkt 3): ein Termin am Kran wird eine Kranvermietung (der Knopf kommt mit R4). Antworten wie beim Anlegen eines
     Einsatzes; dazu 404 (Termin unbekannt) und 409 (kein Termin an einem Gerät oder schon übernommen)."""
@@ -347,7 +348,7 @@ def post_kran_termin_uebernehmen(event_id: int, payload: KranTerminUebernahme, d
 
 
 @router.put("/api/planning/slots/{slot_id}")
-def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_planning_slot(slot_id: Id, payload: PlanningSlotUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
     except PlanungsWarnung as exc:  # seit 1.9.143, wie beim Anlegen
@@ -365,7 +366,7 @@ def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = D
 
 
 @router.delete("/api/planning/slots/{slot_id}")
-def remove_planning_slot(slot_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def remove_planning_slot(slot_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         prep_id = delete_slot(db, slot_id)
     except ValueError as exc:
@@ -417,25 +418,25 @@ def post_tag_setzen(payload: TagSetzen, db: Session = Depends(get_db, scope="fun
 
 
 @router.post("/api/planning/slots/{slot_id}/umsetzen")
-def post_umsetzen(slot_id: int, payload: TagUmsetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_umsetzen(slot_id: Id, payload: TagUmsetzen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät für diese Tage auf einen anderen Auftrag oder Tag -- in einer Transaktion."""
     return _tag_aktion(db, _role, lambda: umsetzen(db, slot_id=slot_id, **payload.model_dump()))
 
 
 @router.post("/api/planning/slots/{slot_id}/herausnehmen")
-def post_herausnehmen(slot_id: int, payload: TagHerausnehmen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_herausnehmen(slot_id: Id, payload: TagHerausnehmen, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät für diese Tage oder alle aus dem Einsatz -- Kürzen am Rand, Rückfrage „niemand mehr“."""
     return _tag_aktion(db, _role, lambda: herausnehmen(db, slot_id=slot_id, **payload.model_dump()))
 
 
 @router.post("/api/planning/slots/{slot_id}/verlaengern")
-def post_verlaengern(slot_id: int, payload: TagVerlaengern, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_verlaengern(slot_id: Id, payload: TagVerlaengern, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.268 (Punkt 2): eine Person oder ein Gerät ab einem ihrer Tage bis zum letzten Tag des Einsatzes -- prüft wie Planen."""
     return _tag_aktion(db, _role, lambda: verlaengern(db, slot_id=slot_id, **payload.model_dump()))
 
 
 @router.post("/api/planning/slots/{slot_id}/verschieben")
-def post_verschieben(slot_id: int, payload: EinsatzVerschieben, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_verschieben(slot_id: Id, payload: EinsatzVerschieben, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.277 (Stufe 6, R5c, Punkt 0b): den ganzen Einsatz ziehen (in „Kolonnen“) -- in Arbeitstagen, fragt bei jeder Warnung des Einsatzes,
     mit Rückgängig. team_id nur, wenn gesendet (Regel 22)."""
     return _tag_aktion(db, _role, lambda: verschieben(db, slot_id=slot_id, **payload.model_dump(exclude_unset=True)))

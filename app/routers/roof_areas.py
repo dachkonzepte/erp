@@ -26,6 +26,7 @@ from ..schemas import (
     RoofComponentTypeCreate, RoofComponentTypeOut, RoofComponentTypeUpdate, RoofComponentUpdate,
     RoofLayerOut, RoofLayerTypeCreate, RoofLayerTypeOut, RoofLayerTypeUpdate, RoofLayerUpsert,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -39,12 +40,12 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/roof-areas", response_model=list[RoofAreaOut])
-def get_roof_areas(property_id: int, include_archived: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_roof_areas(property_id: Id, include_archived: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_roof_areas(db, property_id, include_archived=include_archived)
 
 
 @router.get("/api/roof-areas/{roof_area_id}", response_model=RoofAreaOut)
-def get_roof_area_detail(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_roof_area_detail(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = get_roof_area(db, roof_area_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
@@ -65,7 +66,7 @@ def post_roof_area(payload: RoofAreaCreate, db: Session = Depends(get_db, scope=
 
 
 @router.post("/api/properties/{property_id}/roof-areas/bulk", response_model=list[RoofAreaOut])
-def post_roof_areas_bulk(property_id: int, payload: RoofAreaBulkCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_roof_areas_bulk(property_id: Id, payload: RoofAreaBulkCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         return create_roof_areas_bulk(db, property_id, payload.roof_type, payload.names)
     except ValueError as exc:
@@ -73,7 +74,7 @@ def post_roof_areas_bulk(property_id: int, payload: RoofAreaBulkCreate, db: Sess
 
 
 @router.put("/api/roof-areas/{roof_area_id}", response_model=RoofAreaOut)
-def put_roof_area(roof_area_id: int, payload: RoofAreaUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_roof_area(roof_area_id: Id, payload: RoofAreaUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         # Seit 1.8.46 Teil-Update (Regel 22): nur gesendete Felder.
         result = update_roof_area(db, roof_area_id, **payload.model_dump(exclude_unset=True))
@@ -85,7 +86,7 @@ def put_roof_area(roof_area_id: int, payload: RoofAreaUpdate, db: Session = Depe
 
 
 @router.post("/api/roof-areas/{roof_area_id}/archive", response_model=RoofAreaOut)
-def archive_roof_area(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def archive_roof_area(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_roof_area_archived(db, roof_area_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
@@ -93,7 +94,7 @@ def archive_roof_area(roof_area_id: int, db: Session = Depends(get_db, scope="fu
 
 
 @router.post("/api/roof-areas/{roof_area_id}/unarchive", response_model=RoofAreaOut)
-def unarchive_roof_area(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def unarchive_roof_area(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_roof_area_archived(db, roof_area_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
@@ -101,7 +102,7 @@ def unarchive_roof_area(roof_area_id: int, db: Session = Depends(get_db, scope="
 
 
 @router.delete("/api/roof-areas/{roof_area_id}")
-def delete_roof_area_endpoint(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_roof_area_endpoint(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         deleted = delete_roof_area(db, roof_area_id)
     except DachflaecheInBerichten as exc:  # seit 1.9.54: ein Einsatzbericht nennt die Fläche oder eines ihrer Bauteile
@@ -115,7 +116,7 @@ def delete_roof_area_endpoint(roof_area_id: int, db: Session = Depends(get_db, s
 
 @router.post("/api/roof-areas/{roof_area_id}/sketch", response_model=RoofAreaOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
-def upload_roof_area_sketch(roof_area_id: int, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def upload_roof_area_sketch(roof_area_id: Id, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in SKETCH_CONTENT_TYPES:
@@ -130,7 +131,7 @@ def upload_roof_area_sketch(roof_area_id: int, file: UploadFile = File(...), db:
 
 
 @router.get("/api/roof-areas/{roof_area_id}/sketch")
-def get_roof_area_sketch(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_roof_area_sketch(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = get_roof_area(db, roof_area_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
@@ -144,7 +145,7 @@ def get_roof_area_sketch(roof_area_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.delete("/api/roof-areas/{roof_area_id}/sketch", response_model=RoofAreaOut)
-def delete_roof_area_sketch(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_roof_area_sketch(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = clear_roof_area_sketch(db, roof_area_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
@@ -152,12 +153,12 @@ def delete_roof_area_sketch(roof_area_id: int, db: Session = Depends(get_db, sco
 
 
 @router.get("/api/roof-areas/{roof_area_id}/components", response_model=list[RoofComponentOut])
-def get_roof_components(roof_area_id: int, include_archived: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_roof_components(roof_area_id: Id, include_archived: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_roof_components(db, roof_area_id, include_archived=include_archived)
 
 
 @router.post("/api/roof-areas/{roof_area_id}/components", response_model=RoofComponentOut)
-def post_roof_component(roof_area_id: int, payload: RoofComponentCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_roof_component(roof_area_id: Id, payload: RoofComponentCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         return create_roof_component(
             db, roof_area_id, payload.name, component_type=payload.component_type,
@@ -169,7 +170,7 @@ def post_roof_component(roof_area_id: int, payload: RoofComponentCreate, db: Ses
 
 
 @router.put("/api/roof-components/{component_id}", response_model=RoofComponentOut)
-def put_roof_component(component_id: int, payload: RoofComponentUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_roof_component(component_id: Id, payload: RoofComponentUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         result = update_roof_component(
             db, component_id, payload.name, component_type=payload.component_type,
@@ -184,7 +185,7 @@ def put_roof_component(component_id: int, payload: RoofComponentUpdate, db: Sess
 
 
 @router.put("/api/roof-components/{component_id}/position", response_model=RoofComponentOut)
-def put_roof_component_position(component_id: int, payload: RoofComponentPositionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_roof_component_position(component_id: Id, payload: RoofComponentPositionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_roof_component_position(
         db, component_id, payload.sketch_x, payload.sketch_y,
         sketch_w=payload.sketch_w, sketch_h=payload.sketch_h,
@@ -195,7 +196,7 @@ def put_roof_component_position(component_id: int, payload: RoofComponentPositio
 
 
 @router.post("/api/roof-components/{component_id}/archive", response_model=RoofComponentOut)
-def archive_roof_component(component_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def archive_roof_component(component_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_roof_component_archived(db, component_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Bauteil nicht gefunden.")
@@ -203,7 +204,7 @@ def archive_roof_component(component_id: int, db: Session = Depends(get_db, scop
 
 
 @router.post("/api/roof-components/{component_id}/unarchive", response_model=RoofComponentOut)
-def unarchive_roof_component(component_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def unarchive_roof_component(component_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_roof_component_archived(db, component_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Bauteil nicht gefunden.")
@@ -211,7 +212,7 @@ def unarchive_roof_component(component_id: int, db: Session = Depends(get_db, sc
 
 
 @router.delete("/api/roof-components/{component_id}")
-def delete_roof_component_endpoint(component_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_roof_component_endpoint(component_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         deleted = delete_roof_component(db, component_id)
     except BauteilInBerichten as exc:  # seit 1.9.51: auch der Prüfpunkt eines Entwurfs sperrt
@@ -252,7 +253,7 @@ def put_layer_types_reorder(payload: LayerTypeReorder, db: Session = Depends(get
 
 
 @router.put("/api/roof-layer-types/{layer_type_id}", response_model=RoofLayerTypeOut)
-def put_layer_type(layer_type_id: int, payload: RoofLayerTypeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_layer_type(layer_type_id: Id, payload: RoofLayerTypeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         result = update_layer_type(
             db, layer_type_id, payload.label, roof_type=payload.roof_type, option_group=payload.option_group,
@@ -266,7 +267,7 @@ def put_layer_type(layer_type_id: int, payload: RoofLayerTypeUpdate, db: Session
 
 
 @router.post("/api/roof-layer-types/{layer_type_id}/activate", response_model=RoofLayerTypeOut)
-def activate_layer_type(layer_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def activate_layer_type(layer_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_layer_type_active(db, layer_type_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Schichttyp nicht gefunden.")
@@ -274,7 +275,7 @@ def activate_layer_type(layer_type_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.post("/api/roof-layer-types/{layer_type_id}/deactivate", response_model=RoofLayerTypeOut)
-def deactivate_layer_type(layer_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def deactivate_layer_type(layer_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_layer_type_active(db, layer_type_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Schichttyp nicht gefunden.")
@@ -282,7 +283,7 @@ def deactivate_layer_type(layer_type_id: int, db: Session = Depends(get_db, scop
 
 
 @router.delete("/api/roof-layer-types/{layer_type_id}")
-def delete_layer_type_endpoint(layer_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_layer_type_endpoint(layer_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         deleted = delete_layer_type(db, layer_type_id)
     except ValueError as exc:
@@ -293,12 +294,12 @@ def delete_layer_type_endpoint(layer_type_id: int, db: Session = Depends(get_db,
 
 
 @router.get("/api/roof-areas/{roof_area_id}/layers", response_model=list[RoofLayerOut])
-def get_roof_layers(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_roof_layers(roof_area_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_roof_layers(db, roof_area_id)
 
 
 @router.put("/api/roof-areas/{roof_area_id}/layers/{layer_type_id}", response_model=RoofLayerOut)
-def put_roof_layer(roof_area_id: int, layer_type_id: int, payload: RoofLayerUpsert, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_roof_layer(roof_area_id: Id, layer_type_id: Id, payload: RoofLayerUpsert, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """fields enthält seit 1.2.19 nur die im JSON-Body tatsächlich mitgeschickten Schlüssel
     (exclude_unset) -- ein weggelassenes Feld bleibt in upsert_roof_layer() unverändert, ein
     ausdrücklich gesendetes null leert es. Siehe Docstring dort für den Datenverlust-Fund, den
@@ -335,7 +336,7 @@ def put_component_types_reorder(payload: ComponentTypeReorder, db: Session = Dep
 
 
 @router.put("/api/roof-component-types/{component_type_id}", response_model=RoofComponentTypeOut)
-def put_component_type(component_type_id: int, payload: RoofComponentTypeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_component_type(component_type_id: Id, payload: RoofComponentTypeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = update_component_type(db, component_type_id, payload.label, is_area=payload.is_area)
     if result is None:
         raise HTTPException(status_code=404, detail="Bauteilart nicht gefunden.")
@@ -343,7 +344,7 @@ def put_component_type(component_type_id: int, payload: RoofComponentTypeUpdate,
 
 
 @router.post("/api/roof-component-types/{component_type_id}/activate", response_model=RoofComponentTypeOut)
-def activate_component_type(component_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def activate_component_type(component_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_component_type_active(db, component_type_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Bauteilart nicht gefunden.")
@@ -351,7 +352,7 @@ def activate_component_type(component_type_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/roof-component-types/{component_type_id}/deactivate", response_model=RoofComponentTypeOut)
-def deactivate_component_type(component_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def deactivate_component_type(component_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     result = set_component_type_active(db, component_type_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Bauteilart nicht gefunden.")
@@ -359,7 +360,7 @@ def deactivate_component_type(component_type_id: int, db: Session = Depends(get_
 
 
 @router.delete("/api/roof-component-types/{component_type_id}")
-def delete_component_type_endpoint(component_type_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_component_type_endpoint(component_type_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         deleted = delete_component_type(db, component_type_id)
     except ValueError as exc:

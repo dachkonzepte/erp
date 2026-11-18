@@ -17,6 +17,7 @@ from ..models import OperationalResource
 from ..outlook_calendar_sync import PostfachVergeben, load_outlook_sync_settings, postfach_gewechselt, postfach_pruefen, postfach_uebersicht, update_outlook_sync_settings
 from ..schemas import GeraetPostfachUpdate, OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -54,7 +55,7 @@ def get_geraete(db: Session = Depends(get_db, scope="function"), _admin=Depends(
 
 
 @router.put("/api/outlook-sync-settings/geraete/{resource_id}")
-def put_geraet_postfach(resource_id: int, payload: GeraetPostfachUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_geraet_postfach(resource_id: Id, payload: GeraetPostfachUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     """Seit 1.9.161: das Postfach eines Geräts (Kran-Kalender); leer nimmt es weg. Wie am Konto: eine Adresse gehört genau einem, 409 mit dem Namen."""
     geraet = db.get(OperationalResource, resource_id)
     if geraet is None:

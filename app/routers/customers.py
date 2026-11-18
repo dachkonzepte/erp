@@ -33,6 +33,7 @@ from ..schemas import (
     CustomerExtraInfoUpdate, CustomerOut, CustomerUpdate,
 )
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -56,7 +57,7 @@ def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUs
 
 
 @router.get("/api/customers/{customer_id}", response_model=CustomerOut)
-def get_customer(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_customer(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
@@ -68,7 +69,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db, scope="function
 
 
 @router.get("/api/customers/{customer_id}/akte")
-def get_customer_akte(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_customer_akte(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.135 (Stufe 5, R3, Punkt 1): was die Kundenakte /customers/{id} beim Laden braucht -- Zähler der Reiter, je Projekt Status und
     Zahlen, Geld (unbezahlt, überfällig, Guthaben, je Jahr abgerechnet und bezahlt) und die Vorschläge für das Guthaben
     (app/kundenakte.py::kunde_kontext()). Büro – Auftrag liest alles, gebucht wird über die Wege mit require_geld."""
@@ -79,7 +80,7 @@ def get_customer_akte(customer_id: int, db: Session = Depends(get_db, scope="fun
 
 
 @router.get("/api/customers/{customer_id}/verlauf")
-def get_customer_verlauf(customer_id: int, art: list[str] = Query(default=[]), vor: datetime | None = None,
+def get_customer_verlauf(customer_id: Id, art: list[str] = Query(default=[]), vor: datetime | None = None,
                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.136 (Stufe 5, R3, Punkt 1): der Verlauf der Kundenakte -- Änderungen am Kunden, Kundenwissen, Kundendokumenten (seit 1.9.140), Objekten (samt
     Dachflächen), Anfragen, seine Zahlungen und der Versand seiner Dokumente, eine Zeile je Aktion (app/kunde_verlauf.py), Filter nach Art, Seiten über `vor`.
@@ -107,7 +108,7 @@ def get_customer_verlauf(customer_id: int, art: list[str] = Query(default=[]), v
 
 
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_customer(customer_id: Id, payload: CustomerUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.properties), selectinload(Customer.profile))
@@ -160,7 +161,7 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
 
 @router.post("/api/customers/{customer_id}/extra-infos", response_model=CustomerExtraInfoOut)
 def create_customer_extra_info(
-    customer_id: int, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db, scope="function"),
+    customer_id: Id, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     if db.get(Customer, customer_id) is None:
@@ -174,7 +175,7 @@ def create_customer_extra_info(
 
 @router.put("/api/customers/{customer_id}/extra-infos/{info_id}", response_model=CustomerExtraInfoOut)
 def update_customer_extra_info(
-    customer_id: int, info_id: int, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db, scope="function"),
+    customer_id: Id, info_id: Id, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     info = db.get(CustomerExtraInfo, info_id)
@@ -188,7 +189,7 @@ def update_customer_extra_info(
 
 
 @router.delete("/api/customers/{customer_id}/extra-infos/{info_id}")
-def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_customer_extra_info(customer_id: Id, info_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     info = db.get(CustomerExtraInfo, info_id)
     if info is None or info.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="Kundeninformation nicht gefunden.")
@@ -238,7 +239,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db, scope
 
 
 @router.get("/api/customers/{customer_id}/documents", response_model=list[CustomerDocumentOut])
-def list_customer_documents(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_customer_documents(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     docs = db.scalars(select(CustomerDocument).where(CustomerDocument.customer_id == customer_id).order_by(CustomerDocument.uploaded_at.desc(), CustomerDocument.id.desc())).all()
@@ -248,7 +249,7 @@ def list_customer_documents(customer_id: int, db: Session = Depends(get_db, scop
 @router.post("/api/customers/{customer_id}/documents", response_model=CustomerDocumentOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_customer_document(
-    customer_id: int, file: UploadFile = File(...), category: str = Form("Sonstiges"), subfolder: str | None = Form(None),
+    customer_id: Id, file: UploadFile = File(...), category: str = Form("Sonstiges"), subfolder: str | None = Form(None),
     description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):

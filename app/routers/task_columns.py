@@ -15,6 +15,7 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import TaskColumnCreate, TaskColumnOut, TaskColumnReorder, TaskColumnUpdate
 from ..task_columns import create_column, delete_column, list_columns, reorder_columns, update_column
+from ..ids import Id
 
 router = APIRouter()
 
@@ -59,7 +60,7 @@ def put_task_columns_reorder(payload: TaskColumnReorder, db: Session = Depends(g
 
 
 @router.put("/api/task-columns/{column_id}", response_model=TaskColumnOut)
-def put_task_column(column_id: int, payload: TaskColumnUpdate, db: Session = Depends(get_db, scope="function"),
+def put_task_column(column_id: Id, payload: TaskColumnUpdate, db: Session = Depends(get_db, scope="function"),
                      _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten bearbeiten."))):
     _require_module_enabled(db)
     try:
@@ -69,7 +70,7 @@ def put_task_column(column_id: int, payload: TaskColumnUpdate, db: Session = Dep
 
 
 @router.delete("/api/task-columns/{column_id}")
-def delete_task_column(column_id: int, db: Session = Depends(get_db, scope="function"),
+def delete_task_column(column_id: Id, db: Session = Depends(get_db, scope="function"),
                         _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten löschen."))):
     _require_module_enabled(db)
     try:

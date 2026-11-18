@@ -26,6 +26,7 @@ from ..schemas import (
     PaymentProposalOut, PaymentReverse, RefundCreate, UnallocatedPaymentsOut,
 )
 from ..zugehoerigkeit import IdNichtGefunden
+from ..ids import Id
 
 router = APIRouter()
 
@@ -65,13 +66,13 @@ def _payment_or_404(db: Session, payment_id: int) -> Payment:
 
 
 @router.get("/api/customers/{customer_id}/payments", response_model=CustomerPaymentsOut)
-def get_customer_payments(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_customer_payments(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _customer_or_404(db, customer_id)
     return customer_payments(db, customer_id)
 
 
 @router.get("/api/customers/{customer_id}/open-invoices", response_model=list[OpenInvoiceOut])
-def get_customer_open_invoices(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_customer_open_invoices(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _customer_or_404(db, customer_id)
     return open_invoices_of_customer(db, customer_id)
 
@@ -88,7 +89,7 @@ def get_customer_balances(db: Session = Depends(get_db, scope="function"), _role
 
 
 @router.post("/api/customers/{customer_id}/refunds", response_model=PaymentOut)
-def post_customer_refund(customer_id: int, payload: CustomerRefundCreate, db: Session = Depends(get_db, scope="function"),
+def post_customer_refund(customer_id: Id, payload: CustomerRefundCreate, db: Session = Depends(get_db, scope="function"),
                          user: AppUser = _geld_dep):
     """Seit 1.8.93: Erstattung des Guthabens des Kunden als ein Zahlungsausgang -- aus Resten seiner Zahlungen und aus Guthaben von
     Endrechnungen (app/payments.py::book_customer_refund())."""
@@ -105,7 +106,7 @@ def post_customer_refund(customer_id: int, payload: CustomerRefundCreate, db: Se
 
 
 @router.get("/api/invoices/{invoice_id}/payment-proposal", response_model=PaymentProposalOut)
-def get_payment_proposal(invoice_id: int, amount: Decimal = Query(gt=0), received_on: date = Query(),
+def get_payment_proposal(invoice_id: Id, amount: Decimal = Query(gt=0), received_on: date = Query(),
                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Nur ein Vorschlag (liest, schreibt nichts): ältere offene Rechnungen desselben Auftrags zuerst, dann diese; Skonto, wo
     der Eingang in der Frist liegt und der Betrag passt."""
@@ -130,7 +131,7 @@ def post_payment(payload: PaymentCreate, db: Session = Depends(get_db, scope="fu
 
 
 @router.post("/api/payments/{payment_id}/allocations", response_model=PaymentOut)
-def post_payment_allocations(payment_id: int, payload: PaymentAllocate, db: Session = Depends(get_db, scope="function"),
+def post_payment_allocations(payment_id: Id, payload: PaymentAllocate, db: Session = Depends(get_db, scope="function"),
                              user: AppUser = _geld_dep):
     payment = _payment_or_404(db, payment_id)
     user_id, user_name = actor_of(user)
@@ -142,7 +143,7 @@ def post_payment_allocations(payment_id: int, payload: PaymentAllocate, db: Sess
 
 
 @router.post("/api/payments/{payment_id}/reverse", response_model=PaymentOut)
-def post_payment_reverse(payment_id: int, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
+def post_payment_reverse(payment_id: Id, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
                          user: AppUser = _geld_dep):
     payment = _payment_or_404(db, payment_id)
     user_id, user_name = actor_of(user)
@@ -154,7 +155,7 @@ def post_payment_reverse(payment_id: int, payload: PaymentReverse, db: Session =
 
 
 @router.post("/api/invoices/{invoice_id}/refunds", response_model=PaymentOut)
-def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
+def post_refund(invoice_id: Id, payload: RefundCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
     """Seit 1.8.90 (R4c Punkt 6): Erstattung eines Guthabens als Zahlungsausgang (app/payments.py::book_refund())."""
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
@@ -169,7 +170,7 @@ def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(ge
 
 
 @router.post("/api/payment-allocations/{allocation_id}/reverse", response_model=PaymentOut)
-def post_allocation_reverse(allocation_id: int, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
+def post_allocation_reverse(allocation_id: Id, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
                             user: AppUser = _geld_dep):
     allocation = db.get(PaymentAllocation, allocation_id)
     if allocation is None:

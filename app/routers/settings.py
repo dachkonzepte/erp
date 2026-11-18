@@ -35,6 +35,7 @@ from ..settings import (
     set_accent_color,
     update_sequence,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -109,7 +110,7 @@ def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Sess
 
 
 @router.put("/api/settings/option-groups/{group_key}/options/{option_id}", response_model=SettingOptionOut)
-def update_setting_option(group_key: str, option_id: int, payload: SettingOptionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_setting_option(group_key: str, option_id: Id, payload: SettingOptionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     group = get_option_group(db, group_key)
     row = db.get(SettingOption, option_id)
     if group is None or row is None or row.group_id != group.id:
@@ -127,7 +128,7 @@ def update_setting_option(group_key: str, option_id: int, payload: SettingOption
 
 
 @router.delete("/api/settings/option-groups/{group_key}/options/{option_id}")
-def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_setting_option(group_key: str, option_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     group = get_option_group(db, group_key); row = db.get(SettingOption, option_id)
     if group is None or row is None or row.group_id != group.id:
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden.")
@@ -153,7 +154,7 @@ def create_employee_function(payload: EmployeeFunctionCreate, db: Session = Depe
 
 
 @router.put("/api/settings/employee-functions/{function_id}", response_model=EmployeeFunctionOut)
-def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_employee_function(function_id: Id, payload: EmployeeFunctionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     function = db.get(EmployeeFunction, function_id)
     if function is None:
         raise HTTPException(status_code=404, detail="Funktion/Tätigkeit nicht gefunden.")
@@ -180,7 +181,7 @@ def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, 
 
 
 @router.delete("/api/settings/employee-functions/{function_id}")
-def delete_employee_function(function_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_employee_function(function_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     function = db.get(EmployeeFunction, function_id)
     if function is None:
         raise HTTPException(status_code=404, detail="Funktion/Tätigkeit nicht gefunden.")

@@ -20,6 +20,7 @@ from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, document_path, make_stored_filename, project_directory
 from ..schemas import WorkPreparationEmployeeCreate, WorkPreparationEmployeeUpdate, WorkPreparationMaterialBulkAssign, WorkPreparationMaterialUpdateV082, WorkPreparationOut, WorkPreparationTaskCreate, WorkPreparationTaskUpdate, WorkPreparationTeamAssign, WorkPreparationUpdate
 from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_preview, preparation_to_dict, zeitraum_ohne_einsatz_pruefen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/work-preparation/tasks")
-def get_open_work_preparation_tasks(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_open_work_preparation_tasks(request: Request, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Offene Arbeitsvorbereitungs-Aufgaben über alle Aufträge hinweg, fürs
     Dashboard-Widget "Meine Aufgaben" (seit 1.0.102). Rechteprüfung analog zu
     get_absence_requests() in routers/absence_requests.py: Nicht-Admins sehen
@@ -48,7 +49,7 @@ def get_open_work_preparation_tasks(request: Request, employee_id: int | None = 
 
 
 @router.get("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
-def get_work_preparation(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_work_preparation(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.84 nur lesen (Regel 23): fehlt die Arbeitsvorbereitung, die Vorschau ("id" leer) -- angelegt wird sie mit
     der ersten Änderung oder über POST."""
     try:
@@ -58,7 +59,7 @@ def get_work_preparation(order_id: int, db: Session = Depends(get_db, scope="fun
 
 
 @router.post("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
-def create_work_preparation(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def create_work_preparation(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Arbeitsvorbereitung anlegen (seit 1.8.84, "Arbeitsvorbereitung anlegen" auf der Seite) -- eine vorhandene bleibt."""
     try:
         return preparation_to_dict(db, ensure_preparation(db, order_id))
@@ -67,7 +68,7 @@ def create_work_preparation(order_id: int, db: Session = Depends(get_db, scope="
 
 
 @router.put("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
-def update_work_preparation(order_id: int, payload: WorkPreparationUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_work_preparation(order_id: Id, payload: WorkPreparationUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         prep = ensure_preparation(db, order_id)
     except ValueError as exc:
@@ -86,7 +87,7 @@ def update_work_preparation(order_id: int, payload: WorkPreparationUpdate, db: S
 
 
 @router.post("/api/orders/{order_id}/work-preparation/employees", response_model=WorkPreparationOut)
-def add_work_preparation_employee(order_id: int, payload: WorkPreparationEmployeeCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def add_work_preparation_employee(order_id: Id, payload: WorkPreparationEmployeeCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     prep = ensure_preparation(db, order_id)
     employee = db.get(Employee, payload.employee_id)
     if employee is None or not employee.active:
@@ -100,7 +101,7 @@ def add_work_preparation_employee(order_id: int, payload: WorkPreparationEmploye
 
 
 @router.put("/api/work-preparation/employees/{assignment_id}", response_model=WorkPreparationOut)
-def update_work_preparation_employee(assignment_id: int, payload: WorkPreparationEmployeeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_work_preparation_employee(assignment_id: Id, payload: WorkPreparationEmployeeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row = db.get(WorkPreparationEmployee, assignment_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Mitarbeiterzuordnung nicht gefunden.")
@@ -111,7 +112,7 @@ def update_work_preparation_employee(assignment_id: int, payload: WorkPreparatio
 
 
 @router.delete("/api/work-preparation/employees/{assignment_id}", response_model=WorkPreparationOut)
-def delete_work_preparation_employee(assignment_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_work_preparation_employee(assignment_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row = db.get(WorkPreparationEmployee, assignment_id)
     if row is None: raise HTTPException(status_code=404, detail="Mitarbeiterzuordnung nicht gefunden.")
     order_id=row.preparation.order_id; db.delete(row); db.commit()
@@ -119,7 +120,7 @@ def delete_work_preparation_employee(assignment_id: int, db: Session = Depends(g
 
 
 @router.post("/api/orders/{order_id}/work-preparation/tasks", response_model=WorkPreparationOut)
-def add_work_preparation_task(order_id: int, payload: WorkPreparationTaskCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def add_work_preparation_task(order_id: Id, payload: WorkPreparationTaskCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     prep=ensure_preparation(db,order_id)
     if payload.assigned_employee_id is not None:
         e=db.get(Employee,payload.assigned_employee_id)
@@ -129,7 +130,7 @@ def add_work_preparation_task(order_id: int, payload: WorkPreparationTaskCreate,
 
 
 @router.put("/api/work-preparation/tasks/{task_id}", response_model=WorkPreparationOut)
-def update_work_preparation_task(task_id: int, payload: WorkPreparationTaskUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_work_preparation_task(task_id: Id, payload: WorkPreparationTaskUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row=db.get(WorkPreparationTask,task_id)
     if row is None: raise HTTPException(status_code=404,detail="Aufgabe nicht gefunden.")
     changes=payload.model_dump(exclude_unset=True)
@@ -143,7 +144,7 @@ def update_work_preparation_task(task_id: int, payload: WorkPreparationTaskUpdat
 
 
 @router.delete("/api/work-preparation/tasks/{task_id}", response_model=WorkPreparationOut)
-def delete_work_preparation_task(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_work_preparation_task(task_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row=db.get(WorkPreparationTask,task_id)
     if row is None: raise HTTPException(status_code=404,detail="Aufgabe nicht gefunden.")
     order_id=row.preparation.order_id; db.delete(row); db.commit(); return preparation_to_dict(db,load_preparation(db,order_id))
@@ -202,7 +203,7 @@ def bulk_assign_work_preparation_materials(payload: WorkPreparationMaterialBulkA
 
 
 @router.put("/api/work-preparation/materials/{material_id}", response_model=WorkPreparationOut)
-def update_work_preparation_material(material_id: int, payload: WorkPreparationMaterialUpdateV082, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_work_preparation_material(material_id: Id, payload: WorkPreparationMaterialUpdateV082, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row=db.get(WorkPreparationMaterial,material_id)
     if row is None: raise HTTPException(status_code=404,detail="Materialbedarf nicht gefunden.")
     order_id=row.preparation.order_id
@@ -234,7 +235,7 @@ def update_work_preparation_material(material_id: int, payload: WorkPreparationM
 
 
 @router.post("/api/orders/{order_id}/work-preparation/teams", response_model=WorkPreparationOut)
-def assign_work_preparation_team(order_id:int,payload:WorkPreparationTeamAssign,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def assign_work_preparation_team(order_id:Id,payload:WorkPreparationTeamAssign,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     prep=ensure_preparation(db,order_id)
     team=db.scalar(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).where(Team.id==payload.team_id))
     if team is None or not team.active: raise HTTPException(status_code=422,detail="Kolonne / Team wurde nicht gefunden oder ist inaktiv.")
@@ -251,7 +252,7 @@ def assign_work_preparation_team(order_id:int,payload:WorkPreparationTeamAssign,
 
 
 @router.delete("/api/work-preparation/teams/{assignment_id}", response_model=WorkPreparationOut)
-def remove_work_preparation_team(assignment_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def remove_work_preparation_team(assignment_id:Id,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(WorkPreparationTeamAssignment,assignment_id)
     if row is None: raise HTTPException(status_code=404,detail="Teamzuordnung nicht gefunden.")
     if db.scalar(select(PlanningSlot).where(PlanningSlot.team_assignment_id==assignment_id)):
@@ -263,7 +264,7 @@ def remove_work_preparation_team(assignment_id:int,db:Session=Depends(get_db, sc
 @router.post("/api/orders/{order_id}/work-preparation/delivery-notes", response_model=WorkPreparationOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_work_preparation_delivery_note(
-    order_id:int, file:UploadFile=File(...), supplier_id:int|None=Form(None), delivery_note_number:str|None=Form(None),
+    order_id:Id, file:UploadFile=File(...), supplier_id:Id|None=Form(None), delivery_note_number:str|None=Form(None),
     document_date:str|None=Form(None), description:str|None=Form(None), db:Session=Depends(get_db, scope="function"),
     _role:AppUser=_role_dep,
 ):
@@ -288,7 +289,7 @@ def upload_work_preparation_delivery_note(
 
 
 @router.delete("/api/work-preparation/materials/{material_id}/delivery-notes/{delivery_note_id}", response_model=WorkPreparationOut)
-def unlink_material_delivery_note(material_id:int, delivery_note_id:int, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def unlink_material_delivery_note(material_id:Id, delivery_note_id:Id, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     material=db.get(WorkPreparationMaterial,material_id)
     if material is None:
         raise HTTPException(status_code=404,detail="Materialposition nicht gefunden.")
@@ -304,7 +305,7 @@ def unlink_material_delivery_note(material_id:int, delivery_note_id:int, db:Sess
 
 
 @router.delete("/api/work-preparation/delivery-notes/{delivery_note_id}", response_model=WorkPreparationOut)
-def delete_work_preparation_delivery_note(delivery_note_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def delete_work_preparation_delivery_note(delivery_note_id:Id,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(WorkPreparationDeliveryNote,delivery_note_id)
     if row is None: raise HTTPException(status_code=404,detail="Lieferschein nicht gefunden.")
     prep=db.get(WorkPreparation,row.preparation_id); order_id=prep.order_id; doc=db.get(ProjectDocument,row.project_document_id)

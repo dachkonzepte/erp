@@ -25,6 +25,7 @@ from ..models import AppUser, Employee
 from ..outlook_calendar_sync import PostfachVergeben, postfach_gewechselt, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -60,7 +61,7 @@ def create_app_user(payload: AppUserCreate, db: Session = Depends(get_db, scope=
 
 
 @router.put("/api/users/{user_id}", response_model=AppUserOut)
-def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern.")),
+def update_app_user(user_id: Id, payload: AppUserUpdate, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern.")),
                     request: Request = None, response: Response = None):
     user = db.get(AppUser, user_id)
     if user is None:
@@ -105,7 +106,7 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
 
 
 @router.post("/api/users/{user_id}/reset-two-factor")
-def reset_user_two_factor(user_id: int, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen den zweiten Faktor zurücksetzen."))):
+def reset_user_two_factor(user_id: Id, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen den zweiten Faktor zurücksetzen."))):
     """Setzt den zweiten Faktor eines ANDEREN Administrators zurück (verlorenes/neues Telefon) --
     bewusst nicht für das eigene Konto (siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
     Administratoren"): sonst ließe sich die Pflicht zum zweiten Faktor über die eigene
@@ -122,7 +123,7 @@ def reset_user_two_factor(user_id: int, db: Session = Depends(get_db, scope="fun
 
 
 @router.post("/api/users/{user_id}/end-sessions")
-def end_user_sessions(user_id: int, db: Session = Depends(get_db, scope="function"),
+def end_user_sessions(user_id: Id, db: Session = Depends(get_db, scope="function"),
                       current: AppUser = Depends(require_admin("Nur Administratoren dürfen Sitzungen beenden.")),
                       request: Request = None, response: Response = None):
     """Seit 1.8.103 (Korrektur 98-11): ein Administrator beendet alle Sitzungen eines Benutzers -- jede Anmeldung auf jedem Gerät endet,
@@ -142,7 +143,7 @@ def end_user_sessions(user_id: int, db: Session = Depends(get_db, scope="functio
 
 
 @router.post("/api/users/{user_id}/deaktivieren", response_model=AppUserOut)
-def deactivate_app_user(user_id: int, db: Session = Depends(get_db, scope="function"),
+def deactivate_app_user(user_id: Id, db: Session = Depends(get_db, scope="function"),
                         current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer deaktivieren."))):
     """Seit 1.9.342: ein Konto deaktivieren, ohne den Rest anzufassen -- der Knopf „Deaktivieren“ der Seite (statt „Löschen“ bei einem verwendeten
     Konto). PUT /api/users/{id} ist ein volles Update (Regel 22): schickte die Seite nur active=false, fielen Rolle und Mitarbeiter auf die Vorgabe.
@@ -166,7 +167,7 @@ def deactivate_app_user(user_id: int, db: Session = Depends(get_db, scope="funct
 
 
 @router.delete("/api/users/{user_id}")
-def delete_app_user(user_id: int, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer löschen."))):
+def delete_app_user(user_id: Id, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer löschen."))):
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")

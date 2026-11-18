@@ -23,6 +23,7 @@ from ..schemas import (
     ProjectPipelineColumnReorder,
     ProjectPipelineColumnUpdate,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -53,7 +54,7 @@ def put_project_pipeline_columns_reorder(payload: ProjectPipelineColumnReorder, 
 
 
 @router.put("/api/project-pipeline-columns/{column_id}", response_model=ProjectPipelineColumnOut)
-def put_project_pipeline_column(column_id: int, payload: ProjectPipelineColumnUpdate, db: Session = Depends(get_db, scope="function"),
+def put_project_pipeline_column(column_id: Id, payload: ProjectPipelineColumnUpdate, db: Session = Depends(get_db, scope="function"),
                                  _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten bearbeiten."))):
     try:
         return update_column(db, column_id, payload.label)
@@ -62,7 +63,7 @@ def put_project_pipeline_column(column_id: int, payload: ProjectPipelineColumnUp
 
 
 @router.delete("/api/project-pipeline-columns/{column_id}")
-def delete_project_pipeline_column(column_id: int, db: Session = Depends(get_db, scope="function"),
+def delete_project_pipeline_column(column_id: Id, db: Session = Depends(get_db, scope="function"),
                                     _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten löschen."))):
     try:
         delete_column(db, column_id)

@@ -25,6 +25,7 @@ from ..schemas import (
     DocumentLayoutBackgroundOut, DocumentLayoutBlockOut, DocumentLayoutBlockUpdate,
     DocumentPageMarginsOut, DocumentPageMarginsUpdate,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -115,7 +116,7 @@ def get_document_layout(document_type: str, db: Session = Depends(get_db, scope=
 
 
 @router.put("/api/document-layout/blocks/{block_id}", response_model=DocumentLayoutBlockOut)
-def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_layout_block(block_id: Id, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     block = _get_block_or_404(db, block_id)
     # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder.
     return update_layout_block(db, block, **payload.model_dump(exclude_unset=True))

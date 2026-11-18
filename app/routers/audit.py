@@ -16,6 +16,7 @@ from ..models import AppUser
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, has_role, require_min_role
 from ..schemas import AuditLogOut
 from ..verlauf_namen import lesbar_alle
+from ..ids import Id
 
 router = APIRouter()
 
@@ -26,17 +27,17 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 # Seit 1.8.150: ein Versatz darüber findet sicher nichts (so viele Einträge gibt es nicht) und ginge an die Datenbank nicht durch --
 # SQLite und PostgreSQL rechnen OFFSET in 64 Bit, eine größere Zahl war bis dahin ein Serverfehler (OverflowError, 500).
 GROESSTER_VERSATZ = 2**62
-_INT64 = range(-2**63, 2**63)
 
 
 @router.get("/api/audit-logs", response_model=list[AuditLogOut])
-def list_audit_logs(response: Response, project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, offset: int = Query(0, ge=0), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_audit_logs(response: Response, project_id: Id | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, offset: int = Query(0, ge=0), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.138: mit Versatz (offset) zum Blättern -- `X-DK-Weitere: 1`, wenn nach dieser Seite noch Einträge kommen (gezählt vor
     der Schwärzung, sonst verschwände der Weg zu älteren Einträgen); jede Zeile mit lesbaren Namen (app/verlauf_namen.py, nach der
     Schwärzung, die an den rohen Namen hängt)."""
-    # Seit 1.8.150: offset negativ oder keine Zahl 422 (bis dahin galt ein negativer still als 0); sehr groß -- auch eine Projekt-ID
-    # jenseits von 64 Bit -- eine leere Seite statt 500.
-    if offset > GROESSTER_VERSATZ or (project_id is not None and project_id not in _INT64):
+    # Seit 1.8.150: offset negativ oder keine Zahl 422 (bis dahin galt ein negativer still als 0); sehr groß eine leere Seite statt 500.
+    # Eine Projekt-ID außerhalb von int4 beantwortet seit 1.9.361 der Typ Id mit 404 (bis dahin hier eine leere Seite jenseits von 64 Bit,
+    # dazwischen unter PostgreSQL 500).
+    if offset > GROESSTER_VERSATZ:
         response.headers["X-DK-Weitere"] = "0"
         return []
     limit = min(max(limit, 1), 1000)

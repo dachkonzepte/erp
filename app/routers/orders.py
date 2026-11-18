@@ -36,6 +36,7 @@ from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, STORNO_ZURUECK_NUR_AD
 from ..service_reports import bericht_zum_auftrag_moeglich
 from ..time_tracking import auftrag_zeiten_gesperrt
 from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderStornoZurueckRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection, AkteZahlenOut
+from ..ids import Id
 
 router = APIRouter()
 
@@ -122,7 +123,7 @@ def list_all_orders(db: Session = Depends(get_db, scope="function"), _role: AppU
 
 
 @router.get("/api/orders/{order_id}/zahlen", response_model=AkteZahlenOut)
-def get_order_zahlen(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_order_zahlen(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.126 (Stufe 5, R2): die Zahlen der Akte je Auftrag -- Leistung, Zahlung, Stunden, je Position (app/akte.py::zahlen()).
     Nur Büro (Büro – Auftrag liest das Geld, die Knöpfe zeigt die Seite nach darf_geld()); die Monteurin bekommt keine Akte."""
     order = load_order(db, order_id)
@@ -132,7 +133,7 @@ def get_order_zahlen(order_id: int, db: Session = Depends(get_db, scope="functio
 
 
 @router.get("/api/orders/{order_id}", response_model=OrderOut | OrderFieldAccessOut)
-def get_order(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_order(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Fuer `field` (seit Rechtekonzept Teil B): Zuordnung wird VOR dem Laden geprueft, die
     Antwort ist OrderFieldAccessOut -- order_to_dict() liefert das volle LV samt unit_price/
     line_total/Summen, davon bleibt fuer den Monteur nur, was service_reports.html tatsaechlich
@@ -151,7 +152,7 @@ def get_order(order_id: int, db: Session = Depends(get_db, scope="function"), _r
 
 
 @router.put("/api/orders/{order_id}", response_model=OrderOut)
-def put_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_order(order_id: Id, payload: OrderUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order=load_order(db,order_id)
     if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     try:
@@ -165,7 +166,7 @@ def put_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_db,
 
 
 @router.post("/api/orders/{order_id}/status", response_model=OrderOut)
-def post_order_status(order_id: int, payload: OrderStatusChangeRequest, db: Session = Depends(get_db, scope="function"),
+def post_order_status(order_id: Id, payload: OrderStatusChangeRequest, db: Session = Depends(get_db, scope="function"),
                       user: AppUser = _role_dep):
     """Seit 1.9.124 (Stufe 5, R2, Punkt 1): Pausieren, Fortsetzen, Abschließen, Stornieren -- der einzige Weg, den Status zu ändern
     (app/auftragsstatus.py::status_aendern()). 422 Status außerhalb der Liste oder fehlende Begründung, 409 Übergang von hier nicht möglich oder
@@ -183,7 +184,7 @@ def post_order_status(order_id: int, payload: OrderStatusChangeRequest, db: Sess
 
 
 @router.post("/api/orders/{order_id}/storno-zuruecknehmen", response_model=OrderOut)
-def post_order_storno_zuruecknehmen(order_id: int, payload: OrderStornoZurueckRequest, db: Session = Depends(get_db, scope="function"),
+def post_order_storno_zuruecknehmen(order_id: Id, payload: OrderStornoZurueckRequest, db: Session = Depends(get_db, scope="function"),
                                     user: AppUser = Depends(require_role(*STORNO_ZURUECK_ROLLEN, message=STORNO_ZURUECK_NUR_ADMIN))):
     """Seit 1.9.131 (Stufe 5, R2 Nachrunde, Punkt 2): einen Storno zurücknehmen -- nur der Admin (app/permissions.py::darf_storno_zuruecknehmen(),
     sonst 403), mit Begründung (422), nur an einem stornierten Auftrag (409); der Auftrag läuft danach wieder, der Wechsel steht im Verlauf."""
@@ -199,7 +200,7 @@ def post_order_storno_zuruecknehmen(order_id: int, payload: OrderStornoZurueckRe
 
 
 @router.get("/api/orders/{order_id}/status-changes", response_model=list[OrderStatusChangeOut])
-def get_order_status_changes(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_order_status_changes(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.124: die Statuswechsel des Auftrags mit Begründung, die ältesten zuerst."""
     if db.get(Order, order_id) is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
@@ -207,7 +208,7 @@ def get_order_status_changes(order_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.put("/api/orders/{order_id}/tax-key", response_model=OrderOut)
-def put_order_tax_key(order_id: int, payload: TaxKeySelection, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_order_tax_key(order_id: Id, payload: TaxKeySelection, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = load_order(db, order_id)
     if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     try:
@@ -220,7 +221,7 @@ def put_order_tax_key(order_id: int, payload: TaxKeySelection, db: Session = Dep
 
 
 @router.put("/api/orders/{order_id}/contract-basis", response_model=OrderOut)
-def put_order_contract_basis(order_id: int, payload: OrderContractBasisUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_order_contract_basis(order_id: Id, payload: OrderContractBasisUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Vertragsgrundlage am Auftrag ändern (seit 1.8.21) -- nur mit Begründung, mit Historie; danach
     überschreibt der Abgleich mit dem Angebot sie nicht mehr. Bewusst NICHT Teil von PUT
     /api/orders/{id} (OrderUpdate), sonst ginge es ohne Begründung. Seit 1.8.34 nach der Unterschrift
@@ -239,14 +240,14 @@ def put_order_contract_basis(order_id: int, payload: OrderContractBasisUpdate, r
 
 
 @router.get("/api/orders/{order_id}/contract-basis-changes", response_model=list[OrderContractBasisChangeOut])
-def get_order_contract_basis_changes(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_order_contract_basis_changes(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Order, order_id) is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     return list_order_contract_basis_changes(db, order_id)
 
 
 @router.put("/api/orders/{order_id}/items/{item_id}", response_model=OrderOut)
-def put_order_item(order_id: int, item_id: int, payload: OrderItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_order_item(order_id: Id, item_id: Id, payload: OrderItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder -- die Sperren prüfen genau diese.
         order = update_order_item(db, order_id, item_id, **payload.model_dump(exclude_unset=True))
@@ -263,7 +264,7 @@ def _actor_name(request: Request) -> str:
 
 
 @router.post("/api/orders/{order_id}/items", response_model=OrderOut)
-def post_order_addendum(order_id: int, payload: OrderAddendumCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_order_addendum(order_id: Id, payload: OrderAddendumCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Nachtrag am Auftrag (seit 1.8.83, R4a Punkt 3) -- die einzige Art, dem Auftrag eine Position hinzuzufügen. 409 nach der
     Schlussrechnung und am stornierten Auftrag."""
     try:
@@ -276,7 +277,7 @@ def post_order_addendum(order_id: int, payload: OrderAddendumCreate, request: Re
 
 
 @router.delete("/api/orders/{order_id}/items/{item_id}", response_model=OrderOut)
-def delete_order_addendum(order_id: int, item_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_order_addendum(order_id: Id, item_id: Id, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Einen Nachtrag entfernen (seit 1.8.83) -- nur einen Nachtrag, an dem nichts hängt, nicht nach der Schlussrechnung (409)."""
     try:
         order = remove_order_addendum(db, order_id, item_id, actor_name=_actor_name(request))
@@ -288,7 +289,7 @@ def delete_order_addendum(order_id: int, item_id: int, request: Request, db: Ses
 
 
 @router.put("/api/orders/{order_id}/sections/{section_id}", response_model=OrderOut)
-def put_order_section(order_id: int, section_id: int, payload: OrderSectionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_order_section(order_id: Id, section_id: Id, payload: OrderSectionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         order = update_order_section(db, order_id, section_id, title=payload.title, description=payload.description)
     except OrderLocked as exc:  # seit 1.8.82: nach der Schlussrechnung
@@ -299,7 +300,7 @@ def put_order_section(order_id: int, section_id: int, payload: OrderSectionUpdat
 
 
 @router.post("/api/orders/{order_id}/sync-source-quote", response_model=OrderOut)
-def sync_order_source(order_id: int, payload: OrderSyncRequest, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def sync_order_source(order_id: Id, payload: OrderSyncRequest, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = load_order(db, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
@@ -316,7 +317,7 @@ def sync_order_source(order_id: int, payload: OrderSyncRequest, request: Request
 
 
 @router.get("/api/orders/{order_id}/revisions", response_model=list[OrderRevisionOut])
-def get_order_revisions(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_order_revisions(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Order, order_id) is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     return [OrderRevisionOut.model_validate({
@@ -327,7 +328,7 @@ def get_order_revisions(order_id: int, db: Session = Depends(get_db, scope="func
 
 
 @router.post("/api/orders/{order_id}/revisions", response_model=OrderRevisionOut)
-def save_order_revision_route(order_id: int, payload: OrderRevisionCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def save_order_revision_route(order_id: Id, payload: OrderRevisionCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = load_order(db, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
@@ -344,7 +345,7 @@ def save_order_revision_route(order_id: int, payload: OrderRevisionCreate, reque
 
 
 @router.get("/api/orders/{order_id}/pdf")
-def order_pdf(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def order_pdf(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order=load_order(db,order_id)
     if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     pdf=build_order_pdf(db,order)
@@ -353,7 +354,7 @@ def order_pdf(order_id: int, db: Session = Depends(get_db, scope="function"), _r
 
 
 @router.post("/api/orders/{order_id}/send-email", response_model=OrderOut)
-def post_send_order_email(order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def post_send_order_email(order_id: Id, payload: OrderEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     order = load_order(db, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")

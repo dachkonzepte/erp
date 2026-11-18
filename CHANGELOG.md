@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.361 – IDs in Pfad, Abfrage und Formular: darüber 404, nie 500
+
+Punkt 1 der Runde V3 (F1). Eine ID über int4 (`/api/customers/3000000000`) kam bis 1.9.360 bis zur Datenbank: SQLite fand nichts, PostgreSQL brach mit 500 ab. Jetzt hat jede ID in Pfad, Abfrage und Formular den Typ `Id` (`app/ids.py`): außerhalb von int4 antwortet die Route mit 404 „Nicht gefunden.“, bevor der Endpunkt läuft. Eine Klasse statt einer Annotated-Angabe, weil FastAPI deren Prüfung bei einer Vorgabe aus `Query()`, `Path()` oder `Form()` wegwirft. Jede andere ganze Zahl in Pfad und Abfrage hat Grenzen oder eine Prüfung der Geschäftslogik; neue Grenzen nur, wo ein Wert bis jetzt mit 500 endete (Jahr des Stundenzettels der Monteurin, erstes Jahr der Schulferien). 589 Angaben in 60 Routern, vom Werkzeug über den Baum umgestellt.
+
+Neu `tests/test_v761_ids_im_pfad.py`: Wächter über alle Routen, jede ID einzeln über alle Routen, PostgreSQL. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.360 – Aufgaben, Material und Historie suchen wie die Büro-Suche; Kundenliste „Nachname, Vorname“
 
 Punkt 0 der Runde V3. Die Filter von Aufgaben, Material und Änderungshistorie suchen jetzt wie die Büro-Suche über `telefonbuch()`: „muller“ findet „MÜLLER“, unter SQLite und PostgreSQL gleich (F3). Außerhalb dieses einen Vergleichs bleiben nur zwei interne Muster ohne Text vom Benutzer. Die Kundenliste zeigt Personen jetzt als „Nachname, Vorname“ („Abel, Bernd“) -- so, wie sie seit 1.9.355 sortiert ist; Anrede und Titel stehen nur noch in der Akte, Firmen unverändert. Den Namen rechnet der Server (`listen_name`).

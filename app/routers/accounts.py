@@ -15,6 +15,7 @@ from ..models import AppUser
 from ..modules import is_module_enabled
 from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AccountCreate, AccountOut, AccountUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ def get_accounts(include_inactive: bool = True, db: Session = Depends(get_db, sc
 
 
 @router.get("/api/accounts/{account_id}", response_model=AccountOut)
-def get_account_endpoint(account_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_account_endpoint(account_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_account(db, account_id)
     if result is None:
@@ -54,7 +55,7 @@ def post_account(payload: AccountCreate, db: Session = Depends(get_db, scope="fu
 
 
 @router.put("/api/accounts/{account_id}", response_model=AccountOut)
-def put_account(account_id: int, payload: AccountUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_account(account_id: Id, payload: AccountUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_account(

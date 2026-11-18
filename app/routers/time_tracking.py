@@ -39,6 +39,7 @@ from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeE
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
 from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, auftrag_zeiten_gesperrt, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, dauer_vorschau, ende_nachtragen, ende_vorschau, kolonne_dauer_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..ids import Id
 
 router = APIRouter()
 
@@ -202,7 +203,7 @@ def get_mobile_time_settings(db:Session=Depends(get_db, scope="function"), _role
 
 
 @router.get("/api/time-tracking/context")
-def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_time_tracking_context(request: Request, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.24 bekommt ein Monteur nur sich selbst, als Kolonnenführer seine Kolonne, und seine
     buchbaren Aufträge -- ohne Personalnummern (field_time_tracking_context()).
 
@@ -246,8 +247,8 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
 
 @router.get("/api/time-entry-groups/nachtrag-vorschau", response_model=TimeKolonneVorschauOut)
 def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time,
-                              pause_minuten: int | None = Query(None, ge=0, le=720), team_id: int | None = None,
-                              employee_ids: list[int] = Query(default=[]), group_id: int | None = None,
+                              pause_minuten: int | None = Query(None, ge=0, le=720), team_id: Id | None = None,
+                              employee_ids: list[Id] = Query(default=[]), group_id: Id | None = None,
                               db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.63 (Stufe 4, R3 Nachrunde, Punkt 1): was „Nachtrag für die Kolonne“ (team_id, employee_ids) bzw. „Für die Kolonne
     ändern“ (group_id) mit diesen Zeiten je Mitglied buchen würde -- dieselbe Rechnung wie die Buchung (kolonne_rechnen()). Liest nur.
@@ -271,8 +272,8 @@ def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis:
 
 @router.get("/api/time-entry-groups/dauer-vorschau", response_model=TimeKolonneDauerVorschauOut)
 def kolonne_dauer_vorschau_endpunkt(request: Request, work_date: date, hours: Decimal = Query(ge=Decimal("0.01"), le=24),
-                                    break_minutes: int = Query(0, ge=0, le=720), team_id: int | None = None,
-                                    employee_ids: list[int] = Query(default=[]), db: Session = Depends(get_db, scope="function"),
+                                    break_minutes: int = Query(0, ge=0, le=720), team_id: Id | None = None,
+                                    employee_ids: list[Id] = Query(default=[]), db: Session = Depends(get_db, scope="function"),
                                     _role: AppUser = _buchen_dep):
     """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was „Kolonne buchen“ als Dauer (Stunden netto und die Pause an diesem Tag, je Person
     dieselben) am Tag jedes Mitglieds bewirkt -- „Tag zusammen“ und ob die Pause des Tags danach passt (kolonne_dauer_vorschau()). Liest nur.
@@ -304,7 +305,7 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
 
 
 @router.get("/api/time-entry-groups/active", response_model=TimeGroupOut | None)
-def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_active_time_group(request:Request,employee_id:Id|None=None,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     resolved=_time_entry_employee_for_request(request,employee_id,db,lesen=True)
     user=getattr(request.state,"erp_user",None)
     # seit 1.9.89 liest das Büro jede laufende Gruppe der Person (bis dahin jeder außer dem Admin nur selbst gestartete)
@@ -332,7 +333,7 @@ def get_my_crews(request:Request,db:Session=Depends(get_db, scope="function"), _
 
 
 @router.put("/api/time-entry-groups/{group_id}", response_model=TimeGroupOut)
-def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def put_time_group(group_id:Id,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): eine LV-Position gehört zum Auftrag -- ein
     # gleichzeitiger Auftragswechsel ließ sonst eine Position des alten Auftrags stehen.
     group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
@@ -360,7 +361,7 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
 
 
 @router.delete("/api/time-entry-groups/{group_id}")
-def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def remove_time_group(group_id:Id,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
@@ -373,7 +374,7 @@ def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, sc
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)
-def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def stop_time_group(group_id:Id,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)
@@ -415,7 +416,7 @@ def _visible_employee_id(request: Request, employee_id: int | None) -> int | Non
 
 
 @router.get("/api/time-entries", response_model=list[TimeEntryOut])
-def get_time_entries(request: Request, response: Response, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = Query(500, ge=1, le=MAX_LIST_LIMIT), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_time_entries(request: Request, response: Response, employee_id: Id | None = None, project_id: Id | None = None, order_id: Id | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = Query(500, ge=1, le=MAX_LIST_LIMIT), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     # Seit 1.8.9: X-Total-Count meldet die Gesamtzahl der Treffer. Liefert die Liste weniger
     # (höchstens limit, neueste zuerst), zeigt die Oberfläche "Liste gekürzt". Ein limit über
     # 2000 wird mit 422 abgelehnt, statt still gekappt zu werden.
@@ -425,14 +426,14 @@ def get_time_entries(request: Request, response: Response, employee_id: int | No
 
 
 @router.get("/api/time-entries/summary", response_model=TimeEntrySummaryOut)
-def get_time_entries_summary(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_time_entries_summary(request: Request, employee_id: Id | None = None, project_id: Id | None = None, order_id: Id | None = None, start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.9: Summen zu GET /api/time-entries per SUM in der Datenbank, statt sie in der
     Oberfläche aus der gekürzten Liste zu bilden -- dieselben Filter, dieselbe Sichtbarkeit."""
     return TimeEntrySummaryOut.model_validate(summarize_entries(db, employee_id=_visible_employee_id(request, employee_id), project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date))
 
 
 @router.get("/api/time-entries/active", response_model=TimeEntryOut | None)
-def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_active_time_entry(request: Request, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     resolved = _time_entry_employee_for_request(request, employee_id, db, lesen=True)
     row = active_time_entry(db, resolved)
     return TimeEntryOut.model_validate(entry_to_dict(row)) if row else None
@@ -480,7 +481,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
 
 
 @router.post("/api/time-entries/{entry_id}/stop", response_model=TimeEntryOut)
-def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def stop_time_entry(entry_id: Id, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
@@ -508,7 +509,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 
 @router.post("/api/time-entries/{entry_id}/ende-nachtragen", response_model=TimeEntryOut)
-def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def ende_nachtragen_endpunkt(entry_id: Id, payload: TimeEndeNachtragen, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.35 (Stufe 4, R1, Punkt 2): das Ende einer Zeit nachtragen, die seit einem früheren Tag läuft (vergessener Feierabend).
     Die eigene Zeit, oder die einer anderen Person nach darf_zeit_fuer_andere_buchen() (seit 1.9.89 Admin und Büro – Finanzen; wer, steht
     im Verlauf). Ist der Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer
@@ -527,7 +528,7 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
 
 @router.get("/api/time-entries/nachtrag-vorschau", response_model=TimeEndeVorschauOut)
 def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, pause_minuten: int | None = Query(None, ge=0, le=720),
-                      entry_id: int | None = None, employee_id: int | None = None,
+                      entry_id: Id | None = None, employee_id: Id | None = None,
                       db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.57 (Stufe 4, R3): was „Zeit nachtragen“ (bzw. mit entry_id „Ändern“) mit diesen Zeiten buchen würde -- dieselbe
     Rechnung wie die Buchung (nachtrag_nach_zeitregel(): Pause aus dem Tag, beim Ändern ohne die alte Fassung, Rundung der Zeitregeln,
@@ -554,7 +555,7 @@ def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, p
 
 @router.get("/api/time-entries/dauer-vorschau", response_model=TimeDauerVorschauOut)
 def dauer_vorschau_endpunkt(request: Request, work_date: date, hours: Decimal = Query(ge=Decimal("0.01"), le=24),
-                            break_minutes: int = Query(0, ge=0, le=720), entry_id: int | None = None, employee_id: int | None = None,
+                            break_minutes: int = Query(0, ge=0, le=720), entry_id: Id | None = None, employee_id: Id | None = None,
                             db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was eine Dauer (Stunden netto und die Pause an diesem Tag) am Tag bewirkt -- anwesend,
     „Tag zusammen“ und ob die Pause des Tags danach passt (dauer_vorschau(), dieselbe Prüfung wie „Prüfen“). Liest nur. Mitarbeiter und die zu
@@ -579,7 +580,7 @@ def dauer_vorschau_endpunkt(request: Request, work_date: date, hours: Decimal = 
 
 
 @router.get("/api/time-entries/tagespause", response_model=TimePausenVorschauOut)
-def tagespause(request: Request, work_date: date, employee_id: int | None = None,
+def tagespause(request: Request, work_date: date, employee_id: Id | None = None,
                db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.57 (Stufe 4, R3, Punkt 5): passt die abgezogene Pause des Tags noch zur Zeitregel, und was würde „Pausen neu rechnen“
     je Buchung ändern (time_tracking.pausen_vorschau())? Liest nur -- seit 1.9.89 für das Büro jede Person."""
@@ -603,7 +604,7 @@ def pausen_neu_rechnen_endpunkt(payload: TimePausenNeuRechnen, request: Request,
 
 
 @router.get("/api/time-entries/{entry_id}/ende-vorschau", response_model=TimeEndeVorschauOut)
-def ende_vorschau_endpunkt(entry_id: int, ende: datetime, request: Request, pause_minuten: int = Query(0, ge=0, le=720),
+def ende_vorschau_endpunkt(entry_id: Id, ende: datetime, request: Request, pause_minuten: int = Query(0, ge=0, le=720),
                           db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.44 (Stufe 4, R2): was „Ende nachtragen“ mit diesem Ende buchen würde -- anwesend, Pause nach der Zeitregel,
     gebucht --, ohne zu buchen (ende_vorschau(), dieselbe Rechnung wie die Buchung). Dieselben Prüfungen wie das Nachtragen."""
@@ -644,7 +645,7 @@ def ende_nachtragen_pruefen(request: Request, db: Session, entry_id: int) -> Tim
 
 
 @router.post("/api/time-entries/{entry_id}/zeitart-wechseln", response_model=TimeEntryOut)
-def zeitart_wechseln_endpunkt(entry_id: int, payload: TimeZeitartWechseln, request: Request,
+def zeitart_wechseln_endpunkt(entry_id: Id, payload: TimeZeitartWechseln, request: Request,
                              db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.44 (Stufe 4, R2): die laufende Zeit endet jetzt nach der Zeitregel, im selben Augenblick beginnt eine neue mit der
     neuen Zeitart auf demselben Auftrag (zeitart_wechseln()). Nur die eigene Zeit (oder nach darf_zeit_fuer_andere_buchen()), nicht im
@@ -680,7 +681,7 @@ def _mit_tag(db: Session, data: dict) -> TimeEntryOut:
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
-def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def put_time_entry(entry_id: Id, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): Auftrag und LV-Position gehören zusammen, und
     # eine gleichzeitige Korrektur der Gruppenbuchung wartet auf diese (oder umgekehrt) -- siehe app/time_tracking.py::update_group().
     current = db.get(TimeEntry, entry_id, with_for_update=True, populate_existing=True)
@@ -715,7 +716,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
 
 
 @router.delete("/api/time-entries/{entry_id}")
-def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+def remove_time_entry(entry_id: Id, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")

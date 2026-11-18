@@ -38,6 +38,7 @@ from ..outlook_calendar_sync import (
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalendarEventCreate, CalendarEventUpdate, CalendarOwnerOut, OutlookSyncResultOut
 from ..telefonbuch import nach_namen
+from ..ids import Id
 
 router = APIRouter()
 
@@ -89,7 +90,7 @@ def post_sync_outlook(db: Session = Depends(get_db, scope="function"), _role: Ap
 @router.get("/api/calendar-events")
 def get_calendar_events(
     start: datetime | None = None, end: datetime | None = None,
-    project_id: int | None = None, quote_id: int | None = None,
+    project_id: Id | None = None, quote_id: Id | None = None,
     db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     """Bewusst ohne response_model -- pro Zeile wird explizit zwischen dem vollen und dem
@@ -115,7 +116,7 @@ def get_calendar_series_occurrences(
 
 
 @router.get("/api/calendar-events/{event_id}")
-def get_calendar_event(event_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_calendar_event(event_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     data = get_event(db, event_id)
     if data is None:
@@ -149,7 +150,7 @@ def _nicht_aus_der_plantafel(event: CalendarEvent | None) -> None:
 
 
 @router.put("/api/calendar-events/{event_id}")
-def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_calendar_event(event_id: Id, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     vorher = db.get(CalendarEvent, event_id)
     _nicht_aus_der_plantafel(vorher)
@@ -169,7 +170,7 @@ def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session 
 
 
 @router.delete("/api/calendar-events/{event_id}")
-def delete_calendar_event(event_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_calendar_event(event_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     event = db.get(CalendarEvent, event_id)
     _nicht_aus_der_plantafel(event)

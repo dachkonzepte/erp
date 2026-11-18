@@ -15,6 +15,7 @@ from ..payment_terms import (
 )
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_geld_einstellung, require_min_role
 from ..schemas import PaymentTermCreate, PaymentTermOut, PaymentTermUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ def post_payment_term(payload: PaymentTermCreate, db: Session = Depends(get_db, 
 
 
 @router.put("/api/payment-terms/{term_id}", response_model=PaymentTermOut)
-def put_payment_term(term_id: int, payload: PaymentTermUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def put_payment_term(term_id: Id, payload: PaymentTermUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         term = update_payment_term(db, term_id, payload.label, payload.days, payload.skonto_percent, payload.skonto_days, payload.text_template)
     except ValueError as e:
@@ -51,7 +52,7 @@ def put_payment_term(term_id: int, payload: PaymentTermUpdate, db: Session = Dep
 
 
 @router.post("/api/payment-terms/{term_id}/set-default", response_model=PaymentTermOut)
-def post_set_default_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_set_default_payment_term(term_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     term = set_default_payment_term(db, term_id)
     if term is None:
         raise HTTPException(status_code=404, detail="Zahlungsbedingung nicht gefunden.")
@@ -59,7 +60,7 @@ def post_set_default_payment_term(term_id: int, db: Session = Depends(get_db, sc
 
 
 @router.post("/api/payment-terms/{term_id}/archive", response_model=PaymentTermOut)
-def post_archive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_archive_payment_term(term_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         term = set_payment_term_archived(db, term_id, True)
     except ValueError as e:
@@ -70,7 +71,7 @@ def post_archive_payment_term(term_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.post("/api/payment-terms/{term_id}/unarchive", response_model=PaymentTermOut)
-def post_unarchive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
+def post_unarchive_payment_term(term_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     term = set_payment_term_archived(db, term_id, False)
     if term is None:
         raise HTTPException(status_code=404, detail="Zahlungsbedingung nicht gefunden.")

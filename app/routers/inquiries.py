@@ -20,6 +20,7 @@ from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import ensure_quote_structure, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
 from ..schemas import InquiryConvertOut, InquiryConvertRequest, InquiryCreate, InquiryOut, InquiryUpdate, ProjectListOut, QuoteOut
 from ..settings import load_general_settings
+from ..ids import Id
 
 router = APIRouter()
 
@@ -65,7 +66,7 @@ def _project_list_out(project: Project) -> ProjectListOut:
 
 
 @router.get("/api/inquiries", response_model=list[InquiryOut])
-def list_inquiries(customer_id: int | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_inquiries(customer_id: Id | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     stmt = (
         select(Inquiry)
         .options(selectinload(Inquiry.customer), selectinload(Inquiry.property), selectinload(Inquiry.project))
@@ -79,7 +80,7 @@ def list_inquiries(customer_id: int | None = None, status: str | None = None, db
 
 
 @router.get("/api/inquiries/{inquiry_id}", response_model=InquiryOut)
-def get_inquiry(inquiry_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_inquiry(inquiry_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     inquiry = load_inquiry(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")
@@ -100,7 +101,7 @@ def create_inquiry(payload: InquiryCreate, db: Session = Depends(get_db, scope="
 
 
 @router.put("/api/inquiries/{inquiry_id}", response_model=InquiryOut)
-def update_inquiry(inquiry_id: int, payload: InquiryUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_inquiry(inquiry_id: Id, payload: InquiryUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_inquiry_payload(payload)
     inquiry = load_inquiry(db, inquiry_id)
     if inquiry is None:
@@ -118,7 +119,7 @@ def update_inquiry(inquiry_id: int, payload: InquiryUpdate, db: Session = Depend
 
 
 @router.post("/api/inquiries/{inquiry_id}/convert", response_model=InquiryConvertOut)
-def convert_inquiry(inquiry_id: int, payload: InquiryConvertRequest, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def convert_inquiry(inquiry_id: Id, payload: InquiryConvertRequest, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     inquiry = load_inquiry(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")

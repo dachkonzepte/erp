@@ -27,6 +27,7 @@ from ..schemas import (
     RecurringCostCreate, RecurringCostDocumentOut, RecurringCostOut, RecurringCostOverviewOut,
     RecurringCostSettingsOut, RecurringCostSettingsUpdate, RecurringCostUpdate,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -62,7 +63,7 @@ def get_recurring_costs(include_inactive: bool = True, db: Session = Depends(get
 
 
 @router.get("/api/recurring-costs/{cost_id}", response_model=RecurringCostOut)
-def get_recurring_cost(cost_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_recurring_cost(cost_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_cost(db, cost_id)
     if result is None:
@@ -80,7 +81,7 @@ def post_recurring_cost(payload: RecurringCostCreate, db: Session = Depends(get_
 
 
 @router.put("/api/recurring-costs/{cost_id}", response_model=RecurringCostOut)
-def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_recurring_cost(cost_id: Id, payload: RecurringCostUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): "aktivieren/deaktivieren" schickt nur active.
@@ -93,7 +94,7 @@ def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session =
 
 
 @router.delete("/api/recurring-costs/{cost_id}")
-def delete_recurring_cost(cost_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_recurring_cost(cost_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_cost(db, cost_id):
         raise HTTPException(status_code=404, detail="Kostenposten nicht gefunden.")
@@ -103,7 +104,7 @@ def delete_recurring_cost(cost_id: int, db: Session = Depends(get_db, scope="fun
 @router.post("/api/recurring-costs/{cost_id}/documents", response_model=RecurringCostDocumentOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_recurring_cost_document(
-    cost_id: int, document_type: str = Form(...), notes: str | None = Form(None),
+    cost_id: Id, document_type: str = Form(...), notes: str | None = Form(None),
     file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
@@ -127,7 +128,7 @@ def upload_recurring_cost_document(
 
 
 @router.get("/api/recurring-cost-documents/{document_id}/file")
-def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_recurring_cost_document_file(document_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     document = db.get(RecurringCostDocument, document_id)
     if document is None:
@@ -139,7 +140,7 @@ def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get
 
 
 @router.delete("/api/recurring-cost-documents/{document_id}")
-def delete_recurring_cost_document_endpoint(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_recurring_cost_document_endpoint(document_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_cost_document(db, document_id):
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")

@@ -1022,3 +1022,48 @@ Neu `tests/test_v760_suche_und_kundenliste.py` (9 Tests, zwei gegen PostgreSQL).
 Reihenfolge des Telefonbuchs“ -- die Namen der Liste „Herr Bernd Abel, apfelbaum Gartenbau, …, Ökohaus Probe, Frau Dr. Erika Probe, …“ -> „Abel, Bernd,
 apfelbaum Gartenbau, …, Ökohaus Probe, Probe, Erika, …“ (dieselbe Reihenfolge); „API in derselben Reihenfolge“ prüft weiter `name` (mit Anrede und Titel); neu
 „API listen_name wie die Seite“ und „Filter findet „Probe, Er““. Bilder `kundenliste_telefonbuch_{1440,412}_{hell,dunkel}.png`.
+
+### Umsetzung 1.9.361: IDs in Pfad, Abfrage und Formular mit den Grenzen von int4 (Punkt 1, F1)
+
+- **Befund aus 1.9.357:** eine ID über int4 im Pfad oder in der Abfrage (`/api/customers/3000000000`) kam als Python-Zahl bis zur Datenbank -- SQLite fand
+  nichts (404), PostgreSQL brach mit `NumericValueOutOfRange` ab (500).
+- **Der Typ** `app/ids.py::Id`: eine ganze Zahl in den Grenzen von int4, sonst 404 „Nicht gefunden.“ -- geprüft, bevor der Endpunkt läuft, ohne Anfrage an die
+  Datenbank, unter SQLite und PostgreSQL gleich. Der Endpunkt bekommt eine gewöhnliche Zahl. Eine Klasse mit eigener Prüfung (`__get_pydantic_core_schema__`),
+  keine Angabe `Annotated[int, AfterValidator(…)]`: FastAPI 0.141 wirft die Prüfung einer Annotated-Angabe weg, sobald der Parameter eine Vorgabe aus `Query()`,
+  `Path()` oder `Form()` hat -- `x: Id = Form(...)` ließ 3 000 000 000 durch (geprobt, Gegenprobe `361_2`). Ebenso unbrauchbar `Annotated[Id, Form()] = ...`:
+  fehlt das Feld, endet die Meldung mit 500 (Ellipsis in der Fehlerliste).
+- **Umgestellt** vom Werkzeug über den Baum, nicht von Hand: 589 Angaben in 60 Routern -- jede ID in Pfad, Abfrage und Formular, auch in Abhängigkeiten, auch
+  `Id | None` und `list[Id]`; über die Vorgabe „Pfad und Abfrage“ hinaus die IDs im Formular (Hochladen, Unterschrift auf Papier, Zustellung nachtragen),
+  sonst wären sie der einzige Weg zu einem 500 geblieben. Eine ID erkennt der Wächter am Namen: auf `_id` oder `_ids`, dazu `auftrag`, `mitarbeiter`, `vorwahl`.
+- **Andere ganze Zahlen** in Pfad und Abfrage (21 Stellen, `KEINE_ID` je Route): neun hatten schon Grenzen (Pausen 0–720, Jahr des Urlaubskontos, Grenzen
+  von Listen), zehn prüft oder klammert die Geschäftslogik schon (Jahr des Urlaubsanspruchs 2026–2100, App-Symbol 16–1024, Monat 1–12, Gewährleistung 0–360/0–366,
+  Grenze und Versatz der Änderungshistorie, Grenze der Büro-Suche, Tage, Zahl der Jahre) -- sie bleiben, wie sie sind. Neue Grenzen nur zwei, wo ein Wert sonst
+  500 ergab: das Jahr des Stundenzettels der Monteurin (2000–2100; darüber warf `date()` `OverflowError`, die Route fing nur `ValueError`) und das erste Jahr
+  der Schulferien (2000–2100; der Vergleich mit einer Spalte int4 brach unter PostgreSQL ab). Darüber 422 am Feld.
+- **Bestand 1.8.150 (Änderungshistorie):** ein sehr großer Versatz gibt eine leere Seite, eine sehr große Grenze wird geklammert -- beides bleibt (zuerst hatte
+  ich dort Grenzen von int4 gesetzt, `tests/test_v438_nachrunde.py` wurde rot; zurückgenommen). Geändert ist nur die Projekt-ID der Abfrage: sie ist eine ID --
+  außerhalb von int4 jetzt 404 statt einer leeren Seite; zwischen int4 und 64 Bit brach sie unter PostgreSQL bis dahin mit 500 ab (die Spalte ist int4), die
+  Prüfung „jenseits von 64 Bit“ der Route ist damit überflüssig und entfernt.
+- **Starlette:** zwei Seiten tragen `{x:int}` im Pfad (`/checklisten/{checklist_id:int}`, `/checklisten/auftrag/{order_id:int}`) -- eine negative Zahl trifft
+  die Route gar nicht (404 ohne Route), eine zu große die Route und dann `Id` (404).
+- **Wächter** `tests/test_v761_ids_im_pfad.py`: jeder Parameter mit einer ganzen Zahl in jeder Route (`app.main`, auch Abhängigkeiten): eine ID über `Id`,
+  jede andere in `KEINE_ID` je Route (genau) -- mit den festgelegten Grenzen oder als geprüft; der Typ in jeder Schreibweise; jede ID jeder Route einzeln mit
+  2 147 483 648 und -2 147 483 649 -> 404 „Nicht gefunden.“ (über 1 100 Anfragen, die übrigen IDs auf 1 -- eine ID im Pfad verdeckte sonst eine im Formular; die
+  ID am Namen erkannt, nicht am Typ); jede andere ganze Zahl mit Grenzen darüber und darunter -> 422 an diesem Feld, jede geprüfte mit 2 147 483 648, 2^63, 10^30
+  und -10^30 -> nie 500; unter PostgreSQL 2 147 483 647 -> 404 der Route, darüber 404 vor der Datenbank.
+
+#### Festlegungen 1.9.361 (Bitte bestätigen)
+
+1. Jede ID in Pfad, Abfrage und Formular hat den Typ `Id` (`app/ids.py`): außerhalb von int4 404 „Nicht gefunden.“, bevor der Endpunkt läuft, ohne Anfrage an
+   die Datenbank -- unter SQLite und PostgreSQL gleich.
+2. `Id` ist eine Klasse mit eigener Prüfung, keine Annotated-Angabe -- sie übersteht jede Vorgabe (`Query()`, `Path()`, `Form()`).
+3. Der Wächter erkennt eine ID am Namen: auf `_id` oder `_ids`, dazu `auftrag`, `mitarbeiter`, `vorwahl`.
+4. Jede andere ganze Zahl in Pfad, Abfrage oder Formular steht mit Grund in `KEINE_ID` (je Route, die Liste stimmt genau): mit Grenzen (`ge`/`le` innerhalb
+   von int4, darüber 422 am Feld) oder geprüft -- die Geschäftslogik beantwortet jeden Wert ohne 500 (geklammert oder abgelehnt), das bleibt wie es ist.
+5. Neue Grenzen nur, wo ein Wert sonst 500 ergab: Jahr des Stundenzettels und erstes Jahr der Schulferien, je 2000–2100. Die Festlegung 1.8.150 der
+   Änderungshistorie (sehr großer Versatz -> leere Seite, Grenze geklammert) bleibt; nur die Projekt-ID dort ist eine ID (außerhalb von int4 404).
+6. Der Endpunkt bekommt eine gewöhnliche Zahl, keine Instanz von `Id`.
+
+#### Tests und Prüfung 1.9.361
+
+Neu `tests/test_v761_ids_im_pfad.py` (7 Tests, einer gegen PostgreSQL). Angepasste Erwartung: `tests/test_v438_nachrunde.py`, `test_audit_logs_versatz_nie_500` mit `project_id=10^30` -- 200 mit leerer Seite -> 404 (eine ID außerhalb von int4, Festlegung 1.9.361 Nr. 1); neu derselbe Test mit `project_id=2^31` -> 404 (bis dahin unter PostgreSQL 500).

@@ -29,6 +29,7 @@ from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
 from ..weiterleitung import ist_lokal, sicheres_ziel
+from ..ids import Id
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +291,7 @@ field_timesheet_page.dk_ohne_seite = lambda user, request: True  # seit 1.9.59, 
 
 
 @router.get("/mobil/objekt/{property_id}", response_class=HTMLResponse)
-def field_property_page(request: Request, property_id: int, _role: AppUser = _any_role_dep):
+def field_property_page(request: Request, property_id: Id, _role: AppUser = _any_role_dep):
     """Mobile Objektansicht (seit "Dateiablage je Objekt", siehe CLAUDE.md) -- in dieser Runde
     noch ohne Suche erreichbar, nur über eine bekannte Objekt-ID (die Suche als Einstieg folgt
     als eigener, späterer Schritt). Rendert nur das statische Gerüst, alle Daten kommen per
@@ -305,7 +306,7 @@ def maintenance_contracts_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/maintenance-contracts/{contract_id}", response_class=HTMLResponse)
-def maintenance_contract_page(request: Request, contract_id: int, _role: AppUser = _role_dep):
+def maintenance_contract_page(request: Request, contract_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(
         request=request, name="maintenance_contract.html", context={"contract_id": contract_id}
     )
@@ -341,7 +342,7 @@ def calendar_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)
-def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _any_role_dep):
+def operational_asset_page(request: Request, asset_id: Id, _role: AppUser = _any_role_dep):
     """Seit Betriebsmittelverwaltung Stufe 2 (siehe CLAUDE.md) rollenbewusst wie
     time_tracking_page(): dieselbe URL (Ziel des QR-Codes auf dem Etikett, siehe
     routers/operational_assets.py) rendert für `field` die reduzierte
@@ -464,7 +465,7 @@ def project_create_page(request: Request, customer_id: str | None = None, _role:
 
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
-def project_folder_page(request: Request, project_id: int, _role: AppUser = _role_dep):
+def project_folder_page(request: Request, project_id: Id, _role: AppUser = _role_dep):
     """Seit 1.9.129 (Stufe 5, R2, Punkt 2): die Akte je Projekt (akte.html) -- Projektmappe und Auftragsseite in einer Seite. ?auftrag=<id>
     wählt den Auftrag (nur eine Zahl, _zahl()); welcher es ohne Angabe ist und ob er zum Projekt gehört, sagt GET /api/projects/{id}/akte.
     „geld“ = darf_geld(): Rechnung anlegen, Mahnen und Entwurf anlegen nur danach, sonst der Hinweis. „storno_zuruecknehmen“ (seit 1.9.131) =
@@ -488,7 +489,7 @@ def service_create_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/services/{service_id}/edit", response_class=HTMLResponse)
-def service_edit_page(request: Request, service_id: int, _role: AppUser = _role_dep):
+def service_edit_page(request: Request, service_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="service_form.html",
                                       context={"service_id": service_id, "zurueck": {"href": "/leistungskatalog", "text": "Leistungskatalog"}})
 
@@ -521,7 +522,7 @@ def master_data_create_page(request: Request, data_type: str, projekt: str | Non
 
 
 @router.get("/master-data/{data_type}/{record_id}/edit", response_class=HTMLResponse)
-def master_data_edit_page(request: Request, data_type: str, record_id: int, _role: AppUser = _role_dep):
+def master_data_edit_page(request: Request, data_type: str, record_id: Id, _role: AppUser = _role_dep):
     if data_type not in {"properties", "employees", "suppliers", "contacts", "resources", "teams", "materials"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     _require_finanzen_for_employees(data_type, _role)
@@ -533,12 +534,12 @@ def master_data_edit_page(request: Request, data_type: str, record_id: int, _rol
 
 
 @router.get("/quotes/{quote_id}/edit", response_class=HTMLResponse)
-def quote_editor_page(request: Request, quote_id: int, _role: AppUser = _role_dep):
+def quote_editor_page(request: Request, quote_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="quote_editor.html", context={"quote_id": quote_id})
 
 
 @router.get("/orders/{order_id}", response_class=HTMLResponse)
-def order_page(request: Request, order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def order_page(request: Request, order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.9.129 (Stufe 5, R2, Punkt 3): die Auftragsseite ist in der Akte aufgegangen -- /orders/{id} leitet auf /projects/{id}?auftrag={id}
     (Lesezeichen und Links bleiben gültig, der Anker -- z. B. #mangel-12, #rechnungen -- bleibt beim Browser). Die einzige Seitenroute mit eigener
     Sitzung (sie zeichnet nichts, dk_ohne_seite); ein unbekannter Auftrag führt auf die Projektliste."""
@@ -553,7 +554,7 @@ order_page.dk_ohne_seite = lambda user, request: user is not None and has_min_ro
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
-def invoice_page(request: Request, invoice_id: int, _role: AppUser = _role_dep):
+def invoice_page(request: Request, invoice_id: Id, _role: AppUser = _role_dep):
     # Seit 1.9.111 (Stufe 5, R1): ohne darf_geld() liest die Seite nur -- kein Feld, kein Knopf, der Hinweis oben.
     return templates.TemplateResponse(request=request, name="invoice_detail.html",
                                       context={"invoice_id": invoice_id, "geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN})
@@ -595,7 +596,7 @@ def changelog_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/orders/{order_id}/work-preparation", response_class=HTMLResponse)
-def work_preparation_page(request: Request, order_id: int, _role: AppUser = _role_dep):
+def work_preparation_page(request: Request, order_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="work_preparation.html", context={"order_id": order_id})
 
 
@@ -605,7 +606,7 @@ def _bericht_aus_adresse(request: Request) -> int | None:
 
 
 @router.get("/orders/{order_id}/service-reports", response_class=HTMLResponse)
-def service_reports_page(request: Request, order_id: int, _role: AppUser = _any_role_dep):
+def service_reports_page(request: Request, order_id: Id, _role: AppUser = _any_role_dep):
     """Die Seite des Auftrags: Objekt & Zugang, Bedenken, die Berichte mit „+ Bericht“, frühere Berichte, Zeiten. Seit 1.9.67 (Stufe 4,
     R4, Entscheidung D) steht der Bericht selbst auf /service-reports/{id}; ?report=<id> leitet dorthin."""
     bericht = _bericht_aus_adresse(request)
@@ -621,19 +622,19 @@ service_reports_page.dk_ohne_seite = lambda user, request: _bericht_aus_adresse(
 
 
 @router.get("/service-reports/{report_id}", response_class=HTMLResponse)
-def service_report_page(request: Request, report_id: int, _role: AppUser = _any_role_dep):
+def service_report_page(request: Request, report_id: Id, _role: AppUser = _any_role_dep):
     """Seit 1.9.67 (Stufe 4, R4): ein Einsatzbericht in fünf Schritten (service_report.html) -- die Daten lädt die Seite über
     GET /api/service-reports/{id}, der prüft, ob die Monteurin den Bericht öffnen darf (nur ihren eigenen)."""
     return templates.TemplateResponse(request=request, name="service_report.html", context={"report_id": report_id})
 
 
 @router.get("/roof-areas/{roof_area_id}", response_class=HTMLResponse)
-def roof_area_page(request: Request, roof_area_id: int, _role: AppUser = _role_dep):
+def roof_area_page(request: Request, roof_area_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="roof_area.html", context={"roof_area_id": roof_area_id})
 
 
 @router.get("/properties/{property_id}", response_class=HTMLResponse)
-def property_page(request: Request, property_id: int, _role: AppUser = _role_dep):
+def property_page(request: Request, property_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="property.html", context={"property_id": property_id})
 
 
@@ -648,7 +649,7 @@ def inspection_templates_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/inspection-templates/{template_id}", response_class=HTMLResponse)
-def inspection_template_page(request: Request, template_id: int, _role: AppUser = _role_dep):
+def inspection_template_page(request: Request, template_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="inspection_template.html", context={"template_id": template_id})
 
 
@@ -662,7 +663,7 @@ def checklist_templates_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/checklisten/vorlagen/{template_id}", response_class=HTMLResponse)
-def checklist_template_page(request: Request, template_id: int, _role: AppUser = _role_dep):
+def checklist_template_page(request: Request, template_id: Id, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="checklist_template.html", context={"template_id": template_id})
 
 
@@ -674,7 +675,7 @@ def checklists_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/checklisten/{checklist_id:int}", response_class=HTMLResponse)
-def checklist_page(request: Request, checklist_id: int, _role: AppUser = _any_role_dep):
+def checklist_page(request: Request, checklist_id: Id, _role: AppUser = _any_role_dep):
     """Eine Checkliste ausfüllen/ansehen (seit 1.8.1) -- für jede Rolle dieselbe URL, die Vorlage
     bindet für `field` die mobile Kopfzeile statt der Sidebar ein (Weiche an der Rolle, Muster
     time_tracking_page()). Der `:int`-Konverter hält /checklisten/vorlagen frei. Was sichtbar
@@ -685,7 +686,7 @@ def checklist_page(request: Request, checklist_id: int, _role: AppUser = _any_ro
 
 
 @router.get("/checklisten/auftrag/{order_id:int}", response_class=HTMLResponse)
-def checklist_order_page(request: Request, order_id: int, zweck: str | None = None, _role: AppUser = _any_role_dep):
+def checklist_order_page(request: Request, order_id: Id, zweck: str | None = None, _role: AppUser = _any_role_dep):
     """Checklisten eines Auftrags (seit 1.8.1), Einstieg für Monteure aus /mobil. Der
     Auftragszugriff wird von der API geprüft (require_field_order_access()), die Seite rendert
     nur das Gerüst. ?zweck= (seit 1.8.38, Link einer Regel-Aufgabe) hebt das Anlegen einer
@@ -705,7 +706,7 @@ def inquiries_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/customers/{customer_id}", response_class=HTMLResponse)
-def customer_record_page(request: Request, customer_id: int, _role: AppUser = _role_dep):
+def customer_record_page(request: Request, customer_id: Id, _role: AppUser = _role_dep):
     # Seit 1.9.111 (Stufe 5, R1): Zahlungen (zuordnen, erstatten, zurücknehmen) nur nach darf_geld(), sonst lesen.
     return templates.TemplateResponse(
         request=request, name="customer.html",

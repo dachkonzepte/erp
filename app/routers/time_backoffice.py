@@ -49,6 +49,7 @@ from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
 from ..sollzeit import SollzeitGesperrt, zeile_anlegen as sollzeit_anlegen, zeile_dict, zeile_loeschen as sollzeit_loeschen, zeilen as sollzeit_zeilen
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
+from ..ids import Id
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ def put_konten_vorgaben(payload: KontenVorgabenUpdate, db: Session = Depends(get
 
 
 @router.put("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}", response_model=KontoPersonOut)
-def put_urlaubsanspruch(employee_id: int, jahr: int, payload: UrlaubsanspruchUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_urlaubsanspruch(employee_id: Id, jahr: int, payload: UrlaubsanspruchUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try:
         return anspruch_setzen(db, employee_id, jahr, payload.model_dump(exclude_unset=True))
     except LookupError as exc:
@@ -122,7 +123,7 @@ def put_urlaubsanspruch(employee_id: int, jahr: int, payload: UrlaubsanspruchUpd
 
 
 @router.put("/api/time-backoffice/konten/{employee_id}/startwert", response_model=KontoPersonOut)
-def put_startwert(employee_id: int, payload: StartwertUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_startwert(employee_id: Id, payload: StartwertUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try:
         return startwert_setzen(db, employee_id, payload.model_dump(exclude_unset=True), admin=darf_im_abschluss_aendern(_role),
                                 geprueft_von=getattr(_role, "display_name", None) or getattr(_role, "username", None))
@@ -177,7 +178,7 @@ def create_work_time_model(payload: WorkTimeModelUpsert, db: Session = Depends(g
 
 
 @router.put("/api/time-backoffice/work-time-models/{model_id}")
-def put_work_time_model(model_id: int, payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_work_time_model(model_id: Id, payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try:
         row=save_work_time_model(db,model_id=model_id,name=payload.name,code=payload.code,daily_target_hours=payload.daily_target_hours,valid_from_week=payload.valid_from_week,valid_to_week=payload.valid_to_week,description=payload.description,active=payload.active,sort_order=payload.sort_order,break_rules=[x.model_dump() for x in payload.break_rules])
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
@@ -185,7 +186,7 @@ def put_work_time_model(model_id: int, payload: WorkTimeModelUpsert, db: Session
 
 
 @router.delete("/api/time-backoffice/work-time-models/{model_id}")
-def remove_work_time_model(model_id: int, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def remove_work_time_model(model_id: Id, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: delete_work_time_model(db,model_id)
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
     return {"ok":True}
@@ -197,7 +198,7 @@ def get_work_time_assignments(db: Session = Depends(get_db, scope="function"), _
 
 
 @router.put("/api/time-backoffice/work-time-assignments/{employee_id}")
-def put_work_time_assignment(employee_id: int, payload: EmployeeWorkTimeModelUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_work_time_assignment(employee_id: Id, payload: EmployeeWorkTimeModelUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: return set_employee_model(db,employee_id,payload.model_id)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
 
@@ -214,7 +215,7 @@ def get_time_payroll_employees(db: Session = Depends(get_db, scope="function"), 
 
 
 @router.put("/api/time-backoffice/payroll-employees/{employee_id}", response_model=EmployeePayrollSettingsOut)
-def put_time_payroll_employee(employee_id: int, payload: EmployeePayrollSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_time_payroll_employee(employee_id: Id, payload: EmployeePayrollSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: row=set_employee_payroll(db,employee_id,payload.model_dump(exclude_unset=True))  # seit 1.9.167 ein Teil-Update (Regel 22)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeePayrollSettingsOut.model_validate(row)
@@ -282,13 +283,13 @@ def post_arbeitszeitkalender(payload: ArbeitszeitKalendertagIn, db: Session = De
 
 
 @router.put("/api/time-backoffice/arbeitszeitkalender/{kalendertag_id}")
-def put_arbeitszeitkalender(kalendertag_id: int, payload: ArbeitszeitKalendertagIn, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def put_arbeitszeitkalender(kalendertag_id: Id, payload: ArbeitszeitKalendertagIn, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     """Seit 1.9.175: einen Tag ändern (alle Angaben, Pflicht; der Schlüssel bleibt) oder abschalten -- gelöscht wird nicht."""
     return _kalender_antwort(db, lambda: kalendertag_aendern(db, kalendertag_id, payload.model_dump()))
 
 
 @router.get("/api/time-backoffice/sollzeiten/{employee_id}")
-def get_sollzeiten(employee_id: int, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def get_sollzeiten(employee_id: Id, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
     """Seit 1.9.167 (Lohn L1a, Punkt 2): die eigenen Sollzeiten einer Person (ab einem Tag, Montag bis Sonntag) -- leer = Tarif."""
     if db.get(Employee, employee_id) is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter wurde nicht gefunden.")
@@ -296,7 +297,7 @@ def get_sollzeiten(employee_id: int, db: Session = Depends(get_db, scope="functi
 
 
 @router.post("/api/time-backoffice/sollzeiten/{employee_id}")
-def post_sollzeit(employee_id: int, payload: EmployeeTargetHoursCreate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def post_sollzeit(employee_id: Id, payload: EmployeeTargetHoursCreate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     """Seit 1.9.167: eigene Sollzeit ab einem Tag (ohne Werte: ab hier wieder Tarif) -- „gültig ab“ nach „Abgeschlossen bis“, sonst 409."""
     try:
         zeile = sollzeit_anlegen(db, employee_id, payload.valid_from, payload.werte)
@@ -310,7 +311,7 @@ def post_sollzeit(employee_id: int, payload: EmployeeTargetHoursCreate, db: Sess
 
 
 @router.delete("/api/time-backoffice/sollzeiten/zeile/{zeile_id}")
-def delete_sollzeit(zeile_id: int, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+def delete_sollzeit(zeile_id: Id, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     """Seit 1.9.167: eine eigene Sollzeit löschen -- nur, solange sie keinen abgeschlossenen Zeitraum trifft (sonst 409)."""
     try:
         sollzeit_loeschen(db, zeile_id)
@@ -322,19 +323,19 @@ def delete_sollzeit(zeile_id: int, db: Session = Depends(get_db, scope="function
 
 
 @router.get("/api/time-backoffice/summary")
-def get_time_backoffice_summary(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def get_time_backoffice_summary(start_date: date, end_date: date, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
     return backoffice_summary(db,start_date,end_date,employee_id)
 
 
 @router.get("/api/time-backoffice/timesheet.pdf")
-def export_time_sheet_pdf(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+def export_time_sheet_pdf(start_date: date, end_date: date, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     data=build_timesheet_pdf(db,start_date,end_date,employee_id)
     filename=f"Stundenzettel_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
     return Response(content=data,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
 @router.get("/api/time-backoffice/timesheet.csv")
-def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+def export_time_sheet_csv(start_date: date, end_date: date, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     data=build_time_csv(db,start_date,end_date,employee_id)
     filename=f"Stunden_{start_date.isoformat()}_{end_date.isoformat()}.csv"
     return Response(content=data,media_type="text/csv; charset=utf-8",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
@@ -383,7 +384,7 @@ def lohndateien_liste(monat: str | None = None, db: Session = Depends(get_db, sc
 
 # Seit 1.9.328 (Lohn L2c-2, Punkt 1): „An das Steuerbüro gesendet“ -- setzen Admin und Büro – Finanzen, zurücknehmen nur der Admin; je Monat eine (409)
 @router.post("/api/time-backoffice/lohndateien/{lohndatei_id}/versendet")
-def lohndatei_versendet(lohndatei_id: int, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+def lohndatei_versendet(lohndatei_id: Id, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     try:
         row = versendet_setzen(db, lohndatei_id, user_id=getattr(_role, "id", None),
                                user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
@@ -395,7 +396,7 @@ def lohndatei_versendet(lohndatei_id: int, db: Session = Depends(get_db, scope="
 
 
 @router.delete("/api/time-backoffice/lohndateien/{lohndatei_id}/versendet")
-def lohndatei_versendet_zuruecknehmen(lohndatei_id: int, db: Session = Depends(get_db, scope="function"),
+def lohndatei_versendet_zuruecknehmen(lohndatei_id: Id, db: Session = Depends(get_db, scope="function"),
                                       _role=Depends(require_min_role(ROLE_ADMIN, message="Den Vermerk „gesendet“ nimmt nur ein Administrator zurück."))):
     try:
         row = versendet_zuruecknehmen(db, lohndatei_id, user_id=getattr(_role, "id", None),
@@ -408,7 +409,7 @@ def lohndatei_versendet_zuruecknehmen(lohndatei_id: int, db: Session = Depends(g
 
 
 @router.get("/api/time-backoffice/lohndateien/{lohndatei_id}/datei")
-def lohndatei_herunterladen(lohndatei_id: int, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+def lohndatei_herunterladen(lohndatei_id: Id, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     """Seit 1.9.226: genau die abgelegten Bytes, nur mit stimmender Prüfsumme (sonst 409), als Download (Regel 31, datei_antwort())."""
     row = db.get(Lohndatei, lohndatei_id)
     if row is None:

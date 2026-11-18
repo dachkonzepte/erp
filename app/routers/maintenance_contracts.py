@@ -31,6 +31,7 @@ from ..schemas import (
     MaintenanceSettingsUpdate, MaintenanceWindowCreate, MaintenanceWindowOut, MaintenanceWindowReorder,
     MaintenanceWindowUpdate, ServiceReportOut,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -65,7 +66,7 @@ def get_maintenance_contracts(status: str | None = None, include_archived: bool 
 
 
 @router.get("/api/properties/{property_id}/maintenance-contracts", response_model=list[MaintenanceContractOut])
-def get_maintenance_contracts_for_property(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_maintenance_contracts_for_property(property_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Für die Objektseite (seit 1.2.18) -- Business-Logik lebt in app/maintenance_contracts.py,
     deshalb hier trotz abweichendem URL-Präfix (Muster wie GET /api/orders/{order_id}/roof-areas
     in routers/service_reports.py)."""
@@ -82,7 +83,7 @@ def get_maintenance_contracts_due_items(db: Session = Depends(get_db, scope="fun
 
 
 @router.get("/api/maintenance-contracts/{contract_id}", response_model=MaintenanceContractOut)
-def get_maintenance_contract(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_maintenance_contract(contract_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Für die eigene Vertragsseite (seit 1.2.19) -- bewusst NACH der literalen GET-Route
     /due-items deklariert (Starlette matched nach Deklarationsreihenfolge), sonst würde ein
     GET auf /due-items fälschlich hier landen (contract_id="due-items")."""
@@ -122,7 +123,7 @@ def post_maintenance_contract(payload: MaintenanceContractCreate, db: Session = 
 
 
 @router.put("/api/maintenance-contracts/{contract_id}", response_model=MaintenanceContractOut)
-def put_maintenance_contract(contract_id: int, payload: MaintenanceContractUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_maintenance_contract(contract_id: Id, payload: MaintenanceContractUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_contract(
@@ -143,7 +144,7 @@ def put_maintenance_contract(contract_id: int, payload: MaintenanceContractUpdat
 
 
 @router.put("/api/maintenance-contracts/{contract_id}/status", response_model=MaintenanceContractOut)
-def put_maintenance_contract_status(contract_id: int, payload: MaintenanceContractStatusUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_maintenance_contract_status(contract_id: Id, payload: MaintenanceContractStatusUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = set_contract_status(db, contract_id, payload.status)
@@ -155,7 +156,7 @@ def put_maintenance_contract_status(contract_id: int, payload: MaintenanceContra
 
 
 @router.delete("/api/maintenance-contracts/{contract_id}")
-def delete_maintenance_contract(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_maintenance_contract(contract_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         deleted = delete_contract(db, contract_id, _role)
@@ -169,7 +170,7 @@ def delete_maintenance_contract(contract_id: int, db: Session = Depends(get_db, 
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/archive", response_model=MaintenanceContractOut)
-def archive_maintenance_contract(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def archive_maintenance_contract(contract_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_contract_archived(db, contract_id, True)
     if result is None:
@@ -178,7 +179,7 @@ def archive_maintenance_contract(contract_id: int, db: Session = Depends(get_db,
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/unarchive", response_model=MaintenanceContractOut)
-def unarchive_maintenance_contract(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def unarchive_maintenance_contract(contract_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_contract_archived(db, contract_id, False)
     if result is None:
@@ -187,7 +188,7 @@ def unarchive_maintenance_contract(contract_id: int, db: Session = Depends(get_d
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/create-project")
-def post_create_project_from_contract(contract_id: int, payload: MaintenanceContractCreateProjectRequest, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_create_project_from_contract(contract_id: Id, payload: MaintenanceContractCreateProjectRequest, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_project_from_contract(db, contract_id, item_id=payload.item_id)
@@ -196,7 +197,7 @@ def post_create_project_from_contract(contract_id: int, payload: MaintenanceCont
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/perform-maintenance")
-def post_perform_maintenance(contract_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def post_perform_maintenance(contract_id: Id, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Für jede Rolle (seit 1.3.56): ein Monteur startet damit vor Ort eine ungeplante Wartung.
     Der vorbereitete Bericht bekommt ihn als Ersteller (dieselbe _employee_for_request()-Regel
     wie POST /api/orders/{id}/service-reports: Nicht-Admin = eigene employee_id, Admin = keine)
@@ -222,7 +223,7 @@ def post_perform_maintenance(contract_id: int, request: Request, db: Session = D
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/items", response_model=MaintenanceContractItemOut)
-def post_maintenance_contract_item(contract_id: int, payload: MaintenanceContractItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_maintenance_contract_item(contract_id: Id, payload: MaintenanceContractItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_contract_item(
@@ -235,13 +236,13 @@ def post_maintenance_contract_item(contract_id: int, payload: MaintenanceContrac
 
 
 @router.get("/api/maintenance-contracts/{contract_id}/history", response_model=list[ServiceReportOut])
-def get_maintenance_contract_history(contract_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_maintenance_contract_history(contract_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_contract_history(db, contract_id)
 
 
 @router.post("/api/maintenance-contracts/from-project/{project_id}", response_model=MaintenanceContractOut)
-def post_maintenance_contract_from_project(project_id: int, payload: MaintenanceContractFromProjectCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_maintenance_contract_from_project(project_id: Id, payload: MaintenanceContractFromProjectCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_maintenance_contract_from_project(
@@ -274,7 +275,7 @@ def put_maintenance_settings(payload: MaintenanceSettingsUpdate, db: Session = D
 # mit den maintenance-contracts-Routen oben) ---
 
 @router.put("/api/maintenance-contract-items/{item_id}", response_model=MaintenanceContractItemOut)
-def put_maintenance_contract_item(item_id: int, payload: MaintenanceContractItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_maintenance_contract_item(item_id: Id, payload: MaintenanceContractItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_contract_item(
@@ -290,7 +291,7 @@ def put_maintenance_contract_item(item_id: int, payload: MaintenanceContractItem
 
 
 @router.post("/api/maintenance-contract-items/{item_id}/archive", response_model=MaintenanceContractItemOut)
-def archive_maintenance_contract_item(item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def archive_maintenance_contract_item(item_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_item_archived(db, item_id, True)
     if result is None:
@@ -299,7 +300,7 @@ def archive_maintenance_contract_item(item_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/maintenance-contract-items/{item_id}/unarchive", response_model=MaintenanceContractItemOut)
-def unarchive_maintenance_contract_item(item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def unarchive_maintenance_contract_item(item_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_item_archived(db, item_id, False)
     if result is None:
@@ -308,7 +309,7 @@ def unarchive_maintenance_contract_item(item_id: int, db: Session = Depends(get_
 
 
 @router.delete("/api/maintenance-contract-items/{item_id}")
-def delete_maintenance_contract_item(item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_maintenance_contract_item(item_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         deleted = delete_contract_item(db, item_id)
@@ -353,7 +354,7 @@ def put_maintenance_windows_reorder(payload: MaintenanceWindowReorder, db: Sessi
 
 
 @router.put("/api/maintenance-windows/{window_id}", response_model=MaintenanceWindowOut)
-def put_maintenance_window(window_id: int, payload: MaintenanceWindowUpdate, db: Session = Depends(get_db, scope="function"),
+def put_maintenance_window(window_id: Id, payload: MaintenanceWindowUpdate, db: Session = Depends(get_db, scope="function"),
                             _admin=Depends(require_admin("Nur Administratoren dürfen Wartungsfenster bearbeiten."))):
     _require_module_enabled(db)
     try:
@@ -366,7 +367,7 @@ def put_maintenance_window(window_id: int, payload: MaintenanceWindowUpdate, db:
 
 
 @router.delete("/api/maintenance-windows/{window_id}")
-def delete_maintenance_window(window_id: int, db: Session = Depends(get_db, scope="function"),
+def delete_maintenance_window(window_id: Id, db: Session = Depends(get_db, scope="function"),
                                _admin=Depends(require_admin("Nur Administratoren dürfen Wartungsfenster löschen."))):
     _require_module_enabled(db)
     try:

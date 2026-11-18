@@ -319,3 +319,24 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 11 Gegenproben (8 über pytest, 3 über den Klicktest), alle rot. `360_2` und `360_4` liefen zuerst mit dem Marker mitten in der Zeile -- der Rest der Zeile wurde
 Kommentar, die Datei brach beim Lesen (rot aus dem falschen Grund); beide noch einmal mit dem Marker am Zeilenende, rot wie oben. Alle Dateien byte-gleich zurück,
 kein Marker unter `app/`.
+
+## Runde V3, 1.9.361 (Punkt 1): IDs in Pfad, Abfrage und Formular mit den Grenzen von int4
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – außerhalb von int4 404 | Prüfung in `_id_pruefen()` aus (`361_1`) | 3 rot: v761 Typ, jede Route, PostgreSQL (500) |
+| Nr. 2 – Klasse, keine Annotated-Angabe | `Id = Annotated[int, AfterValidator(…)]` (`361_2`) | 3 rot: v761 Typ (Form/Query/Path mit Vorgabe), jede ID über den Typ, jede Route |
+| Nr. 1, 3 – ID im Pfad | Kunde wieder `int` (`361_3`) | 3 rot: v761 Typ der ID, jede Route, PostgreSQL (500) |
+| Nr. 1, 3 – ID in der Abfrage | `auftrag` der Akte wieder `int` (`361_4`) | 2 rot: v761 Typ der ID, jede Route |
+| Nr. 1, 3 – ID im Formular | `field_id` der Anlage wieder `int` (`361_5`) | 2 rot: v761 Typ der ID, jede Route |
+| Nr. 4 – geprüfte nie 500 | Versatz der Änderungshistorie ohne Prüfung (`361_6`) | 3 rot: v761 nie 500, v438 Versatz 2^63 und 10^30 (500) |
+| Nr. 4 – `KEINE_ID` genau | `days` heißt `tage` (`361_7`) | 2 rot: v761 eingeordnet, `KEINE_ID` genau |
+| Nr. 5 – Grenzen wie festgelegt | Jahr des Stundenzettels bis int4 (`361_8`) | 2 rot: v761 eingeordnet, 422 an der Grenze |
+| Nr. 5 – Grenze, wo sonst 500 | Jahr des Stundenzettels ohne Grenze (`361_10`) | 2 rot: dieselben |
+| Nr. 6 – gewöhnliche Zahl | `_id_pruefen()` gibt `Id(wert)` zurück (`361_9`) | 1 rot: v761 Typ |
+
+10 Gegenproben, alle rot. Zwei Nachzüge: der Rundgang über alle Routen setzte zuerst alle IDs einer Route zugleich -- bei `361_2` und `361_5` blieb er grün
+(die ID im Pfad schlug zuerst an, IDs am Typ erkannt); jetzt jede ID einzeln und am Namen erkannt, beide noch einmal rot. Und zuerst hatte ich auch dort Grenzen
+von int4 gesetzt, wo die Geschäftslogik schon prüft -- die volle Suite war rot (Festlegung 1.8.150 der Änderungshistorie), die Grenzen zurück, Tabelle `KEINE_ID`
+je Route mit Art; `361_6`–`361_10` danach neu gefasst und gelaufen wie oben. Das Werkzeug setzt den Marker seit dieser Runde selbst ans Ende der geänderten
+Zeile (in 1.9.360 stand er zweimal mitten in der Zeile). Alle Dateien byte-gleich zurück, kein Marker unter `app/`.

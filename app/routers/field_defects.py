@@ -30,6 +30,7 @@ from ..email_dispatch import actor_of
 from ..models import AppUser
 from ..permissions import ROLE_FIELD, require_min_role
 from ..schemas import FieldDefectOut, FieldDefectRemedied, FieldDefectReportOut
+from ..ids import Id
 from .defects import _parse, _read_uploads
 
 router = APIRouter()
@@ -57,7 +58,7 @@ def get_field_defects(db: Session = Depends(get_db, scope="function"), user: App
 
 
 @router.get("/api/field-view/defects/{defect_id}/photos/{file_id}")
-def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def get_field_defect_photo(defect_id: Id, file_id: Id, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     row = field_photo(_visible_or_404(db, user, defect_id), file_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Foto nicht gefunden.")
@@ -70,7 +71,7 @@ def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(g
 
 
 @router.post("/api/field-view/defects/{defect_id}/remedied", response_model=FieldDefectReportOut)
-def post_field_defect_remedied(defect_id: int, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
+def post_field_defect_remedied(defect_id: Id, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
                                db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Zuerst die Wiederholung (dieselbe Kennung -> dieselbe Antwort, auch wenn der Mangel durch die Meldung schon
     unsichtbar ist), dann die Sichtbarkeit (404), dann die Meldung selbst (400/409)."""

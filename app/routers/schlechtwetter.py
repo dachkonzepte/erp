@@ -20,6 +20,7 @@ from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_FINANZEN, darf_im_
 from ..schemas import SchlechtwetterEintragen, SchlechtwetterEntscheidung
 from ..schlechtwetter import (SchlechtwetterAbgelehnt, SchlechtwetterWarnung, eintragen, entscheiden, gewerbliche, ist_fuehrung, kolonnen,
                               offene_antraege)
+from ..ids import Id
 
 router = APIRouter()
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
@@ -81,7 +82,7 @@ def post_schlechtwetter(payload: SchlechtwetterEintragen, request: Request, db: 
 
 
 @router.post("/api/schlechtwetter/{antrag_id}/entscheiden")
-def post_entscheiden(antrag_id: int, payload: SchlechtwetterEntscheidung, request: Request, db: Session = Depends(get_db, scope="function"),
+def post_entscheiden(antrag_id: Id, payload: SchlechtwetterEntscheidung, request: Request, db: Session = Depends(get_db, scope="function"),
                      _role: AppUser = _any_role_dep):
     user = getattr(request.state, "erp_user", None)
     if not darf_bestaetigen(db, user):

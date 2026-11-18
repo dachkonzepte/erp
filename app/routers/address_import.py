@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .. import address_import as svc
 from ..database import get_db
 from ..deps import require_admin
+from ..ids import Id
 
 router = APIRouter()
 
@@ -65,7 +66,7 @@ def get_import_runs(db: Session = Depends(get_db, scope="function"), _admin=Depe
 
 
 @router.post("/api/address-import/runs/{run_id}/revert")
-def revert_run(run_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def revert_run(run_id: Id, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         svc.revert_import_run(db, run_id)
     except ValueError as exc:
@@ -79,7 +80,7 @@ def get_unassigned(search: str | None = None, db: Session = Depends(get_db, scop
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/create-customer")
-def unassigned_create_customer(entry_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_create_customer(entry_id: Id, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         customer = svc.resolve_as_new_customer(db, entry_id)
     except ValueError as exc:
@@ -88,7 +89,7 @@ def unassigned_create_customer(entry_id: int, db: Session = Depends(get_db, scop
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/assign-property")
-def unassigned_assign_property(entry_id: int, customer_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_assign_property(entry_id: Id, customer_id: Id, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         prop = svc.resolve_as_property(db, entry_id, customer_id)
     except ValueError as exc:
@@ -97,7 +98,7 @@ def unassigned_assign_property(entry_id: int, customer_id: int, db: Session = De
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/discard")
-def unassigned_discard(entry_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_discard(entry_id: Id, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         svc.discard_unassigned(db, entry_id)
     except ValueError as exc:

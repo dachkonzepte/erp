@@ -170,7 +170,8 @@ def test_verweise_nach_users_nur_in_den_einstellungen_fuer_admins():
     (f"offset={2**62}", 200, True),
     (f"offset={2**63}", 200, True),         # bis 1.8.149: OverflowError, 500
     (f"offset={10**30}", 200, True),        # ebenso
-    (f"project_id={10**30}", 200, True),    # ebenso
+    (f"project_id={10**30}", 404, None),    # ebenso; seit 1.9.361 eine ID außerhalb von int4: 404 (app/ids.py), bis dahin eine leere Seite
+    (f"project_id={2**31}", 404, None),     # seit 1.9.361; bis dahin unter PostgreSQL 500 (Spalte int4), unter SQLite eine leere Seite
     (f"limit={10**30}", 200, False),
     ("limit=-5", 200, False),
     ("offset=0", 200, False),

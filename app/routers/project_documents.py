@@ -16,6 +16,7 @@ from ..models import AppUser, ProjectDocument
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import can_preview_type, document_path, is_image_type
 from ..schemas import ProjectDocumentOut, ProjectDocumentUpdate
+from ..ids import Id
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ def _project_document_out(doc: ProjectDocument) -> ProjectDocumentOut:
 
 
 @router.put("/api/project-documents/{document_id}", response_model=ProjectDocumentOut)
-def update_project_document(document_id: int, payload: ProjectDocumentUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_project_document(document_id: Id, payload: ProjectDocumentUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -43,7 +44,7 @@ def update_project_document(document_id: int, payload: ProjectDocumentUpdate, db
 
 
 @router.get("/api/project-documents/{document_id}/view")
-def view_project_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def view_project_document(document_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -52,7 +53,7 @@ def view_project_document(document_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.get("/api/project-documents/{document_id}/download")
-def download_project_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def download_project_document(document_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -61,7 +62,7 @@ def download_project_document(document_id: int, db: Session = Depends(get_db, sc
 
 
 @router.delete("/api/project-documents/{document_id}")
-def delete_project_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_project_document(document_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc); db.delete(doc); db.commit(); path.unlink(missing_ok=True)

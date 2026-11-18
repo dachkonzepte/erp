@@ -30,6 +30,7 @@ from ..schemas import (
     ProjectParticipantUpdate,
 )
 from ..search import office_source, office_source_visible
+from ..ids import Id
 
 router = APIRouter()
 
@@ -76,13 +77,13 @@ def get_participant_roles(_role: AppUser = _role_dep):
 
 
 @router.get("/api/projects/{project_id}/participants", response_model=list[ProjectParticipantOut])
-def get_project_participants(project_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_project_participants(project_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _project_or_404(db, project_id)
     return list_participants(db, project_id)
 
 
 @router.get("/api/projects/{project_id}/participant-candidates", response_model=ParticipantCandidatesOut)
-def get_participant_candidates(project_id: int, q: str = "", db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def get_participant_candidates(project_id: Id, q: str = "", db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Der Dialog "Beteiligten hinzufügen": Adressbuch, Kunden und Lieferanten, nach Herkunft gruppiert, nur
     die Quellen, die die Rolle in der Büro-Suche sieht."""
     project = _project_or_404(db, project_id)
@@ -93,7 +94,7 @@ def get_participant_candidates(project_id: int, q: str = "", db: Session = Depen
 
 
 @router.post("/api/projects/{project_id}/participants", response_model=ProjectParticipantOut)
-def post_project_participant(project_id: int, payload: ProjectParticipantCreate, db: Session = Depends(get_db, scope="function"),
+def post_project_participant(project_id: Id, payload: ProjectParticipantCreate, db: Session = Depends(get_db, scope="function"),
                              user: AppUser = _role_dep):
     project = _project_or_404(db, project_id)
     if payload.contact_id is not None:
@@ -127,7 +128,7 @@ def post_project_participant(project_id: int, payload: ProjectParticipantCreate,
 
 
 @router.put("/api/project-participants/{participant_id}", response_model=ProjectParticipantOut)
-def put_project_participant(participant_id: int, payload: ProjectParticipantUpdate, db: Session = Depends(get_db, scope="function"),
+def put_project_participant(participant_id: Id, payload: ProjectParticipantUpdate, db: Session = Depends(get_db, scope="function"),
                             _role: AppUser = _role_dep):
     participant = _participant_or_404(db, participant_id)
     values = payload.model_dump(exclude_unset=True)
@@ -135,7 +136,7 @@ def put_project_participant(participant_id: int, payload: ProjectParticipantUpda
 
 
 @router.delete("/api/project-participants/{participant_id}")
-def delete_project_participant(participant_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_project_participant(participant_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     participant = _participant_or_404(db, participant_id)
     _errors(lambda: remove_participant(db, participant))
     return {"ok": True}
@@ -162,36 +163,36 @@ def _poa_file(participant_id: int, db: Session, kind: str):
 
 
 @router.post("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)
-def post_power_of_attorney(participant_id: int, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"),
+def post_power_of_attorney(participant_id: Id, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"),
                            user: AppUser = _role_dep):
     return _store_poa(participant_id, file, db, user, "empfang")
 
 
 @router.get("/api/project-participants/{participant_id}/power-of-attorney")
-def get_power_of_attorney(participant_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_power_of_attorney(participant_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return _poa_file(participant_id, db, "empfang")
 
 
 @router.delete("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)
-def delete_power_of_attorney(participant_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_power_of_attorney(participant_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return participant_to_dict(db, remove_power_of_attorney(db, _participant_or_404(db, participant_id)))
 
 
 # Vollmacht zur Abnahme (seit 1.8.47) -- dieselben drei Wege, eigene Spalten.
 @router.post("/api/project-participants/{participant_id}/acceptance-power-of-attorney",
              response_model=ProjectParticipantOut)
-def post_acceptance_power_of_attorney(participant_id: int, file: UploadFile = File(...),
+def post_acceptance_power_of_attorney(participant_id: Id, file: UploadFile = File(...),
                                       db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     return _store_poa(participant_id, file, db, user, "abnahme")
 
 
 @router.get("/api/project-participants/{participant_id}/acceptance-power-of-attorney")
-def get_acceptance_power_of_attorney(participant_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_acceptance_power_of_attorney(participant_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return _poa_file(participant_id, db, "abnahme")
 
 
 @router.delete("/api/project-participants/{participant_id}/acceptance-power-of-attorney",
                response_model=ProjectParticipantOut)
-def delete_acceptance_power_of_attorney(participant_id: int, db: Session = Depends(get_db, scope="function"),
+def delete_acceptance_power_of_attorney(participant_id: Id, db: Session = Depends(get_db, scope="function"),
                                         _role: AppUser = _role_dep):
     return participant_to_dict(db, remove_power_of_attorney(db, _participant_or_404(db, participant_id), "abnahme"))

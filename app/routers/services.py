@@ -23,6 +23,7 @@ from ..services import (
     add_material_to_service, copy_service_to_catalog, create_manual_service,
     is_service_editable, remove_material_from_service, update_service_base_fields,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/services", response_model=list[ServiceListOut])
-def list_services(catalog_id: int | None = Query(default=None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_services(catalog_id: Id | None = Query(default=None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     settings_cache: dict[int | None, object] = {}
     stmt = (
         select(Service)
@@ -113,7 +114,7 @@ _EDIT_LOCKED_DETAIL = "Importierte Leistungen können nicht direkt bearbeitet we
 
 
 @router.put("/api/services/{service_id}", response_model=ServiceDetailOut)
-def update_service_base(service_id: int, payload: ServiceBaseUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def update_service_base(service_id: Id, payload: ServiceBaseUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -127,7 +128,7 @@ def update_service_base(service_id: int, payload: ServiceBaseUpdate, db: Session
 
 
 @router.post("/api/services/{service_id}/materials", response_model=ServiceDetailOut)
-def add_service_material(service_id: int, payload: ServiceMaterialAdd, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def add_service_material(service_id: Id, payload: ServiceMaterialAdd, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -142,7 +143,7 @@ def add_service_material(service_id: int, payload: ServiceMaterialAdd, db: Sessi
 
 
 @router.delete("/api/services/{service_id}/materials/{service_material_id}", response_model=ServiceDetailOut)
-def delete_service_material(service_id: int, service_material_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def delete_service_material(service_id: Id, service_material_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -156,7 +157,7 @@ def delete_service_material(service_id: int, service_material_id: int, db: Sessi
 
 
 @router.post("/api/services/{service_id}/move", response_model=ServiceDetailOut)
-def move_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def move_service(service_id: Id, payload: ServiceMoveOrCopy, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = db.get(Service, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -169,7 +170,7 @@ def move_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depe
 
 
 @router.post("/api/services/{service_id}/copy", response_model=ServiceDetailOut)
-def copy_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def copy_service(service_id: Id, payload: ServiceMoveOrCopy, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Erzeugt eine unabhängige Kopie einer Leistung -- ein späterer
     Re-Import der ursprünglichen Quelle wirkt sich nicht auf die Kopie aus,
     siehe Konzept 'Fertigkatalog nur zur Aufnahme, Arbeit findet in eigenen
@@ -185,7 +186,7 @@ def copy_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depe
 
 
 @router.get("/api/services/{service_id}", response_model=ServiceDetailOut)
-def get_service(service_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_service(service_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = db.scalar(
         select(Service)
         .options(selectinload(Service.materials))
@@ -197,7 +198,7 @@ def get_service(service_id: int, db: Session = Depends(get_db, scope="function")
 
 
 @router.get("/api/services/{service_id}/calculation", response_model=ServiceCalculationOut)
-def get_service_calculation(service_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def get_service_calculation(service_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -207,7 +208,7 @@ def get_service_calculation(service_id: int, db: Session = Depends(get_db, scope
 
 @router.put("/api/services/{service_id}/calculation", response_model=ServiceCalculationOut)
 def update_service_calculation(
-    service_id: int,
+    service_id: Id,
     payload: ServiceCalculationUpdate,
     db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,

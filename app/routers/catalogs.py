@@ -13,6 +13,7 @@ from ..database import get_db
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import CatalogCreate, CatalogOut
+from ..ids import Id
 
 router = APIRouter()
 
@@ -31,7 +32,7 @@ def post_catalog(payload: CatalogCreate, db: Session = Depends(get_db, scope="fu
 
 
 @router.post("/api/catalogs/{catalog_id}/archive", response_model=CatalogOut)
-def archive_catalog(catalog_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def archive_catalog(catalog_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         catalog = set_catalog_archived(db, catalog_id, True)
     except ValueError as exc:
@@ -42,7 +43,7 @@ def archive_catalog(catalog_id: int, db: Session = Depends(get_db, scope="functi
 
 
 @router.post("/api/catalogs/{catalog_id}/unarchive", response_model=CatalogOut)
-def unarchive_catalog(catalog_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def unarchive_catalog(catalog_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     catalog = set_catalog_archived(db, catalog_id, False)
     if catalog is None:
         raise HTTPException(status_code=404, detail="Katalog nicht gefunden.")

@@ -80,6 +80,7 @@ from ..service_reports import (
     list_roof_areas_for_order,
     resolve_property_history_report_for_field,
 )
+from ..ids import Id
 
 router = APIRouter()
 
@@ -187,7 +188,7 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
 
 @router.get("/api/field-view/meine-zeiten")
 def get_field_view_meine_zeiten(request: Request, monat: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
-                                vorwahl: int | None = Query(None, ge=1),
+                                vorwahl: Id | None = Query(None, ge=1),
                                 db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.57 (Stufe 4, R3): alles für „Meine Zeiten“ (app/meine_zeiten.py) -- Kacheln, Buchungen des Monats je Tag mit Summe und
     Pausenprüfung, Monat. Immer die eigenen Zeiten (Mitarbeiter nur aus der Anmeldung, kein Parameter); monat = JJJJ-MM, sonst der
@@ -279,7 +280,7 @@ def get_field_view_upcoming(request: Request, db: Session = Depends(get_db, scop
 
 @router.get("/api/field-view/timesheet.pdf")
 def get_field_view_timesheet_pdf(
-    request: Request, year: int | None = None, month: int | None = None,
+    request: Request, year: int | None = Query(None, ge=2000, le=2100), month: int | None = None,
     db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Eigener Stundenzettel als PDF (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für Monteure"
@@ -317,7 +318,7 @@ def get_field_view_auftraege_suche(q: str = "", db: Session = Depends(get_db, sc
 
 
 @router.get("/api/field-view/auftraege/{order_id}/bericht-anlegen", response_model=FieldReportCreateDataOut)
-def get_field_view_bericht_anlegen(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_field_view_bericht_anlegen(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.79: was der Dialog zum Anlegen eines Berichts braucht -- der Auftrag als Zeile der Liste und seine Dachflächen (id, Name),
     für jeden Auftrag, zu dem ein Bericht entstehen darf (bericht_zum_auftrag_moeglich(): nicht storniert, sonst 403; unbekannt 404).
     Sonst kein Leserecht auf den Auftrag -- das entsteht erst über den eigenen Bericht."""
@@ -353,7 +354,7 @@ def get_field_view_property_search(q: str = "", db: Session = Depends(get_db, sc
 
 
 @router.get("/api/field-view/properties/{property_id}", response_model=PropertyAccessOut)
-def get_field_view_property(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_field_view_property(property_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Mobile Objektansicht (siehe Moduldocstring oben, "Dateiablage je Objekt") -- BEWUSST ohne
     jede Zugriffsbeschränkung auf property_id: ein Monteur erreicht jedes Objekt über seine ID,
     nicht nur die eigenen. Die Sperre sitzt ausschließlich im Inhalt: PropertyAccessOut ist
@@ -383,7 +384,7 @@ def get_field_view_document_categories(db: Session = Depends(get_db, scope="func
 
 
 @router.get("/api/field-view/properties/{property_id}/documents", response_model=list[PropertyDocumentListItemOut])
-def get_field_view_property_documents(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_field_view_property_documents(property_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Zusammengeführte, nur für Monteure freigegebene Dokumentliste des Objekts (eigene
     Objekt-Uploads PLUS die Dokumente aller nicht archivierten Projekte des Objekts, siehe
     list_merged_documents_for_property() in app/property_documents.py) -- field_visible_only=True
@@ -405,7 +406,7 @@ def _resolve_or_404(db: Session, property_id: int, source: str, document_id: int
 
 @router.get("/api/field-view/properties/{property_id}/documents/{source}/{document_id}/view")
 def view_field_view_property_document(
-    property_id: int, source: Literal["property", "project"], document_id: int,
+    property_id: Id, source: Literal["property", "project"], document_id: Id,
     db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Der kritischste Endpunkt dieser Ansicht (zusammen mit .../download unten):
@@ -420,7 +421,7 @@ def view_field_view_property_document(
 
 @router.get("/api/field-view/properties/{property_id}/documents/{source}/{document_id}/download")
 def download_field_view_property_document(
-    property_id: int, source: Literal["property", "project"], document_id: int,
+    property_id: Id, source: Literal["property", "project"], document_id: Id,
     db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Siehe view_field_view_property_document() oben -- identische Prüfung, nur ohne
@@ -432,7 +433,7 @@ def download_field_view_property_document(
 @router.post("/api/field-view/properties/{property_id}/documents", response_model=PropertyDocumentListItemOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_field_view_property_document(
-    property_id: int, request: Request, file: UploadFile = File(...), category_id: int = Form(...),
+    property_id: Id, request: Request, file: UploadFile = File(...), category_id: Id = Form(...),
     description: str | None = Form(None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Eigener, objektgebundener Upload eines Monteurs (siehe CLAUDE.md "Dateiablage je Objekt"
@@ -490,7 +491,7 @@ def _require_field_history_access(db: Session, role: AppUser, property_id: int) 
     "/api/field-view/properties/{property_id}/maintenance-history",
     response_model=list[ServiceReportHistoryOut],
 )
-def get_field_view_property_maintenance_history(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def get_field_view_property_maintenance_history(property_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Alte Wartungsberichte des Objekts im bereits etablierten, reduzierten Schema
     (ServiceReportHistoryOut/_history_report_to_field_dict(), Rechtekonzept -> "Berichts-
     Eigentümerschaft") -- anders als list_property_history_for_field() (Auftrag-scoped, schließt
@@ -505,7 +506,7 @@ def get_field_view_property_maintenance_history(property_id: int, db: Session = 
 
 @router.get("/api/field-view/properties/{property_id}/maintenance-history/{report_id}/pdf")
 def get_field_view_property_maintenance_history_report_pdf(
-    property_id: int, report_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
+    property_id: Id, report_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Detailansicht EINES früheren Berichts, ausschließlich über das Objekt erreichbar (Anlass:
     ein Monteur will vor einer erneuten Wartung nachvollziehen, was beim letzten Einsatz gemacht
