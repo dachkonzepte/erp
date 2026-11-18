@@ -972,3 +972,53 @@ Neu `tests/test_v758_suchmuster.py` (5 Tests, einer gegen PostgreSQL). Keine ang
 #### Tests und Prüfung 1.9.359
 
 Neu `tests/test_v759_suche_telefonbuch.py` (4 Tests, einer gegen PostgreSQL). Keine angepasste Erwartung.
+
+## Runde V3 ab 1.9.360: Suche und Kundenliste, IDs im Pfad, Rundgang gegen PostgreSQL, Klicktests mit Fremdschlüsseln
+
+V2c geprüft (664fbc6) und live; die 29 Festlegungen 1.9.355–1.9.359 bestätigt (18.11.2026). Antworten Tobias: **F1** Pfad-IDs ja, in dieser Runde (Punkt 1);
+**F2** Index für die Suche: jetzt nichts, in Punkt 4 messen; **F3** Aufgaben, Material, Änderungshistorie über `telefonbuch()`: ja (Punkt 0); **B2**
+Altbestand aus Leerzeichen nicht bereinigen.
+
+Runde ab 1.9.360, je Punkt eine Version: **0** F3; dazu zeigt die Kundenliste Personen als „Nachname, Vorname“ (Anrede und Titel nur in der Akte), damit
+Anzeige und Sortierung zusammenpassen; Firmen unverändert; Bilder 1440 und 412, hell und dunkel (1.9.360); **1** F1: ein Typ für IDs in Pfad und Abfrage mit
+den Grenzen von int4 (darüber 404, nie 500), Wächter über alle Routen; **2** Rundgang gegen PostgreSQL (Befund, V3): eine Testdatei gegen ein Wegwerf-Schema --
+jede DELETE-Route ohne 500, jede schreibende Route mit Text an der Grenze und ein Zeichen darüber (422, nie 500), die Listen der Stammdaten mit Umlauten und
+leeren Werten; Teil des Endlaufs, Laufzeit in den Bericht; **3** Klicktests mit Fremdschlüsselprüfung: ein Schalter nur für Test-Instanzen, die 40 Seeds legen
+ein echtes Angebot an; **4** nur messen, keine Version: die Büro-Suche gegen PostgreSQL mit realistischer Menge (etwa 2 000 Kunden, 5 000 Objekte, 20 000
+Aufgaben), unter 300 ms je Suche kein Index, sonst Vorschlag. Dazu im Klicktest-Werkzeug: den Bilderordner direkt vor jedem Bild anlegen.
+
+### Umsetzung 1.9.360: Aufgaben, Material, Änderungshistorie wie die Büro-Suche; Kundenliste „Nachname, Vorname“ (Punkt 0)
+
+- **F3:** die Filter von Aufgaben (`app/tasks.py::list_tasks()`, Titel), Material (`app/materials.py::list_materials()`, Name und Artikelnummer) und
+  Änderungshistorie (`app/audit.py::audit_rows()`, „Wer“) vergleichen über `passt()` wie die Büro-Suche seit 1.9.359 -- „muller“ findet „MÜLLER“, „strasse“
+  findet „Straße“, unter SQLite und PostgreSQL gleich. Ersetzt Festlegung 1.9.359 Nr. 4 (dort bei `ilike` geblieben, Frage F3 im Bericht V2c).
+- **Nur noch zwei Muster außerhalb von `passt()`:** der Schlüssel einer Folge je Unterschrift als Präfix (`app/checklist_follow_ups.py::_close_lapsed_rows()`)
+  und die Kennung im JSON-Schnappschuss des Protokolls (`app/kunde_verlauf.py::_aus_schnappschuss()`) -- beide ohne Text vom Benutzer, beide müssen genau
+  vergleichen (Groß- und Kleinschreibung zählt). Sie stehen mit Grund in `INTERN`.
+- **Kundenliste:** Stammdaten → Kunden zeigt Personen als „Nachname, Vorname“ („Abel, Bernd“ statt „Herr Bernd Abel“), Anrede und Titel nur in der Akte (dort
+  weiter `name`, zusammengesetzt aus Anrede, Titel, Vorname, Nachname). Ohne Vorname steht nur der Nachname da: eine Firma (Name im Nachnamen) unverändert, eine
+  Person ohne Vorname („Prof. Dr. Ölberg“) als „Ölberg“. Den Namen rechnet der Server -- `app/telefonbuch.py::listen_name()`, in der Antwort von
+  `/api/customers` als `listen_name` (berechnetes Feld in `CustomerOut`); die Seite zeigt ihn nur. Damit passt die Anzeige zur Sortierung nach Nachname, dann
+  Vorname (1.9.355). Der Filter über der Liste findet den angezeigten und den ganzen Namen. Ein Altkunde ohne Namen bleibt leer wie bisher.
+- **Offen gemeldet:** eine Firma mit der Anrede „Firma“ (eine Option der Auswahlliste „Anreden“) zeigte bis 1.9.359 „Firma Müller Dach“; jetzt „Müller Dach“ --
+  „Firma“ ist eine Anrede, und Anreden stehen nur in der Akte. Ob das gewollt ist, fragt der Bericht (sonst: ohne Vorname der ganze Name ohne Titel).
+- **Wächter** `tests/test_v760_suche_und_kundenliste.py`: jedes like/ilike unter `app/` steht in `passt()` -- außer `INTERN`, die Liste stimmt genau; das
+  Verhalten der drei Filter unter SQLite und PostgreSQL; `listen_name()` je Fall; die Kundenliste über die echte Route (SQLite) und unter PostgreSQL; die Seite
+  zeigt `listen_name` und filtert danach.
+
+#### Festlegungen 1.9.360 (Bitte bestätigen)
+
+1. Aufgaben (Titel), Material (Name, Artikelnummer) und Änderungshistorie („Wer“) suchen über `passt()` wie die Büro-Suche (ersetzt 1.9.359 Nr. 4).
+2. Jedes like/ilike unter `app/` steht in `passt()`; außerhalb nur Muster ohne Text vom Benutzer, die genau vergleichen müssen -- mit Grund in `INTERN`
+   (heute zwei), die Liste stimmt genau.
+3. Die Kundenliste zeigt Personen als „Nachname, Vorname“, ohne Anrede und Titel; die Akte zeigt weiter den ganzen Namen.
+4. Ohne Vorname zeigt die Kundenliste nur den Nachnamen: eine Firma unverändert, eine Person ohne Vorname nur mit Nachnamen, ohne die Anrede „Firma“.
+5. Der Filter der Kundenliste findet den angezeigten und den ganzen Namen.
+6. Den Namen der Liste rechnet der Server (`listen_name`, `app/telefonbuch.py::listen_name()`); die Seite rechnet nichts nach.
+
+#### Tests und Prüfung 1.9.360
+
+Neu `tests/test_v760_suche_und_kundenliste.py` (9 Tests, zwei gegen PostgreSQL). Angepasste Erwartung: Klicktest `klicktest_telefonbuch.py`, „Kundenliste in der
+Reihenfolge des Telefonbuchs“ -- die Namen der Liste „Herr Bernd Abel, apfelbaum Gartenbau, …, Ökohaus Probe, Frau Dr. Erika Probe, …“ -> „Abel, Bernd,
+apfelbaum Gartenbau, …, Ökohaus Probe, Probe, Erika, …“ (dieselbe Reihenfolge); „API in derselben Reihenfolge“ prüft weiter `name` (mit Anrede und Titel); neu
+„API listen_name wie die Seite“ und „Filter findet „Probe, Er““. Bilder `kundenliste_telefonbuch_{1440,412}_{hell,dunkel}.png`.

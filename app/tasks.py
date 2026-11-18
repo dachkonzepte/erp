@@ -20,7 +20,7 @@ from .grunddaten import einzelzeile
 from .meldungen import KEIN_MITARBEITER
 from .audit import LOESCHANLASS, TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
-from .suchmuster import ESCAPE, enthaelt
+from .suchmuster import passt
 from .zugehoerigkeit import require_project
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 
@@ -102,7 +102,7 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
     if project_id is not None:
         query = query.where(Task.project_id == project_id)
     if search:
-        query = query.where(Task.title.ilike(enthaelt(search), escape=ESCAPE))
+        query = query.where(passt(Task.title, search))  # seit 1.9.360 wie die Büro-Suche (telefonbuch(), F3)
     if not include_archived:
         query = query.where(Task.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
     query = query.order_by(Task.due_date.is_(None), Task.due_date.nulls_last(), Task.id.desc())

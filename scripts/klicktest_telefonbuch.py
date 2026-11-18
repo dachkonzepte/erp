@@ -1,12 +1,14 @@
-"""Klicktest: Kundenliste in der Reihenfolge des Telefonbuchs (1.9.353, Runde V2b, Punkt 1, F6).
+"""Klicktest: Kundenliste in der Reihenfolge des Telefonbuchs (1.9.353, Runde V2b, Punkt 1, F6; Anzeige „Nachname, Vorname“ seit 1.9.360).
 
 Testdaten: Anna Admin (angemeldet); 17 Kunden mit Groß- und Kleinbuchstaben am Anfang, Umlauten, ß, Akzenten, Bindestrich und Leerzeichen und einem
 leeren Namen -- ein Altbestand mit dem Nachnamen " " (bis 1.9.355 nahm die API ihn an, compose_customer_name() macht daraus ""; die Formulare
 prüfen selbst, seit 1.9.356 lehnt auch der Server ihn ab, B2). Die Kunden kommen in einer Reihenfolge in die Datenbank, die weder binär noch nach dem Telefonbuch sortiert ist.
 
-    Liste       Stammdaten → Kunden: nach Nachname, dann Vorname (seit 1.9.355, ohne Anrede und Titel: „Herr Bernd Abel“ zuerst) in der
+    Liste       Stammdaten → Kunden: nach Nachname, dann Vorname (seit 1.9.355, ohne Anrede und Titel: „Herr Bernd Abel“ zuerst; seit 1.9.360 angezeigt
+                als „Abel, Bernd“ -- Personen „Nachname, Vorname“, Firmen unverändert, Anrede und Titel nur in der Akte) in der
                 Reihenfolge des Telefonbuchs -- „apfelbaum“ vor „Äpfelmann“ vor „bauhof“ vor „Bauhof“,
                 „Müller Probe“ vor „MÜLLER Probe“ vor „Müller-Probe“, „Straßenbau“ vor „Strassmann“ (ß wie ss), der leere Name zuletzt
+    API         /api/customers in derselben Reihenfolge, name mit Anrede und Titel (für die Akte), listen_name wie die Seite
     Suche       Büro-Suche „probe“: die Kunden in derselben Reihenfolge
     Bilder      1440 und 412 px, hell und dunkel; bei 412 px läuft nichts über die Seite
     überall     keine JS-Fehler
@@ -34,6 +36,10 @@ ANGELEGT = ["Zimmerei Zander GmbH", "Müller-Probe Bau", "", "Ökohaus Probe", (
 TELEFONBUCH = ["Herr Bernd Abel", "apfelbaum Gartenbau", "Äpfelmann Dachbau", "bauhof Nord", "Bauhof Süd", "Émile Probe", "Łukasz Probe",
                "Müller Probe Bau", "MÜLLER Probe KG", "Müller-Probe Bau", "Oelbach Probe", "Ökohaus Probe", "Frau Dr. Erika Probe", "Straßenbau Probe",
                "Strassmann Probe", "Zimmerei Zander GmbH", ""]
+# so zeigt die Liste sie seit 1.9.360: Personen „Nachname, Vorname“, Firmen unverändert -- dieselbe Reihenfolge
+LISTE = ["Abel, Bernd", "apfelbaum Gartenbau", "Äpfelmann Dachbau", "bauhof Nord", "Bauhof Süd", "Émile Probe", "Łukasz Probe", "Müller Probe Bau",
+         "MÜLLER Probe KG", "Müller-Probe Bau", "Oelbach Probe", "Ökohaus Probe", "Probe, Erika", "Straßenbau Probe", "Strassmann Probe",
+         "Zimmerei Zander GmbH", ""]
 BEREIT = ("document.getElementById('seitenkopfTitel')?.textContent==='Kunden'"
           f"&&document.querySelectorAll('#content tbody tr').length==={len(ANGELEGT)}")
 NAMEN = "[...document.querySelectorAll('#content tbody tr')].map(tr=>tr.cells[1].querySelector('a').textContent)"
@@ -65,8 +71,13 @@ async def pruefen(tab, seed, p):
     await tab.js("localStorage.setItem('erp_theme','light')")
     p.pruefe("Kundenliste geladen", await tab.oeffnen("/master-data?n=1#customers", BEREIT), True)
     await tab.warte_auf_ruhe()
-    p.pruefe("Kundenliste in der Reihenfolge des Telefonbuchs", await tab.js(NAMEN), TELEFONBUCH)
-    p.pruefe("API in derselben Reihenfolge", await tab.js("fetch('/api/customers').then(r=>r.json()).then(k=>k.map(x=>x.name))"), TELEFONBUCH)
+    p.pruefe("Kundenliste in der Reihenfolge des Telefonbuchs, Personen „Nachname, Vorname“", await tab.js(NAMEN), LISTE)
+    p.pruefe("API in derselben Reihenfolge, name mit Anrede und Titel", await tab.js("fetch('/api/customers').then(r=>r.json()).then(k=>k.map(x=>x.name))"),
+             TELEFONBUCH)
+    p.pruefe("API listen_name wie die Seite", await tab.js("fetch('/api/customers').then(r=>r.json()).then(k=>k.map(x=>x.listen_name))"), LISTE)
+    await tab.js("document.getElementById('search').value='probe, er';document.getElementById('search').dispatchEvent(new Event('input'))")
+    p.pruefe("Filter findet „Probe, Er“", await tab.warten(f"JSON.stringify({NAMEN})==='[\"Probe, Erika\"]'", 5), True)
+    await tab.js("document.getElementById('search').value='';document.getElementById('search').dispatchEvent(new Event('input'))")
     p.pruefe("Büro-Suche „probe“ in derselben Reihenfolge", await tab.js(
         "fetch('/api/search?q=probe&types=customers&limit=50').then(r=>r.json()).then(d=>d.find(g=>g.key==='customers').hits.map(x=>x.title))"),
         [n for n in TELEFONBUCH if "probe" in n.lower()])
@@ -77,7 +88,7 @@ async def pruefen(tab, seed, p):
             await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
             p.pruefe(f"Bild {breite} {name}: geladen", await tab.oeffnen(f"/master-data?n=b{breite}{name}#customers", BEREIT), True)
             await tab.warte_auf_ruhe()
-            p.pruefe(f"Bild {breite} {name}: Reihenfolge", await tab.js(NAMEN), TELEFONBUCH)
+            p.pruefe(f"Bild {breite} {name}: Reihenfolge", await tab.js(NAMEN), LISTE)
             if mobil:
                 p.pruefe(f"Bild {breite} {name}: nichts läuft über", await tab.ueberlauf(), [])
             await tab.bild(f"kundenliste_telefonbuch_{breite}_{name}")

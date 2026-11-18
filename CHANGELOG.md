@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.360 – Aufgaben, Material und Historie suchen wie die Büro-Suche; Kundenliste „Nachname, Vorname“
+
+Punkt 0 der Runde V3. Die Filter von Aufgaben, Material und Änderungshistorie suchen jetzt wie die Büro-Suche über `telefonbuch()`: „muller“ findet „MÜLLER“, unter SQLite und PostgreSQL gleich (F3). Außerhalb dieses einen Vergleichs bleiben nur zwei interne Muster ohne Text vom Benutzer. Die Kundenliste zeigt Personen jetzt als „Nachname, Vorname“ („Abel, Bernd“) -- so, wie sie seit 1.9.355 sortiert ist; Anrede und Titel stehen nur noch in der Akte, Firmen unverändert. Den Namen rechnet der Server (`listen_name`).
+
+Neu `tests/test_v760_suche_und_kundenliste.py`; Klicktest `klicktest_telefonbuch.py` erwartet die neuen Namen. Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.359 – Die Büro-Suche vergleicht wie die Sortierung
 
 Punkt 4 der Runde V2c. Die Büro-Suche fand unter SQLite „müller“ nicht in „MÜLLER“, unter PostgreSQL schon, und „muller“ fand „Müller“ nirgends. Jetzt vergleicht sie jede Spalte über denselben Schlüssel wie die Sortierung (`telefonbuch()`): ohne Groß- und Kleinschreibung, Umlaute beim Grundbuchstaben, ß wie ss -- „muller“, „Müller“ und „MÜLLER“ finden dasselbe, unter SQLite und PostgreSQL gleich. Ebenso die Objekt- und Auftragssuche der Monteurin und das Adressbuch, dessen Filter die Büro-Suche teilt. Gemessen: bei 5000 Kunden rund 76 statt 6,5 ms je Suche der Kunden, heute wenige Millisekunden.

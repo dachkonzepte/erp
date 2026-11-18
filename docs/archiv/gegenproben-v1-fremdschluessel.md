@@ -302,3 +302,20 @@ ließ sich nicht lesen) und wurde mit dem Marker am Zeilenende wiederholt. Alle 
 | Nr. 4 – Aufgaben, Material, Historie bleiben | -- | keine Änderung unter `app/` (der Wächter von 1.9.358 gilt dort weiter) |
 
 5 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V3, 1.9.360 (Punkt 0): Aufgaben, Material, Änderungshistorie wie die Büro-Suche; Kundenliste „Nachname, Vorname“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Aufgaben über `passt()` | Titel wieder `ilike` (`360_1`) | 4 rot: v760 Verhalten unter SQLite und PostgreSQL, Wächter, `INTERN` genau |
+| Nr. 1 – Material über `passt()` | Artikelnummer wieder `ilike` (`360_2`) | 4 rot: dieselben |
+| Nr. 1 – Änderungshistorie über `passt()` | „Wer“ wieder `ilike` (`360_3`) | 4 rot: dieselben |
+| Nr. 2 – `INTERN` stimmt genau | das Muster der Folgen als `startswith()` (`360_4`) | 1 rot: v760 `INTERN` genau |
+| Nr. 3 – „Nachname, Vorname“ | `listen_name` = `name` (`360_5`, `360_5k`) | 2 rot: v760 Kundenliste SQLite und PostgreSQL; Klicktest `klicktest_telefonbuch` 7 von 17 rot |
+| Nr. 4 – ohne Vorname nur der Nachname | ohne Vorname wieder `name` (`360_6`) | 2 rot: v760 Kundenliste SQLite und PostgreSQL („Firma Müller Dach“, „Prof. Dr. Ölberg“) |
+| Nr. 5 – Filter findet den angezeigten Namen | `listen_name` aus dem Filter (`360_8`, `360_8k`) | 1 rot: v760 Seite; Klicktest 1 von 17 rot („Filter findet „Probe, Er““) |
+| Nr. 6 – die Seite zeigt, was der Server rechnet | die Seite zeigt wieder `name` (`360_7`, `360_7k`) | 1 rot: v760 Seite; Klicktest 6 von 17 rot |
+
+11 Gegenproben (8 über pytest, 3 über den Klicktest), alle rot. `360_2` und `360_4` liefen zuerst mit dem Marker mitten in der Zeile -- der Rest der Zeile wurde
+Kommentar, die Datei brach beim Lesen (rot aus dem falschen Grund); beide noch einmal mit dem Marker am Zeilenende, rot wie oben. Alle Dateien byte-gleich zurück,
+kein Marker unter `app/`.

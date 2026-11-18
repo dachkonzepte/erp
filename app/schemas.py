@@ -3,7 +3,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Annotated, ClassVar, Literal
 from urllib.parse import urlparse
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, create_model, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, computed_field, create_model, field_validator, model_validator
 
 from .berlin_time import berlin_today
 
@@ -291,6 +291,13 @@ class CustomerOut(_felder_ohne_pruefung(CustomerCreate, "_CustomerCreateFelder")
     # Seit 1.8.76 leer möglich: ein Altkunde ohne Profil -- das Lesen legt keins mehr an (keine Nummer beim Anzeigen).
     customer_number: str | None = None
     extra_infos: list[CustomerExtraInfoOut] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def listen_name(self) -> str:
+        """Seit 1.9.360: der Name in der Kundenliste -- „Nachname, Vorname“, ohne Anrede und Titel (app/telefonbuch.py::listen_name())."""
+        from .telefonbuch import listen_name
+        return listen_name(self.last_name, self.first_name)
 
 
 class CustomerUpdate(PartialUpdate):

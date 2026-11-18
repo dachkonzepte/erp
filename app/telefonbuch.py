@@ -69,6 +69,14 @@ def schluessel(text) -> str | None:
     return s or None
 
 
+def listen_name(nachname, vorname) -> str:
+    """Name einer Person in einer Liste, die nach Nachname, dann Vorname sortiert (seit 1.9.360, Kundenliste): „Nachname, Vorname“ -- ohne Anrede und
+    Titel (die stehen in der Akte). Ohne Vorname nur der Nachname: eine Firma trägt ihren Namen im Nachnamen und steht unverändert da (auch mit der
+    Anrede „Firma“ -- eine Anrede, die nur die Akte zeigt). So passen Anzeige und Sortierung (nach_namen(Nachname, Vorname)) zusammen."""
+    teile = [str(t).strip() for t in (nachname, vorname) if t is not None and str(t).strip()]
+    return ", ".join(teile)
+
+
 def sortierwert(text) -> tuple[bool, str]:
     """Schlüssel für sorted()/sort() in Python: leer ans Ende, sonst nach schluessel() -- wie nach_namen() in der Datenbank."""
     k = schluessel(text)

@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Material, ServiceMaterial
-from .suchmuster import ESCAPE, enthaelt
+from .suchmuster import passt
 from .telefonbuch import nach_namen
 
 MaterialVariantsCache = dict[str, list[Material]]
@@ -118,8 +118,7 @@ def backfill_existing_service_materials(db: Session, import_group_id: int | None
 def list_materials(db: Session, *, search: str | None = None, catalog_id: int | None = None) -> list[Material]:
     stmt = select(Material).order_by(*nach_namen(Material.name), Material.id)
     if search:
-        like = enthaelt(search)
-        stmt = stmt.where((Material.name.ilike(like, escape=ESCAPE)) | (Material.article_number.ilike(like, escape=ESCAPE)))
+        stmt = stmt.where(passt(Material.name, search) | passt(Material.article_number, search))  # seit 1.9.360 wie die Büro-Suche (F3)
     if catalog_id is not None:
         stmt = stmt.where(Material.catalog_id == catalog_id)
     return db.scalars(stmt).all()

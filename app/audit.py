@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy import event, inspect, select
 from sqlalchemy.orm import Session
 
-from .suchmuster import ESCAPE, enthaelt
+from .suchmuster import passt
 
 from .models import (
     AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
@@ -941,5 +941,5 @@ def audit_rows(db, project_id=None, entity_type=None, entity_id=None, actor=None
     if project_id is not None: stmt = stmt.where(AuditLog.project_id == project_id)
     if entity_type: stmt = stmt.where(AuditLog.entity_type == entity_type)
     if entity_id: stmt = stmt.where(AuditLog.entity_id == str(entity_id))
-    if actor: stmt = stmt.where(AuditLog.actor_name.ilike(enthaelt(actor), escape=ESCAPE))  # seit 1.9.358 Zeichen geschützt (app/suchmuster.py); .contains() waere unter PostgreSQL groß-/kleinschreibungsempfindlich (LIKE statt SQLite-typischem case-insensitivem Verhalten), .ilike() bleibt bei beiden Dialekten gleich
+    if actor: stmt = stmt.where(passt(AuditLog.actor_name, actor))  # seit 1.9.360 wie die Büro-Suche (telefonbuch(), F3); Zeichen geschützt seit 1.9.358
     return db.scalars(stmt).all()

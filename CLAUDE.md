@@ -1663,7 +1663,8 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   die Funktion `telefonbuch()` meldet sich an jeder SQLite-Verbindung an, unter PostgreSQL legt sie die Migration `9e4b2c7d1a35` an (Text wörtlich, eine
   geänderte Zeichentabelle braucht eine neue Migration) und jedes `create_all()`. Wächter `tests/test_v753_telefonbuch.py` (`AUSNAHMEN` leer, nur kürzer).
   Die Kundenliste und die Kunden der Büro-Suche seit 1.9.355 nach Nachname, dann Vorname (`nach_namen(Customer.last_name, Customer.first_name)`), ohne
-  Anrede und Titel; eine Firma steht unter ihrem Namen (im Nachnamen).
+  Anrede und Titel; eine Firma steht unter ihrem Namen (im Nachnamen). Seit 1.9.360 zeigt die Kundenliste Personen auch so -- „Nachname, Vorname“ aus
+  `app/telefonbuch.py::listen_name()` (`listen_name` in der Antwort), Anrede und Titel nur in der Akte (`name`).
 - **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
   `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante
@@ -1684,7 +1685,8 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   `escape=ESCAPE` -- „%“, „_“ und der Backslash gelten wörtlich, unter SQLite und PostgreSQL gleich; nie `f"%{text}%"`. Wächter
   `tests/test_v758_suchmuster.py` (`AUSNAHMEN` leer). **Die Büro-Suche vergleicht wie die Sortierung** (seit 1.9.359): jede Spalte in `app/search.py` und
   im Filter des Adressbuchs nur über `passt(spalte, text)` (`telefonbuch(spalte)` enthält `schluessel(text)`) -- „muller“ findet „MÜLLER“, unter SQLite
-  und PostgreSQL gleich. Wächter `tests/test_v759_suche_telefonbuch.py`.
+  und PostgreSQL gleich. Wächter `tests/test_v759_suche_telefonbuch.py`. Seit 1.9.360 ebenso Aufgaben, Material und Änderungshistorie: jedes like/ilike unter
+  `app/` steht in `passt()`, außer Mustern ohne Text vom Benutzer, die genau vergleichen (`INTERN` in `tests/test_v760_suche_und_kundenliste.py`, genau).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
