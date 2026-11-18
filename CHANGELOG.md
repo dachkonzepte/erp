@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.362 – Rundgang gegen PostgreSQL
+
+Punkt 2 der Runde V3. Eine neue Testdatei läuft gegen ein Wegwerf-Schema der Spielwiese: jede DELETE-Route, jede schreibende Route mit Text an der Grenze und ein Zeichen darüber, jedes Textfeld eines Formulars und zehn Listen der Stammdaten -- auf einer Welt mit Daten in den Tabellen der Abläufe, jede Anfrage zurückgerollt. Sie ist Teil der Suite und damit des Endlaufs, rund 13 s.
+
+Gefunden und behoben (live je 500): die Bezeichnung im Änderungsprotokoll über 255 Zeichen (Angebot, Kunde, Lieferant mit langem Titel oder Namen); der zusammengesetzte Kundenname über 255 Zeichen (jetzt 422 wie im Adressimport); fünf Formularfelder ohne Grenze (Kategorie und Unterordner der Dokumente, Lieferscheinnummer, Dokumentart, Bildunterschrift); Lieferant löschen mit Eingangsrechnung oder aus dem Adressimport (jetzt deaktiviert); Betriebsmittel im unterschriebenen Einsatzbericht ändern oder entfernen (jetzt 400). Festlegungen und Gegenproben: `docs/archiv/sqlite-und-postgresql.md`, `docs/archiv/gegenproben-v1-fremdschluessel.md`. Keine Migration.
+
 ## 1.9.361 – IDs in Pfad, Abfrage und Formular: darüber 404, nie 500
 
 Punkt 1 der Runde V3 (F1). Eine ID über int4 (`/api/customers/3000000000`) kam bis 1.9.360 bis zur Datenbank: SQLite fand nichts, PostgreSQL brach mit 500 ab. Jetzt hat jede ID in Pfad, Abfrage und Formular den Typ `Id` (`app/ids.py`): außerhalb von int4 antwortet die Route mit 404 „Nicht gefunden.“, bevor der Endpunkt läuft. Eine Klasse statt einer Annotated-Angabe, weil FastAPI deren Prüfung bei einer Vorgabe aus `Query()`, `Path()` oder `Form()` wegwirft. Jede andere ganze Zahl in Pfad und Abfrage hat Grenzen oder eine Prüfung der Geschäftslogik; neue Grenzen nur, wo ein Wert bis jetzt mit 500 endete (Jahr des Stundenzettels der Monteurin, erstes Jahr der Schulferien). 589 Angaben in 60 Routern, vom Werkzeug über den Baum umgestellt.

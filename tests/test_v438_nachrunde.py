@@ -104,7 +104,7 @@ def test_auftrag_zeigt_menge_und_ep_mit_tausenderpunkt():
     lauf = im_browser(seite("akte.html", "akteStarten().catch("), f"""
       order = {{order_lock: null, items: [{json.dumps(position)}], section_totals: {{}}}}; units = [];
       const zeile = rowHtml({json.dumps(position)});
-      const m = /<td class="r num">([^<]*)<\/td><td>[^<]*<\/td><td class="r num">([^<]*)<\/td>/.exec(zeile);
+      const m = /<td class="r num">([^<]*)<\\/td><td>[^<]*<\\/td><td class="r num">([^<]*)<\\/td>/.exec(zeile);
       openItem(4);
       return {{menge: m[1], ep: m[2], dialogMenge: _element('iQty').value, dialogEp: _element('iPrice').value}};""")
     assert lauf["ergebnis"] == {"menge": "12.345,678", "ep": "1.234,56", "dialogMenge": "12.345,678", "dialogEp": "1.234,56"}

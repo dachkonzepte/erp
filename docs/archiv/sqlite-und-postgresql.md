@@ -1067,3 +1067,56 @@ apfelbaum Gartenbau, …, Ökohaus Probe, Probe, Erika, …“ (dieselbe Reihenf
 #### Tests und Prüfung 1.9.361
 
 Neu `tests/test_v761_ids_im_pfad.py` (7 Tests, einer gegen PostgreSQL). Angepasste Erwartung: `tests/test_v438_nachrunde.py`, `test_audit_logs_versatz_nie_500` mit `project_id=10^30` -- 200 mit leerer Seite -> 404 (eine ID außerhalb von int4, Festlegung 1.9.361 Nr. 1); neu derselbe Test mit `project_id=2^31` -> 404 (bis dahin unter PostgreSQL 500).
+
+### Umsetzung 1.9.362: Rundgang gegen PostgreSQL (Punkt 2, V3 des Befunds)
+
+- **Der Rundgang** `tests/test_v762_rundgang_postgresql.py`: ein Wegwerf-Schema der Spielwiese (Regel 27), darin die Welt des Rundgangs der Datengrenze
+  (`tests/test_v326_monteur_datengrenze.py::_buero_welt()`: Kunde, Objekt, Projekt, Angebot, Auftrag, Rechnung, Abnahme, Mangel, Einsatzbericht, Checkliste,
+  Beteiligter, Lohndatei …), dazu Stammdaten mit Umlauten und leerem Namen und je DELETE-Route ein Ziel, das es gibt (`_mehr_daten()`: Positionen, LV-Titel,
+  Dokumente, Abwesenheit, Feiertag, Termin, Wartungsfenster, Eingangsrechnung, Betriebskosten, Basiszinssatz, Bauteil- und Schichtart, Prüffrist, Sollzeit …;
+  was nicht angelegt werden kann, nennt die Zählung). Alle Router, angemeldet als Admin; jede Anfrage in einer eigenen Transaktion (Sitzung mit SAVEPOINT auf
+  einer Verbindung), danach zurückgerollt -- jede Route sieht dieselbe Welt. Eine 500 nennt Art und Text des Fehlers. Ohne `ERP_TEST_POSTGRES_URL`
+  übersprungen; Teil der Suite und damit des Endlaufs. Die Zählung schreibt der Lauf nach `.pytest_cache/rundgang_postgresql.txt`.
+- **Geprüft:** jede DELETE-Route unter `/api/` (75) -- kein 500; jede schreibende Route mit JSON-Körper (288) mit jedem Textfeld an der Grenze -- kein 500;
+  jedes Textfeld ein Zeichen darüber (532) -- 422 an diesem Feld (`string_too_long`); jedes Textfeld eines Formulars (74 Proben, 300 und 5000 Zeichen) -- kein
+  500; zehn Listen der Stammdaten (Kunden, Objekte, Mitarbeiter, Kolonnen, Lieferanten, Adressbuch, Leistungskataloge, Materialkataloge, Material, Geräte) mit
+  Groß- und Kleinschreibung, Umlaut, ß, Akzent und leerem Namen -- in der Reihenfolge des Telefonbuchs, leere am Ende.
+- **Laufzeit:** rund 12–14 s für die Datei (Aufbau rund 5 s); in der vollen Suite läuft sie in einem eigenen Arbeitsprozess (siehe Bericht).
+- **Gefunden und behoben** (je live 500 unter PostgreSQL, unter SQLite still gespeichert oder ebenso 500):
+  - **Bezeichnung im Änderungsprotokoll:** `write_audit()` schrieb `entity_label` ungekürzt -- „Nummer · Titel“ eines Angebots, „Nummer Name“ eines Kunden oder
+    Lieferanten kamen über 255 Zeichen. Jetzt gekürzt auf die Länge der Spalte wie `record_audit_entry()` seit jeher.
+  - **Kundenname:** Anrede (50), Titel (80), Vorname (120) und Nachname (255) passen je für sich, zusammen bis zu 508 Zeichen in `customers.name` (255). Jetzt 422
+    „Anrede, Titel, Vorname und Nachname sind zusammen zu lang (n Zeichen, höchstens 255).“ beim Anlegen und Ändern (`app/crm.py::kundenname()`), geprüft bevor
+    ein Feld gesetzt wird -- wie der Adressimport seit 1.9.351.
+  - **Formulare:** fünf Felder gingen ohne Prüfung in eine Spalte `String(n)` -- Kategorie (100) und Unterordner (150) der Kunden- und Projektdokumente,
+    Lieferscheinnummer (120), Dokumentart der Betriebsmittel und Betriebskosten (80), Bildunterschrift im Einsatzbericht (255). Jetzt `max_length`, darüber 422.
+    1.9.350 prüfte nur die Schemas; die übrigen Formularfelder prüft die Geschäftslogik schon.
+  - **Lieferant löschen:** mit Eingangsrechnung oder aus dem Adressimport angelegt -- 500 am Fremdschlüssel (`incoming_invoices.supplier_id`,
+    `imported_addresses.created_supplier_id`). Jetzt deaktiviert wie bei den übrigen Verwendungen (seit 1.8.39).
+  - **Betriebsmittel im Einsatzbericht:** PUT und DELETE an einem unterschriebenen Bericht -- `ValueError` ungefangen, 500 (unter jeder Datenbank). Jetzt 400 mit
+    dem Text wie bei Material.
+- **Zählung (diese Fassung):** DELETE 75 Routen -- 38 löschen, 14 × 400, 10 × 409, 8 × 404 (Ziel fehlt in der Welt), 4 × 422, 1 × 403; Schreiben an der Grenze 288
+  Routen -- 114 kommen bis zur Datenbank und speichern (200), die übrigen lehnt die Geschäftslogik oder das Schema ab (400, 404, 409, 422) oder sie verlangen eine
+  andere Anmeldung (401). Die 78 × 422 an der Grenze kommen von Feldern mit Muster oder fester Auswahl, die der Körper nicht kennt -- dort erreicht der Rundgang die
+  Datenbank nicht; das deckt der statische Wächter (1.9.350) ab.
+
+#### Festlegungen 1.9.362 (Bitte bestätigen)
+
+1. Der Rundgang gegen PostgreSQL ist eine Testdatei der Suite (Wegwerf-Schema, Welt der Datengrenze und eigene Daten, als Admin, jede Anfrage in einer eigenen
+   Transaktion zurückgerollt); ohne PostgreSQL übersprungen, im Endlauf dabei, die Zählung in `.pytest_cache/rundgang_postgresql.txt`.
+2. Jede DELETE-Route unter `/api/` antwortet ohne 500; je Route ein Ziel, das es gibt (sonst sähe sie nur 404).
+3. Jede schreibende Route mit JSON-Körper: jedes Textfeld an der Grenze ohne 500, jedes Textfeld ein Zeichen darüber 422 an diesem Feld.
+4. Jedes Textfeld eines Formulars mit 300 und 5000 Zeichen ohne 500; was ohne Prüfung in eine Spalte `String(n)` geht, hat `max_length`.
+5. Die Listen der Stammdaten (zehn) sortieren unter PostgreSQL wie im Telefonbuch, leere Namen am Ende.
+6. Die Bezeichnung im Änderungsprotokoll wird auf die Länge der Spalte gekürzt -- an jeder Stelle, die einen Eintrag schreibt.
+7. Anrede, Titel, Vorname und Nachname eines Kunden zusammen höchstens so lang wie der Name (255), sonst 422 mit Länge und Grenze -- beim Anlegen und Ändern,
+   geprüft bevor ein Feld gesetzt wird.
+8. Ein Lieferant mit Eingangsrechnung oder aus dem Adressimport wird beim Löschen deaktiviert, nicht gelöscht.
+9. PUT und DELETE eines Betriebsmittels im unterschriebenen Einsatzbericht: 400 mit dem Text, wie bei Material.
+
+#### Tests und Prüfung 1.9.362
+
+Neu `tests/test_v762_rundgang_postgresql.py`: 5 Tests des Rundgangs (gegen PostgreSQL) und 12 Tests unter SQLite zu den Funden (Bezeichnung, Kundenname,
+acht Formularfelder, Lieferant, Betriebsmittel). Keine angepasste Erwartung. Nebenbei: `tests/test_v438_nachrunde.py` Zeile 107 -- `<\/td>` im f-String
+doppelt geschützt (`<\\/td>`, derselbe Text für node); seit Python 3.12 eine SyntaxWarning, sichtbar, sobald die Datei neu übersetzt wird (hier in
+1.9.361 berührt), in der vollen Suite 2 Warnungen mehr.

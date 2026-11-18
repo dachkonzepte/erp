@@ -425,7 +425,7 @@ def get_service_report_photos(report_id: Id, db: Session = Depends(get_db, scope
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def post_service_report_photo(
     report_id: Id, request: Request, file: UploadFile = File(...), inspection_item_id: Id | None = Form(None),
-    finding_id: Id | None = Form(None), kind: str = Form("allgemein"), caption: str | None = Form(None),
+    finding_id: Id | None = Form(None), kind: str = Form("allgemein"), caption: str | None = Form(None, max_length=255),
     created_by_employee_id: Id | None = Form(None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     _require_module_enabled(db)
@@ -570,7 +570,10 @@ def put_service_report_asset(asset_row_id: Id, payload: ServiceReportAssetUpdate
     _require_operational_assets_module_enabled(db)
     require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportAsset, asset_row_id, "Betriebsmittel-Eintrag nicht gefunden."))
     fields = payload.model_dump(exclude_unset=True)
-    result = update_asset_usage(db, asset_row_id, fields)
+    try:
+        result = update_asset_usage(db, asset_row_id, fields)
+    except ValueError as exc:  # seit 1.9.362 (Rundgang gegen PostgreSQL): unterschriebener Bericht 400 wie Material, bis dahin 500
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="Betriebsmittel-Eintrag nicht gefunden.")
     return result
@@ -581,6 +584,10 @@ def delete_service_report_asset(asset_row_id: Id, db: Session = Depends(get_db, 
     _require_module_enabled(db)
     _require_operational_assets_module_enabled(db)
     require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportAsset, asset_row_id, "Betriebsmittel-Eintrag nicht gefunden."))
-    if not delete_asset_usage(db, asset_row_id):
+    try:
+        deleted = delete_asset_usage(db, asset_row_id)
+    except ValueError as exc:  # seit 1.9.362 (Rundgang gegen PostgreSQL): unterschriebener Bericht 400 wie Material, bis dahin 500
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
         raise HTTPException(status_code=404, detail="Betriebsmittel-Eintrag nicht gefunden.")
     return {"ok": True}

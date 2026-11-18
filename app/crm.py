@@ -15,6 +15,22 @@ def compose_customer_name(salutation: str | None, title: str | None, first_name:
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 
+class KundennameZuLang(ValueError):
+    """Anrede, Titel, Vorname und Nachname zusammen länger als Customer.name (seit 1.9.362) -- Router: 422 mit dem Text."""
+
+
+def kundenname(salutation: str | None, title: str | None, first_name: str | None, last_name: str) -> str:
+    """compose_customer_name() mit Prüfung der Länge (seit 1.9.362, Rundgang gegen PostgreSQL): jedes Feld passt für sich, zusammen bis zu 508
+    Zeichen in einer Spalte mit 255 -- unter PostgreSQL 500, unter SQLite still gespeichert. Der Adressimport lehnt eine solche Zeile seit 1.9.351
+    ab (app/address_import.py::NAME_ZUSAMMEN), Anlegen und Ändern jetzt ebenso."""
+    from .spaltenlaenge import laenge
+    name = compose_customer_name(salutation, title, first_name, last_name)
+    grenze = laenge(Customer.name)
+    if len(name) > grenze:
+        raise KundennameZuLang(f"Anrede, Titel, Vorname und Nachname sind zusammen zu lang ({len(name)} Zeichen, höchstens {grenze}).")
+    return name
+
+
 def next_customer_number(db: Session) -> str:
     """Vergibt die nächste automatische Kundennummer -- seit 1.8.73 über issue_number() (gesperrt, hochgezählt); vorher
     nur die Vorschau, zwei gleichzeitig angelegte Kunden bekamen dieselbe."""

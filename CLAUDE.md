@@ -1687,6 +1687,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   im Filter des Adressbuchs nur über `passt(spalte, text)` (`telefonbuch(spalte)` enthält `schluessel(text)`) -- „muller“ findet „MÜLLER“, unter SQLite
   und PostgreSQL gleich. Wächter `tests/test_v759_suche_telefonbuch.py`. Seit 1.9.360 ebenso Aufgaben, Material und Änderungshistorie: jedes like/ilike unter
   `app/` steht in `passt()`, außer Mustern ohne Text vom Benutzer, die genau vergleichen (`INTERN` in `tests/test_v760_suche_und_kundenliste.py`, genau).
+- **Rundgang gegen PostgreSQL** (seit 1.9.362, `tests/test_v762_rundgang_postgresql.py`, Teil der Suite und des Endlaufs, ohne PostgreSQL übersprungen):
+  jede DELETE-Route ohne 500, jede schreibende Route mit Text an der Grenze ohne 500 und ein Zeichen darüber 422, jedes Formularfeld mit langem Text ohne 500,
+  die Listen der Stammdaten wie im Telefonbuch -- auf der Welt der Datengrenze, jede Anfrage zurückgerollt. Eine neue DELETE-Route, die dort nur 404 sieht,
+  bekommt in `_mehr_daten()` ein Ziel; ein Formularfeld, das ohne Prüfung in `String(n)` geht, `max_length`.
 - **IDs in Pfad, Abfrage und Formular über `app/ids.py::Id`** (seit 1.9.361): außerhalb von int4 404 „Nicht gefunden.“, bevor der Endpunkt läuft -- nie 500
   unter PostgreSQL. Eine Klasse, keine `Annotated`-Angabe (FastAPI wirft deren Prüfung bei `Query()`/`Path()`/`Form()` als Vorgabe weg). Eine ID heißt `…_id`,
   `…_ids`, `auftrag`, `mitarbeiter` oder `vorwahl`; jede andere ganze Zahl in Pfad, Abfrage oder Formular steht mit Grund in `KEINE_ID` von

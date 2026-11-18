@@ -340,3 +340,22 @@ kein Marker unter `app/`.
 von int4 gesetzt, wo die Geschäftslogik schon prüft -- die volle Suite war rot (Festlegung 1.8.150 der Änderungshistorie), die Grenzen zurück, Tabelle `KEINE_ID`
 je Route mit Art; `361_6`–`361_10` danach neu gefasst und gelaufen wie oben. Das Werkzeug setzt den Marker seit dieser Runde selbst ans Ende der geänderten
 Zeile (in 1.9.360 stand er zweimal mitten in der Zeile). Alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V3, 1.9.362 (Punkt 2): Rundgang gegen PostgreSQL
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 6 – Bezeichnung gekürzt | `write_audit()` ohne Kürzen (`362_1`) | 2 rot: v762 SQLite-Test, Rundgang „an der Grenze“ (500 unter PostgreSQL) |
+| Nr. 7 – Kundenname 422 | Prüfung in `kundenname()` aus (`362_2`) | 2 rot: v762 SQLite-Test, Rundgang „an der Grenze“ |
+| Nr. 7 – zuerst prüfen, dann setzen | Prüfung nach dem Setzen (`362_3`) | 1 rot: v762 SQLite-Test („nichts gespeichert“) |
+| Nr. 4 – Formularfelder mit Grenze | Kategorie der Kundendokumente ohne `max_length` (`362_4`) | 2 rot: v762 Formularfeld, Rundgang Formular |
+| Nr. 4 – ebenso | Lieferscheinnummer ohne `max_length` (`362_5`) | 2 rot: dieselben |
+| Nr. 8 – mit Eingangsrechnung deaktiviert | Prüfung der Eingangsrechnung aus (`362_6`) | 2 rot: v762 SQLite-Test, Rundgang DELETE (500 am Fremdschlüssel) |
+| Nr. 8 – aus dem Import deaktiviert | Prüfung der Importzeile aus (`362_7`) | 1 rot: v762 SQLite-Test (der Rundgang hat keine Importzeile) |
+| Nr. 9 – Betriebsmittel 400 | DELETE fängt `LookupError` statt `ValueError` (`362_8`) | 2 rot: v762 SQLite-Test, Rundgang DELETE |
+| Nr. 2, 3 – an der Grenze kein 500 | Lieferantennummer mit `max_length` 60 statt 50 (`362_9`) | 1 rot: Rundgang „an der Grenze“ (500) |
+| Nr. 3 – ein Zeichen darüber 422 | `_ohne_rand()` kürzt auf 50 Zeichen (`362_11`) | 2 rot: Rundgang „ein Zeichen darüber“, v762 Kundenname |
+| Nr. 5 – Listen wie im Telefonbuch | Lieferanten wieder nach `name` (`362_10`) | 1 rot: Rundgang Listen |
+| Nr. 1 – Rundgang in der Suite | -- | keine Aussage im Code: die Datei liegt unter `tests/`, ohne PostgreSQL übersprungen (wie jeder PostgreSQL-Test) |
+
+11 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

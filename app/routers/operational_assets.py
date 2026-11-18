@@ -298,7 +298,7 @@ def delete_operational_asset_inspection_document(inspection_id: Id, db: Session 
 @router.post("/api/operational-assets/{asset_id}/documents", response_model=OperationalAssetDocumentOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_operational_asset_document(
-    asset_id: Id, document_type: str = Form(...), notes: str | None = Form(None),
+    asset_id: Id, document_type: str = Form(..., max_length=80), notes: str | None = Form(None),
     file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)

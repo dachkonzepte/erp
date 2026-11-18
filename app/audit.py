@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import event, inspect, select
 from sqlalchemy.orm import Session
 
+from .spaltenlaenge import laenge
 from .suchmuster import passt
 
 from .models import (
@@ -849,6 +850,9 @@ def write_audit(session, flush_context):
         for p in pending:
             obj = p["obj"]
             et, eid, label, project_id = p.get("entity") or _normalize(session, obj)
+            # seit 1.9.362 (Rundgang gegen PostgreSQL): die Bezeichnung auf die Länge der Spalte wie record_audit_entry() -- „Nummer · Titel“ eines
+            # Angebots, „Nummer Name“ eines Kunden oder Lieferanten kamen über 255 Zeichen, unter PostgreSQL 500, unter SQLite still gespeichert
+            label = (label or "")[:laenge(AuditLog.entity_label)] or None
             actor_id, actor_name = p.get("actor") or (_actor_id.get(), _actor_name.get())  # seit 1.9.344: Konto aus aufgabe_loeschen()
             session.add(AuditLog(
                 actor_user_id=actor_id, actor_name=actor_name, action=p["action"],

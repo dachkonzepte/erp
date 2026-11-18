@@ -18,7 +18,7 @@ from fastapi import Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..crm import compose_customer_name, ensure_customer_profile
+from ..crm import KundennameZuLang, ensure_customer_profile, kundenname
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
@@ -120,10 +120,15 @@ def update_customer(customer_id: Id, payload: CustomerUpdate, db: Session = Depe
     # Seit 1.9.136 (Stufe 5, R3, Punkt 1) ein Teil-Update (Regel 22): nur gesendete Felder -- die Kundenakte schickt aus dem Dialog
     # „Stammdaten bearbeiten“ nur, was geändert ist; bis 1.9.135 übernahm der Handler jedes Feld (Vorgabe „Privatkunde“, „Deutschland“).
     werte = payload.model_dump(exclude_unset=True)
+    teile = {k: werte.get(k, getattr(customer, k)) for k in ("salutation", "title", "first_name", "last_name")}
+    try:  # seit 1.9.362: zuerst prüfen, dann setzen
+        name = kundenname(teile["salutation"], teile["title"], teile["first_name"], teile["last_name"])
+    except KundennameZuLang as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     for key, value in werte.items():
         if key not in ("category", "customer_number", "default_payment_term_id"):
             setattr(customer, key, value)
-    customer.name = compose_customer_name(customer.salutation, customer.title, customer.first_name, customer.last_name)
+    customer.name = name
     try:
         ensure_customer_profile(
             db, customer, werte.get("category"), werte.get("customer_number"),
@@ -201,7 +206,10 @@ def delete_customer_extra_info(customer_id: Id, info_id: Id, db: Session = Depen
 @router.post("/api/customers", response_model=CustomerOut)
 def create_customer(payload: CustomerCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     data = payload.model_dump(exclude={"extra_infos", "category", "customer_number", "default_payment_term_id"})
-    data["name"] = compose_customer_name(data.get("salutation"), data.get("title"), data.get("first_name"), data["last_name"])
+    try:
+        data["name"] = kundenname(data.get("salutation"), data.get("title"), data.get("first_name"), data["last_name"])
+    except KundennameZuLang as exc:  # seit 1.9.362
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     customer = Customer(**data)
     for info in payload.extra_infos:
         customer.extra_infos.append(CustomerExtraInfo(**info.model_dump()))
@@ -249,7 +257,7 @@ def list_customer_documents(customer_id: Id, db: Session = Depends(get_db, scope
 @router.post("/api/customers/{customer_id}/documents", response_model=CustomerDocumentOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_customer_document(
-    customer_id: Id, file: UploadFile = File(...), category: str = Form("Sonstiges"), subfolder: str | None = Form(None),
+    customer_id: Id, file: UploadFile = File(...), category: str = Form("Sonstiges", max_length=100), subfolder: str | None = Form(None, max_length=150),
     description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):

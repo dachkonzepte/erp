@@ -319,9 +319,9 @@ def list_project_documents(project_id: Id, db: Session = Depends(get_db, scope="
 @router.post("/api/projects/{project_id}/documents", response_model=ProjectDocumentOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_project_document(
-    project_id: Id, file: UploadFile = File(...), category: str = Form("Sonstiges"),
+    project_id: Id, file: UploadFile = File(...), category: str = Form("Sonstiges", max_length=100),
     description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db, scope="function"),
-    subfolder: str | None = Form(None), _role: AppUser = _role_dep,
+    subfolder: str | None = Form(None, max_length=150), _role: AppUser = _role_dep,
 ):
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalAsset, OperationalResource, OutlookSeriesOccurrence, PlanningSlotResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..models import AppUser, CalendarEvent, Contact, Employee, ImportedAddress, IncomingInvoice, OperationalAsset, OperationalResource, OutlookSeriesOccurrence, PlanningSlotResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
 from ..operational_assets import loeschbare_ressourcen, ressource_in_gebrauch
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
@@ -141,8 +141,10 @@ def update_supplier(supplier_id:Id,payload:SupplierUpdate,db:Session=Depends(get
 def delete_supplier(supplier_id:Id,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(Supplier,supplier_id)
     if x is None: raise HTTPException(status_code=404,detail="Lieferant nicht gefunden.")
-    # Seit 1.8.39 zählt auch ein Adressbuch-Eintrag mit Verweis auf den Lieferanten (Beteiligter) als Verwendung.
+    # Seit 1.8.39 zählt auch ein Adressbuch-Eintrag mit Verweis auf den Lieferanten (Beteiligter) als Verwendung. Seit 1.9.362 (Rundgang gegen
+    # PostgreSQL) auch eine Eingangsrechnung und eine Zeile des Adressimports, die ihn angelegt hat -- bis dahin 500 am Fremdschlüssel.
     used=db.scalar(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.supplier_id==supplier_id)) or db.scalar(select(WorkPreparationDeliveryNote).where(WorkPreparationDeliveryNote.supplier_id==supplier_id)) or db.scalar(select(Contact.id).where(Contact.supplier_id==supplier_id))
+    used=used or db.scalar(select(IncomingInvoice.id).where(IncomingInvoice.supplier_id==supplier_id).limit(1)) or db.scalar(select(ImportedAddress.id).where(ImportedAddress.created_supplier_id==supplier_id).limit(1))
     if used:
         x.active=False; db.commit(); return {"deleted":False,"deactivated":True}
     db.delete(x); db.commit(); return {"deleted":True}

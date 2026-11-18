@@ -264,7 +264,7 @@ def remove_work_preparation_team(assignment_id:Id,db:Session=Depends(get_db, sco
 @router.post("/api/orders/{order_id}/work-preparation/delivery-notes", response_model=WorkPreparationOut)
 # Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
 def upload_work_preparation_delivery_note(
-    order_id:Id, file:UploadFile=File(...), supplier_id:Id|None=Form(None), delivery_note_number:str|None=Form(None),
+    order_id:Id, file:UploadFile=File(...), supplier_id:Id|None=Form(None), delivery_note_number:str|None=Form(None, max_length=120),
     document_date:str|None=Form(None), description:str|None=Form(None), db:Session=Depends(get_db, scope="function"),
     _role:AppUser=_role_dep,
 ):
