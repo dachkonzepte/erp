@@ -30,6 +30,7 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.models import (
@@ -58,7 +59,7 @@ def befuellen(db, k):
         projekt = Project(project_number=f"P-{nummer}", name=f"Projekt {nummer}", customer_id=kd.id, property_id=objekt.id,
                           pipeline_column_id=default_pipeline_column_id(db))
         db.add(projekt); db.flush()
-        o = Order(order_number=f"AU-{nummer}", project_id=projekt.id, source_quote_id=quelle,
+        o = Order(order_number=f"AU-{nummer}", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, f"AU-{nummer}"),
                   quote_number_snapshot=f"A-{nummer}", title=f"Auftrag {nummer}", customer_name=kd.name,
                   property_name=objekt.name)
         db.add(o); db.flush()

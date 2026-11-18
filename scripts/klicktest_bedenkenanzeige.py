@@ -38,6 +38,7 @@ HINWEIS = "Offene Bedenken – vor Ausführung der betroffenen Leistung Entschei
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from sqlalchemy import select
@@ -67,7 +68,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-1", name="Dach Nord", customer_id=kunde.id, property_id=objekt.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-1", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1",
+    auftrag = Order(order_number="AUF-KT-1", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-1"), quote_number_snapshot="A-1",
                     title="Dach Nord", customer_name="Klicktest Kunde", property_name="Halle Nord",
                     property_address="Weg 1\n12345 Stadt", caseworker_employee_id=ma["olga"].id)
     db.add(auftrag); db.commit()

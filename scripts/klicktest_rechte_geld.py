@@ -106,7 +106,7 @@ async def _ganze_seite(tab, name):
     hoehe = await tab.js("Math.ceil(document.documentElement.scrollHeight)")
     daten = (await tab.cmd("Page.captureScreenshot", format="png", captureBeyondViewport=True,
                            clip={"x": 0, "y": 0, "width": 1440, "height": hoehe, "scale": 1}))["data"]
-    (tab.shots / f"{name}.png").write_bytes(base64.b64decode(daten))
+    tab.ablage(f"{name}.png").write_bytes(base64.b64decode(daten))
 
 
 async def pruefen(tab, seed, p):

@@ -52,6 +52,7 @@ def _anzahl(n: int) -> str:
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import timedelta
     from decimal import Decimal
 
@@ -74,7 +75,7 @@ def befuellen(db, k):
     db.add_all([p, q, r]); db.flush()
 
     def auftrag(nummer, projekt, quelle):
-        o = Order(order_number=nummer, project_id=projekt.id, source_quote_id=quelle, quote_number_snapshot="A-" + nummer,
+        o = Order(order_number=nummer, project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, nummer), quote_number_snapshot="A-" + nummer,
                   title="Auftrag " + nummer, customer_name="Klicktest Kunde", customer_number="K-1")
         db.add(o); db.flush()
         db.add(OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Dacheindeckung",

@@ -41,6 +41,7 @@ DIALOGE = "window.alert=()=>{};window.confirm=()=>true;"
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from app.customer_documents import customer_directory
     from app.document_categories import resolve_category_id
     from app.models import (AppUser, Customer, CustomerDocument, Employee, OperationalAsset, Order, Project, ProjectDocument)
@@ -55,7 +56,7 @@ def befuellen(db, k):
     db.add_all([anna, kunde]); db.flush()
     projekt = Project(project_number="P-XSS", name=PROJEKT, customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-XSS", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1", title="Dach",
+    auftrag = Order(order_number="AUF-XSS", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-XSS"), quote_number_snapshot="A-1", title="Dach",
                     customer_name=KUNDE, property_name="Halle", property_address="Weg 1\n12345 Stadt")
     sonstiges = resolve_category_id(db, "Sonstiges")
     for ordner, name in ((ORDNER, "im-ordner.txt"), (None, "ohne-ordner.txt")):

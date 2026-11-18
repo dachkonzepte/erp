@@ -38,6 +38,7 @@ STURM = "board.slots.find(s=>s.project_name.startsWith('Sturm'))"
 
 def befuellen(db, k):
     """wie klicktest_plantafel_ziehen, dazu ein Auftrag ohne Einsatz („Kaminverwahrung Schulz“, steht unter „Nicht eingeplant“)"""
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.models import Customer, Order, OrderItem, OrderItemCalculationSnapshot, Project, Property
@@ -51,7 +52,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-2026-0149", name="Kaminverwahrung Schulz", customer_id=kunde.id, property_id=prop.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    o = Order(order_number="AUF-2026-0149", project_id=projekt.id, source_quote_id=949, quote_number_snapshot="A-KT-149", title="Kaminverwahrung Schulz",
+    o = Order(order_number="AUF-2026-0149", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-2026-0149"), quote_number_snapshot="A-KT-149", title="Kaminverwahrung Schulz",
               customer_name=kunde.name, property_name=prop.name, property_address="Kirchstraße 3\n52531 Übach-Palenberg")
     db.add(o); db.flush()
     item = OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Arbeit", quantity=Decimal("1"), unit="psch", unit_price=Decimal("1"))

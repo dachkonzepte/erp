@@ -74,6 +74,7 @@ LEISTE = ("((art,name)=>{const c=[...document.querySelectorAll('#backlog .ze-zei
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import date
     from decimal import Decimal
 
@@ -105,7 +106,7 @@ def befuellen(db, k):
         db.add(prop); db.flush()
         projekt = Project(project_number=f"P-2026-0{nr}", name=objekt, customer_id=kunde.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
         db.add(projekt); db.flush()
-        o = Order(order_number=f"AUF-2026-0{nr}", project_id=projekt.id, source_quote_id=900 + nr, quote_number_snapshot=f"A-KT-{nr}", title=objekt,
+        o = Order(order_number=f"AUF-2026-0{nr}", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, f"AUF-2026-0{nr}"), quote_number_snapshot=f"A-KT-{nr}", title=objekt,
                   customer_name=kunde.name, property_name=objekt, property_address=f"{objekt}\n52531 Übach-Palenberg")
         db.add(o); db.flush()
         item = OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Arbeit", quantity=Decimal("1"), unit="psch", unit_price=Decimal("1"))
@@ -131,7 +132,11 @@ def befuellen(db, k):
     create_slot(db, order_id=auftrag(144, "Ortgang Lindenweg 9", "Familie Becker", 8).id, team_id=None, start_date=d(2), end_date=d(2), status="fest",
                 employee_ids=[L["Tom"].id, L["Mia"].id], geraete=[{"resource_id": p202.id, "tage": None}], **w)
     wartung = auftrag(97, "Wartung Halle Nord", "Hausverwaltung Rhein", 4)
-    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=1)); db.commit()
+    # seit 1.9.363 ein echter Wartungsvertrag (bis dahin die erfundene ID 1 -- mit Fremdschlüsselprüfung in der Instanz abgelehnt)
+    from app.models import MaintenanceContract
+    vertrag = MaintenanceContract(customer_id=db.get(Project, wartung.project_id).customer_id, title="Wartung Halle Nord", next_due_date=date(2026, 12, 9))
+    db.add(vertrag); db.flush()
+    db.add(ProjectProfile(project_id=wartung.project_id, source_maintenance_contract_id=vertrag.id)); db.commit()
     create_slot(db, order_id=wartung.id, team_id=None, start_date=d(3), end_date=d(3), status="fest", employee_ids=[L["Lia"].id, L["Nele"].id],
                 geraete=[{"resource_id": p204.id, "tage": None}], **w)
     create_slot(db, order_id=auftrag(153, "Kranvermietung", "Beispielbau GmbH", 0).id, team_id=None, start_date=d(4), end_date=d(4), status="fest",

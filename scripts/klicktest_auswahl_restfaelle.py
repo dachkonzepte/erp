@@ -29,6 +29,7 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.berlin_time import berlin_today
@@ -54,9 +55,9 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-1", name="Sanierung", customer_id=kunde.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    offen = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-KT-1",
+    offen = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AU-KT-0001"), quote_number_snapshot="A-KT-1",
                   title="Dachsanierung", customer_name=kunde.name, vat_rate=Decimal("16"), tax_key_id=alt.id)
-    erledigt = Order(order_number="AU-KT-0002", project_id=projekt.id, source_quote_id=2, quote_number_snapshot="A-KT-2",
+    erledigt = Order(order_number="AU-KT-0002", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AU-KT-0002"), quote_number_snapshot="A-KT-2",
                      title="Gaube", customer_name=kunde.name, vat_rate=Decimal("19"), status="abgeschlossen")
     angebot = Quote(quote_number="A-KT-1", project_id=projekt.id, title="Dachsanierung", vat_rate=Decimal("16"),
                     tax_key_id=alt.id, intro_text="Wir bieten an:", outro_text="Mit freundlichen Grüßen", outro_text_2=None)

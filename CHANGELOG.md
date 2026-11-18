@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.363 – Klicktests mit Fremdschlüsselprüfung
+
+Punkt 3 der Runde V3. Eine Klicktest-Instanz prüft jetzt Fremdschlüssel wie PostgreSQL: der Schalter `ERP_TEST_FREMDSCHLUESSEL=1` (`app/database.py`, nur mit `ERP_ENV` development oder test) schaltet unter SQLite die Prüfung ein, das Klicktest-Werkzeug setzt ihn. Dafür legen 42 Seeds das Angebot ihres Auftrags an statt einer erfundenen ID, und ein Seed der Plantafel einen echten Wartungsvertrag. Alle 152 Klicktests laufen mit Prüfung; in `app/` fand sich dabei nichts.
+
+Dazu im Werkzeug: `Tab.ablage()` legt den Bilderordner direkt vor jeder Datei an -- im Endlauf von V2c hatte ein Aufräumen leerer Ordner unter %TEMP% vier laufende Klicktests gekippt. Neu `tests/test_v763_klicktests_fremdschluessel.py`. Keine Migration.
+
 ## 1.9.362 – Rundgang gegen PostgreSQL
 
 Punkt 2 der Runde V3. Eine neue Testdatei läuft gegen ein Wegwerf-Schema der Spielwiese: jede DELETE-Route, jede schreibende Route mit Text an der Grenze und ein Zeichen darüber, jedes Textfeld eines Formulars und zehn Listen der Stammdaten -- auf einer Welt mit Daten in den Tabellen der Abläufe, jede Anfrage zurückgerollt. Sie ist Teil der Suite und damit des Endlaufs, rund 13 s.

@@ -117,7 +117,7 @@ async def _pdf(tab, bericht: int, name: str) -> str:
     daten = await tab.js(f"fetch('/api/service-reports/{bericht}/pdf').then(r=>r.arrayBuffer()).then(b=>{{let s='';"
                          "new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));return btoa(s)})")
     pdf = base64.b64decode(daten or "")
-    (tab.shots / name).write_bytes(pdf)
+    tab.ablage(name).write_bytes(pdf)
     return _pdf_text(pdf)
 
 

@@ -27,6 +27,7 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.models import (
@@ -51,7 +52,7 @@ def befuellen(db, k):
     archiv = Project(project_number="P-KT-0", name="Altprojekt", customer_id=kunde.id, archived=True,
                      pipeline_column_id=default_pipeline_column_id(db))
     db.add_all([projekt, archiv]); db.flush()
-    auftrag = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-KT-1",
+    auftrag = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AU-KT-0001"), quote_number_snapshot="A-KT-1",
                     title="Dachsanierung", customer_name=kunde.name, vat_rate=Decimal("19"),
                     caseworker_employee_id=erika.id, project_manager_employee_id=erika.id)
     aufgabe = Task(title="Rückruf Kundin", assigned_employee_id=erika.id, project_id=archiv.id)

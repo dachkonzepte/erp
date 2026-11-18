@@ -30,6 +30,7 @@ ZEILEN = ("[...document.querySelectorAll('#rueckfahrtListe .zeile')].map(z=>[z.q
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import date, datetime, time
     from decimal import Decimal
 
@@ -49,7 +50,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-RF1", name="Halle", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt)
     db.flush()
-    auftrag = Order(order_number="AUF-2026-0314", project_id=projekt.id, source_quote_id=314, quote_number_snapshot="A-KT-314", title="Halle",
+    auftrag = Order(order_number="AUF-2026-0314", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-2026-0314"), quote_number_snapshot="A-KT-314", title="Halle",
                     customer_name=kunde.name)
     db.add(auftrag)
     db.flush()

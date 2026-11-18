@@ -29,6 +29,7 @@ CONFIRM = ("window.confirm=m=>{const f=JSON.parse(sessionStorage.getItem('fragen
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import timedelta
     from decimal import Decimal
 
@@ -41,7 +42,7 @@ def befuellen(db, k):
     db.add(kunde); db.flush()
     projekt = Project(project_number="P-KE-1", name="Dach Kolonne", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KE-1", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-KE-1", title="Auftrag Kolonne",
+    auftrag = Order(order_number="AUF-KE-1", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KE-1"), quote_number_snapshot="A-KE-1", title="Auftrag Kolonne",
                     customer_name="Kundin Kolonne")
     db.add(auftrag); db.flush()
     db.add(OrderItem(order_id=auftrag.id, sort_order=10, position_number="1", short_text="Dacheindeckung", quantity=Decimal("10"),

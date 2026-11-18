@@ -58,6 +58,22 @@ def engine_optionen(url: str) -> dict:
 
 
 engine = create_engine(DATABASE_URL, future=True, **engine_optionen(DATABASE_URL))
+
+
+def fremdschluessel_pruefen() -> bool:
+    """Seit 1.9.363 (Runde V3, Punkt 3): ERP_TEST_FREMDSCHLUESSEL=1 schaltet unter SQLite die Prüfung der Fremdschlüssel ein (PRAGMA
+    foreign_keys=ON) -- nur für Test-Instanzen (ERP_ENV development oder test: Klicktests, Bildgrundlage), nie im Betrieb (production, ohne ERP_ENV).
+    PostgreSQL prüft ohnehin. Bis dahin prüfte nur die Suite (tests/conftest.py, seit 1.9.339); eine Klicktest-Instanz nahm einen Auftrag ohne sein
+    Angebot still an."""
+    return os.getenv("ERP_TEST_FREMDSCHLUESSEL") == "1" and os.getenv("ERP_ENV") in ("development", "test")
+
+
+if DATABASE_URL.startswith("sqlite") and fremdschluessel_pruefen():
+    @event.listens_for(engine, "connect")
+    def _fremdschluessel_an(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 

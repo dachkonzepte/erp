@@ -35,6 +35,7 @@ VORWAHL = "fetch('/api/field-view/today').then(r=>r.json()).then(d=>d.heute.arbe
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import date
     from decimal import Decimal
 
@@ -63,7 +64,7 @@ def befuellen(db, k):
         db.add(prop); db.flush()
         projekt = Project(project_number=f"P-2026-01{nr}", name=objekt, customer_id=kunde.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
         db.add(projekt); db.flush()
-        o = Order(order_number=f"AUF-2026-01{nr}", project_id=projekt.id, source_quote_id=900 + nr, quote_number_snapshot=f"A-KT-{nr}", title=objekt,
+        o = Order(order_number=f"AUF-2026-01{nr}", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, f"AUF-2026-01{nr}"), quote_number_snapshot=f"A-KT-{nr}", title=objekt,
                   customer_name=kunde.name, property_name=objekt, property_address=f"{objekt}\n52531 Übach-Palenberg")
         db.add(o); db.flush()
         db.add(OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Arbeit", quantity=Decimal("1"), unit="psch", unit_price=Decimal("1")))

@@ -36,6 +36,7 @@ from klicktest_checkliste_unterschrift import CONFIRM, _unterschreiben  # noqa: 
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     import os
     from decimal import Decimal
     from io import BytesIO
@@ -61,7 +62,7 @@ def befuellen(db, k):
     db.add(kunde); db.flush()
     projekt = Project(project_number="P-KT-1", name="Dach Nord", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-1", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1",
+    auftrag = Order(order_number="AUF-KT-1", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-1"), quote_number_snapshot="A-1",
                     title="Dach Nord", customer_name="Klicktest Kunde", property_name="Halle", property_address="Weg 1\n12345 Stadt")
     db.add(auftrag); db.commit()
     prep = ensure_preparation(db, auftrag.id)

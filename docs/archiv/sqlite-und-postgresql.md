@@ -1120,3 +1120,38 @@ Neu `tests/test_v762_rundgang_postgresql.py`: 5 Tests des Rundgangs (gegen Postg
 acht Formularfelder, Lieferant, Betriebsmittel). Keine angepasste Erwartung. Nebenbei: `tests/test_v438_nachrunde.py` Zeile 107 -- `<\/td>` im f-String
 doppelt geschützt (`<\\/td>`, derselbe Text für node); seit Python 3.12 eine SyntaxWarning, sichtbar, sobald die Datei neu übersetzt wird (hier in
 1.9.361 berührt), in der vollen Suite 2 Warnungen mehr.
+
+### Umsetzung 1.9.363: Klicktests mit Fremdschlüsselprüfung; der Bilderordner vor jedem Bild (Punkt 3)
+
+- **Der Schalter** `ERP_TEST_FREMDSCHLUESSEL=1` (`app/database.py::fremdschluessel_pruefen()`): unter SQLite `PRAGMA foreign_keys=ON` an jeder Verbindung der
+  Engine der App -- nur mit `ERP_ENV` development oder test; im Betrieb (production, ohne `ERP_ENV`) wirkungslos, PostgreSQL prüft ohnehin. Das
+  Klicktest-Werkzeug setzt ihn für jede Instanz (`scripts/cdp_klicktest.py::_isolierte_umgebung()`), damit für Befüllen und Server, auch für die Bildgrundlage.
+  In `.env.example` genannt (nur Test-Instanzen).
+- **Seeds:** 43 Aufrufe `Order(...)` in 42 Klicktests legten den Auftrag mit einer erfundenen Angebots-ID an (`source_quote_id=1`, `900 + nr` …; das Archiv
+  nannte in V1 rund 40) -- jetzt mit `quell_angebot(db, <Projekt>, <Auftragsnummer>)` aus `tests/quellangebot.py` (seit 1.9.338), vom Werkzeug über den Baum
+  umgestellt. Importiert wird es als erste Anweisung in `befuellen()`: im Hauptprozess eines Klicktests liegt nur `scripts/` im Suchpfad, beim Befüllen auch das
+  Projekt. Unverändert die vier Skripte, die schon ein echtes Angebot hatten (`angebot.id`: drei Klicktests und `messe_pruefen.py`), und `scripts/vorprobe_time4.py` (eigene Wegwerf-SQLite, keine
+  Test-Instanz).
+- **Gefunden im Lauf mit Prüfung:** 150 von 152 Klicktests liefen gleich grün. `klicktest_plantafel_auftraege` (und `…_ziehen`, der dessen Seed nimmt) setzte
+  am Projektprofil einen Wartungsvertrag mit erfundener ID (`source_maintenance_contract_id=1`) -- jetzt ein echter Vertrag. Kein Fehler in `app/`: die
+  Abläufe der Klicktests verletzten keinen Fremdschlüssel.
+- **Bilderordner (Fund im Endlauf von V2c):** `Tab.ablage(name)` legt den Ordner „shots“ direkt vor jeder Datei an und gibt den Pfad zurück; `bild()` und
+  `bild_ganz()` nehmen sie, ebenso die vier Klicktests, die selbst in den Ordner schreiben (Foto, PDF, zwei Bilder). Ein Aufräumen leerer Ordner unter %TEMP%
+  kippt so keinen Lauf mehr.
+- **Wächter** `tests/test_v763_klicktests_fremdschluessel.py`: der Schalter je Kombination von Schalter und `ERP_ENV` (Kindprozess, PRAGMA gelesen); das Werkzeug
+  setzt ihn; eine Instanz mit der Umgebung des Werkzeugs lehnt einen Auftrag mit erfundenem Angebot ab und nimmt ihn mit `quell_angebot()`; kein `Order(...)`
+  unter `scripts/` mit erfundener Angebots-ID (`AUSNAHMEN` genau: `vorprobe_time4.py`); kein Import aus `tests` auf oberster Ebene eines Skripts; `ablage()`
+  legt den Ordner an, `bild()`/`bild_ganz()` nehmen sie, kein Skript setzt `… shots / name` an ihr vorbei zusammen.
+
+#### Festlegungen 1.9.363 (Bitte bestätigen)
+
+1. `ERP_TEST_FREMDSCHLUESSEL=1` schaltet unter SQLite die Prüfung der Fremdschlüssel ein -- nur mit `ERP_ENV` development oder test, nie im Betrieb.
+2. Das Klicktest-Werkzeug setzt den Schalter für jede Instanz (Befüllen und Server, auch die Bildgrundlage).
+3. Jeder Seed legt das Angebot seines Auftrags an (`quell_angebot()`); kein Auftrag unter `scripts/` mit erfundener Angebots-ID, Ausnahme mit Grund in `AUSNAHMEN`.
+4. Ein Skript importiert aus `tests` erst in `befuellen()`, nie auf oberster Ebene.
+5. Jede Datei im Bilderordner über `Tab.ablage()`: der Ordner wird direkt davor angelegt.
+
+#### Tests und Prüfung 1.9.363
+
+Neu `tests/test_v763_klicktests_fremdschluessel.py` (14 Tests). Keine angepasste Erwartung; geändert ist nur der Aufbau der Testdaten in 42 Klicktests (das Angebot
+des Auftrags) und in `klicktest_plantafel_auftraege.py` (der Wartungsvertrag).

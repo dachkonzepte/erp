@@ -45,6 +45,7 @@ GEZEICHNET = "(()=>{const z=document.querySelector('#schritte .schritt');return 
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import datetime, time, timedelta
     from decimal import Decimal
     from io import BytesIO
@@ -95,7 +96,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-BS", name="Wartung Halle Nord", customer_id=kunde.id, property_id=halle.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-BS", project_id=projekt.id, source_quote_id=901, quote_number_snapshot="A-KT-BS",
+    auftrag = Order(order_number="AUF-KT-BS", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-BS"), quote_number_snapshot="A-KT-BS",
                     title="Wartung Halle Nord", customer_name=kunde.name, property_name=halle.name,
                     property_address="Werkstr. 5\n52531 Übach-Palenberg")
     db.add(auftrag); db.flush()
@@ -191,7 +192,7 @@ async def _alle_schritte_messen(tab) -> list:
 
 async def pruefen(tab, seed, p):
     a, w, r, leer = seed["auftrag"], seed["wartung"], seed["rapport"], seed["leer"]
-    foto = tab.shots / "foto.png"
+    foto = tab.ablage("foto.png")
     foto.write_bytes(bytes.fromhex(seed["foto_png"]))
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(*QUER, mobil=True)

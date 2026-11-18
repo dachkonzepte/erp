@@ -38,6 +38,7 @@ PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.checklist_templates import add_field, create_template, publish_draft
@@ -64,7 +65,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-UZ", name="Halle Nord", customer_id=kunde.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-UZ", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1",
+    auftrag = Order(order_number="AUF-KT-UZ", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-UZ"), quote_number_snapshot="A-1",
                     title="Halle Nord", customer_name="Hallenbau GmbH", property_name="Halle",
                     property_address="Werkstr. 5\n52531 Uebach")
     db.add(auftrag); db.commit()

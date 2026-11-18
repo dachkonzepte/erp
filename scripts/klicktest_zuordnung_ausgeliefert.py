@@ -53,7 +53,7 @@ async def _bild_des_blocks(tab, element_id: str, name: str) -> None:
                      f"(document.getElementById('{element_id}'))")
     data = (await tab.cmd("Page.captureScreenshot", format="png", captureBeyondViewport=True,
                           clip={"x": max(0, r[0] - 16), "y": max(0, r[1] - 16), "width": r[2] + 32, "height": r[3] + 32, "scale": 1}))["data"]
-    (tab.shots / f"{name}.png").write_bytes(base64.b64decode(data))
+    tab.ablage(f"{name}.png").write_bytes(base64.b64decode(data))
 
 
 async def pruefen(tab, seed, p):

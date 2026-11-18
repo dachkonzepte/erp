@@ -51,6 +51,7 @@ ZEITRAUM = ("(() => { const n = performance.getEntriesByType('resource').map(e =
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import date
     from decimal import Decimal
 
@@ -60,7 +61,7 @@ def befuellen(db, k):
     kunde = Customer(name="Klicktest Kunde", last_name="Klicktest Kunde"); db.add(kunde); db.flush()
     projekt = Project(project_number="P-KT-0001", name="Monatswechsel", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-0001", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-KT-0001",
+    auftrag = Order(order_number="AUF-KT-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-0001"), quote_number_snapshot="A-KT-0001",
                     title="Monatswechsel", customer_name="Klicktest Kunde")
     anna = Employee(employee_number="E-1", first_name="Anna", last_name="Admin", employee_group="angestellt", active=True, hourly_wage=Decimal("22.00"))
     db.add_all([auftrag, anna]); db.flush()

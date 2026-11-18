@@ -359,3 +359,18 @@ Zeile (in 1.9.360 stand er zweimal mitten in der Zeile). Alle Dateien byte-gleic
 | Nr. 1 – Rundgang in der Suite | -- | keine Aussage im Code: die Datei liegt unter `tests/`, ohne PostgreSQL übersprungen (wie jeder PostgreSQL-Test) |
 
 11 Gegenproben, alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Runde V3, 1.9.363 (Punkt 3): Klicktests mit Fremdschlüsselprüfung; der Bilderordner vor jedem Bild
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur für Test-Instanzen | Schalter auch mit `production` (`363_1`) | 1 rot: v763 Schalter (production) |
+| Nr. 1 – der Schalter wirkt | `fremdschluessel_pruefen()` immer falsch (`363_2`) | 3 rot: v763 Schalter (development, test), Instanz lehnt ab |
+| Nr. 2 – das Werkzeug setzt ihn | `ERP_TEST_FREMDSCHLUESSEL=0` im Werkzeug (`363_3`) | 2 rot: v763 Werkzeug, Instanz lehnt ab |
+| Nr. 3 – kein erfundenes Angebot | `klicktest_abschliessen` wieder `source_quote_id=1` (`363_4`, `363_4k`) | 1 rot: v763 Seeds; der Klicktest selbst: Befüllen scheitert am Fremdschlüssel (Rückgabe 2) |
+| Nr. 4 – kein Import aus `tests` oben | Import auf oberster Ebene (`363_5`) | 1 rot: v763 Import |
+| Nr. 5 – Ordner vor jeder Datei | `ablage()` ohne `mkdir` (`363_6`) | 1 rot: v763 Ablage |
+| Nr. 5 – jedes Bild über `ablage()` | `bild()` wieder `self.shots / …` (`363_7`) | 1 rot: v763 jedes Bild |
+| Nr. 5 – ebenso in Klicktests | `klicktest_rechte_geld` wieder `tab.shots / …` (`363_8`) | 1 rot: v763 jedes Bild |
+
+9 Gegenproben (8 über pytest, 1 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.

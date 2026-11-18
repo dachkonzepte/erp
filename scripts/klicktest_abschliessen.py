@@ -46,6 +46,7 @@ ZEITLIMIT = "window.__dkZeitlimit=2000;"
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from decimal import Decimal
 
     from app.models import AppUser, Customer, Employee, Order, Project
@@ -60,7 +61,7 @@ def befuellen(db, k):
     db.add_all([anna, kunde]); db.flush()
     projekt = Project(project_number="P-KT-AB", name="Dach Ost", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-KT-AB", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1", title="Dach Ost",
+    auftrag = Order(order_number="AUF-KT-AB", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-KT-AB"), quote_number_snapshot="A-1", title="Dach Ost",
                     customer_name="Bauherr Abschluss", property_name="Halle", property_address="Weg 1\n12345 Stadt")
     db.add(auftrag); db.commit()
     berichte, punkte, freie = [], [], []

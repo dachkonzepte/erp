@@ -40,6 +40,7 @@ ZEITEN_BEREIT = "!!window.P&&document.getElementById('monatTitel').textContent!=
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import date, datetime, time
     from decimal import Decimal
 
@@ -58,7 +59,7 @@ def befuellen(db, k):
     db.add(kunde); db.flush()
     projekt = Project(project_number="P-KT-SW1", name="Halle", customer_id=kunde.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AUF-2026-0001", project_id=projekt.id, source_quote_id=951, quote_number_snapshot="A-KT-1", title="Halle",
+    auftrag = Order(order_number="AUF-2026-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AUF-2026-0001"), quote_number_snapshot="A-KT-1", title="Halle",
                     customer_name=kunde.name)
     db.add(auftrag); db.flush()
     tag = date(2026, 12, 9)

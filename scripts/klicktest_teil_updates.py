@@ -34,6 +34,7 @@ KALK_NOTIZ = "Nur mit Gerüst kalkuliert"
 
 
 def befuellen(db, k):
+    from tests.quellangebot import quell_angebot  # seit 1.9.363: das Angebot des Auftrags (Fremdschlüssel in der Test-Instanz)
     from datetime import timedelta
     from decimal import Decimal
 
@@ -66,7 +67,7 @@ def befuellen(db, k):
     projekt = Project(project_number="P-KT-1", name="Sanierung", customer_id=kunde.id,
                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
-    auftrag = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-KT-1",
+    auftrag = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AU-KT-0001"), quote_number_snapshot="A-KT-1",
                     title="Dachsanierung", customer_name=kunde.name, vat_rate=Decimal("19"))
     db.add(auftrag); db.flush()
     position = OrderItem(order_id=auftrag.id, sort_order=10, position_number="1", short_text="Abdichtung",

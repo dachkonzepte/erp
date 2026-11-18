@@ -920,7 +920,7 @@ class Tab:
         groesse = m.get("cssContentSize") or m["contentSize"]
         data = (await self.cmd("Page.captureScreenshot", format="png", captureBeyondViewport=True,
                                clip={"x": 0, "y": 0, "width": int(groesse["width"]), "height": int(min(groesse["height"], hoechstens)), "scale": 1}))["data"]
-        ziel = self.shots / f"{name}.png"
+        ziel = self.ablage(f"{name}.png")
         ziel.write_bytes(base64.b64decode(data))
         return ziel
 
@@ -1141,9 +1141,16 @@ class Tab:
             await self.netz_melden(f"--  warten: nach {timeout:g} s nicht erfüllt: {bedingung[:80]}")
         return False
 
+    def ablage(self, name: str) -> Path:
+        """Seit 1.9.363: der Pfad einer Datei im Bilderordner -- der Ordner wird direkt davor angelegt. Ein Aufräumen leerer Ordner unter %TEMP%
+        (Windows, Speicheroptimierung) löschte im Endlauf von V2c den noch leeren Ordner „shots“ laufender Klicktests, vier endeten mit
+        FileNotFoundError beim ersten Bild. Jede Datei in den Bilderordner nur über ablage()."""
+        self.shots.mkdir(parents=True, exist_ok=True)
+        return self.shots / name
+
     async def bild(self, name: str) -> Path:
         data = (await self.cmd("Page.captureScreenshot", format="png"))["data"]
-        ziel = self.shots / f"{name}.png"
+        ziel = self.ablage(f"{name}.png")
         ziel.write_bytes(base64.b64decode(data))
         return ziel
 
@@ -1548,6 +1555,7 @@ def _isolierte_umgebung(ordner: Path) -> dict:
         "ERP_DATA_DIR": str(ordner / "data"),
         "ERP_SECRET_KEY": secrets.token_urlsafe(32),
         "ERP_ENV": "development",
+        "ERP_TEST_FREMDSCHLUESSEL": "1",  # seit 1.9.363: die Instanz prüft Fremdschlüssel wie PostgreSQL (app/database.py::fremdschluessel_pruefen())
         "PYTHONIOENCODING": "utf-8",
     })
     return env
