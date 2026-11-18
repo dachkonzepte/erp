@@ -4051,6 +4051,11 @@ class UrlaubsanspruchUpdate(PartialUpdate):
     notiz: str | None = Field(default=None, max_length=255)
 
 
+class UrlaubHinweisGelesenIn(BaseModel):
+    """Seit 1.9.367 (Urlaubsrunde, Punkt 3): „Gelesen“ am Hinweis auf den Resturlaub -- das Jahr des Kontos."""
+    jahr: int = Field(ge=2027, le=2100)
+
+
 class AnteiligUebernehmenIn(BaseModel):
     """Seit 1.9.365 (Urlaubsrunde, Punkt 1): „Vorschlag übernehmen“ -- der Vorschlag, den die Seite zeigt; der Server rechnet ihn neu und lehnt ab,
     wenn er abweicht (409)."""

@@ -27,6 +27,12 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def utc_jetzt() -> datetime:
+    """Seit 1.9.367: jetzt als naives UTC, wie die gespeicherten Zeitstempel -- von derselben Uhr wie berlin_now(), also auch unter einer festen Uhr
+    (Tests, Klicktests) stimmig."""
+    return _utc_now().astimezone(timezone.utc).replace(tzinfo=None, microsecond=0)
+
+
 def berlin_now() -> datetime:
     """Jetzt als naive Ortszeit Europe/Berlin, sekundengenau."""
     return _utc_now().astimezone(BERLIN).replace(tzinfo=None, microsecond=0)

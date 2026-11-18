@@ -64,6 +64,8 @@ class Konto:
     hinweise: list[str] = field(default_factory=list)
     anteilig: dict | None = None  # seit 1.9.365: Vorschlag bei Eintritt oder Austritt im Jahr (vorschlag_anteilig())
     verfall_am: date | None = None  # seit 1.9.366: Verfall des Übertrags im Jahr (am Anspruch, sonst die Vorgabe; leer = nie)
+    resturlaub_hinweis: str | None = None  # seit 1.9.367: der Hinweis an die Person (resturlaub_text()), solange er gilt
+    hinweis_gelesen_am: object = None  # seit 1.9.367: wann sie ihn in „Meine Zeiten“ gelesen hat (naives UTC)
     uebertrag_noch: Decimal = NULL  # seit 1.9.366: Übertrag, den kein genehmigter Urlaub bis zum Verfall verbraucht hat
 
     @property
@@ -83,6 +85,7 @@ class Konto:
                 "genehmigt": t(self.genehmigt), "vorbei": t(self.vorbei), "kuenftig": t(self.kuenftig), "beantragt": t(self.beantragt),
                 "rest": t(self.rest), "rest_nach_antraegen": t(self.rest_nach_antraegen), "hinweise": list(self.hinweise),
                 "verfall_am": self.verfall_am, "uebertrag_noch": t(self.uebertrag_noch),  # seit 1.9.366
+                "resturlaub_hinweis": self.resturlaub_hinweis, "hinweis_gelesen_am": self.hinweis_gelesen_am,  # seit 1.9.367
                 "anteilig": None if self.anteilig is None else {**self.anteilig, "basis": t(self.anteilig["basis"]), "roh": t(self.anteilig["roh"]),
                                                                 "vorschlag": t(self.anteilig["vorschlag"])}}
 
@@ -236,6 +239,10 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                         k.hinweise.append(f"Anspruch anteilig: {k.anteilig['rechnung']}")
                 if k.uebertrag_noch > 0:  # seit 1.9.366 statt „Verfall des Übertrags vorgemerkt am …“
                     k.hinweise.append(uebertrag_hinweis(k.uebertrag_noch, verfall, heute))
+                # seit 1.9.367 (Urlaubsrunde, Punkt 3): ab dem 01.01. bis zum Verfall der Hinweis an die Person, solange vom Übertrag etwas übrig ist
+                if k.uebertrag_noch > 0 and verfall is not None and date(j, 1, 1) <= heute <= verfall:
+                    k.resturlaub_hinweis = resturlaub_text(k.uebertrag_noch, j - 1, verfall)
+                k.hinweis_gelesen_am = a.hinweis_gelesen_am if a is not None else None
                 if k.rest < 0:
                     k.hinweise.append(f"Rest unter 0 ({_tage_text(k.rest)} Tage)")
                 ergebnis.append(k)
@@ -245,6 +252,13 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
 def tage_wort(wert: Decimal) -> str:
     """Seit 1.9.316: „1 Tag“, „0,5 Tage“, „21,5 Tage“, „-2 Tage“."""
     return f"{_tage_text(wert)} {'Tag' if wert == 1 else 'Tage'}"
+
+
+def resturlaub_text(noch: Decimal, vorjahr: int, verfall: date) -> str:
+    """Seit 1.9.367 (Urlaubsrunde, Punkt 3): der Hinweis in „Meine Zeiten“ -- „Du hast noch 2,5 Tage Resturlaub aus 2026. Bitte bis 31.03.2027
+    nehmen – danach verfallen sie.“ (ein Tag: „… danach verfällt er.“)."""
+    return (f"Du hast noch {tage_wort(noch)} Resturlaub aus {vorjahr}. Bitte bis {verfall:%d.%m.%Y} nehmen – danach "
+            f"{'verfällt er' if noch == 1 else 'verfallen sie'}.")
 
 
 def uebertrag_hinweis(noch: Decimal, verfall: date | None, heute: date) -> str:

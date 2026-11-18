@@ -108,6 +108,7 @@
     .uk-wahl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.uk-zeile td{height:auto;padding:10px 8px;vertical-align:top}
     .uk-hinweis{display:block;font-size:12px;color:var(--ds-warn-text);white-space:normal}.uk-zeile.inaktiv td{color:var(--ds-text-2)}
     .uk-vorschlag{display:block;font-size:12px;color:var(--ds-text-2);white-space:normal;max-width:360px}.uk-knopf{margin-top:6px}
+    .uk-gelesen{display:block;font-size:12px;color:var(--ds-text-2);white-space:normal}
     .ad-rest{margin:0;font-size:14px;color:var(--ds-text-2)}
     td.summe{font-weight:600;border-bottom:0}
     .tabelle-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:14px 10px 0;min-width:0;overflow-x:auto}
@@ -1070,7 +1071,7 @@ function ukZeile(k){
   var zahl=function(w,fett){return '<td class="r num">'+(fett?'<b>':'')+esc(zahlText(w))+(fett?'</b>':'')+'</td>'};
   return '<tr class="uk-zeile'+(k.active?'':' inaktiv')+'" data-uk="'+k.employee_id+'"><td><span>'+esc(k.name)+'</span>'
     +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('')
-    +(k.anteilig&&k.anteilig.vorschlag!==k.anspruch?ukAnteilig(k):'')+'</td>'  // seit 1.9.365
+    +(k.anteilig&&k.anteilig.vorschlag!==k.anspruch?ukAnteilig(k):'')+(k.resturlaub_hinweis?ukGelesen(k):'')+'</td>'  // seit 1.9.365, 1.9.367
     +'<td class="r num">'+esc(zahlText(k.anspruch))+(k.anspruch_vorgabe?' <span class="mut">(Vorgabe)</span>':'')+'</td>'
     +zahl(k.uebertrag)+zahl(k.genehmigt)+zahl(k.vorbei)+zahl(k.kuenftig)+zahl(k.beantragt)+zahl(k.rest,true)+zahl(k.rest_nach_antraegen)+'</tr>';
 }
@@ -1084,6 +1085,11 @@ function ukAnteilig(k){
     +' ('+esc(ukDatum(x.von))+'–'+esc(ukDatum(x.bis))+')</span>'
     +(darf?'<button type="button" class="knopf knopf-neutral uk-knopf" data-aktion="uk-anteilig" data-id="'+k.employee_id+'" data-jahr="'+esc(k.jahr)
       +'" data-vorschlag="'+esc(x.vorschlag)+'">Vorschlag übernehmen</button>':'');
+}
+// Seit 1.9.367 (Urlaubsrunde, Punkt 3): solange der Hinweis auf den Resturlaub gilt -- ob die Person ihn in „Meine Zeiten“ gelesen hat
+function ukGelesen(k){
+  return k.hinweis_gelesen_am?'<span class="uk-gelesen">Hinweis Resturlaub gelesen am '+esc(berlinZeitpunkt(k.hinweis_gelesen_am,'zeit'))+'</span>'
+    :'<span class="uk-hinweis">Hinweis Resturlaub: nicht gelesen</span>';
 }
 function ukAnteiligUebernehmen(id,jahr,vorschlag,knopf){
   knopf.disabled=true;

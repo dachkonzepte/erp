@@ -3552,3 +3552,44 @@ Hinweis ersetzt „vorgemerkt“):
 - `klicktest_konten.py` „Fin: Vorgaben 30 Tage, von Hand, kein Verfall“ (umbenannt „… Verfall 31.03.“) -- alt: Feld leer; neu: „31.03.“.
 - `klicktest_urlaubsrunde.py` (aus 1.9.365) „Fin: Konto 2027 mit Vorschlägen“ -- alt: Mia ohne Hinweis; neu: mit „davon Übertrag noch 2,5 Tage, …“.
 Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.366“.
+
+### Umsetzung 1.9.367 (Punkt 3): Hinweis auf den Resturlaub in „Meine Zeiten“
+
+- `app/urlaubskonto.py::konten()`: im angefragten Jahr `resturlaub_hinweis` = `resturlaub_text()` -- „Du hast noch 2,5 Tage Resturlaub aus 2026. Bitte bis
+  31.03.2027 nehmen – danach verfallen sie.“ (ein Tag: „… danach verfällt er.“) --, wenn vom Übertrag etwas übrig ist (`uebertrag_noch`, Übertrag zuerst), ein
+  Verfall gilt und heute zwischen dem 01.01. und dem Verfall liegt (beide eingeschlossen). n ist, was kein genehmigter Urlaub bis zum Verfall verbraucht; offene
+  Anträge zählen nicht. Dazu `hinweis_gelesen_am` vom Anspruch des Jahrs.
+- „Gelesen“: `POST /api/field-view/urlaub-hinweis-gelesen` mit dem Jahr (`UrlaubHinweisGelesenIn`, 2027–2100), jede Rolle, immer die eigene Person (Mitarbeiter
+  aus der Anmeldung, kein Parameter; ohne Mitarbeiter 422) -- `app/lohnkonten.py::hinweis_gelesen()` merkt den Zeitpunkt am Anspruch (Zeile neu, wenn keine
+  war; Spalte `urlaubsansprueche.hinweis_gelesen_am`, naives UTC, Migration `e7a3c9d2f518`); ein zweites „Gelesen“ behält den ersten; ohne Hinweis 409.
+  Der Zeitpunkt kommt von der Uhr der App (`app/berlin_time.py::utc_jetzt()`, neu: naives UTC von `_utc_now()`), nicht von `datetime.utcnow()` -- sonst stünde
+  unter einer festen Uhr (Klicktest) ein anderer Tag da.
+- „Meine Zeiten“ (`mobil_zeiten.html`): über den Kacheln die Karte „Resturlaub“ mit dem Text vom Server und „Gelesen“ (`resturlaubZeichnen()`, Speichern im
+  Bereich `zeiten`, danach lädt die Seite neu); sie fehlt, sobald gelesen. Das Konto in der Karte „Abwesenheit“ nennt den Übertrag weiter („davon Übertrag noch …“).
+- Urlaubskonto unter „Zeiten → Abwesenheiten“ (`zeiten.html`, `ukGelesen()`): solange der Hinweis gilt, „Hinweis Resturlaub: nicht gelesen“ (orange) bzw.
+  „Hinweis Resturlaub gelesen am 10.02.2027 10:00“ (Berlin über `berlinZeitpunkt()`; Feld in `UTC_FELDER` von `tests/test_v473_zeitpunkte_berlin.py`).
+- Historie: „Hinweis Resturlaub gelesen am“ (Urlaubsanspruch je Jahr), für Büro – Auftrag geschwärzt wie die übrigen Werte des Anspruchs.
+
+#### Festlegungen 1.9.367 (Bitte bestätigen)
+
+1. Der Hinweis gilt ab dem 01.01. bis einschließlich zum Verfall, solange vom Übertrag etwas übrig ist (nach Übertrag zuerst) und ein Verfall gilt.
+2. Text „Du hast noch n Tage Resturlaub aus <Vorjahr>. Bitte bis <Verfall> nehmen – danach verfallen sie.“, ein Tag in der Einzahl („… verfällt er.“); das
+   Datum mit Jahr.
+3. „Gelesen“ setzt jede Rolle, immer für die eigene Person; ohne Hinweis 409, ohne Mitarbeiter 422.
+4. Der Zeitpunkt kommt von der Uhr der App (`utc_jetzt()`), gespeichert als naives UTC am Anspruch des Jahrs.
+5. Ein zweites „Gelesen“ behält den ersten Zeitpunkt.
+6. „Meine Zeiten“ zeigt den Hinweis über den Kacheln, bis er gelesen ist.
+7. Das Urlaubskonto des Büros zeigt, solange der Hinweis gilt, „nicht gelesen“ bzw. „gelesen am …“ (Berlin).
+8. In der Historie „Hinweis Resturlaub gelesen am“, für Büro – Auftrag geschwärzt.
+9. Migration `e7a3c9d2f518`: der Bestand bleibt leer; `downgrade()` bricht ab, solange ein Zeitpunkt gespeichert ist.
+
+#### Tests und Prüfung 1.9.367
+
+Neu: `tests/test_v767_resturlaub_hinweis.py` (17 Tests: Text, Zeitraum in fünf Tagen, nur mit Übertrag übrig, Verfall am Anspruch, „Meine Zeiten“ bis gelesen mit
+der Uhr der App und dem ersten Zeitpunkt, Rechte und 409/422, das Büro sieht es, Historie geschwärzt, PostgreSQL, beide Seiten in node, Aufbau, Migration unter
+SQLite und PostgreSQL). `klicktest_urlaubsrunde.py`: Mia in „Meine Zeiten“ mit Hinweis (Bilder `meine_zeiten_resturlaub_{1440,412}_{hell,dunkel}`, 412 ohne
+Überlauf), „Gelesen“ ohne Neuladen und danach, Karte „nicht gelesen“ und „gelesen am 10.02.2027 10:00“. Erweitert: `tests/test_v473_zeitpunkte_berlin.py`
+(`UTC_FELDER` um `hinweis_gelesen_am`). Angepasste Erwartungen:
+- `tests/test_v710_urlaub_und_startwerte.py::test_modelle` -- alt: ohne `hinweis_gelesen_am`; neu: mit.
+- `klicktest_urlaubsrunde.py` „Fin: Konto 2027 mit Vorschlägen“ -- alt: Mia „… verfällt am 31.03.2027“; neu: dazu „Hinweis Resturlaub: nicht gelesen“.
+Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.367“.

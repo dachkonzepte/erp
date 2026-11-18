@@ -244,7 +244,8 @@ def test_migration_auf_einem_bestand_postgresql():
 
 
 def test_modelle():
-    assert {c.name for c in Urlaubsanspruch.__table__.columns} == {"id", "employee_id", "jahr", "urlaubstage", "anteilig_aus", "uebertrag", "verfall_am", "notiz", "updated_at"}  # anteilig_aus seit 1.9.365
+    assert {c.name for c in Urlaubsanspruch.__table__.columns} == {"id", "employee_id", "jahr", "urlaubstage", "anteilig_aus", "uebertrag", "verfall_am", "notiz", "hinweis_gelesen_am",
+                                                                      "updated_at"}  # anteilig_aus seit 1.9.365, hinweis_gelesen_am seit 1.9.367
     assert {c.name for c in LohnStartwert.__table__.columns} == {"id", "employee_id", "stichtag", "resturlaub_tage", "saldo_stunden", "herkunft",
                                                                  "herkunft_notiz", "geprueft_am", "geprueft_von", "updated_at"}
 

@@ -48,6 +48,10 @@ class StartwertGesperrt(ValueError):
     """Der Startwert ist nach dem Abschluss des Monats nach dem Stichtag nur für den Admin änderbar (403)."""
 
 
+class KeinHinweis(ValueError):
+    """Seit 1.9.367: es gibt keinen Hinweis auf Resturlaub, der gelesen werden könnte (409)."""
+
+
 class VorschlagVeraltet(ValueError):
     """Seit 1.9.365: der angezeigte Vorschlag gilt nicht mehr (anderer Wert, schon übernommen, kein Eintritt oder Austritt im Jahr) -- 409."""
 
@@ -266,6 +270,27 @@ def anspruch_setzen(db: Session, employee_id: int, jahr: int, werte: dict) -> di
         setattr(row, feld, wert)
     db.commit()
     return konten(db, [employee_id])[0]
+
+
+def hinweis_gelesen(db: Session, employee_id: int, jahr: int) -> dict:
+    """Seit 1.9.367 (Urlaubsrunde, Punkt 3): „Gelesen“ am Hinweis auf den Resturlaub in „Meine Zeiten“ -- merkt den Zeitpunkt am Anspruch des Jahrs
+    (hinweis_gelesen_am, naives UTC von app/berlin_time.py::utc_jetzt()); ein zweites „Gelesen“ behält den ersten. Nur, solange der Hinweis gilt
+    (app/urlaubskonto.py, resturlaub_hinweis), sonst KeinHinweis (409). Wer liest, entscheidet der Router (nur die eigene Person). Committet; Antwort:
+    das Konto der Person im Jahr."""
+    from .berlin_time import utc_jetzt
+    from .urlaubskonto import konten as urlaubskonten
+    _person(db, employee_id)
+    k = urlaubskonten(db, jahr, [employee_id])
+    if not k or k[0].resturlaub_hinweis is None:
+        raise KeinHinweis("Es gibt keinen Hinweis auf Resturlaub mehr – bitte neu laden.")
+    row = db.scalar(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id == employee_id, Urlaubsanspruch.jahr == jahr))
+    if row is None:
+        row = Urlaubsanspruch(employee_id=employee_id, jahr=jahr)
+        db.add(row)
+    if row.hinweis_gelesen_am is None:
+        row.hinweis_gelesen_am = utc_jetzt()
+    db.commit()
+    return urlaubskonten(db, jahr, [employee_id])[0].als_dict()
 
 
 def anteilig_uebernehmen(db: Session, employee_id: int, jahr: int, vorschlag) -> dict:

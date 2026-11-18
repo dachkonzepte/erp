@@ -45,3 +45,25 @@ Liste steht -- rot, aber nicht am Verhalten; der Test prüft jetzt zuerst die Hi
 
 13 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Nr. 8 „downgrade ändert nichts“ ohne eigene Gegenprobe im Code: der Test prüft
 nach dem downgrade denselben Wert -- eine Gegenprobe wäre ein downgrade, das zurücksetzt; das prüft derselbe Test (`assert … == nachher`).
+
+## 1.9.367 (Punkt 3): Hinweis auf den Resturlaub in „Meine Zeiten“
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ab dem 01.01. | ohne die untere Grenze (`367_1`) | 1 rot: 31.12.2026 mit Hinweis |
+| Nr. 1 – bis einschließlich zum Verfall | `heute < verfall` (`367_1b`) | 1 rot: 31.03.2027 ohne Hinweis |
+| Nr. 1 – nur, solange etwas übrig ist | `uebertrag` statt `uebertrag_noch` (`367_1c`) | 1 rot: „noch 0 Tage“ |
+| Nr. 2 – Einzahl | immer „verfallen sie“ (`367_2`) | 1 rot: Text |
+| Nr. 3 – jede Rolle | Route ab Büro – Auftrag (`367_3`) | 4 rot: die Monteurin bekommt 403 |
+| Nr. 3 – immer die eigene Person | keine Gegenprobe im Code: die Route hat keinen Parameter für eine andere Person; der Test schickt `employee_id` mit, es bewirkt nichts | – |
+| Nr. 4 – die Uhr der App | `datetime.utcnow()` (`367_4b`) | 1 rot: der Zeitpunkt weicht um Monate ab |
+| Nr. 5 – der erste bleibt | immer neu gesetzt (`367_5`) | 1 rot: „der erste bleibt“ |
+| Nr. 3 – ohne Hinweis 409 | ohne die Prüfung (`367_6`) | 1 rot: 200 statt 409 |
+| Nr. 6 – bis gelesen | „Meine Zeiten“ zeigt ihn auch gelesen (`367_7`, Vorlage) | 1 rot: node |
+| Nr. 7 – in Berlin | der Zeitpunkt roh (`367_8`, Vorlage) | 1 rot: node |
+| Nr. 8 – geschwärzt | nicht in `KONTEN_FIELD_NAMES` (`367_9`) | 1 rot: Büro – Auftrag sieht das Feld |
+| Nr. 9 – downgrade bricht ab | ohne Abbruch (`367_10`) | 2 rot: Migration unter SQLite und PostgreSQL |
+
+12 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Selbst falsch gebaut: `367_4` (`datetime.utcnow()` ohne Import in
+`app/lohnkonten.py`) -- rot am NameError, nicht am Zeitpunkt; wiederholt als `367_4b` mit gültigem Ersatz. Vor der Gegenprobe zu Nr. 5 den Test eindeutig
+gemacht: zwei „Gelesen“ in derselben Sekunde hätten auch ohne Schutz denselben Zeitpunkt -- der Test setzt den ersten jetzt vorher auf einen früheren Tag.

@@ -9,6 +9,9 @@ Stehende Uhr Mi 10.02.2027 10:00 (Server und Browser). Nea (Helferin, Eintritt 0
                       „Anspruch anteilig: 26 ÷ 12 × 5 = 10,8 → 11“, kein Knopf mehr; Bea sieht keine Konten anderer und keinen Knopf
     Übertrag zuerst   (1.9.366) Mia (Übertrag 4,5, genehmigter Urlaub 01.–02.02.2027): „davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027“; Dialog für
                       Mia 01.–02.03.2027: „2 Urlaubstage · danach Rest 30,5 Tage · davon Übertrag noch 0,5 Tage, verfällt am 31.03.2027“
+    Resturlaub        (1.9.367) Karte: Mia „Hinweis Resturlaub: nicht gelesen“; Mia (Monteurin) in „Meine Zeiten“: „Du hast noch 2,5 Tage Resturlaub aus
+                      2026. Bitte bis 31.03.2027 nehmen – danach verfallen sie.“ mit „Gelesen“ -- Bilder bei 1440 und 412 px, hell und dunkel (412: nichts
+                      läuft über); „Gelesen“ -> ohne Neuladen weg, nach dem Neuladen auch; Karte: „Hinweis Resturlaub gelesen am 10.02.2027 10:00“
     überall           keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -29,6 +32,8 @@ ZEITEN = "!!window.P&&document.getElementById('monatTitel').textContent!==''"
 KONTO_BEREIT = "!!window.UK&&!!window.A&&!document.getElementById('ukKarte').hidden"
 UK_ZEILEN = ("[...document.querySelectorAll('#ukZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim().replace(/\\s+/g,' ')))")
 NEA = "[...document.querySelectorAll('#ukZeilen tr')].find(tr=>tr.innerText.includes('Nea'))"
+MIA = "[...document.querySelectorAll('#ukZeilen tr')].find(tr=>tr.innerText.includes('Mia'))"
+MEINE = "!document.getElementById('tage').classList.contains('laedt')&&document.getElementById('monatName').textContent!==''"
 
 
 def befuellen(db, k):
@@ -52,9 +57,10 @@ def befuellen(db, k):
                 EmployeeAbsence(employee_id=mia.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 2, 1), end_date=date(2027, 2, 2))])
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
-    db.add_all([fin, bea])
+    mia_konto = AppUser(username="mia", display_name="Mia Monteurin", role="field", employee_id=mia.id, password_hash=k.passwort())  # seit 1.9.367
+    db.add_all([fin, bea, mia_konto])
     db.commit()
-    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "nea_id": nea.id, "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
+    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": k.cookies(mia_konto), "nea_id": nea.id, "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
 
 
 async def _eingeben(tab, feld: str, wert: str):
@@ -73,7 +79,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Abwesenheiten mit Konto", await tab.oeffnen("/zeiten?n=1#abwesenheiten", KONTO_BEREIT), True)
     await tab.warte_auf_ruhe()
     p.pruefe("Fin: Konto 2027 mit Vorschlägen", [z[:2] for z in await tab.js(UK_ZEILEN)], [
-        ["Mia Monteurin davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027", "30 (Vorgabe)"],  # seit 1.9.366
+        ["Mia Monteurin davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027 Hinweis Resturlaub: nicht gelesen", "30 (Vorgabe)"],  # seit 1.9.366, 1.9.367
         ["Nea Neu Anspruch prüfen Vorschlag 11 Tage: 26 ÷ 12 × 5 = 10,8 → 11 · 5 volle Monate (01.08.2027–31.12.2027) Vorschlag übernehmen", "26"],
         ["Wim Weg Anspruch prüfen Vorschlag 12,5 Tage: 30 ÷ 12 × 5 = 12,5 → 12,5 · 5 volle Monate (01.01.2027–31.05.2027) Vorschlag übernehmen",
          "30 (Vorgabe)"]])
@@ -110,7 +116,45 @@ async def pruefen(tab, seed, p):
         "document.getElementById('adRest').textContent==='2 Urlaubstage · danach Rest 30,5 Tage · davon Übertrag noch 0,5 Tage, verfällt am 31.03.2027'", 10),
         True)
     await tab.js("document.getElementById('abwDialog').close()")
+    p.pruefe("Fin: Mia hat den Hinweis nicht gelesen", await tab.js(f"!!{MIA}.querySelector('.uk-hinweis')&&{MIA}.innerText.includes('Hinweis Resturlaub: nicht gelesen')"),
+             True)
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
+
+    # ---- 1.9.367: Mia in „Meine Zeiten“ -- der Hinweis bis „Gelesen“ --------------------------------------------------------------------------
+    await tab.anmelden(seed["mia"])
+    text = "Du hast noch 2,5 Tage Resturlaub aus 2026. Bitte bis 31.03.2027 nehmen – danach verfallen sie."
+    n = 30
+    for breite, mobil in ((1440, False), (412, True)):
+        await tab.fenster(breite, 1000, mobil=mobil)
+        for thema, name in (("light", "hell"), ("dark", "dunkel")):
+            await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+            n += 1
+            p.pruefe(f"Mia {breite} {name}: Meine Zeiten", await tab.oeffnen(f"/mobil/zeiten?n={n}", MEINE), True)
+            await tab.warte_auf_ruhe()
+            p.pruefe(f"Mia {breite} {name}: der Hinweis", await tab.js(
+                "[document.getElementById('resturlaub').hidden,document.getElementById('resturlaubText').textContent]"), [False, text])
+            if mobil:
+                p.pruefe(f"Mia 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.bild(f"meine_zeiten_resturlaub_{breite}_{name}")
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    p.pruefe("Mia: Meine Zeiten", await tab.oeffnen("/mobil/zeiten?n=40", MEINE), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("document.getElementById('resturlaubGelesen').click()")
+    p.pruefe("Mia: „Gelesen“ -- der Hinweis ist weg", await tab.warten("document.getElementById('resturlaub').hidden", 10), True)
+    p.pruefe("Mia: nach dem Neuladen auch", await tab.oeffnen("/mobil/zeiten?n=41", MEINE), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Mia: weiter weg, das Konto nennt den Übertrag", await tab.js(
+        "[document.getElementById('resturlaub').hidden,document.getElementById('ukEigen').innerText.includes('davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027')]"),
+        [True, True])
+    p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
+
+    # ---- 1.9.367: das Büro sieht, dass Mia gelesen hat --------------------------------------------------------------------------------------
+    await tab.anmelden(seed["fin"])
+    p.pruefe("Fin: Abwesenheiten", await tab.oeffnen("/zeiten?n=42#abwesenheiten", KONTO_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Fin: Mia hat gelesen", await tab.js(f"{MIA}.querySelector('.uk-gelesen').innerText"), "Hinweis Resturlaub gelesen am 10.02.2027 10:00")
+    p.pruefe("Fin: keine JS-Fehler (danach)", tab.fehler, [])
 
     # ---- Büro – Auftrag: kein Konto anderer, kein Knopf --------------------------------------------------------------------------------------
     await tab.anmelden(seed["bea"])

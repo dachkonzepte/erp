@@ -66,6 +66,7 @@ from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, is_image_type,
     list_merged_documents_for_property, resolve_property_document_for_field,
 )
+from ..schemas import UrlaubHinweisGelesenIn
 from ..schemas import (
     FieldDocumentCategoryOut, FieldMaintenancePropertyGroupOut, FieldOrderLineOut, FieldReportCreateDataOut, MobileSettingsOut,
     MobileSettingsUpdate,
@@ -184,6 +185,25 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
     if user is None or user.employee_id is None:
         return []
     return list_relevant_contracts_for_employee(db, user.employee_id)
+
+
+@router.post("/api/field-view/urlaub-hinweis-gelesen")
+def post_urlaub_hinweis_gelesen(request: Request, payload: UrlaubHinweisGelesenIn, db: Session = Depends(get_db, scope="function"),
+                                _role: AppUser = _any_role_dep):
+    """Seit 1.9.367 (Urlaubsrunde, Punkt 3): „Gelesen“ am Hinweis auf den Resturlaub in „Meine Zeiten“ -- immer die eigene Person (Mitarbeiter nur aus
+    der Anmeldung, kein Parameter), jede Rolle (app/lohnkonten.py::hinweis_gelesen()). Ohne Hinweis 409, ohne Mitarbeiter 422."""
+    from ..lohnkonten import KeinHinweis, hinweis_gelesen
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        raise HTTPException(status_code=422, detail=KEIN_MITARBEITER)
+    try:
+        return hinweis_gelesen(db, user.employee_id, payload.jahr)
+    except KeinHinweis as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/api/field-view/meine-zeiten")

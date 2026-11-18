@@ -139,6 +139,9 @@
     .angeheftet-text{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px;font-size:15px;color:var(--ds-signal-text);overflow-wrap:anywhere}
     .angeheftet-text b{font-size:16px;font-weight:700}
     .angeheftet-grund{font-weight:600}
+    /* seit 1.9.367 (Urlaubsrunde, Punkt 3): der Hinweis auf den Resturlaub aus dem Vorjahr */
+    .resturlaub{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--ds-warn-hell);border-color:var(--ds-warn-text)}
+    .resturlaub p{margin:0;flex:1 1 260px;font-size:17px;color:var(--ds-text)}
 </style>
 </head>
 <body class="ds-tablet">
@@ -148,6 +151,11 @@
   <div class="zeiten" id="zeiten">
     <div class="zeiten-spalte" id="zeitenLinks">
       <p class="hinweis" id="ladeHinweis" role="alert" hidden></p>
+      {# seit 1.9.367 (Urlaubsrunde, Punkt 3): ab dem 01.01. bis zum Verfall der Resturlaub aus dem Vorjahr, bis „Gelesen“ #}
+      <section class="zeiten-karte resturlaub" id="resturlaub" aria-label="Resturlaub" hidden>
+        <p id="resturlaubText"></p>
+        <button type="button" class="knopf knopf-neutral" id="resturlaubGelesen">Gelesen</button>
+      </section>
       <div class="zahlen" id="kacheln">
         <div class="zahl-karte"><span class="eb">Heute</span><span class="zahl" id="kachelHeute">–</span></div>
         <div class="zahl-karte"><span class="eb">Diese Woche</span><span class="zahl" id="kachelWoche">–</span></div>
@@ -385,6 +393,7 @@ function zeichnen(d){
   angeheftetZeichnen(d.angeheftet);
   freistellungenZeichnen(d.freistellungen);
   ukEigenZeichnen(d.urlaub);  // seit 1.9.316: das eigene Urlaubskonto
+  resturlaubZeichnen(d.urlaub);  // seit 1.9.367
   var t=el('tage');t.className='';
   t.innerHTML=d.tage.length?d.tage.map(tagHtml).join(''):'<p class="leer-text" style="margin:0">Keine Buchungen im '+esc(d.monat_name)+'.</p>';
   t.querySelectorAll('.zeile-menue').forEach(function(a){dsMenue(a.querySelector('.knopf-symbol'),a.querySelector('.ds-menue'))});
@@ -459,6 +468,17 @@ function ukEigenZeichnen(k){
   box.innerHTML='<span class="uk-titel">Urlaub '+esc(k.jahr)+'</span>'+zeile('Rest',k.rest,true)+zeile('Anspruch',k.anspruch)+zeile('Übertrag',k.uebertrag)
     +zeile('Genehmigt',k.genehmigt)+zeile('davon vorbei',k.vorbei)+zeile('Beantragt',k.beantragt)+zeile('Rest nach den offenen Anträgen',k.rest_nach_antraegen)
     +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('');
+}
+// Seit 1.9.367 (Urlaubsrunde, Punkt 3): der Hinweis auf den Resturlaub -- Text vom Server (resturlaub_hinweis, ab 01.01. bis zum Verfall), bis „Gelesen“
+function resturlaubZeichnen(k){
+  var zeigen=!!(k&&k.resturlaub_hinweis&&!k.hinweis_gelesen_am);
+  el('resturlaub').hidden=!zeigen;el('resturlaubText').textContent=zeigen?k.resturlaub_hinweis:'';
+  el('resturlaubGelesen').dataset.jahr=k?k.jahr:'';
+}
+function resturlaubGelesen(){
+  var jahr=el('resturlaubGelesen').dataset.jahr;
+  return speichern('zeiten',()=>api('/api/field-view/urlaub-hinweis-gelesen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jahr:jahr})}),{neuLaden:laden})
+    .catch(function(e){ladeHinweis(e.message)});
 }
 function freistellungenZeichnen(liste){
   var box=el('abwFrei');liste=liste||[];box.hidden=!liste.length;
@@ -773,6 +793,7 @@ function binden(){
     else if(a==='beenden')beendenOeffnen(laufendeZeit(zeileZu(b.dataset.id)));
   });
   el('angeheftet').addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-aktion="beenden"]');if(b)beendenOeffnen(D&&D.angeheftet)});
+  el('resturlaubGelesen').addEventListener('click',resturlaubGelesen);  // seit 1.9.367
   ['input','change'].forEach(function(art){el('bdEnde').addEventListener(art,bdVorschauLaden)});
   el('bdSpeichern').addEventListener('click',beenden);
   el('bdAbbrechen').addEventListener('click',function(){el('beendenDialog').close()});

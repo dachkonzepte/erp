@@ -2893,6 +2893,8 @@ class Urlaubsanspruch(Base):
     uebertrag: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     verfall_am: Mapped[date | None] = mapped_column(Date, nullable=True)
     notiz: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # seit 1.9.367 (Urlaubsrunde, Punkt 3): wann die Person den Hinweis auf ihren Resturlaub aus dem Vorjahr in „Meine Zeiten“ gelesen hat (naives UTC)
+    hinweis_gelesen_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
