@@ -3649,3 +3649,43 @@ Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.368“.
 
 Gehört zum Aufgabenmodul -- Umsetzung, Festlegungen und Tests: `docs/archiv/modul-aufgaben.md`, „Zuweisung mit Mindestrolle (seit 1.9.369)“; Gegenproben:
 `gegenproben-urlaubsrunde.md`, „1.9.369“.
+
+## Nachrunde Urlaub (ab 1.9.370)
+
+### Bestätigt und beantwortet (18.11.2026, Tobias)
+
+Die Urlaubsrunde ist geprüft (c3dc3f4) und live (Datenbank `f8b4d0e3a629`); die 46 Festlegungen 1.9.365–1.9.369 sind bestätigt. Das Prüfskript auf dem Server:
+„Alle 1 zugewiesenen Aufgaben mit Mindestrolle sieht ihre Person.“ -- F3 entfällt. Auftrag ab 1.9.370, je Punkt eine Version: **1** F1 Mindesturlaub (die
+Rundung klärt der Betrieb mit dem Steuerbüro; dazu ein Hinweis am Vorschlag: bei Austritt in der zweiten Jahreshälfte nach mehr als sechs Monaten Beschäftigung
+nicht unter dem gesetzlichen Mindesturlaub, Arbeitstage je Woche × 4; nur Hinweis, Regel an einer Stelle); **2** F2: dieselbe Prüfung auch für Aufgaben ohne
+Mindestrolle (Monteur, Person ohne Konto: von Hand 422, Module in den Büro-Eingang; das Prüfskript zählt mit); **3** F4: der Kalender in `AUFGESCHOBEN` von
+Stufe 6 auf Stufe 7, zieht mit den Dialogen „Neues Projekt“ und „Neues Angebot“ um.
+
+### Umsetzung 1.9.370 (Punkt 1): Hinweis auf den gesetzlichen Mindesturlaub am Vorschlag
+
+- `app/urlaubskonto.py::mindesturlaub(tage_je_woche)` = Arbeitstage je Woche × 4 (`MINDEST_JE_ARBEITSTAG`, § 3 BUrlG: 24 Werktage bei sechs Tagen);
+  `mindesturlaub_fuer(payroll, jahr, soll)`: nur bei Austritt im Jahr ab dem 01.07. und erfüllter Wartezeit (`WARTEZEIT_MONATE` = 6, gezählt mit
+  `volle_monate()` ab dem Eintritt wie der anteilige Anspruch; ohne Eintrittsdatum erfüllt); die Arbeitstage je Woche = die Tage mit Sollzeit in den sieben Tagen
+  bis zum Austritt (Sollzeit aus der Tagesbilanz, also auch eigene Werte, z. B. Teilzeit Mo–Mi = 3). Sonst None.
+- Im Konto (`konten()`, beim anteiligen Vorschlag): liegt der Vorschlag unter diesem Mindesturlaub, `anteilig.mindesturlaub` = n und der Hinweis „Vorschlag liegt
+  unter dem gesetzlichen Mindesturlaub (n Tage) – prüfen“ -- auch nach „Vorschlag übernehmen“ (der übernommene Anspruch ist dann derselbe Wert). Nichts geschieht
+  von selbst; der Anspruch bleibt.
+- „mehr als sechs Monate“ (Auftrag) ist hier als erfüllte Wartezeit nach § 4 BUrlG gelesen: mindestens sechs volle Monate (Eintritt 01.03., Austritt 31.08. =
+  erfüllt). Die Seite zeigt den Hinweis wie jeden anderen unter dem Namen (orange).
+
+#### Festlegungen 1.9.370 (Bitte bestätigen)
+
+1. Gesetzlicher Mindesturlaub = Arbeitstage je Woche × 4 (fünf Tage: 20, drei: 12, sechs: 24) -- an einer Stelle (`mindesturlaub()`).
+2. Er gilt nur bei Austritt in der zweiten Jahreshälfte (ab dem 01.07.).
+3. Und nur nach erfüllter Wartezeit: mindestens sechs volle Monate ab dem Eintritt (wie `volle_monate()`); ohne Eintrittsdatum gilt sie als erfüllt.
+4. Die Arbeitstage je Woche sind die Tage mit Sollzeit in den sieben Tagen bis zum Austritt (eigene Werte zählen, Teilzeit Mo–Mi = 3).
+5. Liegt der Vorschlag darunter (nicht gleich), „Vorschlag liegt unter dem gesetzlichen Mindesturlaub (n Tage) – prüfen“.
+6. Nur ein Hinweis: nichts ändert sich von selbst, auch nicht beim nächsten Lesen.
+7. Der Hinweis bleibt nach „Vorschlag übernehmen“ stehen.
+
+#### Tests und Prüfung 1.9.370
+
+Neu: `tests/test_v770_mindesturlaub.py` (8 Tests: Regel; Austritt 31.08. unter 20; genau 20 ohne Hinweis; Austritt 30.06. ohne, 01.07. mit; Wartezeit 6 und 5
+Monate, ohne Eintritt; Teilzeit Mo–Mi 12; nach dem Übernehmen; an einer Stelle). Keine angepasste Erwartung. Kein neuer Klicktest -- die Karte zeigt jeden Hinweis
+des Kontos gleich (seit 1.9.316 geprüft); `klicktest_urlaubsrunde` und die übrigen Klicktests des Urlaubskontos laufen unverändert. Gegenproben:
+`gegenproben-urlaubsrunde.md`, „1.9.370“.

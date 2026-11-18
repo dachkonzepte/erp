@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.370 – Hinweis auf den gesetzlichen Mindesturlaub am Vorschlag
+
+Nachrunde Urlaub, Punkt 1 (F1). Tritt jemand in der zweiten Jahreshälfte nach erfüllter Wartezeit aus (mindestens sechs volle Monate beschäftigt), darf der anteilige Vorschlag den gesetzlichen Mindesturlaub nicht unterschreiten: Arbeitstage je Woche × 4 (bei fünf Tagen 20, Teilzeit Mo–Mi 12). Liegt er darunter, steht im Urlaubskonto „Vorschlag liegt unter dem gesetzlichen Mindesturlaub (n Tage) – prüfen“ -- nur ein Hinweis, nichts geschieht von selbst. Die Regel steht an einer Stelle (`app/urlaubskonto.py::mindesturlaub_fuer()`, `mindesturlaub()`); die Rundung klärt der Betrieb mit dem Steuerbüro. Neu `tests/test_v770_mindesturlaub.py`. Keine Migration.
+
 ## 1.9.369 – Aufgabe nur an jemanden, der sie sieht
 
 Urlaubsrunde, Punkt 5 (F2 c aus dem Bericht 1.9.364). Eine Aufgabe mit Mindestrolle lässt sich von Hand (Anlegen, Bearbeiten) nicht mehr jemandem zuweisen, der sie nicht sähe: 422 mit Grund („Diese Aufgabe sieht nur Büro – Finanzen und Administrator – <Name> hat kein Konto mit dieser Rolle.“). Weist ein Modul eine solche Aufgabe automatisch dem Sachbearbeiter zu (Behinderungs- und Bedenkenanzeige, Checklisten-Regeln) und hat er die Rolle nicht oder kein Konto, entsteht sie empfängerlos im Büro-Eingang -- wie ohne Sachbearbeiter. Die Regel ist dieselbe wie beim Lesen (`app/tasks.py::zuweisung_grund()` über `task_visible_for_user()`).

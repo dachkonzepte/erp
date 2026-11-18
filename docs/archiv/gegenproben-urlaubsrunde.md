@@ -109,3 +109,20 @@ zugleich, rot wurde nur der Name; der Zeitpunkt in `368_8b` für sich: rot.
 8 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `369_3` und `369_3b` scheiterten zuerst an einem KeyError (die Antwort 200 hatte
 kein `detail`) -- der Test prüft jetzt zuerst den Status, wiederholt: rot am Status. `369_6` zuerst mit einem undefinierten Namen gebaut (wäre am NameError rot
 gewesen) und vor dem Lauf durch eine gültige Ersetzung ersetzt.
+
+## Nachrunde 1.9.370 (Punkt 1): Hinweis auf den gesetzlichen Mindesturlaub
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – × 4 | × 5 (`370_1`) | 7 rot: Regel und jeder Fall mit Mindesturlaub |
+| Nr. 2 – nur zweite Jahreshälfte | ab dem 01.01. (`370_2`) | 1 rot: Austritt 30.06. mit Hinweis |
+| Nr. 3 – nur nach erfüllter Wartezeit | ohne Prüfung (`370_3`) | 2 rot: 5 Monate mit Hinweis; dazu „eine Stelle“ (der Aufruf von `volle_monate()` fehlt) |
+| Nr. 3 – ohne Eintritt erfüllt | ohne Eintritt nicht erfüllt (`370_3b`) | 1 rot |
+| Nr. 4 – eigene Arbeitstage | immer 5 (`370_4`) | 1 rot: Teilzeit 20 statt 12 |
+| Nr. 5 – nur darunter | auch gleich (`370_5`) | 1 rot: genau 20 mit Hinweis |
+| Nr. 6 – nichts von selbst | das Lesen setzt den Anspruch auf den Mindesturlaub (`370_6`) | 2 rot: beim nächsten Lesen 20 statt 26; Übernehmen 409 |
+| Nr. 1 – an einer Stelle | eine zweite `mindesturlaub()` in `app/lohnkonten.py` (`370_7`) | 1 rot |
+| Nr. 7 – auch nach dem Übernehmen | nur ohne Übernahme (`370_8`) | 1 rot |
+
+9 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Für `370_6` vorher im Test ein zweites Lesen ergänzt -- im selben Aufruf hätte
+der Anspruch noch 26 gezeigt.

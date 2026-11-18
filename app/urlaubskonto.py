@@ -128,6 +128,30 @@ def anteil_runden(wert: Decimal) -> Decimal:
     return round_half_up(Decimal(wert) * 2, Decimal("1")) * HALB
 
 
+MINDEST_JE_ARBEITSTAG = 4  # § 3 BUrlG: 24 Werktage bei sechs Tagen -- je Arbeitstag der Woche 4 (fünf Tage: 20)
+WARTEZEIT_MONATE = 6  # § 4 BUrlG
+
+
+def mindesturlaub(tage_je_woche: int) -> Decimal:
+    """Seit 1.9.370 (Nachrunde Urlaub, Punkt 1): DER gesetzliche Mindesturlaub -- Arbeitstage je Woche × 4 (fünf Tage: 20, drei: 12)."""
+    return Decimal(tage_je_woche * MINDEST_JE_ARBEITSTAG)
+
+
+def mindesturlaub_fuer(payroll, jahr: int, soll: dict) -> Decimal | None:
+    """Seit 1.9.370: gilt der gesetzliche Mindesturlaub als Untergrenze des Vorschlags? Nur bei Austritt in der zweiten Hälfte des Jahrs (ab dem
+    01.07.) nach erfüllter Wartezeit (mindestens sechs volle Monate ab dem Eintritt, volle_monate(); ohne Eintritt erfüllt) -- dann der
+    Mindesturlaub nach den Arbeitstagen je Woche: die Tage mit Sollzeit in den sieben Tagen bis zum Austritt (soll: je Tag, aus der Tagesbilanz;
+    Teilzeit Mo–Mi: 3). Sonst None. Nur ein Hinweis -- nichts geschieht von selbst."""
+    from datetime import timedelta
+    austritt = payroll.austritt if payroll is not None else None
+    if austritt is None or austritt.year != jahr or austritt < date(jahr, 7, 1):
+        return None
+    if payroll.eintritt is not None and volle_monate(payroll.eintritt, austritt) < WARTEZEIT_MONATE:
+        return None
+    tage = sum(1 for i in range(7) if soll.get(austritt - timedelta(days=i), NULL) > 0)
+    return mindesturlaub(tage)
+
+
 def vorschlag_anteilig(basis: Decimal, von: date, bis: date) -> dict:
     """Der Vorschlag für einen anteiligen Anspruch: basis (der Jahresanspruch) ÷ 12 × volle Monate von bis bis, gerundet über anteil_runden();
     rechnung „26 ÷ 12 × 5 = 10,8 → 11“ (das Ungerundete auf eine Stelle)."""
@@ -242,11 +266,17 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                 if im_jahr or aus is not None:
                     von = max(p.eintritt, date(j, 1, 1)) if p is not None and p.eintritt is not None else date(j, 1, 1)
                     bis = min(p.austritt, date(j, 12, 31)) if p is not None and p.austritt is not None else date(j, 12, 31)
-                    k.anteilig = {**vorschlag_anteilig(aus if aus is not None else k.anspruch, von, bis), "uebernommen": aus is not None}
+                    k.anteilig = {**vorschlag_anteilig(aus if aus is not None else k.anspruch, von, bis), "uebernommen": aus is not None,
+                                  "mindesturlaub": None}
                     if k.anteilig["vorschlag"] != k.anspruch:
                         k.hinweise.append(ANSPRUCH_PRUEFEN)
                     elif aus is not None:
                         k.hinweise.append(f"Anspruch anteilig: {k.anteilig['rechnung']}")
+                    # seit 1.9.370: Austritt in der zweiten Jahreshälfte nach erfüllter Wartezeit -- nicht unter dem gesetzlichen Mindesturlaub (nur Hinweis)
+                    mindest = mindesturlaub_fuer(p, j, soll)
+                    if mindest is not None and k.anteilig["vorschlag"] < mindest:
+                        k.anteilig["mindesturlaub"] = mindest
+                        k.hinweise.append(f"Vorschlag liegt unter dem gesetzlichen Mindesturlaub ({_tage_text(mindest)} Tage) – prüfen")
                 if k.uebertrag_noch > 0:  # seit 1.9.366 statt „Verfall des Übertrags vorgemerkt am …“
                     k.hinweise.append(uebertrag_hinweis(k.uebertrag_noch, verfall, heute))
                 # seit 1.9.368 (Urlaubsrunde, Punkt 4): nach dem Verfall „Verfall buchen“, solange nichts gebucht ist; ein gebuchter steht als Hinweis da,
