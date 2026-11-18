@@ -3,8 +3,9 @@
 Je Person und Jahr (ab ERSTES_JAHR, 2027; app/lohnkonten.py):
 
     anspruch      die Urlaubstage des Jahrs (Urlaubsanspruch je Jahr, leer = die Vorgabe der Zeitregeln) -- der Betrieb trägt sie je Person ein
-                  (Antwort 1: Fachkräfte 30, Helfer und Azubis 26; Teilzeit in Tagen der eigenen Woche); anteilig bei Eintritt oder Austritt
-                  rechnet das ERP nicht -- dann der Hinweis „Anspruch prüfen“
+                  (Antwort 1: Fachkräfte 30, Helfer und Azubis 26; Teilzeit in Tagen der eigenen Woche); bei Eintritt oder Austritt im Jahr seit
+                  1.9.365 ein Vorschlag (anteilig: Jahresanspruch ÷ 12 × volle Beschäftigungsmonate, auf halbe Tage) mit „Anspruch prüfen“ --
+                  übernommen wird er nur per Klick (app/lohnkonten.py::anteilig_uebernehmen()), nie von selbst
     uebertrag     2027 der Startwert „Resturlaub“ (fehlt er: 0 und der Hinweis „ohne Übertrag – Startwert folgt“ -- seit 1.9.320 nur, wer am
                   31.12.2026 beschäftigt war, app/lohnkonten.py::am_stichtag_beschaeftigt(); wer danach eintritt: 0 ohne Hinweis); ab 2028 nach der Vorgabe
                   „Übertrag ins Folgejahr“: „von Hand“ der Wert am Anspruch (leer = 0), „automatisch“ der Rest des Vorjahres
@@ -36,6 +37,7 @@ from .telefonbuch import sortierwert
 
 NULL = Decimal("0")
 ZEHNTEL = Decimal("0.1")
+HALB = Decimal("0.5")
 URLAUB = "urlaub"
 OHNE_STARTWERT = "ohne Übertrag – Startwert folgt"
 DOPPELT = "Übertrag doppelt – prüfen"
@@ -57,6 +59,7 @@ class Konto:
     kuenftig: Decimal = NULL
     beantragt: Decimal = NULL
     hinweise: list[str] = field(default_factory=list)
+    anteilig: dict | None = None  # seit 1.9.365: Vorschlag bei Eintritt oder Austritt im Jahr (vorschlag_anteilig())
 
     @property
     def rest(self) -> Decimal:
@@ -73,7 +76,51 @@ class Konto:
         return {"employee_id": self.employee_id, "name": self.name, "active": self.active, "jahr": self.jahr, "anspruch": t(self.anspruch),
                 "anspruch_vorgabe": self.anspruch_vorgabe, "uebertrag": t(self.uebertrag), "uebertrag_quelle": self.uebertrag_quelle,
                 "genehmigt": t(self.genehmigt), "vorbei": t(self.vorbei), "kuenftig": t(self.kuenftig), "beantragt": t(self.beantragt),
-                "rest": t(self.rest), "rest_nach_antraegen": t(self.rest_nach_antraegen), "hinweise": list(self.hinweise)}
+                "rest": t(self.rest), "rest_nach_antraegen": t(self.rest_nach_antraegen), "hinweise": list(self.hinweise),
+                "anteilig": None if self.anteilig is None else {**self.anteilig, "basis": t(self.anteilig["basis"]), "roh": t(self.anteilig["roh"]),
+                                                                "vorschlag": t(self.anteilig["vorschlag"])}}
+
+
+# --- anteiliger Anspruch (seit 1.9.365, Urlaubsrunde, Punkt 1) ------------------------------------------------------------------------------
+# Die Regel steht nur hier: volle_monate() zählt, anteil_runden() rundet -- beides bestätigt das Steuerbüro noch (Vorgabe Tobias 18.11.2026).
+
+def monatsende(beginn: date, k: int) -> date:
+    """Der letzte Tag des k-ten vollen Monats ab beginn (beginn zählt mit, § 187 Abs. 2 BGB): der Tag vor dem Tag gleicher Zahl k Monate später
+    (§ 188 Abs. 2), fehlt er in jenem Monat, dessen letzter Tag (§ 188 Abs. 3). 15.03. -> 14.04.; 01.08. -> 31.08.; 31.01. -> 28.02."""
+    import calendar
+    from datetime import timedelta
+    m = beginn.month - 1 + k
+    jahr, monat = beginn.year + m // 12, m % 12 + 1
+    letzter = calendar.monthrange(jahr, monat)[1]
+    if beginn.day > letzter:
+        return date(jahr, monat, letzter)
+    return date(jahr, monat, beginn.day) - timedelta(days=1)
+
+
+def volle_monate(von: date, bis: date) -> int:
+    """Volle Beschäftigungsmonate von von bis bis (beide eingeschlossen), gezählt ab dem ersten Tag (Antwort Tobias 18.11.2026: ab dem
+    Eintrittstag wie § 5 BUrlG „voller Monat des Bestehens“) -- 15.03.–14.09. sind 6, 01.08.–31.12. sind 5, 01.01.–30.05. sind 4."""
+    k = 0
+    while bis >= von and monatsende(von, k + 1) <= bis:
+        k += 1
+    return k
+
+
+def anteil_runden(wert: Decimal) -> Decimal:
+    """DIE Rundung des anteiligen Anspruchs: auf den nächsten halben Tag, die Mitte nach oben (10,83 -> 11; 15,17 -> 15; 15,25 -> 15,5).
+    Noch vom Steuerbüro zu bestätigen -- eine andere Rundung wird nur hier geändert."""
+    from .rounding import round_half_up
+    return round_half_up(Decimal(wert) * 2, Decimal("1")) * HALB
+
+
+def vorschlag_anteilig(basis: Decimal, von: date, bis: date) -> dict:
+    """Der Vorschlag für einen anteiligen Anspruch: basis (der Jahresanspruch) ÷ 12 × volle Monate von bis bis, gerundet über anteil_runden();
+    rechnung „26 ÷ 12 × 5 = 10,8 → 11“ (das Ungerundete auf eine Stelle)."""
+    monate = volle_monate(von, bis)
+    roh = Decimal(basis) / 12 * monate
+    vorschlag = anteil_runden(roh)
+    return {"basis": Decimal(basis), "monate": monate, "von": von, "bis": bis, "roh": roh, "vorschlag": vorschlag,
+            "rechnung": f"{_tage_text(basis)} ÷ 12 × {monate} = {_tage_text(roh)} → {_tage_text(vorschlag)}"}
 
 
 def _verfall(anspruch_row, vorgabe_verfall: str | None, jahr: int) -> date | None:
@@ -163,8 +210,18 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                     k.beantragt += abwesenheit_tage(db, emp.id, max(r.start_date, date(j, 1, 1)), min(r.end_date, date(j, 12, 31)), kategorie=URLAUB,
                                                     halber_tag=bool(r.halber_tag), feiertage=b.feiertage, kalendertag_urlaub=r.kalendertag_urlaub,
                                                     soll=soll, kalender=b.kalender.get(emp.id, {}))["tage"]
-                if p is not None and any(d is not None and d.year == j for d in (p.eintritt, p.austritt)):
-                    k.hinweise.append(ANSPRUCH_PRUEFEN)
+                # seit 1.9.365: bei Eintritt oder Austritt im Jahr (oder nach „Vorschlag übernehmen“) der anteilige Vorschlag -- aus dem Jahresanspruch
+                # hinter der Übernahme (anteilig_aus), sonst aus dem Anspruch des Jahrs; „Anspruch prüfen“ nur, solange er vom Anspruch abweicht
+                im_jahr = p is not None and any(d is not None and d.year == j for d in (p.eintritt, p.austritt))
+                aus = a.anteilig_aus if a is not None else None
+                if im_jahr or aus is not None:
+                    von = max(p.eintritt, date(j, 1, 1)) if p is not None and p.eintritt is not None else date(j, 1, 1)
+                    bis = min(p.austritt, date(j, 12, 31)) if p is not None and p.austritt is not None else date(j, 12, 31)
+                    k.anteilig = {**vorschlag_anteilig(aus if aus is not None else k.anspruch, von, bis), "uebernommen": aus is not None}
+                    if k.anteilig["vorschlag"] != k.anspruch:
+                        k.hinweise.append(ANSPRUCH_PRUEFEN)
+                    elif aus is not None:
+                        k.hinweise.append(f"Anspruch anteilig: {k.anteilig['rechnung']}")
                 verfall = _verfall(a, vorgabe_verfall, j)
                 if verfall is not None and k.uebertrag > 0:
                     k.hinweise.append(f"Verfall des Übertrags vorgemerkt am {verfall:%d.%m.%Y} – nichts verfällt von selbst")

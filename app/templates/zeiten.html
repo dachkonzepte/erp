@@ -107,6 +107,7 @@
     /* seit 1.9.316 (Lohn L2b, Punkt 4): das Urlaubskonto -- Hinweise unter dem Namen, inaktive grau; „danach Rest“ im Dialog */
     .uk-wahl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.uk-zeile td{height:auto;padding:10px 8px;vertical-align:top}
     .uk-hinweis{display:block;font-size:12px;color:var(--ds-warn-text);white-space:normal}.uk-zeile.inaktiv td{color:var(--ds-text-2)}
+    .uk-vorschlag{display:block;font-size:12px;color:var(--ds-text-2);white-space:normal;max-width:360px}.uk-knopf{margin-top:6px}
     .ad-rest{margin:0;font-size:14px;color:var(--ds-text-2)}
     td.summe{font-weight:600;border-bottom:0}
     .tabelle-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:14px 10px 0;min-width:0;overflow-x:auto}
@@ -1068,9 +1069,27 @@ function urlaubskontoZeichnen(d){
 function ukZeile(k){
   var zahl=function(w,fett){return '<td class="r num">'+(fett?'<b>':'')+esc(zahlText(w))+(fett?'</b>':'')+'</td>'};
   return '<tr class="uk-zeile'+(k.active?'':' inaktiv')+'" data-uk="'+k.employee_id+'"><td><span>'+esc(k.name)+'</span>'
-    +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('')+'</td>'
+    +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('')
+    +(k.anteilig&&k.anteilig.vorschlag!==k.anspruch?ukAnteilig(k):'')+'</td>'  // seit 1.9.365
     +'<td class="r num">'+esc(zahlText(k.anspruch))+(k.anspruch_vorgabe?' <span class="mut">(Vorgabe)</span>':'')+'</td>'
     +zahl(k.uebertrag)+zahl(k.genehmigt)+zahl(k.vorbei)+zahl(k.kuenftig)+zahl(k.beantragt)+zahl(k.rest,true)+zahl(k.rest_nach_antraegen)+'</tr>';
+}
+// Seit 1.9.365 (Urlaubsrunde, Punkt 1): der anteilige Anspruch bei Eintritt oder Austritt im Jahr -- Vorschlag und Rechnung vom Server
+// (app/urlaubskonto.py::vorschlag_anteilig()), die Seite rechnet nichts; „Vorschlag übernehmen“ nur Admin und Büro – Finanzen (UK.rechte), nur per
+// Klick; der Server rechnet neu und lehnt einen veralteten Vorschlag ab (409)
+function ukDatum(iso){var p=String(iso).slice(0,10).split('-');return p[2]+'.'+p[1]+'.'+p[0]}  // Datum ohne Uhrzeit „01.08.2027“
+function ukAnteilig(k){
+  var x=k.anteilig,darf=!!(UK&&UK.rechte&&UK.rechte.anspruch_setzen);
+  return '<span class="uk-vorschlag">Vorschlag '+esc(zahlText(x.vorschlag))+' Tage: '+esc(x.rechnung)+' · '+esc(x.monate===1?'1 voller Monat':x.monate+' volle Monate')
+    +' ('+esc(ukDatum(x.von))+'–'+esc(ukDatum(x.bis))+')</span>'
+    +(darf?'<button type="button" class="knopf knopf-neutral uk-knopf" data-aktion="uk-anteilig" data-id="'+k.employee_id+'" data-jahr="'+esc(k.jahr)
+      +'" data-vorschlag="'+esc(x.vorschlag)+'">Vorschlag übernehmen</button>':'');
+}
+function ukAnteiligUebernehmen(id,jahr,vorschlag,knopf){
+  knopf.disabled=true;
+  return speichern('urlaubskonto',()=>api('/api/time-backoffice/konten/'+id+'/anspruch/'+jahr+'/anteilig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vorschlag:vorschlag})}),{neuLaden:urlaubskontoLaden})
+    .then(function(){ergebnis('Anspruch übernommen.')})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
 }
 // Seit 1.9.337 (Lohn L2c-3, Punkt 4): bei Freizeitausgleich und Unbezahlt „Stand vorläufig x h · danach y h“ vom Server, unter 0 „Plusstunden reichen nicht“ --
 // nur wer das Konto sieht (RECHTE.lohndaten: Admin, Büro – Finanzen), eine Person, Von bis Bis; sonst ein Lesen ohne Anfrage. Nur ein Hinweis, keine Sperre.
@@ -1529,6 +1548,7 @@ function binden(){
     else if(a==='abwl-fragen'){LOESCHEN=b.dataset.id;abwesenheitenZeichnen(A)}
     else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
     else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
+    else if(a==='uk-anteilig')ukAnteiligUebernehmen(b.dataset.id,b.dataset.jahr,b.dataset.vorschlag,b);  // seit 1.9.365
   });
   el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true);adHalbZeigen();adRestLaden()});
   ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',function(){adHalbZeigen();adRestLaden()})});

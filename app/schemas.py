@@ -4051,6 +4051,12 @@ class UrlaubsanspruchUpdate(PartialUpdate):
     notiz: str | None = Field(default=None, max_length=255)
 
 
+class AnteiligUebernehmenIn(BaseModel):
+    """Seit 1.9.365 (Urlaubsrunde, Punkt 1): „Vorschlag übernehmen“ -- der Vorschlag, den die Seite zeigt; der Server rechnet ihn neu und lehnt ab,
+    wenn er abweicht (409)."""
+    vorschlag: Decimal = Field(ge=0, le=NUMERIC_4_1)
+
+
 class StartwertUpdate(PartialUpdate):
     """Seit 1.9.310 (Antwort 12): Startwert einer Person, Teil-Update; geprueft True = geprüft heute durch das Konto, False = Prüfung weg."""
     NOT_NULL: ClassVar[frozenset[str]] = frozenset({"stichtag", "herkunft"})

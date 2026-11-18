@@ -289,7 +289,7 @@ FIELD_LABELS = {
     "note": "Notiz",
     "notes": "Notizen",
     # seit 1.9.310 (Lohn L2a, Punkt 3): Urlaubsanspruch, Startwert der Konten, Vorgaben des Urlaubskontos
-    "jahr": "Jahr", "urlaubstage": "Urlaubstage", "uebertrag": "Übertrag (Tage)", "verfall_am": "Übertrag verfällt am", "notiz": "Notiz", "stichtag": "Stichtag",
+    "jahr": "Jahr", "urlaubstage": "Urlaubstage", "anteilig_aus": "Anteilig aus Jahresanspruch", "uebertrag": "Übertrag (Tage)", "verfall_am": "Übertrag verfällt am", "notiz": "Notiz", "stichtag": "Stichtag",
     "resturlaub_tage": "Resturlaub (Tage)", "saldo_stunden": "Saldo Arbeitszeitkonto (Stunden)", "herkunft": "Herkunft", "herkunft_notiz": "Bemerkung zur Herkunft",
     "geprueft_am": "Geprüft am", "geprueft_von": "Geprüft von", "urlaub_vorgabe_tage": "Urlaubsanspruch je Jahr (Vorgabe)",
     "urlaub_uebertrag": "Übertrag des Urlaubs ins Folgejahr", "urlaub_verfall": "Übertrag verfällt am (Vorgabe)",
@@ -897,7 +897,7 @@ ABSENCE_ENTITY_TYPES = {"Mitarbeiter-Abwesenheit", "Abwesenheitsantrag"}
 # Seit 1.9.310 (Lohn L2a, Antwort 11): die Werte von Urlaubsanspruch und Startwert der Konten sieht Büro – Auftrag in der Historie nicht (geschwärzt wie die
 # Art einer Abwesenheit: geänderte Felder entfallen, angelegt/gelöscht-Schnappschüsse ohne sie) -- auch die eigenen; wer, welches Jahr und wann bleiben.
 KONTEN_ENTITY_TYPES = {"Urlaubsanspruch je Jahr", "Startwert der Konten"}
-KONTEN_FIELD_NAMES = {"urlaubstage", "uebertrag", "verfall_am", "notiz", "stichtag", "resturlaub_tage", "saldo_stunden", "herkunft", "herkunft_notiz",
+KONTEN_FIELD_NAMES = {"urlaubstage", "anteilig_aus", "uebertrag", "verfall_am", "notiz", "stichtag", "resturlaub_tage", "saldo_stunden", "herkunft", "herkunft_notiz",
                       "geprueft_am", "geprueft_von"}
 ABSENCE_FIELD_NAMES = {"absence_type", "absence_category", "notes"}
 

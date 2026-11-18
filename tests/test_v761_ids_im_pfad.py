@@ -34,6 +34,7 @@ ID_NAMEN = {"auftrag": "Auftrag (Akte, Verlauf, Zeiten)", "mitarbeiter": "Mitarb
 G, P = "grenzen", "geprueft"
 KEINE_ID = {
     ("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}", "path", "jahr"): (P, None, "Jahr des Urlaubsanspruchs, 2026–2100 (anspruch_setzen())"),
+    ("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}/anteilig", "path", "jahr"): (G, (2027, 2100), "Jahr des Urlaubskontos (seit 1.9.365)"),
     ("/api/mobile-icon/{size}.png", "path", "size"): (P, None, "Größe des App-Symbols, 16–1024, sonst 404"),
     ("/api/time-entries/dauer-vorschau", "query", "break_minutes"): (G, (0, 720), "Pause in Minuten"),
     ("/api/time-entry-groups/dauer-vorschau", "query", "break_minutes"): (G, (0, 720), "Pause in Minuten"),

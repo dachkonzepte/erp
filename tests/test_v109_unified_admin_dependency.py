@@ -94,7 +94,7 @@ def test_time_backoffice_router_fully_uses_shared_dependency():
     assert "def _require_admin" not in src
     assert "_require_admin(request)" not in src
     assert "Depends(require_admin(" not in src
-    assert src.count("_role=_role_dep") >= 9 and src.count("_role=_regeln_dep") == 15 and src.count("_role=_lohn_dep") == 8
+    assert src.count("_role=_role_dep") >= 9 and src.count("_role=_regeln_dep") == 16 and src.count("_role=_lohn_dep") == 8
 
 
 def test_all_local_relative_imports_in_routers_resolve():

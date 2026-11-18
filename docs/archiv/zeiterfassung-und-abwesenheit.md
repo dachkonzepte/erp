@@ -3426,3 +3426,80 @@ dunkel). `tests/test_v326_monteur_datengrenze.py` dazu: Testwerte für `GET /api
 `tests/test_v519_zeiten_abwesenheiten_monat.py::test_antrag_knoepfe_nach_dem_server`, `tests/test_v523_abwesenheiten_rechte.py::test_beantragt_von_in_der_zeile`,
 `tests/test_v606_festlegungen_174_179.py::test_beide_listen_unter_zeiten_nennen_die_antwort`, `tests/test_v621_schlechtwetter_stunden.py::test_beide_listen_zeichnen_die_stunden`
 (die vier letzten waren im ersten Lauf rot -- ReferenceError; ich hatte nur v518 nachgezogen, nicht nach allen Tests gesucht, die die beiden Funktionen herausziehen). Gegenproben: `gegenproben-lohn-l2c.md`, „1.9.337“.
+
+## Urlaubsrunde (ab 1.9.365)
+
+### Auftrag (18.11.2026, Tobias)
+
+1.9.364 ist geprüft (b64ac8b) und live. Urlaubsrunde, je Punkt eine Version: **0** nur lesen -- welche Seiten in `AUFGESCHOBEN` stehen und was für die
+Redesign-Stufen 7 und 8 geplant ist (in den Bericht); **1** anteiliger Anspruch: bei Eintritt oder Austritt im Jahr zeigt „Anspruch prüfen“ einen Vorschlag --
+Jahresanspruch ÷ 12 × volle Beschäftigungsmonate, auf den nächsten halben Tag gerundet, mit der Rechnung („26 ÷ 12 × 5 = 10,8 → 11“); „Vorschlag übernehmen“
+setzt den Anspruch dieses Jahres, nur bewusst, nie von selbst; die Rundung bestätigt das Steuerbüro noch, sie steht an einer Stelle im Code; **2** Übertrag
+zuerst: Urlaub bis 31.03. verbraucht zuerst den Übertrag aus dem Vorjahr, Konto und „danach Rest“ zeigen „davon Übertrag noch n Tage, verfällt am 31.03.“;
+**3** Hinweis an die Mitarbeiter in „Meine Zeiten“ ab 01.01. bei Übertrag größer 0, mit „Gelesen“ (Zeitpunkt gespeichert), das Büro sieht im Urlaubskonto, wer
+noch nicht gelesen hat; **4** Verfall buchen nach dem 31.03. („Übertrag nicht genommen: n Tage“, Admin und Büro – Finanzen, „Hinweis gelesen am …“ bzw. „nicht
+gelesen“, nichts verfällt von selbst, jede Buchung in der Änderungshistorie); **5** F2 c) aus dem Bericht 1.9.364: die Zuweisung einer Aufgabe an jemanden ohne
+ihre Mindestrolle 422 mit Grund („Diese Aufgabe sieht nur …“), Kommentar und Docstring berichtigen, bestehende so zugewiesene Aufgaben nur zählen. Bilder 1440 und
+412, hell und dunkel: Anspruch prüfen mit Vorschlag, Meine Zeiten mit Hinweis, Urlaubskonto mit „Verfall buchen“.
+
+### Antworten auf die Rückfrage vor dem Bau (18.11.2026, Tobias)
+
+- Das Verfallsdatum kommt aus der Vorgabe „Verfall“ der Zeitregeln bzw. dem Datum am Anspruch; eine Migration setzt die Vorgabe auf „31.03.“, wo sie leer ist;
+  „nur vorgemerkt“ entfällt (Punkt 2).
+- Module, die eine Aufgabe mit Mindestrolle automatisch dem Sachbearbeiter zuweisen: hat er die Rolle nicht oder kein Konto, entsteht die Aufgabe empfängerlos im
+  Büro-Eingang; 422 nur beim Zuweisen von Hand (Punkt 5).
+- Ein gebuchter Verfall lässt sich zurücknehmen -- nur der Admin, mit Eintrag in der Änderungshistorie (Punkt 4).
+- Volle Beschäftigungsmonate zählen ab dem Eintrittstag (wie § 5 BUrlG „voller Monat des Bestehens“), nicht als Kalendermonate (Punkt 1).
+
+### Umsetzung 1.9.365 (Punkt 1): anteiliger Anspruch als Vorschlag
+
+- `app/urlaubskonto.py`: `volle_monate(von, bis)` zählt volle Monate ab dem ersten Tag (der Tag zählt mit, § 187 Abs. 2 BGB; Ende nach § 188 Abs. 2 und 3 über
+  `monatsende()`: 15.03.–14.04. ist ein Monat, 31.01.–28.02. auch); `anteil_runden()` rundet auf den nächsten halben Tag, die Mitte nach oben (10,83 → 11,
+  15,17 → 15, 15,25 → 15,5) -- DIE eine Stelle, die das Steuerbüro noch bestätigt; `vorschlag_anteilig(basis, von, bis)` gibt Monate, Ungerundetes, Vorschlag
+  und die Rechnung „26 ÷ 12 × 5 = 10,8 → 11“.
+- Im Konto (`konten()`, nur im angefragten Jahr): bei Eintritt oder Austritt im Jahr (oder nach einer Übernahme) `anteilig` -- Zeitraum von max(Eintritt,
+  01.01.) bis min(Austritt, 31.12.), Basis der Jahresanspruch hinter einer Übernahme (`anteilig_aus`), sonst der Anspruch des Jahrs (Wert oder Vorgabe).
+  „Anspruch prüfen“ nur, solange der Vorschlag vom Anspruch abweicht -- ein Eintritt am 01.01. (12 Monate) hat nichts zu prüfen (bis 1.9.364 stand der Hinweis
+  bei jedem Eintritt oder Austritt im Jahr); nach einer Übernahme der Hinweis „Anspruch anteilig: 26 ÷ 12 × 5 = 10,8 → 11“.
+- Übernehmen: `app/lohnkonten.py::anteilig_uebernehmen()`, `POST /api/time-backoffice/konten/{Person}/anspruch/{Jahr}/anteilig` mit dem angezeigten Vorschlag
+  (`AnteiligUebernehmenIn`; Jahr 2027–2100), `require_lohnregeln` (Admin, Büro – Finanzen). Der Server rechnet den Vorschlag neu; weicht er ab oder gibt es keinen
+  (kein Eintritt/Austritt, schon übernommen) 409 „… bitte neu laden“, nichts geändert. Gesetzt werden die Urlaubstage = Vorschlag und `anteilig_aus` = der
+  Jahresanspruch (Spalte neu, Migration `a4d1e6c93b20`; `downgrade()` bricht ab, solange ein Wert gesetzt ist). `anspruch_setzen()` leert `anteilig_aus`, wenn sich
+  die Urlaubstage von Hand ändern -- dann gilt der Wert von Hand, der nächste Vorschlag rechnet aus ihm.
+- Kein Lesepfad schreibt (Regel 23): das Konto rechnet den Vorschlag nur.
+- Historie: Feld „Anteilig aus Jahresanspruch“ (`FIELD_LABELS`), für Büro – Auftrag geschwärzt wie die übrigen Werte des Anspruchs (`KONTEN_FIELD_NAMES`).
+- Seite (`zeiten.html`, Karte „Urlaubskonto“): unter „Anspruch prüfen“ „Vorschlag 11 Tage: 26 ÷ 12 × 5 = 10,8 → 11 · 5 volle Monate (01.08.2027–31.12.2027)“,
+  darunter „Vorschlag übernehmen“, wenn die Antwort `rechte.anspruch_setzen` trägt (`darf_lohnregeln()`); Speichern über den Bereich `urlaubskonto`, danach
+  lädt die Karte neu. Die Seite rechnet nichts. „Meine Zeiten“ und die Einstellungen bleiben, wie sie sind.
+
+#### Festlegungen 1.9.365 (Bitte bestätigen)
+
+1. Der Vorschlag ist Jahresanspruch ÷ 12 × volle Beschäftigungsmonate im Jahr -- gezählt ab dem Eintrittstag bzw. dem 01.01. bis zum Austritt bzw. 31.12., ein
+   Monat nach § 188 Abs. 2 und 3 BGB (15.03.–14.04.; 31.01.–28.02.).
+2. Gerundet auf den nächsten halben Tag, die Mitte nach oben; Zählen und Rundung stehen je an einer Stelle (`volle_monate()`, `anteil_runden()`) -- die Rundung
+   bestätigt das Steuerbüro noch.
+3. Die Rechnung steht beim Vorschlag: „26 ÷ 12 × 5 = 10,8 → 11“ (das Ungerundete auf eine Stelle), dazu Monate und Zeitraum.
+4. „Anspruch prüfen“ steht, solange der Vorschlag vom Anspruch abweicht; stimmen sie überein (auch ein Eintritt am 01.01.), kein Hinweis.
+5. Übernommen wird nur per Klick („Vorschlag übernehmen“), nie von selbst; kein Lesen schreibt; der Server rechnet neu, ein veralteter Vorschlag 409, nichts
+   geändert.
+6. Gemerkt wird der Jahresanspruch, aus dem gerechnet ist (`anteilig_aus`) -- der nächste Vorschlag rechnet aus ihm; eine Änderung der Urlaubstage von Hand leert
+   ihn.
+7. „Vorschlag übernehmen“ nur Admin und Büro – Finanzen; Büro – Auftrag sieht beim eigenen Konto den Vorschlag ohne Knopf.
+8. In der Änderungshistorie „Anteilig aus Jahresanspruch“, für Büro – Auftrag geschwärzt.
+9. Die Karte zeigt Vorschlag, Rechnung, Monate und Zeitraum; nach der Übernahme nur den Hinweis „Anspruch anteilig: …“.
+10. Migration `a4d1e6c93b20`: der Bestand bleibt leer (nichts übernommen); `downgrade()` bricht ab, solange ein Wert gesetzt ist.
+
+#### Tests und Prüfung 1.9.365
+
+Neu: `tests/test_v765_anteiliger_anspruch.py` (29 Tests: volle Monate in neun Fällen, Rundung in sieben, Rechnung, je an einer Stelle; Vorschlag bei Eintritt,
+Austritt und ganzem Jahr; Lesen schreibt nichts -- weder Anweisung noch geänderte Zeile in der Sitzung; Übernehmen mit 409 und 404, Rechte, von Hand, Historie
+geschwärzt, unter PostgreSQL; die Zeile der Karte in node mit und ohne Recht; Migration auf einem Bestand unter SQLite und PostgreSQL) und
+`scripts/klicktest_urlaubsrunde.py` (Karte mit Vorschlägen, Bilder `anspruch_pruefen_vorschlag_{1440,412}_{hell,dunkel}`, 412 ohne Überlauf, übernehmen ohne
+Neuladen, nach dem Neuladen, Büro – Auftrag ohne Knopf). Erweitert: `tests/test_v761_ids_im_pfad.py` (`KEINE_ID`: das Jahr der neuen Route, 2027–2100).
+Angepasste Erwartungen:
+- `tests/test_v109_unified_admin_dependency.py::test_time_backoffice_router_fully_uses_shared_dependency` -- alt: 15 Endpunkte mit `_regeln_dep`; neu: 16 (die
+  neue Route).
+- `tests/test_v710_urlaub_und_startwerte.py::test_modelle` -- alt: die Spalten des Anspruchs ohne `anteilig_aus`; neu: mit.
+- `tests/test_v720_startwert_nur_am_stichtag.py::test_hinweis_nur_wer_am_stichtag_beschaeftigt_war` -- alt: Bo (Eintritt 01.01.2027) mit „Anspruch prüfen“;
+  neu: ohne Hinweis (12 volle Monate, der Vorschlag ist der Anspruch -- Festlegung 1.9.365 Nr. 4). Gefunden im ersten vollen Lauf.
+Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.365“.

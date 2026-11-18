@@ -25,7 +25,7 @@ und eigene Sollzeiten ändern nur Admin und Büro – Finanzen (require_lohnrege
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -35,9 +35,9 @@ from ..database import get_db
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_im_abschluss_aendern, darf_konten_aller, darf_lohnregeln, require_lohndaten,
                            require_lohnregeln, require_min_role, require_personalnummer_freigeben)
 from ..urlaubskonto import konten as urlaubskonten
-from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, anspruch_setzen, konten, standardjahr, startwert_gesperrt, startwert_setzen, vorgaben,
-                          vorgaben_setzen)
-from ..schemas import KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
+from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, VorschlagVeraltet, anspruch_setzen, anteilig_uebernehmen, konten, standardjahr,
+                          startwert_gesperrt, startwert_setzen, vorgaben, vorgaben_setzen)
+from ..schemas import AnteiligUebernehmenIn, KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
 from ..schemas import AbgleichIn, ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..dateiauslieferung import datei_antwort
 from ..lohndatei import (LohndateiVeraendert, VersandAbgelehnt, abgelegt_dict, abgelegte, lesen as lohndatei_lesen, versendet_setzen,
@@ -117,6 +117,23 @@ def put_urlaubsanspruch(employee_id: Id, jahr: int, payload: UrlaubsanspruchUpda
         return anspruch_setzen(db, employee_id, jahr, payload.model_dump(exclude_unset=True))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}/anteilig")
+def post_anteilig_uebernehmen(employee_id: Id, payload: AnteiligUebernehmenIn, jahr: int = Path(ge=2027, le=2100),
+                              db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.365 (Urlaubsrunde, Punkt 1): „Vorschlag übernehmen“ -- setzt die Urlaubstage des Jahrs auf den anteiligen Vorschlag
+    (app/lohnkonten.py::anteilig_uebernehmen()); nur Admin und Büro – Finanzen. Weicht der Vorschlag ab oder gibt es keinen: 409, nichts geändert."""
+    try:
+        return anteilig_uebernehmen(db, employee_id, jahr, payload.vorschlag)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VorschlagVeraltet as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc

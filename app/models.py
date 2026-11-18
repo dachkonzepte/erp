@@ -2886,6 +2886,9 @@ class Urlaubsanspruch(Base):
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     jahr: Mapped[int] = mapped_column()
     urlaubstage: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    # seit 1.9.365 (Urlaubsrunde, Punkt 1): der Jahresanspruch, aus dem „Vorschlag übernehmen“ die Urlaubstage anteilig gerechnet hat (leer = nicht
+    # übernommen); eine Änderung der Urlaubstage von Hand leert ihn (app/lohnkonten.py)
+    anteilig_aus: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     uebertrag: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     verfall_am: Mapped[date | None] = mapped_column(Date, nullable=True)
     notiz: Mapped[str | None] = mapped_column(String(255), nullable=True)

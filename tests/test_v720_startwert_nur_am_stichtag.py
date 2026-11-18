@@ -51,7 +51,7 @@ def test_hinweis_nur_wer_am_stichtag_beschaeftigt_war(w):
     assert hinweise(w, "Ada") == [OHNE_STARTWERT]  # Startwert ohne Resturlaub, ohne Lohnstammdaten: beschäftigt
     assert hinweise(w, "Cem") == [OHNE_STARTWERT]  # Eintritt am Stichtag
     assert hinweise(w, "Eli") == [OHNE_STARTWERT]  # Lohnstammdaten ohne Eintritt
-    assert hinweise(w, "Bo") == [ANSPRUCH_PRUEFEN]  # Eintritt 01.01.2027: kein Startwert, „Anspruch prüfen“ bleibt
+    assert hinweise(w, "Bo") == []  # Eintritt 01.01.2027: kein Startwert; seit 1.9.365 auch kein „Anspruch prüfen“ -- 12 volle Monate, der Vorschlag ist der Anspruch
     assert hinweise(w, "Dan") == [ANSPRUCH_PRUEFEN]  # Eintritt 01.03.2027
     k = next(k for k in konten(w["db"], 2027, heute=date(2027, 2, 1)) if k.employee_id == w["Bo"].id)
     assert (k.uebertrag, k.uebertrag_quelle) == (D("0"), "startwert")

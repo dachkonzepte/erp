@@ -47,6 +47,10 @@ class StartwertGesperrt(ValueError):
     """Der Startwert ist nach dem Abschluss des Monats nach dem Stichtag nur für den Admin änderbar (403)."""
 
 
+class VorschlagVeraltet(ValueError):
+    """Seit 1.9.365: der angezeigte Vorschlag gilt nicht mehr (anderer Wert, schon übernommen, kein Eintritt oder Austritt im Jahr) -- 409."""
+
+
 def _einstellungen(db: Session) -> TimeTrackingSettings:
     row = db.get(TimeTrackingSettings, 1)
     if row is None:
@@ -254,10 +258,35 @@ def anspruch_setzen(db: Session, employee_id: int, jahr: int, werte: dict) -> di
     if row is None:
         row = Urlaubsanspruch(employee_id=employee_id, jahr=jahr)
         db.add(row)
+    # seit 1.9.365: ändern sich die Urlaubstage von Hand, gilt der Wert von Hand -- der Jahresanspruch einer früheren Übernahme fällt weg
+    if "urlaubstage" in neu and neu["urlaubstage"] != row.urlaubstage:
+        row.anteilig_aus = None
     for feld, wert in neu.items():
         setattr(row, feld, wert)
     db.commit()
     return konten(db, [employee_id])[0]
+
+
+def anteilig_uebernehmen(db: Session, employee_id: int, jahr: int, vorschlag) -> dict:
+    """Seit 1.9.365 (Urlaubsrunde, Punkt 1): „Vorschlag übernehmen“ -- setzt die Urlaubstage des Jahrs auf den anteiligen Vorschlag des Urlaubskontos
+    (app/urlaubskonto.py::vorschlag_anteilig(), dort auch Zählen und Rundung) und merkt den Jahresanspruch, aus dem er gerechnet ist (anteilig_aus). Nur
+    per Klick, nie von selbst. vorschlag: der Wert, den die Seite zeigt -- weicht der Vorschlag von heute ab oder gibt es keinen (kein Eintritt oder
+    Austritt im Jahr, schon übernommen), VorschlagVeraltet (409), nichts geändert. Committet; Antwort: das Konto der Person im Jahr."""
+    from .urlaubskonto import konten as urlaubskonten
+    _person(db, employee_id)
+    k = urlaubskonten(db, jahr, [employee_id])
+    vorschlag = _zahl(vorschlag)
+    if not k or k[0].anteilig is None or k[0].anteilig["vorschlag"] == k[0].anspruch:
+        raise VorschlagVeraltet("Es gibt keinen offenen Vorschlag mehr – bitte neu laden.")
+    if k[0].anteilig["vorschlag"] != vorschlag:
+        raise VorschlagVeraltet(f"Der Vorschlag ist jetzt {_tage_text(k[0].anteilig['vorschlag'])} Tage – bitte neu laden.")
+    row = db.scalar(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id == employee_id, Urlaubsanspruch.jahr == jahr))
+    if row is None:
+        row = Urlaubsanspruch(employee_id=employee_id, jahr=jahr)
+        db.add(row)
+    row.urlaubstage, row.anteilig_aus = k[0].anteilig["vorschlag"], k[0].anteilig["basis"]
+    db.commit()
+    return urlaubskonten(db, jahr, [employee_id])[0].als_dict()
 
 
 WERTE_DES_STARTWERTS = ("stichtag", "resturlaub_tage", "saldo_stunden", "herkunft", "herkunft_notiz")

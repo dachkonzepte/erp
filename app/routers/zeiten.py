@@ -22,7 +22,7 @@ from ..lohndatei import LohndateiVeraendert
 from ..lohndatei_abgleich import aenderungen_je_monat, nach_dem_versand
 from ..lohnkonten import ERSTES_JAHR, standardjahr
 from ..permissions import (LOHNDATEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_konten_aller,
-                           darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role, require_role)
+                           darf_lohndaten, darf_lohnregeln, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role, require_role)
 from ..urlaubskonto import konten as urlaubskonten, rest_danach_je_antrag
 from ..time_backoffice import locked_until
 from ..schlechtwetter import SCHLECHTWETTER, ausfall
@@ -170,7 +170,9 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     # seit 1.9.316: die wählbaren Jahre -- ab 2027 bis ein Jahr nach dem laufenden (und das gewählte)
     jahre = sorted(set(range(ERSTES_JAHR, standardjahr() + 2)) | {jahr})
-    return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "jahre": jahre, "konten": [k.als_dict() for k in liste]}
+    # seit 1.9.365: was das Konto an den Ansprüchen darf -- „Vorschlag übernehmen“ nur Admin und Büro – Finanzen (darf_lohnregeln())
+    return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "jahre": jahre, "konten": [k.als_dict() for k in liste],
+            "rechte": {"anspruch_setzen": darf_lohnregeln(user)}}
 
 
 @router.get("/api/zeiten/arbeitszeitkonto")
