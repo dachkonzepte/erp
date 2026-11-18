@@ -12,6 +12,7 @@ from app.routers.tasks import delete_task_endpoint, get_tasks, post_task, put_ta
 from app.schemas import TaskCreate, TaskUpdate
 from app.tasks import create_task, list_tasks, update_task
 from tests.aufraeumen import wegwerf_engine
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def db_session():
@@ -31,6 +32,7 @@ def make_employees(db):
     emp1 = Employee(employee_number="T-1", first_name="Erika", last_name="Eins", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     emp2 = Employee(employee_number="T-2", first_name="Otto", last_name="Zwei", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add_all([emp1, emp2]); db.commit()
+    buero_konto(db, emp1); buero_konto(db, emp2); db.commit()  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     return emp1, emp2
 
 

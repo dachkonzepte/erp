@@ -185,15 +185,17 @@ def aufgaben_abfrage(user: AppUser, *, status: str | None = None, project_id: in
 
 
 def zuweisung_grund(db: Session, assigned_employee_id: int | None, min_visible_role: str | None) -> str | None:
-    """Seit 1.9.369 (F2 c aus dem Bericht 1.9.364): sähe die Person, der die Aufgabe zugewiesen wird, sie? Nur bei einer Mindestrolle; es zählt jedes
-    aktive Konto der Person nach DERSELBEN Regel wie das Lesen (task_visible_for_user()). Nein: der Grund, z. B. „Diese Aufgabe sieht nur Büro – Finanzen
-    und Administrator – Erika Eins hat kein Konto mit dieser Rolle.“; ja (oder ohne Zuweisung, ohne Mindestrolle): None."""
-    if assigned_employee_id is None or min_visible_role is None:
+    """Seit 1.9.369 (F2 c aus dem Bericht 1.9.364): sähe die Person, der die Aufgabe zugewiesen wird, sie? Es zählt jedes aktive Konto der Person nach
+    DERSELBEN Regel wie das Lesen (task_visible_for_user()). Seit 1.9.371 (Nachrunde Urlaub, Punkt 2; F2) auch ohne Mindestrolle: Aufgaben sieht nur das
+    Büro -- ein Monteur oder eine Person ohne Konto sähe sie nie. Nein: der Grund, z. B. „Diese Aufgabe sieht nur Büro – Finanzen und Administrator – Erika
+    Eins hat kein Konto mit dieser Rolle.“; ja (oder ohne Zuweisung): None."""
+    if assigned_employee_id is None:
         return None
     konten = db.scalars(select(AppUser).where(AppUser.employee_id == assigned_employee_id, AppUser.active.is_(True)).order_by(AppUser.id)).all()
     if any(task_visible_for_user(k, assigned_employee_id, min_visible_role) for k in konten):
         return None
-    sehen = [ROLE_LABELS[r] for r in ROLES if has_min_role(AppUser(role=r), ROLE_OFFICE_AUFTRAG) and has_min_role(AppUser(role=r), min_visible_role)]
+    sehen = [ROLE_LABELS[r] for r in ROLES if has_min_role(AppUser(role=r), ROLE_OFFICE_AUFTRAG)
+             and (min_visible_role is None or has_min_role(AppUser(role=r), min_visible_role))]
     rollen = ", ".join(sehen[:-1]) + " und " + sehen[-1] if len(sehen) > 1 else (sehen[0] if sehen else "niemand")
     name = _employee_name(db.get(Employee, assigned_employee_id)) or "diese Person"
     return f"Diese Aufgabe sieht nur {rollen} – {name} hat kein Konto mit dieser Rolle."
@@ -399,9 +401,10 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
 
     min_visible_role (seit 1.5.0): optionale Ziel-Mindestrolle; sie gilt für jede Aufgabe, auch eine
     zugewiesene (task_visible_for_user(); bis 1.9.368 stand hier fälschlich, sie sei dann folgenlos).
-    Seit 1.9.369 (F2 c): sähe die zugewiesene Person die Aufgabe nicht (zuweisung_grund()), lehnt
-    zuweisung="ablehnen" (der Endpunkt, von Hand) mit ZuweisungOhneRolle ab; die Vorgabe "eingang" (die
-    Module) legt sie empfängerlos in den Büro-Eingang -- wie ohne Sachbearbeiter."""
+    Seit 1.9.369 (F2 c): sähe die zugewiesene Person die Aufgabe nicht (zuweisung_grund(); seit 1.9.371
+    auch ohne Mindestrolle -- ein Monteur, eine Person ohne Konto), lehnt zuweisung="ablehnen" (der
+    Endpunkt, von Hand) mit ZuweisungOhneRolle ab; die Vorgabe "eingang" (die Module) legt sie
+    empfängerlos in den Büro-Eingang -- wie ohne Sachbearbeiter."""
     if min_visible_role is not None and min_visible_role not in ROLES:
         raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
     grund = zuweisung_grund(db, assigned_employee_id, min_visible_role)  # seit 1.9.369
@@ -448,7 +451,9 @@ def update_task(db: Session, task_id: int, **changes) -> dict | None:
         return None
     if changes.get("project_id") is not None:  # seit 1.8.71: unbekannt 404 statt Fremdschlüssel (PostgreSQL 500)
         require_project(db, changes["project_id"])
-    if changes.get("assigned_employee_id") is not None:  # seit 1.9.369 (F2 c): nicht an jemanden, der die Aufgabe nicht sähe
+    # seit 1.9.369 (F2 c), seit 1.9.371 auch ohne Mindestrolle: nicht an jemanden, der sie nicht sähe. Nur eine NEUE Zuweisung -- der Editor schickt die
+    # bisherige bei jedem Speichern mit, eine Aufgabe aus dem Bestand (vor 1.9.371 so zugewiesen) bleibt bearbeitbar.
+    if changes.get("assigned_employee_id") is not None and changes["assigned_employee_id"] != task.assigned_employee_id:
         grund = zuweisung_grund(db, changes["assigned_employee_id"], task.min_visible_role)
         if grund is not None:
             raise ZuweisungOhneRolle(grund)

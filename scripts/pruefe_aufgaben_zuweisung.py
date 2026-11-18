@@ -1,6 +1,7 @@
-"""Prüfung: welche Aufgaben sind jemandem zugewiesen, der sie wegen ihrer Mindestrolle nicht sieht? (seit 1.9.369, F2 c aus dem Bericht 1.9.364)
+"""Prüfung: welche Aufgaben sind jemandem zugewiesen, der sie nicht sieht? (seit 1.9.369, F2 c aus dem Bericht 1.9.364; seit 1.9.371 auch ohne Mindestrolle)
 
-Seit 1.9.369 lehnt die Zuweisung von Hand eine solche Person ab (422), ein Modul legt die Aufgabe dann empfängerlos in den Büro-Eingang. Was vorher so
+Seit 1.9.369 lehnt die Zuweisung von Hand eine solche Person ab (422), ein Modul legt die Aufgabe dann empfängerlos in den Büro-Eingang; seit 1.9.371 auch
+bei einer Aufgabe ohne Mindestrolle (Aufgaben sieht nur das Büro -- ein Monteur oder eine Person ohne Konto sähe sie nie). Was vorher so
 zugewiesen wurde, bleibt, wie es ist (Vorgabe Tobias 18.11.2026: nur zählen und berichten, nichts ändern). Das Skript zählt diese Aufgaben -- nach derselben
 Regel wie die Prüfung beim Zuweisen (app/tasks.py::zuweisung_grund(): kein aktives Konto der Person sähe die Aufgabe).
 
@@ -29,19 +30,24 @@ from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from pruefe_stornos import nur_lesende_sitzung  # noqa: E402
 
 
+KEINE = "keine"  # seit 1.9.371: eine Aufgabe ohne Mindestrolle
+
+
 def pruefen(db) -> tuple[int, list[tuple[int, str, bool, str]]]:
-    """(Zahl der zugewiesenen Aufgaben mit Mindestrolle, Treffer als (Nummer, Mindestrolle, archiviert, was die Person hat))."""
+    """(Zahl der zugewiesenen Aufgaben, Treffer als (Nummer, Mindestrolle oder „keine“, archiviert, was die Person hat)). Seit 1.9.371 jede zugewiesene
+    Aufgabe, auch ohne Mindestrolle (bis 1.9.370 nur mit)."""
     from app.models import AppUser, Task  # lokal: erst nach der Prüfung von DATABASE_URL (siehe pruefe_stornos.py)
     from app.permissions import ROLE_LABELS
     from app.tasks import zuweisung_grund
-    aufgaben = list(db.scalars(select(Task).where(Task.assigned_employee_id.is_not(None), Task.min_visible_role.is_not(None)).order_by(Task.id)))
+    aufgaben = list(db.scalars(select(Task).where(Task.assigned_employee_id.is_not(None)).order_by(Task.id)))
     treffer = []
     for t in aufgaben:
         if zuweisung_grund(db, t.assigned_employee_id, t.min_visible_role) is None:
             continue
         rollen = sorted({ROLE_LABELS.get(k.role, k.role) for k in db.scalars(select(AppUser).where(
             AppUser.employee_id == t.assigned_employee_id, AppUser.active.is_(True)).order_by(AppUser.id))})
-        treffer.append((t.id, ROLE_LABELS.get(t.min_visible_role, t.min_visible_role), bool(t.archived), ", ".join(rollen) or "kein Konto"))
+        rolle = KEINE if t.min_visible_role is None else ROLE_LABELS.get(t.min_visible_role, t.min_visible_role)
+        treffer.append((t.id, rolle, bool(t.archived), ", ".join(rollen) or "kein Konto"))
     return len(aufgaben), treffer
 
 
@@ -68,10 +74,9 @@ def main(argv=None, *, sitzung=None, umgebung=None, ausgabe=print) -> int:
             sitzung.close()
             bind.dispose()
     if not treffer:
-        ausgabe(f"Alle {anzahl} zugewiesenen Aufgaben mit Mindestrolle sieht ihre Person." if anzahl else
-                "Keine zugewiesene Aufgabe mit Mindestrolle -- nichts zu prüfen.")
+        ausgabe(f"Alle {anzahl} zugewiesenen Aufgaben sieht ihre Person." if anzahl else "Keine zugewiesene Aufgabe -- nichts zu prüfen.")
         return 0
-    ausgabe(f"{len(treffer)} von {anzahl} zugewiesenen Aufgaben mit Mindestrolle sieht ihre Person nicht:")
+    ausgabe(f"{len(treffer)} von {anzahl} zugewiesenen Aufgaben sieht ihre Person nicht:")
     je_rolle = {}
     for _, rolle, _, _ in treffer:
         je_rolle[rolle] = je_rolle.get(rolle, 0) + 1

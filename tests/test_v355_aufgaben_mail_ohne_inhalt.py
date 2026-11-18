@@ -28,6 +28,7 @@ from app.models import AppUser, Customer, EmailDispatch, Employee, EmployeeProfi
 from app.notice_letters import LETTER_KINDS
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.settings import load_general_settings
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 from app.tasks import (
     TASK_MAIL_KIND_DEFAULT, TASK_MAIL_KINDS, TASK_MAIL_SUBJECT, claim_task, create_task, task_mail_kind, update_task,
 )
@@ -151,6 +152,7 @@ def _setup(db, *, base_url="https://erp.example.test/"):
     db.add(project)
     db.flush()
     db.add(EmployeeProfile(employee_id=emp.id, email="erika@example.com"))
+    buero_konto(db, emp)  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     db.commit()
     return emp, project
 

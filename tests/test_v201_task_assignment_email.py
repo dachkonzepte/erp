@@ -7,6 +7,7 @@ from app.email_sending import update_smtp_settings
 from app.models import Employee, EmployeeProfile
 from app.tasks import create_task, load_task_settings, update_task, update_task_settings
 from tests.aufraeumen import wegwerf_engine
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def db_session():
@@ -27,12 +28,14 @@ def make_employee_with_email(db, email="erika@example.com", number="T-1"):
     emp = Employee(employee_number=number, first_name="Erika", last_name="Eins", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add(emp); db.commit()
     db.add(EmployeeProfile(employee_id=emp.id, email=email)); db.commit()
+    buero_konto(db, emp); db.commit()  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     return emp
 
 
 def make_employee_without_email(db):
     emp = Employee(employee_number="T-2", first_name="Otto", last_name="Zwei", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add(emp); db.commit()
+    buero_konto(db, emp); db.commit()
     return emp
 
 

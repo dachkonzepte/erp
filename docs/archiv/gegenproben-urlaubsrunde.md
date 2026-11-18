@@ -126,3 +126,22 @@ gewesen) und vor dem Lauf durch eine gültige Ersetzung ersetzt.
 
 9 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Für `370_6` vorher im Test ein zweites Lesen ergänzt -- im selben Aufruf hätte
 der Anspruch noch 26 gezeigt.
+
+## Nachrunde 1.9.371 (Punkt 2): Aufgabe nur an jemanden, der sie sieht, auch ohne Mindestrolle
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – auch ohne Mindestrolle | wieder nur mit (`371_1`) | 4 rot: Regel, von Hand, Module, Prüfskript |
+| Nr. 1 – ohne Mindestrolle nur das Büro | Rollen im Grund ohne die Bürogrenze (`371_1b`) | 2 rot: „Monteur, Büro – Auftrag, …“ im Grund |
+| Nr. 3 – von Hand anlegen 422 | ablehnen nur mit Mindestrolle (`371_2`) | 2 rot: POST 200 statt 422; `zuweisung="ablehnen"` wirft nicht |
+| Nr. 3 – von Hand zuweisen 422 | PUT prüft nur mit Mindestrolle (`371_2b`) | 1 rot: PUT 200 statt 422 |
+| Nr. 4 – Module in den Eingang | ohne Mindestrolle bleibt die Zuweisung (`371_3`) | 1 rot: die Aufgabe hat den Monteur |
+| Nr. 5 – nur aktive Konten | auch inaktive (`371_4`) | 2 rot: Otto mit inaktivem Konto „sieht“ sie (auch der Test aus 1.9.369) |
+| Nr. 6 – jede zugewiesene Aufgabe gezählt | wieder nur mit Mindestrolle (`371_5`) | 1 rot: „2 von 3“ statt „3 von 5“ |
+| Nr. 6 – „Mindestrolle keine“ | „-“ (`371_5b`) | 1 rot |
+| Nr. 7 – nur eine neue Zuweisung geprüft | jede mitgeschickte (`371_7`) | 1 rot: der Bestand an den Monteur 422 statt 200 |
+| Nr. 2 – der Grund | (geprüft über `371_1b` und die Texte in den Tests zu Nr. 3) | -- |
+
+9 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `371_2` und `371_2b` waren im ersten Lauf rot über einen KeyError (der Test
+las `detail` vor dem Status) -- der Test prüft jetzt zuerst den Status, beide noch einmal: rot über „200 statt 422“. Nach dem Test zu Nr. 7 `371_2b` ein
+drittes Mal: 2 rot (auch die neue Zuweisung im Bestandstest 200 statt 422).

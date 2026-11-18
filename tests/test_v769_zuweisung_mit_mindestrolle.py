@@ -1,10 +1,12 @@
-"""Version 1.9.369 (Urlaubsrunde, Punkt 5; F2 c aus dem Bericht 1.9.364): die Zuweisung einer Aufgabe an jemanden ohne ihre Mindestrolle.
+"""Version 1.9.369 (Urlaubsrunde, Punkt 5; F2 c aus dem Bericht 1.9.364): die Zuweisung einer Aufgabe an jemanden ohne ihre Mindestrolle; seit 1.9.371
+(Nachrunde Urlaub, Punkt 2; F2) auch ohne Mindestrolle.
 
-    Regel        app/tasks.py::zuweisung_grund(): nur mit Mindestrolle; sähe kein aktives Konto der Person die Aufgabe (task_visible_for_user()), der Grund
-                 „Diese Aufgabe sieht nur Büro – Finanzen und Administrator – <Name> hat kein Konto mit dieser Rolle.“
+    Regel        app/tasks.py::zuweisung_grund(): sähe kein aktives Konto der Person die Aufgabe (task_visible_for_user()), der Grund
+                 „Diese Aufgabe sieht nur Büro – Finanzen und Administrator – <Name> hat kein Konto mit dieser Rolle.“; ohne Mindestrolle sieht sie nur das
+                 Büro (Monteur, Person ohne Konto: „… sieht nur Büro – Auftrag, Büro – Finanzen und Administrator – <Name> …“)
     von Hand     POST /api/tasks und PUT /api/tasks/{id}: 422 mit dem Grund, nichts gespeichert
     Module       create_task() ohne Angabe: die Aufgabe entsteht empfängerlos im Büro-Eingang (wie ohne Sachbearbeiter)
-    Bestand      bleibt; scripts/pruefe_aufgaben_zuweisung.py zählt nur (nur lesend, ohne Namen und Titel)
+    Bestand      bleibt; scripts/pruefe_aufgaben_zuweisung.py zählt nur (nur lesend, ohne Namen und Titel), seit 1.9.371 jede zugewiesene Aufgabe
     Kommentar    am Modell und im Docstring von create_task() berichtigt: die Mindestrolle gilt auch für eine zugewiesene Aufgabe
 """
 
@@ -21,12 +23,13 @@ from tests.test_v279_task_visibility import make_employees
 
 ROOT = Path(__file__).resolve().parent.parent
 FIN = "Diese Aufgabe sieht nur Büro – Finanzen und Administrator – Otto Zwei hat kein Konto mit dieser Rolle."
+BUERO = "Diese Aufgabe sieht nur Büro – Auftrag, Büro – Finanzen und Administrator – {} hat kein Konto mit dieser Rolle."
 
 
 @pytest.fixture
 def welt(threaded_db_session):
     db = threaded_db_session
-    erika, otto = make_employees(db)  # Erika: Konto Büro – Finanzen; Otto: Konto Büro – Auftrag
+    erika, otto = make_employees(db, konten=False)  # Erika: Konto Büro – Finanzen; Otto: Konto Büro – Auftrag
     db.add_all([AppUser(username="erika", display_name="Erika", role="buero_finanzen", employee_id=erika.id, active=True, password_hash="-"),
                 AppUser(username="otto", display_name="Otto", role="buero_auftrag", employee_id=otto.id, active=True, password_hash="-")])
     ohne = Employee(employee_number="V-3", first_name="Olga", last_name="Ohnekonto", employee_group="gewerblich", hourly_wage="20", weekly_hours="40",
@@ -44,7 +47,7 @@ def test_regel(welt):
     assert zuweisung_grund(db, welt["otto"], "buero_finanzen") == FIN
     assert zuweisung_grund(db, welt["erika"], "buero_finanzen") is None
     assert zuweisung_grund(db, welt["otto"], "buero_auftrag") is None
-    assert zuweisung_grund(db, welt["otto"], None) is None and zuweisung_grund(db, None, "admin") is None  # ohne Mindestrolle, ohne Zuweisung
+    assert zuweisung_grund(db, welt["otto"], None) is None and zuweisung_grund(db, None, "admin") is None  # Büro ohne Mindestrolle; ohne Zuweisung
     assert zuweisung_grund(db, welt["erika"], "admin") == "Diese Aufgabe sieht nur Administrator – Erika Eins hat kein Konto mit dieser Rolle."
     assert zuweisung_grund(db, welt["ohne"], "buero_auftrag") == (
         "Diese Aufgabe sieht nur Büro – Auftrag, Büro – Finanzen und Administrator – Olga Ohnekonto hat kein Konto mit dieser Rolle.")
@@ -54,6 +57,61 @@ def test_regel(welt):
     db.scalar(select(AppUser).where(AppUser.username == "erika")).active = False
     db.commit()
     assert zuweisung_grund(db, welt["erika"], "buero_finanzen") is not None  # nur aktive Konten zählen
+
+
+def test_ohne_mindestrolle_regel(welt):
+    """Seit 1.9.371: auch ohne Mindestrolle -- Aufgaben sieht nur das Büro; ein Monteur oder eine Person ohne Konto sähe sie nie."""
+    db = welt["db"]
+    assert zuweisung_grund(db, welt["mo"], None) == BUERO.format("Mo Monteur")
+    assert zuweisung_grund(db, welt["ohne"], None) == BUERO.format("Olga Ohnekonto")
+    assert zuweisung_grund(db, welt["otto"], None) is None and zuweisung_grund(db, welt["erika"], None) is None  # jedes Büro-Konto
+    db.scalar(select(AppUser).where(AppUser.username == "otto")).active = False
+    db.commit()
+    assert zuweisung_grund(db, welt["otto"], None) == BUERO.format("Otto Zwei")  # nur aktive Konten zählen
+
+
+def test_ohne_mindestrolle_von_hand_422(welt, router_test_client):
+    db = welt["db"]
+    c = router_test_client(db, tasks_router.router, role="admin")
+    for wer, name in (("mo", "Mo Monteur"), ("ohne", "Olga Ohnekonto")):
+        r = c.post("/api/tasks", json={"title": f"Für {wer}", "assigned_employee_id": welt[wer]})
+        assert r.status_code == 422, r.text
+        assert r.json()["detail"] == BUERO.format(name)
+        assert db.scalar(select(Task).where(Task.title == f"Für {wer}")) is None  # nichts gespeichert
+    task = create_task(db, title="Eingang")
+    r = c.put(f"/api/tasks/{task['id']}", json={"assigned_employee_id": welt["mo"]})
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == BUERO.format("Mo Monteur")
+    db.expire_all()
+    assert db.get(Task, task["id"]).assigned_employee_id is None
+    assert c.put(f"/api/tasks/{task['id']}", json={"assigned_employee_id": welt["otto"]}).status_code == 200  # Büro wie bisher
+
+
+def test_bestand_bleibt_bearbeitbar(welt, router_test_client):
+    """Seit 1.9.371: das Bearbeiten prüft nur eine NEUE Zuweisung -- der Editor schickt die bisherige bei jedem Speichern mit (tasks.html), eine Aufgabe aus
+    dem Bestand (an den Monteur, an Otto mit Mindestrolle Büro – Finanzen) bleibt bearbeitbar."""
+    db = welt["db"]
+    alt = Task(title="Alt an den Monteur", assigned_employee_id=welt["mo"], status="offen")
+    alt2 = Task(title="Alt an Otto", assigned_employee_id=welt["otto"], min_visible_role="buero_finanzen", status="offen")
+    db.add_all([alt, alt2])
+    db.commit()
+    c = router_test_client(db, tasks_router.router, role="admin")
+    for t, wer in ((alt, "mo"), (alt2, "otto")):
+        r = c.put(f"/api/tasks/{t.id}", json={"title": "Geändert", "assigned_employee_id": welt[wer], "priority": "hoch"})
+        assert r.status_code == 200, r.text
+        assert r.json()["assigned_employee_id"] == welt[wer]  # bleibt, wie sie war
+    r = c.put(f"/api/tasks/{alt.id}", json={"assigned_employee_id": welt["ohne"]})  # eine neue Zuweisung prüft er
+    assert r.status_code == 422, r.text
+
+
+def test_ohne_mindestrolle_module_in_den_eingang(welt):
+    db = welt["db"]
+    for wer in ("mo", "ohne"):
+        t = create_task(db, title="Rechnung erstellen", assigned_employee_id=welt[wer])
+        assert (t["assigned_employee_id"], t["min_visible_role"]) == (None, None)  # empfängerlos im Büro-Eingang
+    assert create_task(db, title="Für Otto", assigned_employee_id=welt["otto"])["assigned_employee_id"] == welt["otto"]
+    with pytest.raises(ZuweisungOhneRolle):
+        create_task(db, title="Von Hand", assigned_employee_id=welt["mo"], zuweisung="ablehnen")
 
 
 def test_von_hand_anlegen_422(welt, router_test_client):
@@ -112,15 +170,19 @@ def test_bestand_bleibt_und_wird_gezaehlt(welt, tmp_path):
     alt = Task(title="Vertraulicher Titel", assigned_employee_id=welt["otto"], min_visible_role="buero_finanzen", status="offen")
     alt2 = Task(title="Noch einer", assigned_employee_id=welt["ohne"], min_visible_role="admin", status="offen", archived=True)
     gut = Task(title="Passt", assigned_employee_id=welt["erika"], min_visible_role="buero_finanzen", status="offen")
-    db.add_all([alt, alt2, gut])
+    monteur = Task(title="An den Monteur", assigned_employee_id=welt["mo"], status="offen")  # seit 1.9.371: auch ohne Mindestrolle
+    gut2 = Task(title="Passt auch", assigned_employee_id=welt["otto"], status="offen")
+    db.add_all([alt, alt2, gut, monteur, gut2])
     db.commit()
     zeilen = []
     assert skript.main([], sitzung=db, ausgabe=zeilen.append) == 1
     text = "\n".join(zeilen)
-    assert zeilen[0] == "2 von 3 zugewiesenen Aufgaben mit Mindestrolle sieht ihre Person nicht:"
+    assert zeilen[0] == "3 von 5 zugewiesenen Aufgaben sieht ihre Person nicht:"
+    assert "  Mindestrolle keine: 1" in zeilen and "  Mindestrolle Administrator: 1" in zeilen
     assert f"Aufgabe Nr. {alt.id}: Mindestrolle Büro – Finanzen, Person: Büro – Auftrag" in text
     assert f"Aufgabe Nr. {alt2.id}: Mindestrolle Administrator, Person: kein Konto (archiviert)" in text
-    assert "Vertraulich" not in text and "Otto" not in text and "Olga" not in text  # ohne Titel und Namen
+    assert f"Aufgabe Nr. {monteur.id}: Mindestrolle keine, Person: Monteur" in text
+    assert "Vertraulich" not in text and "An den" not in text and "Otto" not in text and "Olga" not in text and "Mo Monteur" not in text  # ohne Titel, Namen
     db.expire_all()
     assert db.get(Task, alt.id).assigned_employee_id == welt["otto"]  # nichts geändert
     assert skript.main([], sitzung=db, ausgabe=[].append) == 1

@@ -30,6 +30,7 @@ from app.models import AppUser, Employee
 from app.permissions import ROLE_OFFICE_AUFTRAG, has_min_role
 from app.tasks import claim_task, create_task, list_tasks, list_tasks_for_user, release_task
 from tests.aufraeumen import wegwerf_engine
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def db_session():
@@ -38,10 +39,13 @@ def db_session():
     return sessionmaker(bind=engine)()
 
 
-def make_employees(db):
+def make_employees(db, konten: bool = True):
+    """Erika und Otto; seit 1.9.371 je mit einem Konto Büro – Auftrag (Aufgaben bekommt nur, wer sie sieht) -- konten=False, wer die Konten selbst anlegt."""
     emp1 = Employee(employee_number="V-1", first_name="Erika", last_name="Eins", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     emp2 = Employee(employee_number="V-2", first_name="Otto", last_name="Zwei", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add_all([emp1, emp2]); db.commit()
+    if konten:
+        buero_konto(db, emp1); buero_konto(db, emp2); db.commit()  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     return emp1, emp2
 
 

@@ -16,6 +16,7 @@ from app.models import AppUser, Employee, Finding, Order, Project, ServiceReport
 from app.service_reports import create_report, delete_report
 from app.tasks import add_checklist_item, claim_task, set_task_archived, update_task
 from tests.test_v153_mahnwesen import db_session
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 from tests.test_v214_findings_and_photos import _build_extra_order
 
 
@@ -41,6 +42,9 @@ def _mitarbeiter(db, vorname="Bea"):
     emp = Employee(first_name=vorname, last_name="Büro", employee_group="angestellt", active=True)
     db.add(emp)
     db.commit()
+    if vorname != "Bea":  # Bea bekommt ihr Konto in _uebernehmen(); seit 1.9.371 bekommt eine Aufgabe nur, wer sie sieht
+        buero_konto(db, emp)
+        db.commit()
     return emp
 
 

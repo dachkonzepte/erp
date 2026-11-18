@@ -6,6 +6,7 @@ from app.database import Base
 from app.models import AppUser, Employee, TaskChecklistItem
 from app.tasks import add_checklist_item, create_task, delete_checklist_item, delete_task, list_tasks, update_checklist_item
 from tests.aufraeumen import wegwerf_engine
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def db_session():
@@ -17,6 +18,7 @@ def db_session():
 def make_employee(db):
     emp = Employee(employee_number="T-1", first_name="Erika", last_name="Eins", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add(emp); db.commit()
+    buero_konto(db, emp); db.commit()  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     return emp
 
 

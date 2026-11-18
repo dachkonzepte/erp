@@ -9,6 +9,7 @@ from app.service_reports import create_report, delete_report, list_reports, sign
 from app.tasks import list_tasks
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v153_mahnwesen import db_session
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def request_with_user(user):
@@ -174,6 +175,7 @@ def test_sign_report_creates_invoice_task_for_caseworker():
     order, _ = make_order_with_item(db)
     caseworker = Employee(first_name="Sina", last_name="Sachbearbeiterin", employee_group="angestellt", active=True)
     db.add(caseworker); db.commit()
+    buero_konto(db, caseworker)
     order.caseworker_employee_id = caseworker.id
     db.commit()
 

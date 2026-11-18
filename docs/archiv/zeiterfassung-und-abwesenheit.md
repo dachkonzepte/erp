@@ -3689,3 +3689,7 @@ Neu: `tests/test_v770_mindesturlaub.py` (8 Tests: Regel; Austritt 31.08. unter 2
 Monate, ohne Eintritt; Teilzeit Mo–Mi 12; nach dem Übernehmen; an einer Stelle). Keine angepasste Erwartung. Kein neuer Klicktest -- die Karte zeigt jeden Hinweis
 des Kontos gleich (seit 1.9.316 geprüft); `klicktest_urlaubsrunde` und die übrigen Klicktests des Urlaubskontos laufen unverändert. Gegenproben:
 `gegenproben-urlaubsrunde.md`, „1.9.370“.
+
+### Umsetzung 1.9.371 (Punkt 2): Aufgabe nur an jemanden, der sie sieht, auch ohne Mindestrolle
+
+Steht im Archiv der Aufgaben (`modul-aufgaben.md`, „Auch ohne Mindestrolle (seit 1.9.371 …)“) mit Festlegungen, Tests und Prüfung.

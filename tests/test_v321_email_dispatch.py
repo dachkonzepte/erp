@@ -629,6 +629,9 @@ def test_every_document_sender_logs_and_archives(db_session, smtp, make):
     assert document.email_sent_to == "kunde@example.com"
 
 
+from tests.aufgaben_konto import buero_konto  # noqa: E402
+
+
 def test_task_mail_is_logged_without_attachment_and_only_admin_sees_it(db_session, smtp):
     from app.models import Employee, EmployeeProfile
     from app.tasks import create_task
@@ -639,6 +642,7 @@ def test_task_mail_is_logged_without_attachment_and_only_admin_sees_it(db_sessio
     db.add(emp)
     db.flush()
     db.add(EmployeeProfile(employee_id=emp.id, email="max@example.com"))
+    buero_konto(db, emp)  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     db.commit()
     task = create_task(db, title="Dachrinne prüfen", assigned_employee_id=emp.id)
     [row] = _dispatches(db)
@@ -660,6 +664,7 @@ def test_task_mails_in_the_api_only_for_admin(router_test_client, threaded_db_se
     db.add(emp)
     db.flush()
     db.add(EmployeeProfile(employee_id=emp.id, email="ole@example.com"))
+    buero_konto(db, emp)  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     db.commit()
     create_task(db, title="Vertraulich: Lohngespräch", assigned_employee_id=emp.id)
     for role in ("buero_auftrag", "buero_finanzen"):
@@ -681,6 +686,7 @@ def test_task_mail_failure_is_logged_and_task_still_saved(db_session, smtp):
     db.add(emp)
     db.flush()
     db.add(EmployeeProfile(employee_id=emp.id, email="mia@example.com"))
+    buero_konto(db, emp)  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
     db.commit()
     task = create_task(db, title="Ortstermin", assigned_employee_id=emp.id)
     assert db.get(Task, task["id"]) is not None

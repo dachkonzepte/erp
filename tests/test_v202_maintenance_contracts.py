@@ -13,6 +13,7 @@ from app.modules import set_module_enabled
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.tasks import list_tasks
 from tests.test_v153_mahnwesen import db_session
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def make_customer_and_property(db):
@@ -66,6 +67,7 @@ def test_check_due_creates_reminder_task_and_is_idempotent():
     customer, prop = make_customer_and_property(db)
     emp = Employee(first_name="Erika", last_name="Eins", employee_group="angestellt", active=True)
     db.add(emp); db.commit()
+    buero_konto(db, emp); db.commit()
     contract = create_contract(db, customer.id, prop.id, "Dachwartung", 12, date.today() - timedelta(days=1),
                                 responsible_employee_id=emp.id)
 

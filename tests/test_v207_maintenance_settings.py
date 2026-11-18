@@ -8,6 +8,7 @@ from app.models import Employee
 from app.tasks import list_tasks
 from tests.test_v202_maintenance_contracts import make_customer_and_property
 from tests.test_v153_mahnwesen import db_session
+from tests.aufgaben_konto import buero_konto  # seit 1.9.371: Aufgaben bekommt nur, wer sie sieht
 
 
 def test_settings_default_to_thirty_days_lead_time():
@@ -48,6 +49,7 @@ def test_reminder_uses_lead_time_threshold_not_just_overdue():
     customer, prop = make_customer_and_property(db)
     emp = Employee(first_name="Erika", last_name="Eins", employee_group="angestellt", active=True)
     db.add(emp); db.commit()
+    buero_konto(db, emp); db.commit()
     contract = create_contract(db, customer.id, prop.id, "In zwei Tagen", 12, date.today() + timedelta(days=2),
                                 responsible_employee_id=emp.id)
     reminded = check_due_contracts_and_create_reminders(db)
@@ -60,6 +62,7 @@ def test_reminder_falls_back_to_default_responsible_employee():
     customer, prop = make_customer_and_property(db)
     default_emp = Employee(first_name="Standard", last_name="Sachbearbeiter", employee_group="angestellt", active=True)
     db.add(default_emp); db.commit()
+    buero_konto(db, default_emp); db.commit()
     update_maintenance_settings(db, 30, False, default_emp.id)
 
     contract = create_contract(db, customer.id, prop.id, "Ohne eigenen Zustaendigen", 12, date.today())
@@ -76,6 +79,7 @@ def test_contracts_own_responsible_employee_wins_over_default():
     own_emp = Employee(first_name="Eigen", last_name="Zustaendig", employee_group="angestellt", active=True)
     default_emp = Employee(first_name="Standard", last_name="Sachbearbeiter", employee_group="angestellt", active=True)
     db.add_all([own_emp, default_emp]); db.commit()
+    buero_konto(db, own_emp); buero_konto(db, default_emp); db.commit()
     update_maintenance_settings(db, 30, False, default_emp.id)
 
     create_contract(db, customer.id, prop.id, "Mit eigenem Zustaendigen", 12, date.today(),

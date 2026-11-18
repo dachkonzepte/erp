@@ -278,7 +278,7 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
       `.venv/bin/python scripts/pruefe_aufgaben_zuweisung.py`. Lokal läuft es nicht gegen die echte Datenbank (Regel 16) -- die Zahl gibt es erst vom Server.
     - Kommentar am Modell und Docstrings von `create_task()` und `list_tasks_for_user()` berichtigt.
     - Offen gemeldet, nicht geändert: eine Aufgabe OHNE Mindestrolle lässt sich weiter jemandem ohne Büro-Konto zuweisen (z. B. einem Monteur oder einer Person
-      ohne Konto) -- auch sie sieht diese Person nicht (Aufgaben sieht nur das Büro). Frage im Bericht.
+      ohne Konto) -- auch sie sieht diese Person nicht (Aufgaben sieht nur das Büro). Frage im Bericht. **Seit 1.9.371 erledigt**, siehe unten.
 
     Festlegungen 1.9.369 (Bitte bestätigen):
     1. Ob eine Person eine Aufgabe sähe, entscheidet dieselbe Regel wie das Lesen (`task_visible_for_user()`) für jedes aktive Konto der Person; nur bei einer
@@ -298,3 +298,44 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     Auftrag -- ohne legten die Module ihre Aufgaben jetzt in den Eingang (vier Tests im ersten vollen Lauf rot: „versenden“, „Antwort prüfen“, Tagesbericht,
     Regel bei Abschluss); `tests/test_v330_aufgaben_sichtbarkeit_aendern.py` (`welt`): Otto hat ein Konto Büro – Finanzen -- seine Finanz-Aufgabe wäre sonst im
     Eingang gelandet. Den Fall ohne Konto prüft `test_v769`.
+
+  - **Auch ohne Mindestrolle (seit 1.9.371, Nachrunde Urlaub Punkt 2; F2 aus dem Bericht der Urlaubsrunde, Antwort Tobias 18.11.2026: „ja – dieselbe Prüfung auch
+    für Aufgaben ohne Mindestrolle: Zuweisung an jemanden, der Aufgaben nicht sieht (Monteur, Person ohne Konto), von Hand 422 mit Grund, Module in den
+    Büro-Eingang. Das Prüfskript zählt diese Fälle mit.“)**:
+    - `zuweisung_grund()` prüft jede Zuweisung, nicht mehr nur mit Mindestrolle -- dieselbe Regel wie das Lesen: ohne Mindestrolle sieht ein Konto die Aufgabe ab
+      Büro – Auftrag (`task_visible_for_user()`). Ein Monteur-Konto oder keins: der Grund „Diese Aufgabe sieht nur Büro – Auftrag, Büro – Finanzen und
+      Administrator – <Name> hat kein Konto mit dieser Rolle.“ Damit ersetzt 1.9.371 die Einschränkung „nur bei einer Mindestrolle“ aus Festlegung 1.9.369 Nr. 1.
+    - Von Hand 422 (Anlegen und Bearbeiten), Module in den Eingang, nur aktive Konten, „zurück in den Eingang“ immer -- unverändert aus 1.9.369, jetzt für jede
+      Aufgabe. Betrifft vor allem Module mit Sachbearbeiter (Rechnung erstellen nach der Unterschrift eines Berichts, Wartungsverträge, Befunde, Anzeigen): ein
+      Sachbearbeiter ohne Büro-Konto bekommt die Aufgabe nicht mehr, sie steht im Büro-Eingang.
+    - `scripts/pruefe_aufgaben_zuweisung.py` zählt jede zugewiesene Aufgabe (bis 1.9.370 nur mit Mindestrolle); eine ohne Mindestrolle steht als „Mindestrolle
+      keine“, weiter ohne Namen und Titel. Die Ausgabe ohne Treffer lautet jetzt „Alle n zugewiesenen Aufgaben sieht ihre Person.“ (bis 1.9.370 „… zugewiesenen
+      Aufgaben mit Mindestrolle …“) -- die Zahl auf dem Server ist danach eine andere als die gemeldete 1.
+    - Bestand bleibt (nichts geändert) und bleibt bearbeitbar: das Bearbeiten prüft nur eine NEUE Zuweisung. Der Editor auf /tasks schickt die bisherige bei
+      jedem Speichern mit (`tasks.html`, `saveTask`) -- ohne diese Grenze ließe sich eine Aufgabe, die vor 1.9.371 einem Monteur oder einer Person ohne Konto
+      zugewiesen wurde, nicht mehr speichern (auch nicht auf „erledigt“), bis jemand die Zuweisung ändert. Gilt ebenso für eine Aufgabe mit Mindestrolle aus dem
+      Bestand von 1.9.369 (dort prüfte das Bearbeiten jede mitgeschickte Zuweisung -- gefunden beim Durchsehen des Editors, im Betrieb ohne Folge: die eine
+      gezählte Aufgabe sieht ihre Person).
+
+    Festlegungen 1.9.371 (Bitte bestätigen):
+    1. Jede Zuweisung prüft, ob die Person die Aufgabe sähe, auch ohne Mindestrolle -- nach derselben Regel wie das Lesen; ohne Mindestrolle sehen sie Büro –
+       Auftrag, Büro – Finanzen und Administrator.
+    2. Der Grund ohne Mindestrolle: „Diese Aufgabe sieht nur Büro – Auftrag, Büro – Finanzen und Administrator – <Name> hat kein Konto mit dieser Rolle.“ (für
+       einen Monteur wie für eine Person ohne Konto).
+    3. Von Hand (Anlegen, Bearbeiten) 422 mit dem Grund, nichts gespeichert -- wie mit Mindestrolle.
+    4. Ein Modul legt die Aufgabe empfängerlos in den Büro-Eingang (ohne Mindestrolle), z. B. „Rechnung erstellen“ an einen Sachbearbeiter ohne Büro-Konto.
+    5. Nur aktive Konten zählen, auch ohne Mindestrolle.
+    6. Das Prüfskript zählt jede zugewiesene Aufgabe, eine ohne Mindestrolle als „Mindestrolle keine“; ohne Namen und Titel, nichts geändert.
+    7. Das Bearbeiten prüft nur eine neue Zuweisung: eine unverändert mitgeschickte bleibt -- eine Aufgabe aus dem Bestand bleibt bearbeitbar (auch mit
+       Mindestrolle).
+
+    Tests und Prüfung 1.9.371: `tests/test_v769_zuweisung_mit_mindestrolle.py` um vier Tests ergänzt (Regel ohne Mindestrolle für Monteur, ohne Konto, Büro,
+    inaktives Konto; von Hand anlegen und zuweisen 422; Bestand bleibt bearbeitbar, eine neue Zuweisung wird geprüft; Module in den Eingang). Angepasste Erwartung (Regel 28): `test_bestand_bleibt_und_wird_gezaehlt` --
+    alt „2 von 3 zugewiesenen Aufgaben mit Mindestrolle sieht ihre Person nicht:“, neu „3 von 5 zugewiesenen Aufgaben sieht ihre Person nicht:“ (dazu zwei
+    Aufgaben ohne Mindestrolle, eine an den Monteur, eine an Otto; „Mindestrolle keine: 1“). Aufbau geändert, Erwartungen unverändert (Regel 28): neuer Helfer
+    `tests/aufgaben_konto.py::buero_konto()` (ein aktives Konto Büro – Auftrag, Benutzername „konto-<ID>“); damit bekommen ein Konto: Erika und Otto aus
+    `make_employees()` in `tests/test_v279_task_visibility.py` (neu `konten=False` für `test_v769`, das seine Konten selbst anlegt) und `tests/test_v198_tasks.py`,
+    die Mitarbeiterinnen aus `make_employee()` in `test_v199`/`test_v200`, beide aus `test_v201` (Mail an die zugewiesene Person), der Zuständige in
+    `test_v202`/`test_v207` (Wartungsvertrag), die Sachbearbeiterin in `test_v203` (Rechnung erstellen), die drei Empfänger der Aufgaben-Mail in `test_v321`,
+    die Empfängerin in `test_v355`, Carl in `test_v743` -- im ersten vollen Lauf 30 Tests in 13 Dateien rot, weil die Aufgabe im Eingang landete.
+    Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.371“.
