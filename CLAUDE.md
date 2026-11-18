@@ -1373,7 +1373,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 (Regel 14). Reihenfolge ohne Wertung.
 
 - **Aufgabenmanagement** (`Task`, Modul `aufgabenmanagement`; seit 1.9.344 löscht nur `app/tasks.py::aufgabe_loeschen()` eine Aufgabe, jedes Löschen
-  mit Titel, Konto, Zeitpunkt und Anlass in der Änderungshistorie, nur Admin; kein `delete(Task)`, Wächter `tests/test_v744_aufgaben_loeschen_historie.py`)
+  mit Titel, Konto, Zeitpunkt und Anlass in der Änderungshistorie, nur Admin; kein `delete(Task)`, Wächter `tests/test_v744_aufgaben_loeschen_historie.py`;
+  seit 1.9.364 die Sichtbarkeitsregel als Abfrage `aufgaben_abfrage()` mit `sichtbar_in_sql()` (gleich `task_visible_for_user()`): `list_tasks_for_user()`
+  führt sie aus, die Büro-Suche zählt und begrenzt sie in SQL, `app/search.py` prüft nichts selbst -- `tests/test_v764_aufgaben_suche_in_sql.py`)
   -- `docs/archiv/modul-aufgaben.md`
 - **Wartungen & Reparaturen + Monteursansicht** (`MaintenanceContract`, `ServiceReport`,
   `/mobil`, Modul `wartungen`) -- `docs/archiv/modul-wartungen-und-monteursansicht.md`

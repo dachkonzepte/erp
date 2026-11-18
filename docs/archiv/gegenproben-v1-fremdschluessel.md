@@ -374,3 +374,20 @@ Zeile (in 1.9.360 stand er zweimal mitten in der Zeile). Alle Dateien byte-gleic
 | Nr. 5 – ebenso in Klicktests | `klicktest_rechte_geld` wieder `tab.shots / …` (`363_8`) | 1 rot: v763 jedes Bild |
 
 9 Gegenproben (8 über pytest, 1 über den Klicktest), alle rot; alle Dateien byte-gleich zurück, kein Marker unter `app/`.
+
+## Nach Runde V3, 1.9.364: die Aufgaben der Büro-Suche zählen und begrenzen in SQL
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – höchstens die gezeigten geladen | alle Treffer laden, in Python schneiden (`364_1`) | 1 rot: v764 „50 Aufgaben geladen, gezeigt werden höchstens 20“ |
+| Nr. 2 – die Zahl nennt jeden Treffer | Zahl = gezeigte Zeilen (`364_2`) | 1 rot: v764 „die Zahl nennt jeden Treffer“ |
+| Nr. 3 – neueste zuerst | `Task.id` statt `Task.id.desc()` (`364_3`) | 1 rot: v764 „neueste zuerst“ |
+| Nr. 4 – die Liste über dieselbe Abfrage | `list_tasks_for_user()` wie bis 1.9.363 (`list_tasks()` und Regel je Zeile, gleiches Verhalten) (`364_4`) | 1 rot: v764 Wächter; v270, v279, v322, v330 grün (gleiches Verhalten) |
+| Nr. 4 – die Suche prüft nichts selbst | eigener Filter auf `assigned_employee_id` in der Suche, ohne Wirkung auf das Ergebnis (`364_4c`) | 1 rot: v764 Wächter; v270 grün |
+| Nr. 5 – gleich `task_visible_for_user()`: Mindestrolle | jede Mindestrolle gilt als erfüllt (`364_5`) | 8 rot: v764 Regel (SQLite, PostgreSQL), Suche je Konto (beide), v322 Finanz-Aufgabe, v330 drei Konten |
+| Nr. 5 – ebenso: Zuweisung | Büro-Konto sieht jede Zuweisung (`364_5b`) | 7 rot: v764 Regel und Suche (je beide), v270 drei Tests |
+| Nr. 6 – eigene und empfängerlose zusammen | `mit_eingang` nur der Eingang (`364_6`) | 7 rot: v764 Regel und Suche (je beide), v270 drei Tests (auch der Admin) |
+
+9 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück, kein Marker unter `app/`. Eine weitere (`364_4b`) war selbst falsch gebaut:
+der Filter `assigned_employee_id != -1` schloss auch die empfängerlosen aus (NULL), änderte also das Verhalten -- 4 rot statt nur des Wächters; ersetzt durch
+`364_4c` (ein Filter, der nichts ausschließt).

@@ -252,3 +252,10 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     404. `tests/test_v331_aufgabe_mangel_sichtbarkeit.py`: lesbare Aufgaben = Mangel lesbar = Vorgang
     erstellbar für vier Konten, Angriffstest gegen Kollegen- und Finanz-Aufgabe; Gegenprobe mit dem alten
     Router 6 von 8 rot.
+
+  - **Büro-Suche in SQL (seit 1.9.364)**: die Sichtbarkeitsregel steht als Abfrage in `app/tasks.py::aufgaben_abfrage()` (Auswahl eigene/Eingang/Mitarbeiter,
+    neu `mit_eingang` für eigene und empfängerlose zusammen), die Regel selbst in `sichtbar_in_sql()` -- Zeile für Zeile wie `task_visible_for_user()`, das für
+    die Einzelprüfung bleibt; `tests/test_v764_aufgaben_suche_in_sql.py` vergleicht beide über jede Kombination. `list_tasks_for_user()` führt die Abfrage aus,
+    die Büro-Suche zählt und begrenzt sie in SQL (`_count_and_fetch()`), statt die Liste zweimal ganz zu laden. Offen gemeldet: der Kommentar am Modell und der
+    Docstring von `create_task()` sagen, eine zugewiesene Aufgabe ignoriere `min_visible_role` -- die Regel wendet sie seit 1.5.0 immer an. Herleitung und
+    Messung: `docs/archiv/sqlite-und-postgresql.md`, „Nach Runde V3: 1.9.364“.

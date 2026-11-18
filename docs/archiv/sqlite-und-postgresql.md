@@ -1155,3 +1155,82 @@ doppelt geschützt (`<\\/td>`, derselbe Text für node); seit Python 3.12 eine S
 
 Neu `tests/test_v763_klicktests_fremdschluessel.py` (14 Tests). Keine angepasste Erwartung; geändert ist nur der Aufbau der Testdaten in 42 Klicktests (das Angebot
 des Auftrags) und in `klicktest_plantafel_auftraege.py` (der Wartungsvertrag).
+
+## Nach Runde V3: 1.9.364 -- die Aufgaben der Büro-Suche zählen und begrenzen in SQL
+
+V3 geprüft (8869ea3) und live; die 26 Festlegungen 1.9.360–1.9.363 bestätigt (18.11.2026). Antworten Tobias: **F1** Kundenliste mit der Anrede „Firma“: so
+lassen -- „Firma“ ist eine Anrede und steht nur in der Akte; **F2** Suche schneller: a) jetzt, b) Trigramm-Index und c) gespeicherte Suchspalte erst bei
+spürbarem Bestand; **B2** (`pg_trgm` auf dem Server) entfällt vorerst; **F3** Rundgang-Körper je Route: nichts nachrüsten.
+
+Version 1.9.364: die Aufgaben-Quelle der Büro-Suche zählt und begrenzt in SQL wie die übrigen Quellen; die Sichtbarkeitsregel bleibt in
+`list_tasks_for_user()`. Danach die Messung aus Punkt 4 mit derselben Menge wiederholen, Vorher/Nachher in den Bericht.
+
+### Umsetzung 1.9.364: die Aufgaben-Quelle der Büro-Suche in SQL (F2 a)
+
+- **Vorher:** `app/search.py::_search_tasks()` rief `list_tasks_for_user()` zweimal auf (eigene, dann empfängerlose), jedes Mal mit allen Treffern samt
+  Mitarbeiter, Projekt und Checkliste, prüfte die Sichtbarkeit je Zeile in Python (`task_visible_for_user()`), vereinigte beide Listen und zählte sie.
+- **Die Regel als Abfrage:** `app/tasks.py::aufgaben_abfrage(user, …)` baut die Abfrage der Aufgaben, die ein Konto sieht -- Sichtbarkeitsregel und Auswahl
+  (eigene, Büro-Eingang, beim Admin ein Mitarbeiter; neu `mit_eingang`: eigene und empfängerlose zusammen, wie die Suche sie braucht), ohne Reihenfolge.
+  `list_tasks_for_user()` führt sie aus (Reihenfolge und Antwort wie bisher), die Suche zählt und begrenzt dieselbe über `_count_and_fetch()` (COUNT und LIMIT,
+  neueste zuerst, nur das Projekt nachgeladen) wie jede andere Quelle. `app/search.py` prüft nichts selbst. Wörtlich steht die Regel damit nicht mehr im Rumpf
+  von `list_tasks_for_user()`, sondern in der Abfrage, die sie ausführt -- anders ließe sich in SQL nicht zählen, ohne die Regel in die Suche zu kopieren.
+- **Die Regel in SQL:** `sichtbar_in_sql(user)` -- Zeile für Zeile wie `task_visible_for_user()`: eine erfüllte Ziel-Mindestrolle (leer oder eine Rolle, die das
+  Konto über `has_min_role()` erfüllt), dann der Admin alles, jedes andere Büro-Konto die eigenen und die empfängerlosen. Die Einzelprüfung (Bearbeiten,
+  Löschen, Checkliste …) bleibt in Python; ein Test vergleicht beide über jede Kombination.
+- **Nebenbefund (nur gemeldet):** ein unbekannter Wert in `tasks.min_visible_role` warf bisher in der Liste einen KeyError (500, `has_min_role()` mit unbekannter
+  Rolle); jetzt bleibt die Aufgabe in Listen und Suche unsichtbar, die Einzelprüfung wirft weiter. Werte kommen nur aus dem Code und dem Schema (Muster der vier
+  Rollen) -- kein Weg zu einem unbekannten bekannt.
+- **Widerspruch gemeldet, nicht entschieden:** der Kommentar am Modell (`Task.min_visible_role`) sagt „wirkt NUR auf empfängerlose Aufgaben; eine bereits
+  zugewiesene Aufgabe ignoriert dieses Feld“, ebenso der Docstring von `create_task()` („dann folgenlos“); `task_visible_for_user()` wendet die Mindestrolle seit 1.5.0 aber immer an -- eine Finanz-Aufgabe, die jemandem
+  aus Büro – Auftrag zugewiesen ist (über „Bearbeiten“ möglich), sieht diese Person nicht. 1.9.364 übernimmt das Verhalten unverändert (die Regel in SQL ist
+  dieselbe); Kommentar und Verhalten bleiben, bis entschieden ist, welche Seite gilt (Frage im Bericht).
+- **Wächter** `tests/test_v764_aufgaben_suche_in_sql.py`.
+
+#### Festlegungen 1.9.364 (Bitte bestätigen)
+
+1. Die Aufgaben-Quelle der Büro-Suche zählt und begrenzt in SQL über `_count_and_fetch()` wie die übrigen Quellen: sie lädt höchstens die gezeigten Aufgaben,
+   die Zahl der Anweisungen hängt nicht an den Treffern.
+2. Die Zahl einer Gruppe nennt jeden sichtbaren Treffer, nicht nur die gezeigten.
+3. Neueste zuerst (ID absteigend), wie bisher.
+4. Die Sichtbarkeitsregel steht nur in `app/tasks.py`: `aufgaben_abfrage()` mit `sichtbar_in_sql()`; `list_tasks_for_user()` und die Suche nehmen dieselbe
+   Abfrage, `app/search.py` prüft nichts selbst.
+5. `sichtbar_in_sql()` ist dieselbe Regel wie `task_visible_for_user()` für jede Kombination von Rolle, Konto mit und ohne Mitarbeiter, Zuweisung und
+   Mindestrolle -- unter SQLite und PostgreSQL.
+6. Die Suche findet eigene und empfängerlose Aufgaben in einer Abfrage; ein Büro-Konto ohne Mitarbeiter nur den Eingang, der Admin alles (wie bisher).
+
+#### Messung 1.9.364 (Vorher/Nachher)
+
+Dasselbe Messskript wie Punkt 4 (Wegwerf-Schema der Spielwiese, 2 000 Kunden, 5 000 Objekte, 20 000 Aufgaben, erfundene Namen; ganze Suche als Admin, Median
+aus sieben Läufen, je Quelle aus drei), am 18.11.2026 nacheinander auf demselben Rechner: vorher auf 8869ea3 (Arbeitskopie), nachher auf 1.9.364.
+
+| Suchwort | ganze Suche vorher | nachher | Aufgaben vorher | nachher | Treffer Aufgaben |
+|---|---|---|---|---|---|
+| müller | 932 ms | 935 ms | 535 ms | 536 ms | 0 |
+| MULLER | 921 ms | 916 ms | 535 ms | 530 ms | 0 |
+| strasse | 898 ms | 892 ms | 530 ms | 523 ms | 0 |
+| berg 4 | 920 ms | 853 ms | 534 ms | 473 ms | 55 |
+| schäfer | 1 142 ms | 638 ms | 760 ms | 266 ms | 5 000 |
+| K-1234 | 922 ms | 911 ms | 535 ms | 531 ms | 0 |
+| lindenallee 12 | 914 ms | 912 ms | 532 ms | 539 ms | 0 |
+| zz | 914 ms | 923 ms | 530 ms | 536 ms | 0 |
+| höchster Median / Mittel | 1 142 / 945 ms | 935 / 872 ms | | | |
+
+- **Was F2 a bringt:** das Laden der Treffer fällt weg -- mit 5 000 Treffern 760 -> 266 ms. Mit wenigen oder keinen Treffern bleibt die Quelle bei rund 530 ms:
+  vorher lasen die zwei Aufrufe je einmal alle 20 000 Zeilen, jetzt lesen COUNT und die Liste je einmal alle (die Liste geht die ID von hinten durch, bis 20
+  Treffer da sind -- bei 5 000 Treffern nach rund 80 Zeilen, bei keinem Treffer über alle). Je Durchgang kostet der Vergleich über `telefonbuch()` rund 265 ms.
+- **`STRICT` ist nicht die Ursache (gemessen):** `telefonbuch()` ist `STRICT` und enthält `NULLIF`, PostgreSQL setzt sie deshalb nicht in die Abfrage ein. Ohne
+  `STRICT` wird sie eingesetzt (gleiche Schlüssel für alle 20 000 Titel, NULL und Leerzeichen gleich), ein Durchgang kostet aber trotzdem 242 statt 271 ms --
+  teuer ist der Ausdruck selbst (`translate` und die geschachtelten `replace` je Zeile).
+- **Ein Durchgang statt zwei (gemessen, nicht gebaut):** COUNT in derselben Abfrage (`count(*) OVER ()` mit LIMIT) liest jede Zeile einmal: die Aufgaben-Quelle
+  bei keinem oder wenigen Treffern 540 -> 269 ms, bei 5 000 Treffern unverändert 272 ms. Das beträfe `_count_and_fetch()` und damit jede Quelle -- Frage im
+  Bericht, nicht Teil von F2 a.
+- **Unter 300 ms** bleibt die ganze Suche damit nicht (0,64–0,94 s); den Rest tragen Objekte (rund 320 ms) und Aufgaben. b) und c) wie entschieden erst bei
+  spürbarem Bestand.
+
+#### Tests und Prüfung 1.9.364
+
+Neu `tests/test_v764_aufgaben_suche_in_sql.py` (7 Tests, zwei gegen PostgreSQL): die Regel in SQL gleich `task_visible_for_user()` für vier Rollen je mit und
+ohne Mitarbeiter über 15 Aufgaben (Zuweisung keine/eigene/fremde × Mindestrolle keine/jede); die Suche lädt höchstens 20 von 50 Treffern, nennt 50, neueste
+zuerst, gleich viele Anweisungen bei 5 und 50 Treffern; Zuweisung und Mindestrolle in der Suche je Konto, dieselbe Menge wie die Liste; Wächter (AST): die
+Regel nur in `app/tasks.py`. Keine angepasste Erwartung -- die Tests der Suche (`tests/test_v270_office_search.py`) und der Sichtbarkeit (v279, v322, v330,
+v331) laufen unverändert. Messskript `messe_buero_suche.py` aus Punkt 4 (Scratchpad), unverändert bis auf den Suchpfad des Stands.

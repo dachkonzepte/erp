@@ -89,7 +89,10 @@ list_tasks_for_user() (GET /api/tasks, Dashboard) seit 1.4.3 zieht. Behoben durc
 Wiederverwendung von list_tasks_for_user() (app/tasks.py) statt einer zweiten, hier nachgebauten
 Kopie der Regel -- search_office() bekommt dafür einen neuen, optionalen `employee_id`-Parameter
 (nur für die "tasks"-Quelle relevant) und dispatcht "tasks" als einzigen Sonderfall mit
-zusätzlichem role/employee_id-Argument, siehe _search_tasks()/search_office() für die Details."""
+zusätzlichem role/employee_id-Argument, siehe _search_tasks()/search_office() für die Details.
+
+Seit 1.9.364 nimmt _search_tasks() die Abfrage, die list_tasks_for_user() ausführt (app/tasks.py::aufgaben_abfrage(),
+Regel in sichtbar_in_sql()), und zählt und begrenzt sie in SQL wie jede andere Quelle -- statt die Liste zweimal ganz zu laden."""
 
 from dataclasses import dataclass
 from typing import Callable
@@ -106,11 +109,11 @@ from .modules import is_module_enabled
 from .models import (
     AppUser, Contact, Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract,
     Material, OperationalAsset, OperationalResource, Order, Project, Property, Quote, Reminder,
-    RoofArea, Service, ServiceReport, Supplier,
+    RoofArea, Service, ServiceReport, Supplier, Task,
 )
 from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
-from .tasks import list_tasks_for_user
+from .tasks import aufgaben_abfrage
 from .suchmuster import passt
 from .telefonbuch import nach_namen
 
@@ -420,36 +423,29 @@ def _inquiry_row(i: Inquiry) -> dict:
 # liste gezogen hatte, stand in der Suche wieder offen. ---
 
 def _search_tasks(db: Session, term: str, limit: int, role: str, employee_id: int | None) -> tuple[int, list]:
-    """Nutzt list_tasks_for_user() (app/tasks.py) -- DIESELBE Filterfunktion wie GET /api/tasks/
-    das Dashboard, keine zweite, hier nachgebaute Kopie der Regel (genau das war die Ursache der
-    ursprünglichen Lücke: zwei Stellen, eine Regel, nur an einer gepflegt). Ein transientes,
-    nie persistiertes AppUser-Objekt trägt Rolle/employee_id in list_tasks_for_user() hinein --
-    dieselbe Technik wie router_test_client()s Test-Identität, kein neuer Mechanismus.
+    """Nutzt aufgaben_abfrage() (app/tasks.py) -- DIESELBE Abfrage samt Sichtbarkeitsregel, die
+    list_tasks_for_user() für GET /api/tasks und das Dashboard ausführt, keine zweite, hier
+    nachgebaute Kopie der Regel (genau das war die Ursache der ursprünglichen Lücke: zwei Stellen,
+    eine Regel, nur an einer gepflegt). Ein transientes, nie persistiertes AppUser-Objekt trägt
+    Rolle/employee_id hinein -- dieselbe Technik wie router_test_client()s Test-Identität.
 
-    Zwei Aufrufe statt einem: list_tasks_for_user() liefert für die getrennten Board-Tabs
-    ("Meine Aufgaben"/"Offene Büro-Aufgaben") bewusst ENTWEDER die eigenen ODER die
-    empfängerlosen Aufgaben (unassigned_only ist ein Entweder-Oder-Schalter) -- die Suche
-    braucht dagegen beide KOMBINIERT in einer einzigen Trefferliste. Ein Büro-Konto ohne
-    Mitarbeiterverknüpfung kann "eigene" nicht bestimmen (ValueError, siehe dort) -- das wird
-    hier abgefangen, damit wenigstens die empfängerlosen weiterhin gefunden werden, statt die
-    ganze Suche für dieses Konto leer zu lassen (dieselbe Großzügigkeit wie beim direkten Sehen
-    des gemeinsamen Eingangs). Ein Monteur erreicht diese Funktion ohnehin nie -- search_office()
-    filtert "tasks" bereits über allowed_roles aus, list_tasks_for_user() verweigert zusätzlich
-    (leere Liste) als zweite, unabhängige Absicherung."""
-    user = AppUser(role=role, employee_id=employee_id)
-    try:
-        own = list_tasks_for_user(db, user, include_archived=True, search=term)
-    except ValueError:
-        own = []
-    unassigned = list_tasks_for_user(db, user, include_archived=True, unassigned_only=True, search=term)
-    seen_ids = {t["id"] for t in own}
-    combined = own + [t for t in unassigned if t["id"] not in seen_ids]
-    combined.sort(key=lambda t: t["id"], reverse=True)
-    return len(combined), combined[:limit]
+    Seit 1.9.364 zählt und begrenzt die Quelle in SQL wie die übrigen (_count_and_fetch(): COUNT
+    und LIMIT über dieselbe Abfrage) -- bis dahin lud sie über list_tasks_for_user() zweimal jeden
+    Treffer samt Mitarbeiter, Projekt und Checkliste und zählte in Python (Messung Punkt 4 der
+    Runde V3: 0,5–0,8 s bei 20 000 Aufgaben). mit_eingang=True gibt eigene und empfängerlose
+    Aufgaben in EINER Abfrage (die Liste kennt dafür zwei Reiter); ein Büro-Konto ohne
+    Mitarbeiterverknüpfung findet dann nur den gemeinsamen Eingang, der Admin alles. Ein Monteur
+    erreicht diese Funktion ohnehin nie -- search_office() filtert "tasks" bereits über
+    allowed_roles aus, aufgaben_abfrage() gibt dann zusätzlich None (keine Treffer) als zweite,
+    unabhängige Absicherung. Neueste zuerst, wie bisher."""
+    query = aufgaben_abfrage(AppUser(role=role, employee_id=employee_id), include_archived=True, mit_eingang=True, search=term)
+    if query is None:
+        return 0, []
+    return _count_and_fetch(db, query, Task.id.desc(), limit, options=(selectinload(Task.project),))
 
 
-def _task_row(t: dict) -> dict:
-    return {"id": t["id"], "title": t["title"], "subtitle": t["project_name"], "url": f"/tasks?task={t['id']}"}
+def _task_row(t: Task) -> dict:
+    return {"id": t.id, "title": t.title, "subtitle": t.project.name if t.project else None, "url": f"/tasks?task={t.id}"}
 
 
 # --- Mitarbeiter ---

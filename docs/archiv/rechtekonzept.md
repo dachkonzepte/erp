@@ -1996,6 +1996,10 @@ JavaScript der Auftragsseite und in einer API-Antwort `/checklists/{id}` statt `
 (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.65").
 
 
+**Nachtrag 1.9.364 zur Büro-Suche:** `_search_tasks()` ruft `list_tasks_for_user()` nicht mehr zweimal auf, sondern zählt und begrenzt die Abfrage, die
+`list_tasks_for_user()` ausführt (`app/tasks.py::aufgaben_abfrage(…, mit_eingang=True)`, Regel in `sichtbar_in_sql()`), in SQL -- weiter keine zweite Kopie der
+Regel (Wächter in `tests/test_v764_aufgaben_suche_in_sql.py`). Siehe `docs/archiv/sqlite-und-postgresql.md`, „Nach Runde V3: 1.9.364“.
+
 ## Befund 1.8.142: Zeit buchen für andere (Monteurin)
 
 Vorgabe (Fehlerrunde vor Stufe 2, Punkt 11, 19.10.2026, nur Befund): „Einsatzbericht als Monteurin zeigt bei Zeit buchen die

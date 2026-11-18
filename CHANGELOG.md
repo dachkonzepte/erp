@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.364 – Die Aufgaben der Büro-Suche zählen und begrenzen in SQL
+
+Nach Runde V3 (F2 a). Die Aufgaben-Quelle der Büro-Suche lud bis 1.9.363 jeden Treffer zweimal -- eigene, dann empfängerlose -- samt Mitarbeiter, Projekt und Checkliste, prüfte die Sichtbarkeit je Zeile in Python und zählte die Liste. Jetzt zählt und begrenzt sie in SQL wie jede andere Quelle. Die Sichtbarkeitsregel steht dafür als Abfrage in `app/tasks.py` (`aufgaben_abfrage()`, die Regel selbst in `sichtbar_in_sql()`, Zeile für Zeile wie `task_visible_for_user()`); `list_tasks_for_user()` führt sie aus, die Suche zählt dieselbe -- `app/search.py` prüft nichts selbst.
+
+Gemessen gegen PostgreSQL mit derselben Menge wie in Punkt 4 (2 000 Kunden, 5 000 Objekte, 20 000 Aufgaben): mit vielen Treffern fällt die Aufgaben-Quelle von 760 auf 266 ms (die ganze Suche von 1 142 auf 638 ms); mit wenigen oder keinen Treffern bleibt sie bei rund 530 ms -- Zählen und Liste lesen je einmal alle Zeilen, der Vergleich über `telefonbuch()` kostet je Durchgang rund 265 ms. Neu `tests/test_v764_aufgaben_suche_in_sql.py`. Keine Migration.
+
 ## 1.9.363 – Klicktests mit Fremdschlüsselprüfung
 
 Punkt 3 der Runde V3. Eine Klicktest-Instanz prüft jetzt Fremdschlüssel wie PostgreSQL: der Schalter `ERP_TEST_FREMDSCHLUESSEL=1` (`app/database.py`, nur mit `ERP_ENV` development oder test) schaltet unter SQLite die Prüfung ein, das Klicktest-Werkzeug setzt ihn. Dafür legen 42 Seeds das Angebot ihres Auftrags an statt einer erfundenen ID, und ein Seed der Plantafel einen echten Wartungsvertrag. Alle 152 Klicktests laufen mit Prüfung; in `app/` fand sich dabei nichts.

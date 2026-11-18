@@ -13,7 +13,7 @@ referenziert aber TaskColumn.key statt eines Literals."""
 
 from datetime import date, datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
@@ -87,16 +87,8 @@ def _load_task(db: Session, task_id: int) -> Task | None:
     )
 
 
-def list_tasks(db: Session, employee_id: int | None = None, status: str | None = None,
-                project_id: int | None = None, include_archived: bool = False,
-                unassigned_only: bool = False, search: str | None = None) -> list[dict]:
-    query = select(Task).options(
-        selectinload(Task.assigned_employee), selectinload(Task.project), selectinload(Task.checklist_items)
-    )
-    if unassigned_only:
-        query = query.where(Task.assigned_employee_id.is_(None))
-    elif employee_id is not None:
-        query = query.where(Task.assigned_employee_id == employee_id)
+def _filter(query, *, status: str | None, project_id: int | None, include_archived: bool, search: str | None):
+    """Die Filter einer Aufgabenliste, die nichts mit der Sichtbarkeit zu tun haben -- list_tasks() und aufgaben_abfrage()."""
     if status is not None:
         query = query.where(Task.status == status)
     if project_id is not None:
@@ -105,9 +97,27 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
         query = query.where(passt(Task.title, search))  # seit 1.9.360 wie die Büro-Suche (telefonbuch(), F3)
     if not include_archived:
         query = query.where(Task.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
-    query = query.order_by(Task.due_date.is_(None), Task.due_date.nulls_last(), Task.id.desc())
+    return query
+
+
+def _als_liste(db: Session, query) -> list[dict]:
+    """Eine Aufgabenliste laden: Fälligkeit zuerst, ohne Fälligkeit am Ende, dann die neueste."""
+    query = query.options(
+        selectinload(Task.assigned_employee), selectinload(Task.project), selectinload(Task.checklist_items)
+    ).order_by(Task.due_date.is_(None), Task.due_date.nulls_last(), Task.id.desc())
     columns_by_key = _columns_by_key(db)
     return [task_to_dict(t, columns_by_key) for t in db.scalars(query).all()]
+
+
+def list_tasks(db: Session, employee_id: int | None = None, status: str | None = None,
+                project_id: int | None = None, include_archived: bool = False,
+                unassigned_only: bool = False, search: str | None = None) -> list[dict]:
+    query = select(Task)
+    if unassigned_only:
+        query = query.where(Task.assigned_employee_id.is_(None))
+    elif employee_id is not None:
+        query = query.where(Task.assigned_employee_id == employee_id)
+    return _als_liste(db, _filter(query, status=status, project_id=project_id, include_archived=include_archived, search=search))
 
 
 def task_visible_for_user(user: AppUser, assigned_employee_id: int | None, min_visible_role: str | None) -> bool:
@@ -124,6 +134,50 @@ def task_visible_for_user(user: AppUser, assigned_employee_id: int | None, min_v
     if has_role(user, ROLE_ADMIN):
         return True
     return assigned_employee_id is None or (user.employee_id is not None and assigned_employee_id == user.employee_id)
+
+
+def sichtbar_in_sql(user: AppUser):
+    """task_visible_for_user() als Bedingung in SQL (seit 1.9.364) -- dieselbe Regel für eine Liste, die in der Datenbank
+    zählt und begrenzt: eine erfüllte Ziel-Mindestrolle; der Admin dann alles, jedes andere Büro-Konto die eigenen und die
+    empfängerlosen Aufgaben. tests/test_v764_aufgaben_suche_in_sql.py vergleicht beide über jede Kombination von Rolle,
+    Konto, Zuweisung und Mindestrolle -- wer die eine ändert, ändert die andere. Nur für Konten ab buero_auftrag
+    (aufgaben_abfrage() prüft das vorher)."""
+    erfuellt = [rolle for rolle in ROLES if has_min_role(user, rolle)]
+    bedingung = or_(Task.min_visible_role.is_(None), Task.min_visible_role.in_(erfuellt))
+    if has_role(user, ROLE_ADMIN):
+        return bedingung
+    eigen = [Task.assigned_employee_id.is_(None)]
+    if user.employee_id is not None:
+        eigen.append(Task.assigned_employee_id == user.employee_id)
+    return and_(bedingung, or_(*eigen))
+
+
+def aufgaben_abfrage(user: AppUser, *, status: str | None = None, project_id: int | None = None,
+                     include_archived: bool = False, employee_id: int | None = None,
+                     unassigned_only: bool = False, mit_eingang: bool = False, search: str | None = None):
+    """Die Aufgaben, die dieses Konto sieht, als Abfrage ohne Reihenfolge (seit 1.9.364): die Sichtbarkeitsregel
+    (sichtbar_in_sql()) und die Auswahl des Aufrufers. list_tasks_for_user() führt sie aus; die Büro-Suche
+    (app/search.py::_search_tasks()) zählt und begrenzt dieselbe Abfrage in SQL -- die Regel steht nur hier. None: das
+    Konto sieht keine Aufgabe (unter buero_auftrag).
+
+    Auswahl: unassigned_only -- nur der gemeinsame Büro-Eingang, für jedes Konto gleich; mit_eingang -- alles, was die
+    Regel zeigt, eigene und empfängerlose zusammen (die Suche: ein Büro-Konto ohne Mitarbeiter nur den Eingang, der Admin
+    alles); sonst der Admin frei (employee_id), ein Büro-Konto nur die eigenen (ohne Mitarbeiter ValueError)."""
+    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
+        return None
+    query = select(Task).where(sichtbar_in_sql(user))
+    if unassigned_only:
+        query = query.where(Task.assigned_employee_id.is_(None))
+    elif mit_eingang:
+        pass
+    elif has_role(user, ROLE_ADMIN):
+        if employee_id is not None:
+            query = query.where(Task.assigned_employee_id == employee_id)
+    else:
+        if user.employee_id is None:
+            raise ValueError(KEIN_MITARBEITER)
+        query = query.where(Task.assigned_employee_id == user.employee_id)
+    return _filter(query, status=status, project_id=project_id, include_archived=include_archived, search=search)
 
 
 def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None,
@@ -145,32 +199,25 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
     dagegen zwingend auf die eigene employee_id festgelegt (der employee_id-Parameter wird für
     diese Rolle ignoriert) -- exakt das bisherige Verhalten von GET /api/tasks, nur zentralisiert.
 
-    search wird unverändert an list_tasks() durchgereicht (Titel-ILIKE) -- genutzt von
-    app/search.py::_search_tasks() (Büro-Suche), damit die Sichtbarkeitsregel dort NICHT ein
-    zweites Mal nachgebaut wird, siehe dort.
+    search filtert den Titel (passt(), wie die Büro-Suche). Seit 1.9.364 baut aufgaben_abfrage() die
+    Abfrage samt Sichtbarkeitsregel; die Büro-Suche (app/search.py::_search_tasks()) zählt und
+    begrenzt dieselbe in SQL, statt diese Liste zweimal ganz zu laden -- die Regel wird dort NICHT
+    ein zweites Mal nachgebaut, siehe dort.
 
     min_visible_role (seit 1.5.0, allgemeine Erweiterung des claim/release-Modells, nicht nur
     für Betriebskosten -- siehe CLAUDE.md "Aufgabe"): eine empfängerlose Aufgabe kann optional
-    eine Ziel-Mindestrolle tragen. Der Filter wird UNBEDINGT auf jede zurückgegebene Zeile
-    angewendet (has_min_role(user, row.min_visible_role)), nicht nur im unassigned_only-Zweig --
-    für Konsistenz, auch wenn er praktisch nur dort greift (eine bereits einem konkreten
-    Mitarbeiter zugewiesene Aufgabe ist ohnehin nur für diesen selbst oder Admin sichtbar,
-    unabhängig von min_visible_role). Ein buero_auftrag-Konto sieht dadurch eine
+    eine Ziel-Mindestrolle tragen. Der Filter gilt UNBEDINGT für jede Zeile (seit 1.9.364 in SQL,
+    sichtbar_in_sql(); bis dahin je Zeile über task_visible_for_user()), nicht nur im
+    unassigned_only-Zweig -- für Konsistenz, auch wenn er praktisch nur dort greift (eine bereits
+    einem konkreten Mitarbeiter zugewiesene Aufgabe ist ohnehin nur für diesen selbst oder Admin
+    sichtbar, unabhängig von min_visible_role). Ein buero_auftrag-Konto sieht dadurch eine
     finanz-adressierte Aufgabe an KEINER Stelle -- weder in der Liste noch im gemeinsamen
     Büro-Eingang."""
-    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
+    query = aufgaben_abfrage(user, status=status, project_id=project_id, include_archived=include_archived,
+                             employee_id=employee_id, unassigned_only=unassigned_only, search=search)
+    if query is None:
         return []
-    if unassigned_only:
-        effective_employee_id = None
-    elif has_role(user, ROLE_ADMIN):
-        effective_employee_id = employee_id
-    else:
-        if user.employee_id is None:
-            raise ValueError(KEIN_MITARBEITER)
-        effective_employee_id = user.employee_id
-    rows = list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
-                       include_archived=include_archived, unassigned_only=unassigned_only, search=search)
-    return [r for r in rows if task_visible_for_user(user, r["assigned_employee_id"], r["min_visible_role"])]
+    return _als_liste(db, query)
 
 
 def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
