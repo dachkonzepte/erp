@@ -2895,6 +2895,10 @@ class Urlaubsanspruch(Base):
     notiz: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # seit 1.9.367 (Urlaubsrunde, Punkt 3): wann die Person den Hinweis auf ihren Resturlaub aus dem Vorjahr in „Meine Zeiten“ gelesen hat (naives UTC)
     hinweis_gelesen_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # seit 1.9.368 (Urlaubsrunde, Punkt 4): der gebuchte Verfall des Übertrags -- nur per Klick („Verfall buchen“), nie von selbst; leer = nichts gebucht
+    verfall_tage: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    verfall_gebucht_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    verfall_gebucht_von: Mapped[str | None] = mapped_column(String(120), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

@@ -12,6 +12,10 @@ Stehende Uhr Mi 10.02.2027 10:00 (Server und Browser). Nea (Helferin, Eintritt 0
     Resturlaub        (1.9.367) Karte: Mia „Hinweis Resturlaub: nicht gelesen“; Mia (Monteurin) in „Meine Zeiten“: „Du hast noch 2,5 Tage Resturlaub aus
                       2026. Bitte bis 31.03.2027 nehmen – danach verfallen sie.“ mit „Gelesen“ -- Bilder bei 1440 und 412 px, hell und dunkel (412: nichts
                       läuft über); „Gelesen“ -> ohne Neuladen weg, nach dem Neuladen auch; Karte: „Hinweis Resturlaub gelesen am 10.02.2027 10:00“
+    Verfall buchen    (1.9.368) Uhr auf Di 06.04.2027 10:00: Karte mit Kai (Übertrag 3, „nicht gelesen“) und Mia („gelesen am 10.02.2027 10:00“), je
+                      „Übertrag nicht genommen: …“ und „Verfall buchen“ -- Bilder bei 1440 und 412 px, hell und dunkel (412: nichts läuft über); Mias Verfall
+                      gebucht -> „Übertrag verfallen: 2,5 Tage am 31.03.2027“, „Verfall gebucht am 06.04.2027 10:00 von Fin Finanzen“, Rest 30, kein
+                      „Verfall zurücknehmen“ für Büro – Finanzen
     überall           keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -45,7 +49,8 @@ def befuellen(db, k):
     nea = Employee(employee_number="M-1", first_name="Nea", last_name="Neu", employee_group="gewerblich", active=True)
     wim = Employee(employee_number="M-2", first_name="Wim", last_name="Weg", employee_group="gewerblich", active=True)
     mia = Employee(employee_number="M-3", first_name="Mia", last_name="Monteurin", employee_group="gewerblich", active=True)
-    db.add_all([nea, wim, mia])
+    kai = Employee(employee_number="M-4", first_name="Kai", last_name="Kolonne", employee_group="gewerblich", active=True)  # seit 1.9.368
+    db.add_all([nea, wim, mia, kai])
     db.flush()
     db.add_all([EmployeePayrollSettings(employee_id=nea.id, eintritt=date(2027, 8, 1)),
                 EmployeePayrollSettings(employee_id=wim.id, eintritt=date(2019, 4, 1), austritt=date(2027, 5, 31)),
@@ -53,6 +58,7 @@ def befuellen(db, k):
                 Urlaubsanspruch(employee_id=nea.id, jahr=2027, urlaubstage=Decimal("26")),
                 LohnStartwert(employee_id=mia.id, stichtag=date(2026, 12, 31), resturlaub_tage=Decimal("4.5"), saldo_stunden=Decimal("0"), herkunft="steuerbuero"),
                 LohnStartwert(employee_id=wim.id, stichtag=date(2026, 12, 31), resturlaub_tage=Decimal("0"), saldo_stunden=Decimal("0"), herkunft="steuerbuero"),
+                LohnStartwert(employee_id=kai.id, stichtag=date(2026, 12, 31), resturlaub_tage=Decimal("3"), saldo_stunden=Decimal("0"), herkunft="steuerbuero"),
                 # seit 1.9.366: genehmigter Urlaub vor dem Verfall -- verbraucht zuerst den Übertrag
                 EmployeeAbsence(employee_id=mia.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2027, 2, 1), end_date=date(2027, 2, 2))])
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
@@ -60,7 +66,10 @@ def befuellen(db, k):
     mia_konto = AppUser(username="mia", display_name="Mia Monteurin", role="field", employee_id=mia.id, password_hash=k.passwort())  # seit 1.9.367
     db.add_all([fin, bea, mia_konto])
     db.commit()
-    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": k.cookies(mia_konto), "nea_id": nea.id, "mia_id": mia.id, "uhr_ms": k.uhr_ms()}
+    from datetime import datetime, timezone
+    april = int(datetime(2027, 4, 6, 8, 0, tzinfo=timezone.utc).timestamp() * 1000)  # Di 06.04.2027 10:00 in Berlin (Sommerzeit)
+    return {"fin": k.cookies(fin), "bea": k.cookies(bea), "mia": k.cookies(mia_konto), "nea_id": nea.id, "mia_id": mia.id, "uhr_ms": k.uhr_ms(),
+            "uhr_april_ms": april}
 
 
 async def _eingeben(tab, feld: str, wert: str):
@@ -79,6 +88,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Abwesenheiten mit Konto", await tab.oeffnen("/zeiten?n=1#abwesenheiten", KONTO_BEREIT), True)
     await tab.warte_auf_ruhe()
     p.pruefe("Fin: Konto 2027 mit Vorschlägen", [z[:2] for z in await tab.js(UK_ZEILEN)], [
+        ["Kai Kolonne davon Übertrag noch 3 Tage, verfällt am 31.03.2027 Hinweis Resturlaub: nicht gelesen", "30 (Vorgabe)"],  # seit 1.9.368
         ["Mia Monteurin davon Übertrag noch 2,5 Tage, verfällt am 31.03.2027 Hinweis Resturlaub: nicht gelesen", "30 (Vorgabe)"],  # seit 1.9.366, 1.9.367
         ["Nea Neu Anspruch prüfen Vorschlag 11 Tage: 26 ÷ 12 × 5 = 10,8 → 11 · 5 volle Monate (01.08.2027–31.12.2027) Vorschlag übernehmen", "26"],
         ["Wim Weg Anspruch prüfen Vorschlag 12,5 Tage: 30 ÷ 12 × 5 = 12,5 → 12,5 · 5 volle Monate (01.01.2027–31.05.2027) Vorschlag übernehmen",
@@ -155,6 +165,36 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("Fin: Mia hat gelesen", await tab.js(f"{MIA}.querySelector('.uk-gelesen').innerText"), "Hinweis Resturlaub gelesen am 10.02.2027 10:00")
     p.pruefe("Fin: keine JS-Fehler (danach)", tab.fehler, [])
+
+    # ---- 1.9.368: nach dem Verfall -- „Verfall buchen“ ------------------------------------------------------------------------------------------
+    await tab.uhr_stellen(seed["uhr_april_ms"])
+    KAI = "[...document.querySelectorAll('#ukZeilen tr')].find(tr=>tr.innerText.includes('Kai'))"
+    n = 50
+    for breite, mobil in ((1440, False), (412, True)):
+        await tab.fenster(breite, 1000, mobil=mobil)
+        for thema, name in (("light", "hell"), ("dark", "dunkel")):
+            await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+            n += 1
+            p.pruefe(f"Verfall {breite} {name}: geladen", await tab.oeffnen(f"/zeiten?n={n}#abwesenheiten", KONTO_BEREIT), True)
+            await tab.warte_auf_ruhe()
+            if mobil:
+                p.pruefe(f"Verfall 412 {name}: nichts läuft über", await tab.ueberlauf(), [])
+            await tab.js("document.getElementById('ukKarte').scrollIntoView({block:'start'})")
+            await tab.bild(f"urlaubskonto_verfall_buchen_{breite}_{name}")
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    p.pruefe("Fin: nach dem Verfall", await tab.oeffnen("/zeiten?n=60#abwesenheiten", KONTO_BEREIT), True)
+    await tab.warte_auf_ruhe()
+    zeile = "(tr=>[tr.cells[0].innerText.replace(/\\s+/g,' ').trim(),!!tr.querySelector('[data-aktion=uk-verfall]')])"
+    p.pruefe("Fin: Kai und Mia -- nicht genommen, mit „Verfall buchen“", [await tab.js(f"{zeile}({KAI})"), await tab.js(f"{zeile}({MIA})")], [
+        ["Kai Kolonne Übertrag nicht genommen: 3 Tage – Verfall am 31.03.2027, nichts verfällt von selbst Hinweis Resturlaub: nicht gelesen Verfall buchen", True],
+        ["Mia Monteurin Übertrag nicht genommen: 2,5 Tage – Verfall am 31.03.2027, nichts verfällt von selbst Hinweis Resturlaub gelesen am 10.02.2027 10:00 "
+         "Verfall buchen", True]])
+    await tab.warte_auf_neu_geladene_liste(f"{MIA}.querySelector('[data-aktion=uk-verfall]').click()", "#ukZeilen")
+    p.pruefe("Fin: Mias Verfall gebucht", await tab.js(f"[{MIA}.cells[0].innerText.replace(/\\s+/g,' ').trim(),{MIA}.cells[7].innerText.trim(),"
+                                                       f"!!{MIA}.querySelector('[data-aktion^=uk-verfall]'),document.getElementById('ergebnis').textContent]"),
+             ["Mia Monteurin Übertrag verfallen: 2,5 Tage am 31.03.2027 Verfall gebucht am 06.04.2027 10:00 von Fin Finanzen", "30", False, "Verfall gebucht."])
+    p.pruefe("Fin: keine JS-Fehler (Verfall)", tab.fehler, [])
 
     # ---- Büro – Auftrag: kein Konto anderer, kein Knopf --------------------------------------------------------------------------------------
     await tab.anmelden(seed["bea"])

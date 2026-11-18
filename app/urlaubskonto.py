@@ -15,7 +15,7 @@ Je Person und Jahr (ab ERSTES_JAHR, 2027; app/lohnkonten.py):
                   Feiertage und Tage des Arbeitszeitkalenders (außer Silvester als ganzer Urlaubstag) -- die Posten der Tagesbilanz
                   (app/tagesbilanz.py); ein von Hand eingetragener betriebsfreier Tag zählt (Antwort 4, Befund 7.2)
     beantragt     die Tage der offenen Anträge auf Urlaub im Jahr, nach derselben Regel (Antwort 5)
-    rest          Anspruch + Übertrag − genehmigt; rest_nach_antraegen = rest − beantragt
+    rest          Anspruch + Übertrag − verfallen − genehmigt (verfallen seit 1.9.368: nur ein gebuchter Verfall); rest_nach_antraegen = rest − beantragt
     Übertrag zuerst  seit 1.9.366 (Urlaubsrunde, Punkt 2): genehmigter Urlaub bis zum Verfall des Übertrags (am Anspruch, sonst die Vorgabe „Verfall“,
                   ausgeliefert 31.03.) verbraucht zuerst den Übertrag -- uebertrag_noch = Übertrag − dieser Urlaub, nie unter 0; Urlaub danach verbraucht
                   den Anspruch. Ohne Verfall verbraucht jeder Urlaub des Jahrs zuerst den Übertrag. Der Rest bleibt Anspruch + Übertrag − genehmigt
@@ -65,12 +65,16 @@ class Konto:
     anteilig: dict | None = None  # seit 1.9.365: Vorschlag bei Eintritt oder Austritt im Jahr (vorschlag_anteilig())
     verfall_am: date | None = None  # seit 1.9.366: Verfall des Übertrags im Jahr (am Anspruch, sonst die Vorgabe; leer = nie)
     resturlaub_hinweis: str | None = None  # seit 1.9.367: der Hinweis an die Person (resturlaub_text()), solange er gilt
+    verfallen: Decimal = NULL  # seit 1.9.368: der gebuchte Verfall des Übertrags (nur per Klick)
+    verfall_gebucht_am: object = None
+    verfall_gebucht_von: str | None = None
+    verfall_offen: Decimal | None = None  # seit 1.9.368: nach dem Verfall der nicht genommene Übertrag, solange nichts gebucht ist („Verfall buchen“)
     hinweis_gelesen_am: object = None  # seit 1.9.367: wann sie ihn in „Meine Zeiten“ gelesen hat (naives UTC)
     uebertrag_noch: Decimal = NULL  # seit 1.9.366: Übertrag, den kein genehmigter Urlaub bis zum Verfall verbraucht hat
 
     @property
     def rest(self) -> Decimal:
-        return self.anspruch + self.uebertrag - self.genehmigt
+        return self.anspruch + self.uebertrag - self.verfallen - self.genehmigt
 
     @property
     def rest_nach_antraegen(self) -> Decimal:
@@ -86,6 +90,8 @@ class Konto:
                 "rest": t(self.rest), "rest_nach_antraegen": t(self.rest_nach_antraegen), "hinweise": list(self.hinweise),
                 "verfall_am": self.verfall_am, "uebertrag_noch": t(self.uebertrag_noch),  # seit 1.9.366
                 "resturlaub_hinweis": self.resturlaub_hinweis, "hinweis_gelesen_am": self.hinweis_gelesen_am,  # seit 1.9.367
+                "verfallen": t(self.verfallen), "verfall_gebucht_am": self.verfall_gebucht_am, "verfall_gebucht_von": self.verfall_gebucht_von,  # seit 1.9.368
+                "verfall_offen": None if self.verfall_offen is None else t(self.verfall_offen),
                 "anteilig": None if self.anteilig is None else {**self.anteilig, "basis": t(self.anteilig["basis"]), "roh": t(self.anteilig["roh"]),
                                                                 "vorschlag": t(self.anteilig["vorschlag"])}}
 
@@ -220,6 +226,10 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                             bis_verfall += posten.anteil
             if k.uebertrag > 0:
                 k.uebertrag_noch = max(NULL, k.uebertrag - bis_verfall)
+            nicht_genommen = k.uebertrag_noch
+            if a is not None and a.verfall_tage is not None:  # seit 1.9.368: ein gebuchter Verfall nimmt den Rest des Übertrags
+                k.verfallen, k.verfall_gebucht_am, k.verfall_gebucht_von = a.verfall_tage, a.verfall_gebucht_am, a.verfall_gebucht_von
+                k.uebertrag_noch = max(NULL, k.uebertrag_noch - k.verfallen)
             if j == jahr:
                 for r in offen.get(emp.id, []):
                     k.beantragt += abwesenheit_tage(db, emp.id, max(r.start_date, date(j, 1, 1)), min(r.end_date, date(j, 12, 31)), kategorie=URLAUB,
@@ -239,6 +249,14 @@ def konten(db: Session, jahr: int, employee_ids=None, *, heute: date | None = No
                         k.hinweise.append(f"Anspruch anteilig: {k.anteilig['rechnung']}")
                 if k.uebertrag_noch > 0:  # seit 1.9.366 statt „Verfall des Übertrags vorgemerkt am …“
                     k.hinweise.append(uebertrag_hinweis(k.uebertrag_noch, verfall, heute))
+                # seit 1.9.368 (Urlaubsrunde, Punkt 4): nach dem Verfall „Verfall buchen“, solange nichts gebucht ist; ein gebuchter steht als Hinweis da,
+                # weicht der nicht genommene Übertrag danach ab (ein Urlaub vor dem Verfall erst später genehmigt), „Verfall prüfen“
+                if verfall is not None and heute > verfall and k.uebertrag_noch > 0 and k.verfallen == 0:
+                    k.verfall_offen = k.uebertrag_noch
+                if k.verfallen > 0:
+                    k.hinweise.append(f"Übertrag verfallen: {tage_wort(k.verfallen)}" + (f" am {verfall:%d.%m.%Y}" if verfall is not None else ""))
+                    if nicht_genommen != k.verfallen:
+                        k.hinweise.append(f"Verfall prüfen: gebucht {tage_wort(k.verfallen)}, nicht genommen jetzt {tage_wort(nicht_genommen)}")
                 # seit 1.9.367 (Urlaubsrunde, Punkt 3): ab dem 01.01. bis zum Verfall der Hinweis an die Person, solange vom Übertrag etwas übrig ist
                 if k.uebertrag_noch > 0 and verfall is not None and date(j, 1, 1) <= heute <= verfall:
                     k.resturlaub_hinweis = resturlaub_text(k.uebertrag_noch, j - 1, verfall)

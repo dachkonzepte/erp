@@ -3593,3 +3593,54 @@ SQLite und PostgreSQL). `klicktest_urlaubsrunde.py`: Mia in „Meine Zeiten“ m
 - `tests/test_v710_urlaub_und_startwerte.py::test_modelle` -- alt: ohne `hinweis_gelesen_am`; neu: mit.
 - `klicktest_urlaubsrunde.py` „Fin: Konto 2027 mit Vorschlägen“ -- alt: Mia „… verfällt am 31.03.2027“; neu: dazu „Hinweis Resturlaub: nicht gelesen“.
 Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.367“.
+
+### Umsetzung 1.9.368 (Punkt 4): Verfall buchen
+
+- `app/urlaubskonto.py::konten()`: `verfallen` (der gebuchte Verfall am Anspruch des Jahrs), der Rest ist jetzt Anspruch + Übertrag − verfallen − genehmigt;
+  `uebertrag_noch` mindert sich um den gebuchten Verfall. Nach dem Verfall (heute nach dem Tag) und solange nichts gebucht ist, `verfall_offen` = der nicht
+  genommene Übertrag (Hinweis „Übertrag nicht genommen: …“ wie seit 1.9.366). Gebucht: Hinweis „Übertrag verfallen: 2,5 Tage am 31.03.2027“; weicht der nicht
+  genommene Übertrag danach ab (ein Urlaub vor dem Verfall erst später genehmigt), dazu „Verfall prüfen: gebucht n Tage, nicht genommen jetzt m Tage“ -- der
+  Admin nimmt zurück und bucht neu. Ein automatischer Übertrag ins Folgejahr (Rest des Vorjahres) nimmt den Verfall damit mit.
+- Buchen: `app/lohnkonten.py::verfall_buchen()`, `POST /api/time-backoffice/konten/{Person}/anspruch/{Jahr}/verfall` mit den angezeigten Tagen
+  (`VerfallBuchenIn`; Jahr 2027–2100), `require_lohnregeln` (Admin, Büro – Finanzen). Unter der Zeilensperre des Anspruchs (`_anspruch_gesperrt()`, FOR UPDATE; fehlt
+  die Zeile, eine leere, gleichzeitig angelegt 409); der Server rechnet `verfall_offen` neu -- nichts zu buchen (vor dem Verfall, alles genommen, schon gebucht) oder
+  ein anderer Wert 409, nichts geändert. Gespeichert: `verfall_tage`, `verfall_gebucht_am` (Uhr der App, `utc_jetzt()`), `verfall_gebucht_von` (Name als
+  Schnappschuss); Migration `f8b4d0e3a629` (`downgrade()` bricht ab, solange ein Verfall gebucht ist).
+- Zurücknehmen: `verfall_zuruecknehmen()`, `DELETE` derselben Adresse, nur der Admin (Antwort auf die Rückfrage); ohne Buchung 409.
+- Historie: die Felder „Verfall gebucht (Tage)“, „Verfall gebucht am“, „Verfall gebucht von“ des Anspruchs -- jede Buchung und jedes Zurücknehmen als Änderung;
+  für Büro – Auftrag geschwärzt.
+- Seite (`zeiten.html`, `ukVerfall()`): unter dem Hinweis „Übertrag nicht genommen“ „Hinweis Resturlaub gelesen am …“ bzw. „… nicht gelesen“ (`ukGelesen()`) und
+  „Verfall buchen“ (nach `rechte.verfall_buchen`), abschließend über `abschliessen()` (in `ABSCHLIESSEND` von `tests/test_v399_abschliessen.py`); gebucht „Verfall
+  gebucht am 06.04.2027 10:00 von Fin Finanzen“, für den Admin „Verfall zurücknehmen“ mit Rückfrage auf der Seite (`UK_ZURUECK`, kein Browser-Dialog). Die Antwort
+  von `GET /api/zeiten/urlaubskonto` nennt `rechte.verfall_buchen` und `rechte.verfall_zuruecknehmen`.
+
+#### Festlegungen 1.9.368 (Bitte bestätigen)
+
+1. Nach dem Verfall (ab dem Tag danach) zeigt das Urlaubskonto den nicht genommenen Übertrag mit „Verfall buchen“, solange nichts gebucht ist.
+2. Nichts verfällt von selbst: kein Lesen bucht; erst die Buchung mindert den Rest.
+3. Gebucht wird genau der angezeigte nicht genommene Übertrag; der Server rechnet neu, ein anderer Wert oder nichts zu buchen 409.
+4. Rest = Anspruch + Übertrag − verfallen − genehmigt; ein automatischer Übertrag ins Folgejahr nimmt den Verfall mit.
+5. Gebucht: „Übertrag verfallen: n Tage am …“; weicht der nicht genommene Übertrag später ab, „Verfall prüfen: gebucht n, nicht genommen jetzt m“.
+6. Buchen Admin und Büro – Finanzen; zurücknehmen nur der Admin, danach wieder zu buchen.
+7. Gebucht wird unter der Zeilensperre des Anspruchs (zwei gleichzeitige Buchungen: die zweite 409).
+8. Gemerkt werden Tage, Zeitpunkt (Uhr der App) und wer (Name).
+9. Jede Buchung und jedes Zurücknehmen steht in der Änderungshistorie; für Büro – Auftrag geschwärzt.
+10. Auf der Seite neben „Verfall buchen“ der Stand des Hinweises („gelesen am …“ / „nicht gelesen“); „Verfall buchen“ nur mit dem Recht; abschließend über
+    `abschliessen()`; „Verfall zurücknehmen“ mit Rückfrage auf der Seite.
+11. Migration `f8b4d0e3a629`: der Bestand bleibt leer; `downgrade()` bricht ab, solange ein Verfall gebucht ist.
+
+#### Tests und Prüfung 1.9.368
+
+Neu: `tests/test_v768_verfall_buchen.py` (13 Tests: offen erst nach dem Verfall, nicht ohne Übertrag; Lesen bucht nichts, auch mit Zeile; buchen mit Rest, Hinweis, wer
+und wann; nur der angezeigte Wert, nur nach dem Verfall, 422/404; Rechte und Zurücknehmen; „Verfall prüfen“; automatischer Übertrag; FOR UPDATE unter PostgreSQL;
+Historie geschwärzt; die Karte in node; Aufbau; Migration unter SQLite und PostgreSQL). `klicktest_urlaubsrunde.py`: Uhr auf 06.04.2027, Karte mit Kai („nicht
+gelesen“) und Mia („gelesen am …“) mit „Verfall buchen“ (Bilder `urlaubskonto_verfall_buchen_{1440,412}_{hell,dunkel}`, 412 ohne Überlauf), Mias Verfall gebucht --
+Rest 30, gebucht von Fin Finanzen, kein Zurücknehmen für Büro – Finanzen. Erweitert: `tests/test_v473_zeitpunkte_berlin.py` (`verfall_gebucht_am`),
+`tests/test_v399_abschliessen.py` (`ABSCHLIESSEND`: „Verfall des Übertrags buchen“), `tests/test_v761_ids_im_pfad.py` (`KEINE_ID`: das Jahr der neuen Route).
+Angepasste Erwartungen:
+- `tests/test_v765_anteiliger_anspruch.py::test_lesen_schreibt_nichts` und `::test_rechte` -- alt: `rechte` genau `{"anspruch_setzen": …}`; neu: nur dieser Schlüssel
+  geprüft (die Antwort nennt jetzt auch `verfall_buchen` und `verfall_zuruecknehmen`).
+- `klicktest_urlaubsrunde.py` „Fin: Konto 2027 mit Vorschlägen“ -- alt: vier Zeilen; neu: dazu Kai (Übertrag 3, „nicht gelesen“) als erste.
+- `tests/test_v710_urlaub_und_startwerte.py::test_modelle` -- alt: ohne die drei Spalten des Verfalls; neu: mit (im ersten vollen Lauf rot, ich hatte sie nicht
+  nachgezogen).
+Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.368“.

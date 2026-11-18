@@ -157,7 +157,7 @@ def test_lesen_schreibt_nichts(w):
         antwort = c.get("/api/zeiten/urlaubskonto?jahr=2027")
     finally:
         event.remove(engine, "before_cursor_execute", merken)
-    assert antwort.status_code == 200 and antwort.json()["rechte"] == {"anspruch_setzen": True}
+    assert antwort.status_code == 200 and antwort.json()["rechte"]["anspruch_setzen"] is True  # seit 1.9.368 stehen dort weitere Rechte
     assert any(k["anteilig"] and k["anteilig"]["vorschlag"] != k["anspruch"] for k in antwort.json()["konten"])  # es gibt offene Vorschläge
     assert schreibend == [] and not w["db"].dirty and not w["db"].new
     w["db"].expire_all()
@@ -193,7 +193,7 @@ def test_rechte(w):
     neu = w["neu"]
     assert _als(w, "buero_auftrag", "bea").post(f"{K}/{neu.id}/anspruch/2027/anteilig", json={"vorschlag": 11}).status_code == 403
     assert _als(w, "field", "neu").post(f"{K}/{neu.id}/anspruch/2027/anteilig", json={"vorschlag": 11}).status_code == 403
-    assert _als(w, "buero_auftrag", "bea").get("/api/zeiten/urlaubskonto?jahr=2027").json()["rechte"] == {"anspruch_setzen": False}
+    assert _als(w, "buero_auftrag", "bea").get("/api/zeiten/urlaubskonto?jahr=2027").json()["rechte"]["anspruch_setzen"] is False  # seit 1.9.368 mehr Rechte
     assert _als(w, "admin").post(f"{K}/{neu.id}/anspruch/2027/anteilig", json={"vorschlag": 11}).status_code == 200
 
 

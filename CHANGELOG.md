@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.368 – Verfall des Übertrags buchen
+
+Urlaubsrunde, Punkt 4. Nach dem Verfall (31.03.) zeigt das Urlaubskonto je Person „Übertrag nicht genommen: n Tage“ mit „Hinweis gelesen am …“ bzw. „nicht gelesen“ und „Verfall buchen“ (Admin, Büro – Finanzen). Nichts verfällt von selbst: erst die Buchung mindert den Rest (Rest = Anspruch + Übertrag − verfallen − genehmigt). Der Server rechnet den nicht genommenen Übertrag beim Buchen neu und lehnt einen anderen Wert ab; gebucht wird unter der Zeilensperre des Anspruchs, mit Zeitpunkt und Namen. Zurücknehmen darf nur der Admin (Rückfrage auf der Seite). Jede Buchung und jedes Zurücknehmen steht in der Änderungshistorie (Felder des Anspruchs, für Büro – Auftrag geschwärzt).
+
+Neue Spalten `urlaubsansprueche.verfall_tage`, `verfall_gebucht_am`, `verfall_gebucht_von` (Migration `f8b4d0e3a629`). Neu `tests/test_v768_verfall_buchen.py`.
+
 ## 1.9.367 – Hinweis auf den Resturlaub in „Meine Zeiten“
 
 Urlaubsrunde, Punkt 3. Ab dem 01.01. bis zum Verfall zeigt „Meine Zeiten“ jedem, der vom Übertrag noch etwas übrig hat: „Du hast noch 2,5 Tage Resturlaub aus 2026. Bitte bis 31.03.2027 nehmen – danach verfallen sie.“ Mit „Gelesen“ verschwindet der Hinweis; der Zeitpunkt steht am Anspruch des Jahrs (neue Spalte `urlaubsansprueche.hinweis_gelesen_am`, Migration `e7a3c9d2f518`). Das Urlaubskonto unter „Zeiten → Abwesenheiten“ zeigt, solange der Hinweis gilt, „Hinweis Resturlaub: nicht gelesen“ bzw. „… gelesen am …“.

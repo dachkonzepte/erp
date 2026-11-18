@@ -35,9 +35,9 @@ from ..database import get_db
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_im_abschluss_aendern, darf_konten_aller, darf_lohnregeln, require_lohndaten,
                            require_lohnregeln, require_min_role, require_personalnummer_freigeben)
 from ..urlaubskonto import konten as urlaubskonten
-from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, VorschlagVeraltet, anspruch_setzen, anteilig_uebernehmen, konten, standardjahr,
-                          startwert_gesperrt, startwert_setzen, vorgaben, vorgaben_setzen)
-from ..schemas import AnteiligUebernehmenIn, KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
+from ..lohnkonten import (ERSTES_JAHR, STICHTAG, StartwertGesperrt, VerfallNichtMoeglich, VorschlagVeraltet, anspruch_setzen, anteilig_uebernehmen, konten,
+                          standardjahr, startwert_gesperrt, startwert_setzen, verfall_buchen, verfall_zuruecknehmen, vorgaben, vorgaben_setzen)
+from ..schemas import AnteiligUebernehmenIn, VerfallBuchenIn, KontenOut, KontenVorgabenOut, KontenVorgabenUpdate, KontoPersonOut, StartwertUpdate, UrlaubsanspruchUpdate
 from ..schemas import AbgleichIn, ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..dateiauslieferung import datei_antwort
 from ..lohndatei import (LohndateiVeraendert, VersandAbgelehnt, abgelegt_dict, abgelegte, lesen as lohndatei_lesen, versendet_setzen,
@@ -46,7 +46,7 @@ from ..models import Lohndatei
 from ..time_backoffice import AbgleichAbgelehnt, DatevExportGesperrt, PersonalnummerGehalten, abgleich_ablegen, abschluss_hindernisse, abschluss_meldung, backoffice_summary, lohndatei_erzeugen, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
 from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
-from ..models import Employee
+from ..models import AppUser, Employee
 from ..sollzeit import SollzeitGesperrt, zeile_anlegen as sollzeit_anlegen, zeile_dict, zeile_loeschen as sollzeit_loeschen, zeilen as sollzeit_zeilen
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
 from ..ids import Id
@@ -137,6 +137,37 @@ def post_anteilig_uebernehmen(employee_id: Id, payload: AnteiligUebernehmenIn, j
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}/verfall")
+def post_verfall_buchen(employee_id: Id, payload: VerfallBuchenIn, jahr: int = Path(ge=2027, le=2100),
+                        db: Session = Depends(get_db, scope="function"), _role: AppUser = _regeln_dep):
+    """Seit 1.9.368 (Urlaubsrunde, Punkt 4): „Verfall buchen“ -- nach dem Verfall der nicht genommene Übertrag (app/lohnkonten.py::verfall_buchen());
+    Admin und Büro – Finanzen. Nichts zu buchen oder ein anderer Wert: 409, nichts geändert."""
+    try:
+        return verfall_buchen(db, employee_id, jahr, payload.tage, von=_role.display_name or _role.username)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VerfallNichtMoeglich as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}/verfall")
+def delete_verfall(employee_id: Id, jahr: int = Path(ge=2027, le=2100), db: Session = Depends(get_db, scope="function"),
+                   _admin: AppUser = Depends(require_min_role(ROLE_ADMIN))):
+    """Seit 1.9.368: einen gebuchten Verfall zurücknehmen -- nur der Admin (Antwort Tobias 18.11.2026), mit Eintrag in der Änderungshistorie. Ohne
+    Buchung 409."""
+    try:
+        return verfall_zuruecknehmen(db, employee_id, jahr)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VerfallNichtMoeglich as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.put("/api/time-backoffice/konten/{employee_id}/startwert", response_model=KontoPersonOut)

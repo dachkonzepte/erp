@@ -26,7 +26,8 @@ UTC_FELDER = ("uploaded_at", "created_at", "updated_at", "completed_at", "releas
               "resolved_at", "voided_at", "recorded_at", "reverted_at", "superseded_at", "archived_at", "finalized_at", "closed_at",
               "gebucht_am", "geaendert_am",  # seit 1.9.104: Zeitpunkte aus dem Verlauf (Liste „Buchungen“ der Seite „Zeiten“)
               "letzter_lauf", "fehler_am", "laeuft_seit",  # seit 1.9.162: Stand je Postfach in den Einstellungen
-              "hinweis_gelesen_am")  # seit 1.9.367: Hinweis auf den Resturlaub gelesen (Urlaubskonto)
+              "hinweis_gelesen_am",  # seit 1.9.367: Hinweis auf den Resturlaub gelesen (Urlaubskonto)
+              "verfall_gebucht_am")  # seit 1.9.368: Verfall des Übertrags gebucht (Urlaubskonto)
 UTC_FELD = r"\b[\w.?]*\.(?:" + "|".join(UTC_FELDER) + r")\b"
 
 

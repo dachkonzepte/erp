@@ -52,6 +52,10 @@ class KeinHinweis(ValueError):
     """Seit 1.9.367: es gibt keinen Hinweis auf Resturlaub, der gelesen werden könnte (409)."""
 
 
+class VerfallNichtMoeglich(ValueError):
+    """Seit 1.9.368: kein Verfall zu buchen bzw. zurückzunehmen, oder der angezeigte Wert gilt nicht mehr (409)."""
+
+
 class VorschlagVeraltet(ValueError):
     """Seit 1.9.365: der angezeigte Vorschlag gilt nicht mehr (anderer Wert, schon übernommen, kein Eintritt oder Austritt im Jahr) -- 409."""
 
@@ -289,6 +293,55 @@ def hinweis_gelesen(db: Session, employee_id: int, jahr: int) -> dict:
         db.add(row)
     if row.hinweis_gelesen_am is None:
         row.hinweis_gelesen_am = utc_jetzt()
+    db.commit()
+    return urlaubskonten(db, jahr, [employee_id])[0].als_dict()
+
+
+def _anspruch_gesperrt(db: Session, employee_id: int, jahr: int, *, anlegen: bool) -> Urlaubsanspruch | None:
+    """Seit 1.9.368: der Anspruch der Person im Jahr unter der Zeilensperre (FOR UPDATE; zwei gleichzeitige Buchungen warten aufeinander) -- anlegen:
+    fehlt er, eine leere Zeile (gilt wie die Vorgabe); legt ein anderer sie gleichzeitig an, VerfallNichtMoeglich."""
+    from sqlalchemy.exc import IntegrityError
+    row = db.scalar(select(Urlaubsanspruch).where(Urlaubsanspruch.employee_id == employee_id, Urlaubsanspruch.jahr == jahr).with_for_update())
+    if row is None and anlegen:
+        row = Urlaubsanspruch(employee_id=employee_id, jahr=jahr)
+        db.add(row)
+        try:
+            db.flush()
+        except IntegrityError as exc:
+            db.rollback()
+            raise VerfallNichtMoeglich("Gleichzeitig geändert – bitte neu laden.") from exc
+    return row
+
+
+def verfall_buchen(db: Session, employee_id: int, jahr: int, tage, *, von: str | None) -> dict:
+    """Seit 1.9.368 (Urlaubsrunde, Punkt 4): „Verfall buchen“ -- nach dem Verfall der nicht genommene Übertrag des Jahrs (app/urlaubskonto.py,
+    verfall_offen); nur per Klick, nie von selbst. tage: der Wert, den die Seite zeigt -- weicht er ab oder gibt es nichts zu buchen (vor dem Verfall,
+    alles genommen, schon gebucht), VerfallNichtMoeglich (409), nichts geändert. Unter der Zeilensperre des Anspruchs; gemerkt werden Tage, Zeitpunkt (Uhr der
+    App) und wer (Name als Schnappschuss) -- die Änderungshistorie hält die Buchung fest. Committet; Antwort: das Konto der Person im Jahr."""
+    from .berlin_time import utc_jetzt
+    from .urlaubskonto import konten as urlaubskonten
+    _person(db, employee_id)
+    tage = _zahl(tage)
+    row = _anspruch_gesperrt(db, employee_id, jahr, anlegen=True)
+    k = urlaubskonten(db, jahr, [employee_id])
+    if not k or k[0].verfall_offen is None:
+        raise VerfallNichtMoeglich("Es ist kein Verfall zu buchen – bitte neu laden.")
+    if k[0].verfall_offen != tage:
+        raise VerfallNichtMoeglich(f"Nicht genommen sind jetzt {_tage_text(k[0].verfall_offen)} Tage – bitte neu laden.")
+    row.verfall_tage, row.verfall_gebucht_am, row.verfall_gebucht_von = k[0].verfall_offen, utc_jetzt(), (von or "")[:120] or None
+    db.commit()
+    return urlaubskonten(db, jahr, [employee_id])[0].als_dict()
+
+
+def verfall_zuruecknehmen(db: Session, employee_id: int, jahr: int) -> dict:
+    """Seit 1.9.368: einen gebuchten Verfall zurücknehmen (der Router lässt nur den Admin) -- danach ist er wieder zu buchen. Ohne Buchung
+    VerfallNichtMoeglich (409). Unter der Zeilensperre; die Historie hält es fest. Committet; Antwort: das Konto der Person im Jahr."""
+    from .urlaubskonto import konten as urlaubskonten
+    _person(db, employee_id)
+    row = _anspruch_gesperrt(db, employee_id, jahr, anlegen=False)
+    if row is None or row.verfall_tage is None:
+        raise VerfallNichtMoeglich("Es ist kein Verfall gebucht.")
+    row.verfall_tage = row.verfall_gebucht_am = row.verfall_gebucht_von = None
     db.commit()
     return urlaubskonten(db, jahr, [employee_id])[0].als_dict()
 

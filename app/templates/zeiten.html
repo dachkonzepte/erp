@@ -1071,7 +1071,8 @@ function ukZeile(k){
   var zahl=function(w,fett){return '<td class="r num">'+(fett?'<b>':'')+esc(zahlText(w))+(fett?'</b>':'')+'</td>'};
   return '<tr class="uk-zeile'+(k.active?'':' inaktiv')+'" data-uk="'+k.employee_id+'"><td><span>'+esc(k.name)+'</span>'
     +k.hinweise.map(function(h){return '<span class="uk-hinweis">'+esc(h)+'</span>'}).join('')
-    +(k.anteilig&&k.anteilig.vorschlag!==k.anspruch?ukAnteilig(k):'')+(k.resturlaub_hinweis?ukGelesen(k):'')+'</td>'  // seit 1.9.365, 1.9.367
+    +(k.anteilig&&k.anteilig.vorschlag!==k.anspruch?ukAnteilig(k):'')+(k.resturlaub_hinweis?ukGelesen(k):'')
+    +(k.verfall_offen!=null||k.verfallen>0?ukVerfall(k):'')+'</td>'  // seit 1.9.365, 1.9.367, 1.9.368
     +'<td class="r num">'+esc(zahlText(k.anspruch))+(k.anspruch_vorgabe?' <span class="mut">(Vorgabe)</span>':'')+'</td>'
     +zahl(k.uebertrag)+zahl(k.genehmigt)+zahl(k.vorbei)+zahl(k.kuenftig)+zahl(k.beantragt)+zahl(k.rest,true)+zahl(k.rest_nach_antraegen)+'</tr>';
 }
@@ -1090,6 +1091,34 @@ function ukAnteilig(k){
 function ukGelesen(k){
   return k.hinweis_gelesen_am?'<span class="uk-gelesen">Hinweis Resturlaub gelesen am '+esc(berlinZeitpunkt(k.hinweis_gelesen_am,'zeit'))+'</span>'
     :'<span class="uk-hinweis">Hinweis Resturlaub: nicht gelesen</span>';
+}
+// Seit 1.9.368 (Urlaubsrunde, Punkt 4): nach dem Verfall „Übertrag nicht genommen“ (Hinweis vom Server) mit „Hinweis gelesen …“ und „Verfall buchen“
+// (Admin, Büro – Finanzen); ein gebuchter mit wann und wer, „Verfall zurücknehmen“ nur der Admin, mit Rückfrage auf der Seite (kein Browser-Dialog)
+var UK_ZURUECK=null;
+function ukVerfall(k){
+  var r=(UK&&UK.rechte)||{};
+  if(k.verfall_offen!=null)return ukGelesen(k)
+    +(r.verfall_buchen?'<button type="button" class="knopf knopf-neutral uk-knopf" data-aktion="uk-verfall" data-id="'+k.employee_id+'" data-jahr="'+esc(k.jahr)
+      +'" data-tage="'+esc(k.verfall_offen)+'">Verfall buchen</button>':'');
+  var z='<span class="uk-gelesen">Verfall gebucht am '+esc(berlinZeitpunkt(k.verfall_gebucht_am,'zeit'))+(k.verfall_gebucht_von?' von '+esc(k.verfall_gebucht_von):'')+'</span>';
+  if(!r.verfall_zuruecknehmen)return z;
+  return z+(UK_ZURUECK===String(k.employee_id)
+    ?'<span class="rueckfrage">Verfall zurücknehmen?</span><button type="button" class="knopf knopf-neutral" data-aktion="uk-verfall-nein">Abbrechen</button>'
+      +'<button type="button" class="knopf knopf-gefahr" data-aktion="uk-verfall-zurueck" data-id="'+k.employee_id+'" data-jahr="'+esc(k.jahr)+'">Zurücknehmen</button>'
+    :'<button type="button" class="knopf knopf-neutral uk-knopf" data-aktion="uk-verfall-fragen" data-id="'+k.employee_id+'">Verfall zurücknehmen</button>');
+}
+// „Verfall buchen“ ist abschließend (Regel 29): erst wenn jedes Speichern der Seite zurück ist; der Server rechnet neu, ein anderer Wert 409
+function ukVerfallBuchen(id,jahr,tage,knopf){
+  knopf.disabled=true;
+  return abschliessen('urlaubskonto',()=>api('/api/time-backoffice/konten/'+id+'/anspruch/'+jahr+'/verfall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tage:tage})}),{neuLaden:urlaubskontoLaden})
+    .then(function(){ergebnis('Verfall gebucht.')})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
+}
+function ukVerfallZuruecknehmen(id,jahr,knopf){
+  knopf.disabled=true;
+  return speichern('urlaubskonto',()=>api('/api/time-backoffice/konten/'+id+'/anspruch/'+jahr+'/verfall',{method:'DELETE'}),{neuLaden:urlaubskontoLaden})
+    .then(function(){UK_ZURUECK=null;ergebnis('Verfall zurückgenommen.')})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
 }
 function ukAnteiligUebernehmen(id,jahr,vorschlag,knopf){
   knopf.disabled=true;
@@ -1555,6 +1584,10 @@ function binden(){
     else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
     else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
     else if(a==='uk-anteilig')ukAnteiligUebernehmen(b.dataset.id,b.dataset.jahr,b.dataset.vorschlag,b);  // seit 1.9.365
+    else if(a==='uk-verfall')ukVerfallBuchen(b.dataset.id,b.dataset.jahr,b.dataset.tage,b);  // seit 1.9.368
+    else if(a==='uk-verfall-fragen'){UK_ZURUECK=b.dataset.id;urlaubskontoZeichnen(UK)}
+    else if(a==='uk-verfall-nein'){UK_ZURUECK=null;urlaubskontoZeichnen(UK)}
+    else if(a==='uk-verfall-zurueck')ukVerfallZuruecknehmen(b.dataset.id,b.dataset.jahr,b);
   });
   el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true);adHalbZeigen();adRestLaden()});
   ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',function(){adHalbZeigen();adRestLaden()})});

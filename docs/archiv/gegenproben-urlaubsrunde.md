@@ -67,3 +67,26 @@ nach dem downgrade denselben Wert -- eine Gegenprobe wäre ein downgrade, das zu
 12 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Selbst falsch gebaut: `367_4` (`datetime.utcnow()` ohne Import in
 `app/lohnkonten.py`) -- rot am NameError, nicht am Zeitpunkt; wiederholt als `367_4b` mit gültigem Ersatz. Vor der Gegenprobe zu Nr. 5 den Test eindeutig
 gemacht: zwei „Gelesen“ in derselben Sekunde hätten auch ohne Schutz denselben Zeitpunkt -- der Test setzt den ersten jetzt vorher auf einen früheren Tag.
+
+## 1.9.368 (Punkt 4): Verfall buchen
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – erst nach dem Verfall | `heute >= verfall` (`368_1`) | 2 rot: am 31.03. offen, Buchen am 31.03. 200 statt 409 |
+| Nr. 2 – nichts von selbst | das Lesen bucht (`368_2`) | 3 rot: „Lesen bucht nichts“ (geänderte Zeile in der Sitzung), dazu Rechte und Historie |
+| Nr. 3 – nur der angezeigte Wert | Vergleich aus (`368_3`) | 1 rot: 2 statt 2,5 Tage 200 statt 409 |
+| Nr. 4 – Rest ohne den Verfall | Rest ohne `verfallen` (`368_4`) | 2 rot: Buchen (Rest 32,5 statt 30), automatischer Übertrag |
+| Nr. 5 – „Verfall prüfen“ | Hinweis aus (`368_5`) | 1 rot |
+| Nr. 6 – buchen Admin und Büro – Finanzen | Route ab Büro – Auftrag (`368_6`) | 1 rot: 200 statt 403 |
+| Nr. 6 – zurücknehmen nur der Admin | Route für Büro – Finanzen (`368_6b`) | 1 rot: 200 statt 403 |
+| Nr. 7 – Zeilensperre | ohne `with_for_update()` (`368_7`) | 1 rot: unter PostgreSQL kein FOR UPDATE |
+| Nr. 8 – wer | ohne Namen (`368_8`) | 1 rot |
+| Nr. 8 – wann (Uhr der App) | `datetime.utcnow()` (`368_8b`) | 1 rot: Zeitpunkt weicht um Monate ab |
+| Nr. 9 – geschwärzt | Felder nicht in `KONTEN_FIELD_NAMES` (`368_9`) | 1 rot: Büro – Auftrag sieht sie |
+| Nr. 10 – „Verfall buchen“ nur mit Recht | Knopf immer (`368_10`, Vorlage) | 1 rot: node |
+| Nr. 10 – abschließend | `speichern()` statt `abschliessen()` (`368_11`, Vorlage) | 2 rot: Aufbau, `test_v399` |
+| Nr. 11 – downgrade bricht ab | ohne Abbruch (`368_12`) | 2 rot: Migration unter SQLite und PostgreSQL |
+
+14 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Zwei zuerst unvollständig: `368_2` machte „Lesen bucht nichts“ nicht rot -- im
+Test hatte Mia keine Anspruchszeile, die Gegenprobe konnte nichts schreiben; der Test legt jetzt eine an, wiederholt: rot. `368_8` änderte Zeitpunkt und Namen
+zugleich, rot wurde nur der Name; der Zeitpunkt in `368_8b` für sich: rot.

@@ -4056,6 +4056,11 @@ class UrlaubHinweisGelesenIn(BaseModel):
     jahr: int = Field(ge=2027, le=2100)
 
 
+class VerfallBuchenIn(BaseModel):
+    """Seit 1.9.368 (Urlaubsrunde, Punkt 4): „Verfall buchen“ -- die nicht genommenen Tage, die die Seite zeigt; der Server rechnet neu (409 bei Abweichung)."""
+    tage: Decimal = Field(ge=0, le=NUMERIC_4_1)
+
+
 class AnteiligUebernehmenIn(BaseModel):
     """Seit 1.9.365 (Urlaubsrunde, Punkt 1): „Vorschlag übernehmen“ -- der Vorschlag, den die Seite zeigt; der Server rechnet ihn neu und lehnt ab,
     wenn er abweicht (409)."""

@@ -172,7 +172,8 @@ def zeiten_urlaubskonto(jahr: int | None = Query(None, ge=2000, le=2100), db: Se
     jahre = sorted(set(range(ERSTES_JAHR, standardjahr() + 2)) | {jahr})
     # seit 1.9.365: was das Konto an den Ansprüchen darf -- „Vorschlag übernehmen“ nur Admin und Büro – Finanzen (darf_lohnregeln())
     return {"jahr": jahr, "erstes_jahr": ERSTES_JAHR, "jahre": jahre, "konten": [k.als_dict() for k in liste],
-            "rechte": {"anspruch_setzen": darf_lohnregeln(user)}}
+            "rechte": {"anspruch_setzen": darf_lohnregeln(user), "verfall_buchen": darf_lohnregeln(user),  # seit 1.9.368
+                       "verfall_zuruecknehmen": user.role == ROLE_ADMIN}}
 
 
 @router.get("/api/zeiten/arbeitszeitkonto")
