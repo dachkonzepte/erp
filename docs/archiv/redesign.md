@@ -3091,7 +3091,7 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
 | Projektmappe | `project_folder.html` | 5 | große Arbeitsseite mit Reitern, zusammen mit Auftrag und Kundenakte |
 | Auftrag | `order.html` | 5 | große Arbeitsseite mit vielen Karten, zusammen mit Projektmappe und Kundenakte |
 | Kundenakte | `customer.html` | 5 | große Arbeitsseite mit Reitern, zusammen mit Projektmappe und Auftrag |
-| Kalender | `calendar.html` | 6 | Ansicht über eine Zeitachse, zusammen mit der Plantafel |
+| Kalender | `calendar.html` | 6 (seit 1.9.372: 7) | Ansicht über eine Zeitachse, zusammen mit der Plantafel (seit 1.9.372: zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“, siehe „Kalender in Stufe 7 (1.9.372)“) |
 | Plantafel | `planning.html` | 6 | Ansicht über eine Zeitachse, zusammen mit dem Kalender |
 | Neues Projekt | `project_form.html` | 7 | wird ein Dialog statt einer eigenen Seite |
 | Neues Angebot | `quote_form.html` | 7 | wird ein Dialog statt einer eigenen Seite |
@@ -9288,3 +9288,23 @@ der dunkle Fall einmal rot: die Prüfung las, bevor die Tafel im nächsten Frame
 Beobachter bleibt sie rot, Gegenprobe `258_n1b` danach neu). Gegenproben: Archiv
 `gegenproben-stufe6-r4b.md`. Angepasste Erwartungen: keine. Im Endlauf auf 83594fe dazu ein Wackler (`klicktest_abnahme_aus_protokoll`, einmal wiederholt,
 Archiv „Testablauf“, laufende Liste).
+
+### Kalender in Stufe 7 (1.9.372)
+
+Nachrunde Urlaub, Punkt 3 (F4 aus dem Bericht der Urlaubsrunde; Entscheidung Tobias 18.11.2026): „Der Kalender geht in AUFGESCHOBEN von Stufe 6 auf Stufe 7,
+Grund: zieht zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“ um.“ Bis 1.9.371 stand er seit 1.9.29 mit Stufe 6 („Ansicht über eine Zeitachse,
+zusammen mit der Plantafel“); die Plantafel ist seit 1.9.247 umgezogen, der Kalender blieb. `AUFGESCHOBEN` (`tests/test_v441_rahmen_baustein.py`) führt ihn
+jetzt mit Stufe 7 und dem Grund „Kalender -- zieht zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“ um (Stufe 7; bis 1.9.371 Stufe 6 mit der
+Plantafel)“. Die Seite selbst, ihre Bilder und Klicktests sind unverändert.
+
+#### Festlegungen 1.9.372 (Bitte bestätigen)
+
+1. Der Kalender steht in `AUFGESCHOBEN` mit Stufe 7, Grund: zieht zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“ um.
+2. Stufe 7 führt damit genau Kalender, Neues Projekt und Neues Angebot; Stufe 6 hat keine aufgeschobene Seite mehr -- beides hält `test_kalender_in_stufe_7`
+   fest (eine neue aufgeschobene Seite mit Stufe 6 oder 7 ändert diesen Test bewusst).
+
+#### Tests und Prüfung 1.9.372
+
+Neu `tests/test_v441_rahmen_baustein.py::test_kalender_in_stufe_7`. Angepasste Erwartung (Regel 28): `AUFGESCHOBEN` in `tests/test_v441_rahmen_baustein.py` --
+alt `calendar.html` Stufe 6 „Kalender -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit der Plantafel“, neu Stufe 7 mit dem Grund oben. Gegenproben:
+`gegenproben-urlaubsrunde.md`, „1.9.372“.

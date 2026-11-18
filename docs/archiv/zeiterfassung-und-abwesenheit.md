@@ -3693,3 +3693,7 @@ des Kontos gleich (seit 1.9.316 geprüft); `klicktest_urlaubsrunde` und die übr
 ### Umsetzung 1.9.371 (Punkt 2): Aufgabe nur an jemanden, der sie sieht, auch ohne Mindestrolle
 
 Steht im Archiv der Aufgaben (`modul-aufgaben.md`, „Auch ohne Mindestrolle (seit 1.9.371 …)“) mit Festlegungen, Tests und Prüfung.
+
+### Umsetzung 1.9.372 (Punkt 3): Kalender in Stufe 7
+
+Steht im Archiv des Redesigns (`redesign.md`, „Kalender in Stufe 7 (1.9.372)“) mit Festlegungen, Tests und Prüfung.

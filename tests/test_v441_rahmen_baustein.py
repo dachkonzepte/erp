@@ -83,7 +83,7 @@ AUFGESCHOBEN: dict[str, tuple[int, str]] = {
     "mobil.html": (4, "Heute -- seit 1.9.45 nach den Vorlagen der Stufe 4, die keinen Seitenkopf haben; in den Rahmen mit Stufe 4 als Ganzes"),
     "mobil_zeiten.html": (4, "Meine Zeiten -- seit 1.9.59 nach der Vorlage zeiten-nachtragen der Stufe 4, die keinen Seitenkopf hat; in den "
                              "Rahmen mit Stufe 4 als Ganzes (ersetzt Zeiterfassung der Monteure und Stundenzettel)"),
-    "calendar.html": (6, "Kalender -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit der Plantafel"),
+    "calendar.html": (7, "Kalender -- zieht zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“ um (Stufe 7; bis 1.9.371 Stufe 6 mit der Plantafel)"),
     "project_form.html": (7, "Neues Projekt -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
     "quote_form.html": (7, "Neues Angebot -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
 }
@@ -167,6 +167,16 @@ def test_ds_basis_ist_eine_design_datei_und_auf_jeder_seite_geladen():
         elif text.find('href="/static/ds/ds-basis.css?v=') < text.find('href="/static/ds/ds.css?v='):
             funde.append(f"{name}: ds-basis.css vor ds.css")
     assert funde == []
+
+
+def test_kalender_in_stufe_7():
+    """Seit 1.9.372 (Nachrunde Urlaub, Punkt 3; F4, Entscheidung Tobias 18.11.2026): der Kalender zieht nicht mehr mit der Plantafel (Stufe 6) um, sondern
+    in Stufe 7 zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“. Stufe 6 hat damit keine aufgeschobene Seite mehr."""
+    stufe, grund = AUFGESCHOBEN["calendar.html"]
+    assert stufe == 7
+    assert "Dialogen „Neues Projekt“ und „Neues Angebot“" in grund
+    assert sorted(n for n, (s, _) in AUFGESCHOBEN.items() if s == 7) == ["calendar.html", "project_form.html", "quote_form.html"]
+    assert sorted(n for n, (s, _) in AUFGESCHOBEN.items() if s == 6) == []
 
 
 def test_jede_seite_umgezogen_oder_aufgeschoben():

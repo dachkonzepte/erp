@@ -145,3 +145,15 @@ der Anspruch noch 26 gezeigt.
 9 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `371_2` und `371_2b` waren im ersten Lauf rot über einen KeyError (der Test
 las `detail` vor dem Status) -- der Test prüft jetzt zuerst den Status, beide noch einmal: rot über „200 statt 422“. Nach dem Test zu Nr. 7 `371_2b` ein
 drittes Mal: 2 rot (auch die neue Zuweisung im Bestandstest 200 statt 422).
+
+## Nachrunde 1.9.372 (Punkt 3): Kalender in Stufe 7
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Stufe 7 | zurück auf 6 (`372_1`) | 1 rot: 6 statt 7 |
+| Nr. 1 – Grund nennt die Dialoge | Grund ohne die Dialoge (`372_1b`) | 1 rot |
+| Nr. 2 – Stufe 7 genau diese drei | „Heute“ auf Stufe 7 (`372_2`) | 1 rot: vier Seiten in Stufe 7 |
+| Nr. 2 – Stufe 6 ohne aufgeschobene Seite | „Meine Zeiten“ auf Stufe 6 (`372_2b`) | 1 rot |
+
+4 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Der Wächter `test_jede_seite_umgezogen_oder_aufgeschoben` lief jeweils mit
+und blieb grün (Stufen 3 bis 7 sind dort alle erlaubt).
