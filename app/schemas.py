@@ -914,6 +914,67 @@ class InquiryConvertOut(BaseModel):
     quote: QuoteOut | None = None
 
 
+class WebAnfrageOut(BaseModel):
+    """Seit 1.10.1 (Stufe W1a): eine Zeile des Eingangs „Anfragen der Webseite“ -- nur die geprüften Auszüge, nie der Umschlag."""
+    id: int
+    nummer: str
+    art: str | None = None
+    art_name: str | None = None
+    fassung: str
+    eingang_am: datetime | None = None
+    betreff: str | None = None
+    kontakt_name: str | None = None
+    spamverdacht: bool
+    pruefen_grund: str | None = None
+    status: str
+    abgeholt_am: datetime
+    gemeldet_am: datetime | None = None
+    dateien: int
+
+
+class WebAnfrageDateiOut(BaseModel):
+    id: int
+    name: str
+    typ: str
+    groesse: int
+
+
+class WebAnfrageDetailOut(WebAnfrageOut):
+    """Eine Anfrage mit dem Umschlag, wie ihn der Empfangsdienst geliefert hat (Fremddaten: die Seite setzt jeden Wert über esc())."""
+    umschlag: dict | None = None
+    dateiliste: list[WebAnfrageDateiOut] = Field(default_factory=list)
+
+
+class WebanfragenNichtAbgeholtOut(BaseModel):
+    nummer: str | None = None
+    grund: str
+
+
+class WebanfragenStandOut(BaseModel):
+    """Stand des Abholens -- ohne Schlüssel und ohne Adresse der Schnittstelle."""
+    eingerichtet: bool
+    laeuft: bool
+    letzter_lauf_am: datetime | None = None
+    letzter_erfolg_am: datetime | None = None
+    letzter_fehler: str | None = None
+    letzte_neu: int
+    nicht_abgeholt: list[WebanfragenNichtAbgeholtOut] = Field(default_factory=list)
+    neu: int
+    spamverdacht: int
+    pruefen: int
+
+
+class WebanfragenAbholErgebnisOut(BaseModel):
+    neu: int
+    gemeldet: int
+    pruefen: int
+    nicht_abgeholt: list[WebanfragenNichtAbgeholtOut] = Field(default_factory=list)
+    fehler: str | None = None
+    laeuft_schon: bool
+    weitere: bool
+    stand: WebanfragenStandOut
+
+
 class GeneralSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     company_name: str

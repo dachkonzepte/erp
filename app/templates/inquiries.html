@@ -26,7 +26,10 @@
   {# Seit 1.9.24 (Stufe 2, Runde 9): Seitentitel über den Kennzahlen (bis dahin ohne Titel, zuerst die Kennzahlen); keine Hauptaktion --
      „Neue Anfrage“ bleibt die Karte darunter. #}
   {% from "teile/seitenkopf.html" import seitenkopf %}
-  {{ seitenkopf("Anfragen", untertitel="Vertriebsfälle von der Anfrage bis zum Projekt") }}
+  {# Seit 1.10.1 (Stufe W1a): neutraler Weg zum Eingang der Anfragen der Webseite (keine Hauptaktion). #}
+  {% call(teil) seitenkopf("Anfragen", untertitel="Vertriebsfälle von der Anfrage bis zum Projekt", mit_aktion=true) %}
+    {% if teil == "aktion" %}<a class="ds-knopf" id="webanfragenLink" href="/anfragen/webseite">Anfragen der Webseite</a>{% endif %}
+  {% endcall %}
   <div class="metric-grid">
     <div class="metric"><div class="label">Offene Anfragen</div><div class="value" id="metricOpen">0</div></div>
     <div class="metric"><div class="label">Besichtigungen geplant</div><div class="value" id="metricVisits">0</div></div>

@@ -1615,7 +1615,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **SQLite gegen PostgreSQL** (Befund 13.11.2026 auf 0e9de07: volle Suite gegen PostgreSQL, fünf echte Fehler E1–E5, Arten von Unterschieden, Zeiten; Entscheidungen F1–F7 und Betreiberprüfungen B1/B2 vom 14.11.2026 -- Kollation des Servers `C.UTF-8`, live keine Fremdschlüssel- oder Längenfehler; Runde V1 ab 1.9.338: Testdaten mit echten Eltern, `PRAGMA foreign_keys=ON` in der Test-SQLite, E1–E5 behoben; V2 statische Wächter und V3 Rundgang gegen PostgreSQL je eine eigene Runde, V4 nicht routinemäßig) -- `docs/archiv/sqlite-und-postgresql.md`
 - **Webseite und Kundenportal** (seit 1.10.0: Entscheidungen des Betriebs vom 19.11.2026 für W1 und P1–P5; W1a Anfragen der Webseite abholen über die
   Schnittstelle des Empfangsdienstes, `app/webanfragen.py`, Fremddaten wie Angriffsdaten, Timer `scripts/server/erp-webanfragen.*`, Attrappe
-  `scripts/empfangsdienst_attrappe.py`) -- `docs/archiv/webseite-und-kundenportal.md`
+  `scripts/empfangsdienst_attrappe.py`; seit 1.10.1 der Eingang `/anfragen/webseite` mit „Jetzt abholen“, Router `app/routers/webanfragen.py`,
+  Klicktest `klicktest_webanfragen.py`) -- `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit

@@ -224,6 +224,9 @@ GEPRUEFT = {
         ("routers.customers.delete_customer_extra_info", "info is None or info.customer_id != customer_id"),
     "GET /api/defects/{defect_id}/files/{file_id} file_id":
         ("routers.defects.get_defect_file", "row is None or row.defect_id != defect_id"),
+    # seit 1.10.1 (Stufe W1a): die Datei einer Anfrage der Webseite
+    "GET /api/webanfragen/{webanfrage_id}/dateien/{datei_id} datei_id":
+        ("routers.webanfragen.get_datei", "datei is None or datei.webanfrage_id != webanfrage_id"),
     "GET /api/field-view/defects/{defect_id}/photos/{file_id} file_id":
         ("defects.field_photo", "d.files if f.id == file_id"),
     "GET /api/field-view/properties/{property_id}/documents/{source}/{document_id}/view document_id":

@@ -705,6 +705,17 @@ def inquiries_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="inquiries.html", context={})
 
 
+# Seit 1.10.1 (Stufe W1a): Eingang der Anfragen der Webseite und eine Anfrage daraus -- Büro ab buero_auftrag wie die Anfragen.
+@router.get("/anfragen/webseite", response_class=HTMLResponse)
+def webanfragen_page(request: Request, _role: AppUser = _role_dep):
+    return templates.TemplateResponse(request=request, name="webanfragen.html", context={})
+
+
+@router.get("/anfragen/webseite/{webanfrage_id}", response_class=HTMLResponse)
+def webanfrage_page(request: Request, webanfrage_id: Id, _role: AppUser = _role_dep):
+    return templates.TemplateResponse(request=request, name="webanfrage.html", context={"webanfrage_id": webanfrage_id})
+
+
 @router.get("/customers/{customer_id}", response_class=HTMLResponse)
 def customer_record_page(request: Request, customer_id: Id, _role: AppUser = _role_dep):
     # Seit 1.9.111 (Stufe 5, R1): Zahlungen (zuordnen, erstatten, zurücknehmen) nur nach darf_geld(), sonst lesen.

@@ -395,6 +395,7 @@ def test_die_auslieferungsstellen_rufen_datei_antwort_auf():
         "app/routers/property_documents.py": 2, "app/routers/recurring_costs.py": 1, "app/routers/roof_areas.py": 1,
         "app/routers/service_reports.py": 1, "app/routers/settings.py": 4,
         "app/routers/time_backoffice.py": 1,  # seit 1.9.226 die abgelegte Lohndatei
+        "app/routers/webanfragen.py": 1,  # seit 1.10.1 die Dateien der Anfragen der Webseite
     }
 
 

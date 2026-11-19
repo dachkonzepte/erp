@@ -1,0 +1,146 @@
+{% set bereich = "anfragen" -%}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Anfragen der Webseite</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{% include "_ds_kopf.html" %}
+<style>
+  :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink)}
+  :root[data-theme="dark"]{color-scheme:dark}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg)}
+  main{max-width:1600px;margin:0;padding:22px}
+  .card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px;border-radius:var(--ds-ecke-karte)}
+  .card h2{margin:0 0 10px;font-size:16px;color:var(--ink)}
+  .muted{color:var(--muted)}.small{font-size:12.5px}
+  .status{font-size:13px;font-weight:600;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
+  .stand{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px}
+  .stand b{color:var(--ink)}
+  .hinweis{background:var(--warning-soft);color:var(--warning);padding:10px 12px;font-size:13px;font-weight:600;border-radius:var(--ds-ecke-karte);margin-top:10px}
+  .fehler{background:var(--danger-soft);color:var(--danger);padding:10px 12px;font-size:13px;font-weight:600;border-radius:var(--ds-ecke-karte);margin-top:10px}
+  .nicht-abgeholt{margin:8px 0 0;padding-left:18px;font-size:13px}
+  .rahmen{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-size:12px;color:var(--muted);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink)}
+  tr:last-child td{border-bottom:0}
+  td a{color:var(--ds-link);font-weight:650;text-decoration:none}td a:hover{text-decoration:underline}
+  .nw{white-space:nowrap}
+  .kennzeichen{display:inline-block;padding:2px 8px;font-size:11.5px;font-weight:700;margin:0 4px 3px 0;border-radius:999px;background:var(--soft);color:var(--muted)}
+  .kennzeichen.spam{background:var(--danger-soft);color:var(--danger)}
+  .kennzeichen.pruefen{background:var(--warning-soft);color:var(--warning)}
+  .leer{color:var(--muted);font-size:13px;padding:8px 2px}
+  @media(max-width:650px){main{padding:12px}
+    /* schmal: jede Anfrage als Block, jede Angabe mit ihrer Überschrift (data-titel) */
+    #eingangTabelle thead{display:none}
+    #eingangTabelle,#eingangTabelle tbody,#eingangTabelle tr,#eingangTabelle td{display:block;width:100%}
+    #eingangTabelle tr{padding:10px 0;border-bottom:1px solid var(--line)}
+    #eingangTabelle td{border:0;padding:2px 0;white-space:normal}
+    #eingangTabelle td::before{content:attr(data-titel);display:inline-block;min-width:82px;color:var(--muted);font-size:12px;font-weight:700}
+    #eingangTabelle td:empty{display:none}}
+</style>
+</head>
+<body class="ds-seite">
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Anfragen der Webseite", untertitel="Eingang von der Webseite, abgeholt über den Empfangsdienst", mit_pfad=true, mit_aktion=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/inquiries">Anfragen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Anfragen der Webseite</span>{% endif %}
+    {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="abholenKnopf" data-klick="abholen">Jetzt abholen</button>{% endif %}
+  {% endcall %}
+
+  <section class="card" id="standKarte">
+    <h2>Stand</h2>
+    <div class="stand" id="standText"><span class="muted">Lädt …</span></div>
+    <div id="standHinweis"></div>
+    <div id="abholStatus" class="status" role="status" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Eingang</h2>
+    <div class="rahmen" id="listeRahmen"><div class="leer">Lädt …</div></div>
+  </section>
+</main>
+</div>
+</div>
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
+<script>
+/* Seit 1.10.1 (Stufe W1a, docs/archiv/webseite-und-kundenportal.md): Eingang der Anfragen der Webseite. Jeder Wert stammt aus dem Formular der
+   Webseite (Fremddaten) und geht nur über esc() ins HTML. */
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
+let stand=null, liste=[];
+
+function standZeichnen(){
+  const s=stand;
+  const teile=[];
+  teile.push(`<span><b>${Number(s.neu)}</b> im Eingang</span>`);
+  if(s.spamverdacht)teile.push(`<span>davon <b>${Number(s.spamverdacht)}</b> mit Spamverdacht</span>`);
+  if(s.pruefen)teile.push(`<span>davon <b>${Number(s.pruefen)}</b> zu prüfen</span>`);
+  teile.push(`<span>Zuletzt abgeholt: <b>${s.letzter_lauf_am?esc(berlinZeitpunkt(s.letzter_lauf_am)):'noch nie'}</b></span>`);
+  if(s.letzter_erfolg_am&&s.letzter_erfolg_am!==s.letzter_lauf_am)teile.push(`<span>zuletzt ohne Fehler: ${esc(berlinZeitpunkt(s.letzter_erfolg_am))}</span>`);
+  if(s.laeuft)teile.push('<span class="muted">holt gerade ab …</span>');
+  document.getElementById('standText').innerHTML=teile.join('');
+  const h=[];
+  if(!s.eingerichtet)h.push('<div class="hinweis">Die Schnittstelle zum Empfangsdienst ist auf diesem Server noch nicht eingerichtet – ein Administrator trägt den Schlüssel ein.</div>');
+  else if(s.letzter_fehler)h.push(`<div class="fehler">Letzter Lauf: ${esc(s.letzter_fehler)}</div>`);
+  if(s.nicht_abgeholt&&s.nicht_abgeholt.length){
+    h.push(`<div class="hinweis">Beim letzten Lauf nicht abgeholt (kommt im nächsten Lauf wieder):<ul class="nicht-abgeholt">${
+      s.nicht_abgeholt.map(x=>`<li>${esc(x.nummer||'ohne gültige Nummer')} – ${esc(x.grund)}</li>`).join('')}</ul></div>`);
+  }
+  document.getElementById('standHinweis').innerHTML=h.join('');
+}
+
+function kennzeichen(z){
+  const k=[];
+  if(z.spamverdacht)k.push('<span class="kennzeichen spam">Spamverdacht</span>');
+  if(z.pruefen_grund)k.push(`<span class="kennzeichen pruefen" title="${esc(z.pruefen_grund)}">Prüfen: ${esc(z.pruefen_grund)}</span>`);
+  if(!z.gemeldet_am)k.push('<span class="kennzeichen" title="Der Empfangsdienst weiß noch nicht, dass das ERP sie hat – der nächste Lauf meldet es.">noch nicht gemeldet</span>');
+  return k.join('');
+}
+
+function listeZeichnen(){
+  const r=document.getElementById('listeRahmen');
+  if(!liste.length){r.innerHTML='<div class="leer">Noch keine Anfragen der Webseite im Eingang.</div>';return}
+  r.innerHTML=`<table id="eingangTabelle"><thead><tr><th>Eingang</th><th>Nummer</th><th>Art</th><th>Name</th><th>Betreff</th><th>Hinweise</th><th>Dateien</th></tr></thead><tbody>${
+    liste.map(z=>`<tr data-id="${z.id}"><td class="nw" data-titel="Eingang">${esc(berlinZeitpunkt(z.eingang_am))||'—'}</td><td class="nw" data-titel="Nummer"><a href="/anfragen/webseite/${z.id}">${esc(z.nummer)}</a></td>`
+      +`<td data-titel="Art">${esc(z.art_name||z.art||'—')}</td><td data-titel="Name">${esc(z.kontakt_name||'—')}</td><td data-titel="Betreff">${esc(z.betreff||'—')}</td><td data-titel="Hinweise">${kennzeichen(z)}</td><td class="nw" data-titel="Dateien">${Number(z.dateien)}</td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function laden(){
+  await lesen('eingang',()=>Promise.all([api('/api/webanfragen/stand'),api('/api/webanfragen')]),([s,l])=>{stand=s;liste=l;standZeichnen();listeZeichnen()});
+}
+
+function ergebnisText(e){
+  if(e.laeuft_schon)return 'Gerade holt schon ein anderer Lauf ab – die Liste zeigt gleich, was er bringt.';
+  if(e.fehler)return e.fehler;
+  let t=e.neu===1?'1 Anfrage neu abgeholt':`${e.neu} Anfragen neu abgeholt`;
+  if(e.pruefen)t+=`, davon ${e.pruefen} zu prüfen`;
+  if(e.nicht_abgeholt.length)t+=`; ${e.nicht_abgeholt.length} nicht abgeholt (siehe oben)`;
+  if(e.weitere)t+=' – weitere holt der nächste Lauf.';
+  return t+(e.weitere?'':'.');
+}
+
+aktion('abholen',async el=>{
+  const st=document.getElementById('abholStatus');
+  st.className='status';st.textContent='Holt ab …';el.disabled=true;
+  try{
+    const e=await speichern('eingang',()=>api('/api/webanfragen/abholen',{method:'POST'}),{neuLaden:laden});
+    st.className=e.fehler?'status err':'status ok';st.textContent=ergebnisText(e);
+  }catch(err){st.className='status err';st.textContent='Fehler: '+err.message}
+  finally{el.disabled=false}
+});
+
+laden().catch(err=>{document.getElementById('standText').innerHTML=`<span class="status err">Fehler: ${esc(err.message)}</span>`});
+</script>
+</body></html>

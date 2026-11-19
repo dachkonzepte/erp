@@ -77,6 +77,9 @@ TEILE_MAX = 20_000             # Teile eines JSON (Listen, Objekte, Werte)
 SEITEN_MAX = 20                # Seiten der Liste je Lauf
 SEITE = 100                    # Einträge je Seite
 NEU_JE_LAUF = 50               # neue Anfragen je Lauf (Skript); der Knopf holt weniger
+KNOPF_HOECHSTENS = 20          # „Jetzt abholen“ (seit 1.10.1): höchstens so viele neue …
+KNOPF_FRIST = 40               # … und nach so vielen Sekunden keine neue mehr (die Seite wartet höchstens 60 s)
+EINGANG_MAX = 500              # Zeilen der Liste des Eingangs (die neuesten)
 ZEITLIMIT = 15                 # Sekunden je Aufruf
 SPERRE_GILT = timedelta(minutes=10)
 
@@ -587,6 +590,13 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 # Lesen (Eingang)
 # ---------------------------------------------------------------------------------------------------------------------------------------------
+
+def eingang(db: Session) -> list[WebAnfrage]:
+    """Die Liste des Eingangs (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens EINGANG_MAX."""
+    from sqlalchemy.orm import selectinload
+    return list(db.scalars(select(WebAnfrage).options(selectinload(WebAnfrage.dateien))
+                           .order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc()).limit(EINGANG_MAX)))
+
 
 def zeile_zu_dict(zeile: WebAnfrage) -> dict:
     return {

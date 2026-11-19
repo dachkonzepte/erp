@@ -454,6 +454,7 @@ PFAD_WERTE = {
     "acceptance_id": 1, "file_id": 1,  # Abnahme und ihr Beleg (seit 1.8.46)
     "defect_id": 1,  # Mangel aus der Abnahme und seine Datei (seit 1.8.49)
     "lohndatei_id": 1,  # abgelegte Lohndatei (seit 1.9.226)
+    "webanfrage_id": 1, "datei_id": 1,  # Anfragen der Webseite und ihre Dateien (seit 1.10.1)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.

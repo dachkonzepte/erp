@@ -1,0 +1,152 @@
+{% set bereich = "anfragen" -%}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Anfrage der Webseite</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{% include "_ds_kopf.html" %}
+<style>
+  :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink)}
+  :root[data-theme="dark"]{color-scheme:dark}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg)}
+  main{max-width:1200px;margin:0;padding:22px}
+  .card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px;border-radius:var(--ds-ecke-karte)}
+  .card h2{margin:0 0 10px;font-size:16px;color:var(--ink)}
+  .raster{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+  .muted{color:var(--muted)}.small{font-size:12.5px}
+  dl{margin:0}
+  .zeile{display:grid;grid-template-columns:170px minmax(0,1fr);gap:4px 12px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .zeile:last-child{border-bottom:0}
+  dt{color:var(--muted);font-weight:650}dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+  dd a{color:var(--ds-link)}
+  .text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:13.5px;margin:0;color:var(--ink)}
+  .hinweis{background:var(--warning-soft);color:var(--warning);padding:10px 12px;font-size:13px;font-weight:600;border-radius:var(--ds-ecke-karte);margin-bottom:12px}
+  .fehler{background:var(--danger-soft);color:var(--danger);padding:10px 12px;font-size:13px;font-weight:600;border-radius:var(--ds-ecke-karte);margin-bottom:12px}
+  .daten dl{border-left:2px solid var(--line);padding-left:10px;margin:4px 0}
+  .daten ul{margin:4px 0;padding-left:18px}
+  .fotos{display:flex;flex-wrap:wrap;gap:10px}
+  .fotos a{display:block;border:1px solid var(--line);border-radius:var(--ds-ecke-karte);overflow:hidden;background:var(--soft)}
+  .fotos img{display:block;width:180px;height:135px;object-fit:cover}
+  .dateien{margin:0 0 10px;padding-left:18px;font-size:13.5px}
+  .dateien a{color:var(--ds-link);font-weight:650}
+  .status{font-size:13px;font-weight:600;color:var(--muted)}.status.err{color:var(--danger)}
+  @media(max-width:850px){.raster{grid-template-columns:minmax(0,1fr)}.zeile{grid-template-columns:minmax(0,1fr)}}
+  @media(max-width:650px){main{padding:12px}.fotos img{width:150px;height:112px}}
+</style>
+</head>
+<body class="ds-seite">
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Anfrage der Webseite", untertitel="Lädt …", mit_pfad=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/inquiries">Anfragen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/anfragen/webseite">Anfragen der Webseite</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page" id="pfadNummer">Anfrage</span>{% endif %}
+  {% endcall %}
+  <div id="hinweise"></div>
+  <div class="raster">
+    <section class="card"><h2>Kontakt</h2><dl id="kontakt"><div class="muted small">Lädt …</div></dl></section>
+    <section class="card"><h2>Anfrage</h2><dl id="anfrage"></dl></section>
+  </div>
+  <section class="card" id="angabenKarte"><h2>Angaben aus dem Formular</h2><div id="angaben" class="daten"></div></section>
+  <section class="card"><h2>Dateien</h2><div id="dateien"></div></section>
+  <section class="card"><h2>Herkunft</h2><dl id="herkunft"></dl></section>
+</main>
+</div>
+</div>
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_zahl.html" %}
+{% include "_seitenkopf.html" %}
+<script>
+/* Seit 1.10.1 (Stufe W1a, docs/archiv/webseite-und-kundenportal.md): eine Anfrage der Webseite, nur lesen. Der Umschlag kommt unverändert vom
+   Empfangsdienst -- jeder Wert, auch jeder Schlüssel, ist Fremddaten und geht nur über esc() ins HTML; Links nur mit festem Anfang (tel:, mailto:,
+   der eigene Pfad der Dateien). */
+const ID={{ webanfrage_id }};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
+const alsText=w=>typeof w==='string'?w.trim():'';
+
+function angabeZeile(label,html){return html?`<div class="zeile"><dt>${esc(label)}</dt><dd>${html}</dd></div>`:''}
+function angabeText(w){const t=alsText(w);return t?esc(t):''}
+function telefonLink(w){const t=alsText(w);return t?`<a href="tel:${esc(t.replace(/[^0-9+]/g,''))}">${esc(t)}</a>`:''}
+function mailLink(w){const t=alsText(w);return t.includes('@')&&!/\s/.test(t)?`<a href="mailto:${esc(t)}">${esc(t)}</a>`:angabeText(t)}
+
+/* Unbekannte Angaben (Kantservice, Dach, PV, neue Felder): verschachtelt als Liste, begrenzt in Tiefe und Menge. */
+function allgemein(w,tiefe=0){
+  if(w===null||w===undefined||w==='')return '<span class="muted">—</span>';
+  if(tiefe>6)return '<span class="muted">…</span>';
+  if(Array.isArray(w))return w.length?`<ul>${w.slice(0,200).map(x=>`<li>${allgemein(x,tiefe+1)}</li>`).join('')}${w.length>200?'<li class="muted">…</li>':''}</ul>`:'<span class="muted">—</span>';
+  if(typeof w==='object'){const k=Object.keys(w).slice(0,200);return k.length?`<dl>${k.map(n=>`<div class="zeile"><dt>${esc(n)}</dt><dd>${allgemein(w[n],tiefe+1)}</dd></div>`).join('')}</dl>`:'<span class="muted">—</span>'}
+  if(typeof w==='number')return esc(zahlText(w));
+  if(typeof w==='boolean')return w?'ja':'nein';
+  return esc(String(w));
+}
+
+/* Reparatur und Wartung: Fassung dk-reparatur/1 mit Klartext je Auswahl (Feld *_text). */
+function reparatur(d){
+  const m=d.melder||{},o=d.objekt||{},a=d.anfrage||{},t=d.termin||{},vo=o.vor_ort||{};
+  const ort=[alsText(o.plz),alsText(o.ort)].filter(Boolean).join(' ');
+  return `<dl>${[
+    angabeZeile('Anliegen',angabeText(d.anliegen_text||d.anliegen)),
+    angabeZeile('Wartung',angabeText(d.wartung_art_text)),
+    angabeZeile('Meldet',angabeText(m.rolle_text)),
+    angabeZeile('Name',angabeText(m.name)),
+    angabeZeile('Firma',angabeText(m.firma)),
+    angabeZeile('Hausverwaltung laut Mieter',angabeText(m.hausverwaltung)),
+    angabeZeile('Telefon',telefonLink(m.telefon)),
+    angabeZeile('E-Mail',mailLink(m.email)),
+    angabeZeile('Erreichbar',angabeText(m.erreichbar)),
+    angabeZeile('Objekt',[angabeText(o.strasse),esc(ort)].filter(Boolean).join(', ')),
+    angabeZeile('Lage',angabeText(o.lage)),
+    angabeZeile('Gebäude',angabeText(o.gebaeude_text)),
+    angabeZeile('Geschosse',angabeText(o.geschosse_text)),
+    angabeZeile('Objektnummer',angabeText(o.objektnummer)),
+    angabeZeile('Vor Ort',[angabeText(vo.name),telefonLink(vo.telefon)].filter(Boolean).join(' · ')),
+    angabeZeile('Bereich',angabeText(a.bereiche_text)),
+    angabeZeile('Schaden',angabeText(a.schaeden_text)),
+    angabeZeile('Seit',angabeText(a.seit_text)),
+    angabeZeile('Beschreibung',alsText(a.beschreibung)?`<pre class="text">${esc(a.beschreibung)}</pre>`:''),
+    angabeZeile('Zeitraum',angabeText(t.zeitraum_text)),
+  ].join('')}</dl>`;
+}
+
+function zeichnen(d){
+  const u=d.umschlag||{},k=(u.kontakt&&typeof u.kontakt==='object')?u.kontakt:{};
+  seitenkopf({titel:d.art_name||'Anfrage der Webseite',kennung:d.nummer,untertitel:d.eingang_am?'Eingang '+berlinZeitpunkt(d.eingang_am):'Eingang unbekannt'});
+  document.getElementById('pfadNummer').textContent=d.nummer;
+  const h=[];
+  if(d.spamverdacht)h.push('<div class="fehler">Spamverdacht: Der Schutz der Webseite vor automatischen Einsendungen hat angeschlagen.</div>');
+  if(d.pruefen_grund)h.push(`<div class="hinweis">Zu prüfen: ${esc(d.pruefen_grund)}</div>`);
+  document.getElementById('hinweise').innerHTML=h.join('');
+  document.getElementById('kontakt').innerHTML=[angabeZeile('Name',angabeText(k.name)),angabeZeile('Telefon',telefonLink(k.telefon)),angabeZeile('E-Mail',mailLink(k.email)),angabeZeile('Ort',angabeText(k.ort))].join('')
+    ||'<div class="muted small">Keine Angaben.</div>';
+  document.getElementById('anfrage').innerHTML=[angabeZeile('Art',angabeText(d.art_name||d.art)),angabeZeile('Eingang',esc(berlinZeitpunkt(d.eingang_am))),angabeZeile('Betreff',angabeText(u.betreff)),
+    angabeZeile('Nachricht',alsText(u.text)?`<pre class="text">${esc(u.text)}</pre>`:'')].join('');
+  const daten=u.daten&&typeof u.daten==='object'?u.daten:null;
+  const teile=[];
+  if(daten&&daten.schema==='dk-reparatur/1')teile.push(reparatur(daten));
+  else if(daten){
+    if(d.art==='dach'||d.art==='pv')teile.push('<div class="hinweis">Preise und Förderung hat der Konfigurator der Webseite gerechnet – vor dem Angebot prüfen.</div>');
+    teile.push(allgemein(daten));
+  }
+  if(Array.isArray(u.positionen))teile.push(`<h3 class="small muted">Positionen aus dem Kantteil-Zeichner</h3>${allgemein(u.positionen)}`);
+  if(typeof u.aufmass==='boolean')teile.push(`<dl>${angabeZeile('Aufmaß vor Ort gewünscht',u.aufmass?'ja':'nein')}</dl>`);
+  document.getElementById('angaben').innerHTML=teile.join('')||'<div class="muted small">Keine weiteren Angaben.</div>';
+  const pdf=d.dateiliste.filter(f=>f.typ==='application/pdf'),fotos=d.dateiliste.filter(f=>f.typ==='image/jpeg');
+  document.getElementById('dateien').innerHTML=(pdf.length?`<ul class="dateien">${pdf.map(f=>`<li><a href="/api/webanfragen/${ID}/dateien/${f.id}" target="_blank" rel="noopener">${esc(f.name)}</a> <span class="muted small">(${esc(zahlText(f.groesse/1024,0))} KB)</span></li>`).join('')}</ul>`:'')
+    +(fotos.length?`<div class="fotos">${fotos.map(f=>`<a href="/api/webanfragen/${ID}/dateien/${f.id}" target="_blank" rel="noopener" title="${esc(f.name)}"><img src="/api/webanfragen/${ID}/dateien/${f.id}" alt="${esc(f.name)}" loading="lazy"></a>`).join('')}</div>`:'')
+    ||'<div class="muted small">Keine Dateien.</div>';
+  document.getElementById('herkunft').innerHTML=[angabeZeile('Nummer der Webseite',esc(d.nummer)),angabeZeile('Fassung',esc(d.fassung)),angabeZeile('Abgeholt',esc(berlinZeitpunkt(d.abgeholt_am))),
+    angabeZeile('Beim Empfangsdienst gemeldet',d.gemeldet_am?esc(berlinZeitpunkt(d.gemeldet_am)):'noch nicht – der nächste Lauf meldet es')].join('');
+}
+
+lesen('anfrage',()=>api(`/api/webanfragen/${ID}`),zeichnen).catch(err=>{
+  document.getElementById('kontakt').innerHTML=`<div class="status err">Fehler: ${esc(err.message)}</div>`;
+});
+</script>
+</body></html>

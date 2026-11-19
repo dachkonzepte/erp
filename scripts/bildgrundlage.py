@@ -141,6 +141,8 @@ AUFNAHMEN = (
     A("anmeldung", "login.html", "/login", (ANONYM,)),
     A("sperrseite", "access_denied.html", "/projects", (MONTEUR,)),
     A("bericht", "service_report.html", "/service-reports/{bericht}", (BUERO, MONTEUR)),  # seit 1.9.67 der Bericht in fünf Schritten
+    A("anfragen_webseite", "webanfragen.html", "/anfragen/webseite", (BUERO,)),  # seit 1.10.1 (Stufe W1a): Eingang der Anfragen der Webseite
+    A("anfrage_webseite", "webanfrage.html", "/anfragen/webseite/{webanfrage}", (BUERO,)),
 )
 AUFNAHME = {a.name: a for a in AUFNAHMEN}
 
@@ -385,6 +387,22 @@ def befuellen(db, k):
     db.add(RecurringCost(label="Fahrzeugleasing Pritsche", net_amount=Decimal("450.00"), billing_interval="monatlich",
                          annual_amount=Decimal("5400.00")))
     db.add(Inquiry(inquiry_number="AN-2026-0001", customer_id=familie.id, title="Undichtes Flachdach"))
+    # Seit 1.10.1 (Stufe W1a): eine Anfrage der Webseite im Eingang -- Musterdaten der Attrappe, ohne Dateien; Eingang und Nummer nach der
+    # stehenden Uhr (tests/test_v453_bildgrundlage_lauftag.py: kein Datum aus der echten Zeit, auch nicht im Umschlag)
+    import hashlib
+
+    from empfangsdienst_attrappe import muster
+
+    from app.models import WebAnfrage
+    eingang = _utc_now() - timedelta(hours=3)
+    wa = muster(f"R-{eingang:%Y%m%d}-0905-0A1B", "reparatur", eingang=eingang)["umschlag"]
+    wa["dateien"] = []
+    roh = json.dumps(wa, ensure_ascii=False)
+    webanfrage = WebAnfrage(nummer=wa["nr"], art="reparatur", art_name=wa["art_name"], fassung="dk-anfrage/1",
+                            eingang_am=eingang.replace(tzinfo=None), betreff=wa["betreff"], kontakt_name=wa["kontakt"]["name"], umschlag=roh,
+                            umschlag_sha256=hashlib.sha256(roh.encode("utf-8")).hexdigest(), status="neu",
+                            gemeldet_am=_utc_now().replace(tzinfo=None))
+    db.add(webanfrage)
     db.commit()
     create_task(db, title="Rückruf Hallenbau wegen Gerüst", created_by_user_id=buero.id)
 
@@ -399,6 +417,7 @@ def befuellen(db, k):
     _zeitstempel_festsetzen(db, _utc_now().replace(tzinfo=None))
     return {"cookies": cookies, "uhr_ms": k.uhr_ms(), "kunde": kunde.id, "objekt": objekt.id, "dachflaeche": nord.id,
             "projekt": projekt.id, "angebot": angebot.id, "auftrag": auftrag.id, "rechnung": rechnung.id, "checkliste": checkliste["id"],
+            "webanfrage": webanfrage.id,
             "bericht": bericht["id"],
             "checklistenvorlage": vorlage["id"], "vertrag": vertrag.id, "pruefvorlage": pruefvorlage["id"],
             "pruefvorlage_altwert": altbestand["id"], "geraet": geraet.id,
