@@ -82,7 +82,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText
 
 /* seit 1.9.125: der Projektstatus kommt abgeleitet mit Namen vom Server (status_label, app/akte.py) -- „aktiv“ = ein Auftrag läuft oder ist pausiert */
 const PROJEKT_AKTIV=['auftrag','ausfuehrung','abnahme','schlussrechnung'],PROJEKT_ERLEDIGT=['abgeschlossen','storniert'];
-const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
+const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'webanfragen',sort_order:12,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
 
 let authStatus=null,layout=[],employees=[],selectedTaskEmployeeId='';
 
@@ -222,6 +222,23 @@ async function renderDueAssetsWidget(container){
 // "Ohne Zuständigkeit" (bis 1.8.17 "Offene Büro-Aufgaben", nur per "+ Widget"): seit 1.8.18
 // Standard-Widget. Die Rollenprüfung stand bis dahin auf der alten Rolle "office" -- Büro-Konten
 // (buero_auftrag/buero_finanzen) bekamen nur "Nur für Büro und Admin verfügbar." zu sehen.
+/* Seit 1.10.2 (Stufe W1a): neue Anfragen der Webseite fallen dem Büro auf -- Zahl im Eingang (davon Spamverdacht und zu prüfen), die fünf
+   neuesten mit Weg zur Anfrage, ein Fehler des letzten Laufs. Jeder Wert stammt aus dem Formular der Webseite und geht nur über esc() ins HTML. */
+async function renderWebanfragenWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
+  await lesen('webanfragen',()=>Promise.all([api('/api/webanfragen/stand'),api('/api/webanfragen?anzahl=5')]),([s,l])=>{
+    const kopf=[`<a href="/anfragen/webseite" style="color:var(--ds-link);font-weight:700">${Number(s.neu)} im Eingang</a>`];
+    if(s.spamverdacht)kopf.push(`davon ${Number(s.spamverdacht)} mit Spamverdacht`);
+    if(s.pruefen)kopf.push(`${Number(s.pruefen)} zu prüfen`);
+    const hinweis=!s.eingerichtet?'<div class="muted small" style="margin-top:8px">Die Schnittstelle zum Empfangsdienst ist noch nicht eingerichtet.</div>'
+      :(s.letzter_fehler?`<div class="status err" style="margin-top:8px">Letzter Lauf: ${esc(s.letzter_fehler)}</div>`:'');
+    container.innerHTML=`<div class="small" style="margin-bottom:8px">${kopf.join(' · ')}</div>`
+      +(l.length?`<div class="task-list">${l.map(z=>`<a class="task-row" href="/anfragen/webseite/${z.id}" style="color:inherit;text-decoration:none"><span class="task-type">${esc(z.art_name||z.art||'Anfrage')}</span><span class="task-main"><span class="task-title">${esc(z.kontakt_name||z.nummer)}</span><span class="muted small">${esc(z.nummer)}${z.spamverdacht?' · Spamverdacht':''}${z.pruefen_grund?' · zu prüfen':''}</span></span><span class="task-due">${esc(berlinZeitpunkt(z.eingang_am,'datum'))}</span></a>`).join('')}</div>`
+        :'<div class="status ok">Keine Anfragen der Webseite im Eingang.</div>')+hinweis;
+  });
+}
+
 async function renderOpenOfficeTasksWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
@@ -264,6 +281,7 @@ const WIDGETS={
   due_assets:{label:'Fällige Betriebsmittelfristen',render:renderDueAssetsWidget},
   critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
   open_office_tasks:{label:'Ohne Zuständigkeit',render:renderOpenOfficeTasksWidget},
+  webanfragen:{label:'Anfragen der Webseite',render:renderWebanfragenWidget},  // seit 1.10.2
 };
 
 function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}

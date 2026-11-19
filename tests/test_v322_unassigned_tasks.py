@@ -249,7 +249,7 @@ def test_unassigned_widget_is_default_and_reaches_saved_layouts():
     saved = make_user(db, "buero_auftrag", username="alt")
     removed = make_user(db, "buero_auftrag", username="weg")
 
-    assert [w["widget_key"] for w in get_widget_layout(db, fresh.id)] == ["my_tasks", "open_office_tasks", "kpis", "active_projects"]
+    assert [w["widget_key"] for w in get_widget_layout(db, fresh.id)] == ["my_tasks", "webanfragen", "open_office_tasks", "kpis", "active_projects"]
 
     # Layout aus der Zeit vor 1.8.18 (ohne Zeile für das Widget): es erscheint trotzdem.
     save_widget_layout(db, saved.id, [
@@ -258,7 +258,7 @@ def test_unassigned_widget_is_default_and_reaches_saved_layouts():
         {"widget_key": "active_projects", "sort_order": 30, "visible": True},
     ])
     layout = get_widget_layout(db, saved.id)
-    assert [w["widget_key"] for w in layout] == ["my_tasks", "open_office_tasks", "kpis", "active_projects"]
+    assert [w["widget_key"] for w in layout] == ["my_tasks", "webanfragen", "open_office_tasks", "kpis", "active_projects"]  # webanfragen seit 1.10.2
     assert next(w for w in layout if w["widget_key"] == "open_office_tasks")["visible"] is True
 
     # Gegenprobe: bewusst entfernt (ausgeblendete Zeile) bleibt entfernt.

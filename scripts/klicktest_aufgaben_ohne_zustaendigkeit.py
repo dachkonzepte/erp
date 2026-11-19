@@ -79,7 +79,8 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["karl"])
     await tab.oeffnen("/", f"{WIDGET}?.querySelector('.task-list, .status')")
     p.pruefe("Dashboard: Widget-Titel", await tab.js(
-        "[...document.querySelectorAll('.widget-card h2')].map(h=>h.textContent)"), ["Meine Aufgaben", "Ohne Zuständigkeit", "Kennzahlen", "Laufende Projekte"])
+        "[...document.querySelectorAll('.widget-card h2')].map(h=>h.textContent)"),
+        ["Meine Aufgaben", "Anfragen der Webseite", "Ohne Zuständigkeit", "Kennzahlen", "Laufende Projekte"])  # seit 1.10.2 mit „Anfragen der Webseite“
     p.pruefe("Dashboard: Ohne Zuständigkeit", sorted(await tab.js(WIDGET_TITEL)), ["Material nachbestellen", "Rückruf Frau Beispiel"])
     await tab.bild("dashboard_vorher")
     await tab.js(f"{WIDGET}.querySelector('[data-unassigned-task=\"{t['material']}\"] button').click()")

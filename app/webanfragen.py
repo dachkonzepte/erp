@@ -591,11 +591,12 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
 # Lesen (Eingang)
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 
-def eingang(db: Session) -> list[WebAnfrage]:
-    """Die Liste des Eingangs (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens EINGANG_MAX."""
+def eingang(db: Session, anzahl: int = EINGANG_MAX) -> list[WebAnfrage]:
+    """Die Liste des Eingangs (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens anzahl (bis EINGANG_MAX; die
+    Startseite nimmt seit 1.10.2 die fünf neuesten)."""
     from sqlalchemy.orm import selectinload
     return list(db.scalars(select(WebAnfrage).options(selectinload(WebAnfrage.dateien))
-                           .order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc()).limit(EINGANG_MAX)))
+                           .order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc()).limit(min(anzahl, EINGANG_MAX))))
 
 
 def zeile_zu_dict(zeile: WebAnfrage) -> dict:

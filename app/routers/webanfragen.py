@@ -6,7 +6,7 @@ steht in app/webanfragen.py; hier nur Rollen und Antworten. Der Umschlag geht un
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -16,7 +16,7 @@ from ..ids import Id
 from ..models import AppUser, WebAnfrage, WebAnfrageDatei
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageOut
-from ..webanfragen import KNOPF_FRIST, KNOPF_HOECHSTENS, abholen, datei_pfad, eingang, stand, zeile_zu_dict
+from ..webanfragen import EINGANG_MAX, KNOPF_FRIST, KNOPF_HOECHSTENS, abholen, datei_pfad, eingang, stand, zeile_zu_dict
 
 router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
@@ -28,8 +28,10 @@ def get_stand(db: Session = Depends(get_db, scope="function"), _role: AppUser = 
 
 
 @router.get("/api/webanfragen", response_model=list[WebAnfrageOut])
-def get_liste(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    return [zeile_zu_dict(z) for z in eingang(db)]
+def get_liste(anzahl: int = Query(default=EINGANG_MAX, ge=1, le=EINGANG_MAX), db: Session = Depends(get_db, scope="function"),
+              _role: AppUser = _role_dep):
+    """Die neuesten Anfragen des Eingangs; anzahl seit 1.10.2 (die Startseite nimmt fünf)."""
+    return [zeile_zu_dict(z) for z in eingang(db, anzahl)]
 
 
 @router.post("/api/webanfragen/abholen", response_model=WebanfragenAbholErgebnisOut)

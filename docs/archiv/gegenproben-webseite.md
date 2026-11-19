@@ -78,3 +78,22 @@ angekommen. Er wird jetzt je Aufruf gebaut (`_oeffner()`), dazu der Test `test_p
 
 20 Gegenproben, alle Dateien byte-gleich zurück. `1101_4c` setzte zuerst an der Hilfsfunktion `zeile_zu_dict()` an und blieb grün -- das
 Antwortschema der Liste ist eine Positivliste und ließ den Umschlag ohnehin weg. Der Schutz ist das Schema; dort angesetzt: rot.
+
+## W1a, 1.10.2: Hinweis auf der Startseite
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – direkt unter „Meine Aufgaben“ | sort_order 40 (`1102_1`) | 1 rot |
+| Nr. 1 – Standard-Widget | nicht in `DEFAULT_WIDGETS` (`1102_1b`) | 1 rot |
+| Nr. 1 – erreicht gespeicherte Layouts | fehlende Standards nicht anhängen (`1102_1c`) | 1 rot |
+| Nr. 2 – Zahl als Weg zum Eingang | Weg zu „Anfragen“ (`1102_2`) | 1 rot |
+| Nr. 2 – davon Spamverdacht | weg (`1102_2b`) | 1 rot |
+| Nr. 2 – die neuesten als Weg zur Anfrage | Weg zum Eingang (`1102_2c`) | 1 rot |
+| Nr. 2 – Fehler des letzten Laufs | nie (`1102_2d`) | 1 rot |
+| Nr. 2 – „noch nicht eingerichtet“ | nie (`1102_2e`) | 1 rot |
+| Nr. 2 – esc() für Werte | Name ohne esc() (`1102_2f`) | 1 rot |
+| Nr. 3 – nur Büro und Admin | Prüfung der Rolle weg (`1102_3`) | 1 rot: Abfrage als Monteurin |
+| Nr. 4 – `anzahl` wirkt | immer 500 (`1102_4`) | 1 rot |
+| Nr. 4 – `anzahl` 1–500 | ohne Grenzen (`1102_4b`) | 1 rot: 0 und 501 angenommen |
+
+12 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück.

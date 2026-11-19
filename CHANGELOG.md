@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.2 – Anfragen der Webseite auf der Startseite
+
+Stufe W1a. Neue Anfragen der Webseite fallen dem Büro jetzt auf der Startseite „Start“ auf -- „Heute“ ist im ERP die Seite der Monteurin, das Büro beginnt auf dem Dashboard. Das neue Standard-Widget „Anfragen der Webseite“ steht direkt unter „Meine Aufgaben“ und zeigt, wie viele Anfragen im Eingang liegen (davon mit Spamverdacht und zu prüfen), die fünf neuesten mit Weg zur Anfrage und einen Fehler des letzten Laufs. Wie jedes neue Standard-Widget erscheint es auch in gespeicherten Layouts; wer es entfernt, behält es entfernt. Die Liste des Eingangs nimmt dafür `anzahl` (1–500).
+
+Neu `tests/test_v774_webanfragen_start.py`; die festen Reihenfolgen der Widgets in `test_v197`, `test_v322` und im Klicktest „Aufgaben ohne Zuständigkeit“ enthalten das neue Widget an zweiter Stelle.
+
 ## 1.10.1 – Anfragen der Webseite: Eingang
 
 Stufe W1a. Die neue Seite „Anfragen der Webseite“ (`/anfragen/webseite`, erreichbar über einen Knopf im Kopf von „Anfragen“) zeigt den Stand des Abholens -- zuletzt abgeholt, Fehler des letzten Laufs, was nicht abgeholt wurde und warum -- und den Eingang, neueste zuerst, mit den Kennzeichen „Spamverdacht“, „Prüfen: …“ und „noch nicht gemeldet“. „Jetzt abholen“ holt höchstens 20 neue Anfragen und hört nach 40 Sekunden auf, den Rest holt der Timer. Jede Anfrage hat ihre eigene Seite mit Kontakt, Nachricht, den Angaben aus dem Formular (Reparatur und Wartung im Klartext, bei Dach und PV mit dem Hinweis, die Preise vor dem Angebot zu prüfen), PDF und Fotos. Alles, was von der Webseite kommt, gilt als Fremddaten: jeder Wert und jeder Schlüssel geht nur über `esc()` ins HTML, Links nur mit festem Anfang, eine Datei nur zu ihrer Anfrage.

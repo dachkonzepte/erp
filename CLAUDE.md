@@ -1616,7 +1616,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Webseite und Kundenportal** (seit 1.10.0: Entscheidungen des Betriebs vom 19.11.2026 für W1 und P1–P5; W1a Anfragen der Webseite abholen über die
   Schnittstelle des Empfangsdienstes, `app/webanfragen.py`, Fremddaten wie Angriffsdaten, Timer `scripts/server/erp-webanfragen.*`, Attrappe
   `scripts/empfangsdienst_attrappe.py`; seit 1.10.1 der Eingang `/anfragen/webseite` mit „Jetzt abholen“, Router `app/routers/webanfragen.py`,
-  Klicktest `klicktest_webanfragen.py`) -- `docs/archiv/webseite-und-kundenportal.md`
+  Klicktest `klicktest_webanfragen.py`; seit 1.10.2 Standard-Widget „Anfragen der Webseite“ auf „Start“ unter „Meine Aufgaben“) --
+  `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit

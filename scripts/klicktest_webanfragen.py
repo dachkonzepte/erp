@@ -94,6 +94,23 @@ async def pruefen(tab, seed, p):
     await tab.bild_ganz("webanfragen_eingang_1440_dunkel")
     await _thema(tab, "light", "/anfragen/webseite", EINGANG_BEREIT)
 
+    # --- Startseite (seit 1.10.2): das Widget „Anfragen der Webseite“ unter „Meine Aufgaben“ ---
+    widget = "document.getElementById('widget-body-webanfragen')"
+    await tab.oeffnen("/", f"!!{widget}&&!!{widget}.querySelector('.task-list')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Start: Widgets", await tab.js("[...document.querySelectorAll('.widget-card h2')].map(h=>h.textContent).slice(0,2)"),
+             ["Meine Aufgaben", "Anfragen der Webseite"])
+    p.pruefe("Start: Zahl im Eingang", await tab.js(f"{widget}.querySelector('a').textContent"), "3 im Eingang")
+    p.pruefe("Start: die neuesten mit Weg", await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.getAttribute('href').split('/').length)"),
+             [4, 4, 4])
+    p.pruefe("Start: kein Skript aus den Daten", await tab.js("window.__boese===undefined"), True)
+    p.pruefe("Start: JS-Fehler", tab.fehler, [])
+    await tab.bild("webanfragen_start_1440_hell")
+    await tab.js(f"[...{widget}.querySelectorAll('a.task-row')][2].click()")
+    await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
+    p.pruefe("Start: Klick öffnet die Anfrage", await tab.js("document.getElementById('seitenkopfKennung').textContent"), R)
+    await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
+
     # --- eine Anfrage ---
     await tab.js(f"{ZEILEN}[2].querySelector('a').click()")
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
