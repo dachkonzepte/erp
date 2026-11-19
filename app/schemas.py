@@ -4733,6 +4733,12 @@ class TaskOut(BaseModel):
     completed_at: datetime | None = None
 
 
+class TaskZustaendigeOut(BaseModel):
+    """Seit 1.9.373: wer eine Aufgabe mit dieser Mindestrolle sähe (app/tasks.py::zustaendige()), für die Liste „Zuständig“ im Editor."""
+    min_visible_role: str | None = None
+    employee_ids: list[int]
+
+
 class TaskCreate(BaseModel):
     title: Pflichttext = Field(min_length=1, max_length=255)
     description: str | None = None

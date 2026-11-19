@@ -3697,3 +3697,7 @@ Steht im Archiv der Aufgaben (`modul-aufgaben.md`, „Auch ohne Mindestrolle (se
 ### Umsetzung 1.9.372 (Punkt 3): Kalender in Stufe 7
 
 Steht im Archiv des Redesigns (`redesign.md`, „Kalender in Stufe 7 (1.9.372)“) mit Festlegungen, Tests und Prüfung.
+
+### Umsetzung 1.9.373 (F1 aus dem Bericht a8d04f7): „Zuständig“ nur, wer die Aufgabe sieht
+
+Steht im Archiv der Aufgaben (`modul-aufgaben.md`, „„Zuständig“ nur, wer die Aufgabe sieht (seit 1.9.373 …)“) mit Festlegungen, Tests und Prüfung.

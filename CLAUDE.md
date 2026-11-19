@@ -1379,7 +1379,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   seit 1.9.369 eine Aufgabe mit Mindestrolle nur an jemanden, der sie sieht: von Hand 422 mit Grund, ein Modul legt sie in den Büro-Eingang
   (`zuweisung_grund()`, `create_task(…, zuweisung="ablehnen")` nur der Endpunkt; Bestand zählt `scripts/pruefe_aufgaben_zuweisung.py`;
   `tests/test_v769_zuweisung_mit_mindestrolle.py`); seit 1.9.371 auch ohne Mindestrolle -- Aufgaben sieht nur das Büro, ein Monteur oder eine Person ohne Konto
-  bekommt keine (in Tests gibt `tests/aufgaben_konto.py::buero_konto()` der Person ein Büro-Konto)
+  bekommt keine (in Tests gibt `tests/aufgaben_konto.py::buero_konto()` der Person ein Büro-Konto); seit 1.9.373 bietet „Zuständig“ im Editor nur an, wer
+  sie sähe -- dieselbe Menge über `zustaendige()` (auch für `zuweisung_grund()`) und `GET /api/tasks/zustaendige` (je Mindestrolle nur keine und die eigenen
+  Rollen), eine gespeicherte außerhalb bleibt gekennzeichnet (`tests/test_v771_zustaendig_im_editor.py`, Klicktest `klicktest_aufgaben_zustaendig.py`)
   -- `docs/archiv/modul-aufgaben.md`
 - **Wartungen & Reparaturen + Monteursansicht** (`MaintenanceContract`, `ServiceReport`,
   `/mobil`, Modul `wartungen`) -- `docs/archiv/modul-wartungen-und-monteursansicht.md`

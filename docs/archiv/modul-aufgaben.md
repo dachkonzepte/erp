@@ -339,3 +339,40 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     `test_v202`/`test_v207` (Wartungsvertrag), die Sachbearbeiterin in `test_v203` (Rechnung erstellen), die drei Empfänger der Aufgaben-Mail in `test_v321`,
     die Empfängerin in `test_v355`, Carl in `test_v743` -- im ersten vollen Lauf 30 Tests in 13 Dateien rot, weil die Aufgabe im Eingang landete.
     Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.371“.
+
+  - **„Zuständig“ nur, wer die Aufgabe sieht (seit 1.9.373, Nachrunde Urlaub; F1 aus dem Bericht a8d04f7, Antwort Tobias 19.11.2026: „Die Liste „Zuständig“
+    im Aufgaben-Editor bietet nur Personen an, die die Aufgabe sehen (nach derselben Regel wie zuweisung_grund(), auch mit Mindestrolle). Eine gespeicherte
+    Zuweisung aus dem Bestand bleibt gewählt und gekennzeichnet (Regel 22).“)**:
+    - Befund: die Liste bot jede aktive Person an (`tasks.html`, `employeeOptionsHtml()` über `/api/employees`); seit 1.9.371 lehnte der Server die Wahl
+      eines Monteurs oder einer Person ohne Konto mit 422 ab -- die Liste bot also an, was nicht ging.
+    - Regel an einer Stelle: `app/tasks.py::zustaendige(db, Mindestrolle, Personen=None)` -- die Personen mit einem aktiven Konto, das eine ihnen zugewiesene
+      Aufgabe mit dieser Mindestrolle sähe (`task_visible_for_user()`, dieselbe Regel wie das Lesen). `zuweisung_grund()` liest die Konten nicht mehr selbst,
+      sondern fragt `zustaendige(…, [Person])` (Wächter `test_regel_an_einer_stelle`, AST).
+    - Server: `GET /api/tasks/zustaendige` (ab Büro – Auftrag, Modul an) liefert über `zustaendige_je_mindestrolle()` je Mindestrolle die Personen -- für
+      keine und für jede Rolle, die das Konto selbst hat. Eine Aufgabe mit einer höheren Mindestrolle öffnet das Konto ohnehin nie; so erfährt Büro – Auftrag
+      nicht, wer Büro – Finanzen oder Administrator ist.
+    - Editor: gelesen einmal beim Laden der Seite (Bereich „stammdaten“, mit Mitarbeitern und Projekten). Neu angeboten wird, wer aktiv ist und in der Menge der
+      Mindestrolle steht -- beim Bearbeiten die der Aufgabe, beim Anlegen keine (der Editor setzt keine). Eine Person, die selbst inaktiv ist, deren Konto
+      aber aktiv, steht in der Menge, wird aber wie bisher nicht neu angeboten. Die gespeicherte Zuweisung bleibt über `auswahlOptionen()` gewählt (die Liste
+      ist weiter die volle Mitarbeiterliste, kein vorher gefilterter Auszug -- Regel 22, Wächter P3): „(sieht die Aufgabe nicht)“, eine inaktive Person
+      „(inaktiv)“ (geht vor). Unverändert gespeichert nimmt der Server sie an (Festlegung 1.9.371 Nr. 7). Fehlt die Antwort, bietet der Editor alle aktiven
+      an wie bis 1.9.372 -- der Server prüft weiter.
+    - Unverändert: der Filter „Mitarbeiter“ über dem Board (nur Admin) zeigt jede aktive Person -- er weist nichts zu.
+
+    Festlegungen 1.9.373 (Bitte bestätigen):
+    1. „Zuständig“ bietet neu nur an, wer die Aufgabe sähe: eine aktive Person mit einem aktiven Konto, das sie nach derselben Regel wie das Lesen sieht
+       (`zustaendige()`); `zuweisung_grund()` fragt dieselbe Funktion -- die Regel steht an einer Stelle.
+    2. Es zählt beim Bearbeiten die Mindestrolle der Aufgabe, beim Anlegen keine.
+    3. Eine gespeicherte Zuweisung außerhalb bleibt gewählt und gekennzeichnet: „(sieht die Aufgabe nicht)“, eine inaktive Person „(inaktiv)“ -- „inaktiv“ geht
+       vor; unverändert gespeichert bleibt sie (1.9.371 Nr. 7).
+    4. `GET /api/tasks/zustaendige` liefert je Mindestrolle die Personen, nur für keine und die Rollen, die das Konto selbst hat; ab Büro – Auftrag, Modul an.
+    5. Fehlt die Antwort, bietet der Editor alle aktiven an wie bis 1.9.372; der Server prüft weiter (422).
+    6. Der Filter „Mitarbeiter“ über dem Board (nur Admin) bleibt bei jeder aktiven Person.
+
+    Tests und Prüfung 1.9.373: neu `tests/test_v771_zustaendig_im_editor.py` (13 Tests: Mengen je Mindestrolle mit Admin, Büro – Finanzen, Büro – Auftrag,
+    inaktivem Konto, Monteur, ohne Konto, inaktiver Person; dieselbe Menge wie `zuweisung_grund()`; Regel an einer Stelle (AST); je Mindestrolle nur die eigenen
+    Rollen; Endpunkt mit Monteur 403 und abgeschaltetem Modul; Bestand unverändert gespeichert; im Editor in node: neue Aufgabe, mit Mindestrolle, gespeicherte
+    gekennzeichnet samt Vorrang „inaktiv“, Öffnen nimmt die Mindestrolle der Aufgabe und Anlegen keine, Speichern behält die Zuweisung, Laden mit und ohne Antwort,
+    Filter unverändert). Neuer Klicktest `scripts/klicktest_aufgaben_zustaendig.py` (19 Prüfungen: Admin bei 1440 px hell -- neue Aufgabe, Bestand an den
+    Monteur mit Kennzeichen, zwei Bilder, unverändert gespeichert, dann an Otto, Finanz-Aufgabe; Büro – Auftrag ohne Finanz-Menge und mit sich selbst vorgewählt;
+    Monteur 403). Keine angepasste Erwartung; die übrigen Klicktests mit `/tasks` laufen unverändert. Gegenproben: `gegenproben-urlaubsrunde.md`, „1.9.373“.

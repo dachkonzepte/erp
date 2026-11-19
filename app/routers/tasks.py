@@ -20,12 +20,13 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     TaskChecklistItemCreate, TaskChecklistItemOut, TaskChecklistItemUpdate,
-    TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate,
+    TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate, TaskZustaendigeOut,
 )
 from ..tasks import (
     AufgabeVerwendet, add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
     load_task_settings, list_tasks_for_user, release_task, set_task_archived,
     task_visible_for_user, update_checklist_item, update_task, update_task_settings, ZuweisungOhneRolle,
+    zustaendige_je_mindestrolle,
 )
 from ..models import AppUser, Task
 from ..zugehoerigkeit import IdNichtGefunden
@@ -74,6 +75,14 @@ def get_tasks(employee_id: Id | None = None, status: str | None = None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.get("/api/tasks/zustaendige", response_model=list[TaskZustaendigeOut])
+def get_task_zustaendige(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.373: für die Liste „Zuständig“ im Editor je Mindestrolle, wer die Aufgabe sähe -- dieselbe Regel wie die Prüfung beim Zuweisen
+    (app/tasks.py::zustaendige()); nur für keine Mindestrolle und die Rollen, die das Konto selbst hat."""
+    _require_module_enabled(db)
+    return zustaendige_je_mindestrolle(db, _role)
 
 
 @router.post("/api/tasks", response_model=TaskOut)

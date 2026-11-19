@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.373 – „Zuständig“ bietet nur an, wer die Aufgabe sieht
+
+Nachrunde Urlaub, F1 aus dem Bericht a8d04f7. Die Liste „Zuständig“ im Aufgaben-Editor bot bisher jede aktive Person an, auch Monteure und Personen ohne Konto -- seit 1.9.371 lehnt der Server eine solche Zuweisung mit 422 ab. Jetzt bietet die Liste nur an, wer die Aufgabe sähe: eine aktive Person mit einem aktiven Konto, das sie nach derselben Regel wie das Lesen sieht, beim Bearbeiten nach der Mindestrolle der Aufgabe, beim Anlegen ohne. Die Regel steht an einer Stelle (`app/tasks.py::zustaendige()`); `zuweisung_grund()` fragt dieselbe Funktion, der Editor bekommt die Mengen über `GET /api/tasks/zustaendige` -- je Mindestrolle nur für keine und die Rollen, die das Konto selbst hat (Büro – Auftrag erfährt nicht, wer Büro – Finanzen ist).
+
+Eine gespeicherte Zuweisung außerhalb bleibt gewählt und gekennzeichnet („(sieht die Aufgabe nicht)“, eine inaktive Person „(inaktiv)“, Regel 22) und wird unverändert gespeichert (Festlegung 1.9.371 Nr. 7). Fehlt die Antwort, bietet der Editor wie bisher alle aktiven an, der Server prüft weiter. Der Filter „Mitarbeiter“ über dem Board bleibt bei jeder aktiven Person. Neu `tests/test_v771_zustaendig_im_editor.py` und `scripts/klicktest_aufgaben_zustaendig.py`.
+
 ## 1.9.372 – Kalender in Stufe 7
 
 Nachrunde Urlaub, Punkt 3 (F4). Der Kalender zieht nicht mehr mit der Plantafel in Stufe 6 in den neuen Rahmen um, sondern in Stufe 7 zusammen mit den Dialogen „Neues Projekt“ und „Neues Angebot“. In `AUFGESCHOBEN` (`tests/test_v441_rahmen_baustein.py`) steht er jetzt mit Stufe 7 und diesem Grund; `test_kalender_in_stufe_7` hält fest, dass Stufe 7 genau Kalender, Neues Projekt und Neues Angebot führt und Stufe 6 keine aufgeschobene Seite mehr hat. Die Seite selbst ist unverändert. Keine Migration.

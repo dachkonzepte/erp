@@ -184,15 +184,33 @@ def aufgaben_abfrage(user: AppUser, *, status: str | None = None, project_id: in
     return _filter(query, status=status, project_id=project_id, include_archived=include_archived, search=search)
 
 
+def zustaendige(db: Session, min_visible_role: str | None, employee_ids: list[int] | None = None) -> set[int]:
+    """Wer eine Aufgabe mit dieser Mindestrolle sähe, wenn sie ihm zugewiesen wäre (seit 1.9.373, Nachrunde Urlaub F1): die Personen mit einem aktiven
+    Konto, das sie nach DERSELBEN Regel wie das Lesen sieht (task_visible_for_user()). zuweisung_grund() fragt nur diese Funktion; die Liste „Zuständig“
+    im Editor auf /tasks bekommt dieselbe Menge über GET /api/tasks/zustaendige -- die Regel steht nur hier. employee_ids: nur diese Personen prüfen."""
+    query = select(AppUser).where(AppUser.employee_id.is_not(None), AppUser.active.is_(True))
+    if employee_ids is not None:
+        query = query.where(AppUser.employee_id.in_(employee_ids))
+    return {k.employee_id for k in db.scalars(query.order_by(AppUser.id)).all()
+            if task_visible_for_user(k, k.employee_id, min_visible_role)}
+
+
+def zustaendige_je_mindestrolle(db: Session, user: AppUser) -> list[dict]:
+    """Für den Editor (seit 1.9.373): je Mindestrolle, die eine für dieses Konto sichtbare Aufgabe tragen kann -- keine und jede Rolle, die das Konto
+    selbst hat --, die Personen aus zustaendige(). Eine Rolle, die das Konto nicht hat, fehlt: Büro – Auftrag erfährt so nicht, wer Büro – Finanzen
+    ist (eine solche Aufgabe öffnet es ohnehin nie)."""
+    rollen = [None] + [r for r in ROLES if has_min_role(user, r)]
+    return [{"min_visible_role": r, "employee_ids": sorted(zustaendige(db, r))} for r in rollen]
+
+
 def zuweisung_grund(db: Session, assigned_employee_id: int | None, min_visible_role: str | None) -> str | None:
     """Seit 1.9.369 (F2 c aus dem Bericht 1.9.364): sähe die Person, der die Aufgabe zugewiesen wird, sie? Es zählt jedes aktive Konto der Person nach
-    DERSELBEN Regel wie das Lesen (task_visible_for_user()). Seit 1.9.371 (Nachrunde Urlaub, Punkt 2; F2) auch ohne Mindestrolle: Aufgaben sieht nur das
+    DERSELBEN Regel wie das Lesen (task_visible_for_user(); seit 1.9.373 über zustaendige(), dieselbe Menge wie die Liste im Editor). Seit 1.9.371 (Nachrunde Urlaub, Punkt 2; F2) auch ohne Mindestrolle: Aufgaben sieht nur das
     Büro -- ein Monteur oder eine Person ohne Konto sähe sie nie. Nein: der Grund, z. B. „Diese Aufgabe sieht nur Büro – Finanzen und Administrator – Erika
     Eins hat kein Konto mit dieser Rolle.“; ja (oder ohne Zuweisung): None."""
     if assigned_employee_id is None:
         return None
-    konten = db.scalars(select(AppUser).where(AppUser.employee_id == assigned_employee_id, AppUser.active.is_(True)).order_by(AppUser.id)).all()
-    if any(task_visible_for_user(k, assigned_employee_id, min_visible_role) for k in konten):
+    if assigned_employee_id in zustaendige(db, min_visible_role, [assigned_employee_id]):
         return None
     sehen = [ROLE_LABELS[r] for r in ROLES if has_min_role(AppUser(role=r), ROLE_OFFICE_AUFTRAG)
              and (min_visible_role is None or has_min_role(AppUser(role=r), min_visible_role))]

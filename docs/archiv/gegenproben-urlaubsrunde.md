@@ -157,3 +157,26 @@ drittes Mal: 2 rot (auch die neue Zuweisung im Bestandstest 200 statt 422).
 
 4 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. Der Wächter `test_jede_seite_umgezogen_oder_aufgeschoben` lief jeweils mit
 und blieb grün (Stufen 3 bis 7 sind dort alle erlaubt).
+
+## Nachrunde 1.9.373 (F1): „Zuständig“ nur, wer die Aufgabe sieht
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nach der Regel des Lesens | jedes aktive Konto (`373_1`) | 3 rot: Monteur in der Menge; AST: ohne `task_visible_for_user()` |
+| Nr. 1 – nur aktive Konten | auch inaktive (`373_1b`) | 2 rot: das inaktive Konto in der Menge |
+| Nr. 1 – Regel an einer Stelle | `zuweisung_grund()` liest die Konten wieder selbst (Stand 1.9.372) (`373_1c`) | 1 rot: AST |
+| Nr. 1 – der Editor bietet nur sie an | jede aktive Person (Stand 1.9.372) (`373_1d`) | 5 rot: Monteur und Person ohne Konto angeboten |
+| Nr. 2 – beim Bearbeiten die Mindestrolle der Aufgabe | immer keine (`373_2`) | 1 rot: Otto in der Finanz-Aufgabe angeboten |
+| Nr. 2 – beim Anlegen keine | Büro – Finanzen (`373_2b`) | 1 rot (zweiter Lauf, s. u.): Otto vorgewählt mit „(sieht die Aufgabe nicht)“ |
+| Nr. 3 – „(sieht die Aufgabe nicht)“ | immer „inaktiv“ (`373_3`) | 2 rot |
+| Nr. 3 – „inaktiv“ geht vor | Vorrang umgedreht (`373_3b`) | 1 rot: Ina „(sieht die Aufgabe nicht)“ |
+| Nr. 3 – die gespeicherte bleibt gewählt | vorher gefilterte Liste (`373_3c`) | 2 rot: „4 (nicht mehr verfügbar)“ statt des Namens |
+| Nr. 4 – nur keine und die eigenen Rollen | alle Rollen für jedes Konto (`373_4`) | 2 rot: Büro – Auftrag bekommt Büro – Finanzen und Administrator |
+| Nr. 4 – Modul an | ohne Prüfung des Moduls (`373_4b`) | 1 rot: 200 statt 403 |
+| Nr. 4 – ab Büro – Auftrag | ab Monteur (`373_4c`) | 1 rot: 200 statt 403 |
+| Nr. 5 – ohne Antwort alle aktiven | ohne Antwort niemand (`373_5`) | 1 rot |
+| Nr. 6 – Filter bei jeder aktiven Person | Filter nach der Menge (`373_6`) | 1 rot: Monteur und Person ohne Konto fehlen |
+
+14 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück. `373_2b` blieb im ersten Lauf grün: der Test verglich beim Anlegen nur die
+Werte -- Otto stand auch mit der falschen Mindestrolle vorgewählt drin (als gespeicherter Wert, gekennzeichnet). Der Test vergleicht jetzt Wert, Text und
+Auswahl; dieselbe Gegenprobe noch einmal: rot. Danach alle 14 noch einmal: rot.

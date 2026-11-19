@@ -141,7 +141,7 @@ function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
 const PRIORITY_LABELS={niedrig:'Niedrig',normal:'Normal',hoch:'Hoch',dringend:'Dringend'};
 
-let authStatus=null,employees=[],projects=[],tasks=[],unassignedTasks=[],columns=[],editingTaskId=null,selectedEmployeeId='';
+let authStatus=null,employees=[],projects=[],zustaendige=null,tasks=[],unassignedTasks=[],columns=[],editingTaskId=null,selectedEmployeeId='';
 
 // Seit 1.8.18: offene Aufgaben ohne Zuständigkeit stehen in einem eigenen Abschnitt über dem Board
 // (GET /api/tasks?unassigned_only=true, für jedes Büro-Konto). Das Board zeigt sie nicht noch einmal.
@@ -230,8 +230,19 @@ function renderBoard(){
 
 // Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein inaktiver Zuständiger bzw. archiviertes Projekt bleibt
 // vorgewählt und gekennzeichnet -- vorher landete die Aufgabe beim Speichern in "Ohne Zuständigkeit" bzw. ohne Projekt.
-function employeeOptionsHtml(selected){
-  return auswahlOptionen(employees,selected,e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —'});
+// Seit 1.9.373 bietet „Zuständig“ nur an, wer die Aufgabe sähe: je Mindestrolle die Personen vom Server (GET /api/tasks/zustaendige,
+// dieselbe Regel wie die Prüfung beim Zuweisen, app/tasks.py::zustaendige()). Eine gespeicherte Zuweisung außerhalb bleibt gewählt und
+// gekennzeichnet (Regel 22) und lässt sich unverändert speichern (Festlegung 1.9.371 Nr. 7). Fehlt die Liste, alle aktiven wie bis 1.9.372.
+function sehenAufgabe(minRolle){
+  if(!zustaendige)return null;
+  const z=zustaendige.find(x=>(x.min_visible_role??null)===(minRolle??null));
+  return z?new Set(z.employee_ids):null;
+}
+function employeeOptionsHtml(selected,minRolle){
+  const sehen=sehenAufgabe(minRolle);
+  return auswahlOptionen(employees,selected,e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',
+    aktiv:e=>e.active!==false&&(!sehen||sehen.has(e.id)),
+    vermerk:e=>e.active===false?'inaktiv':'sieht die Aufgabe nicht'});
 }
 function projectOptionsHtml(selected){
   return auswahlOptionen(projects,selected,p=>p.project_number+' · '+p.name,{leer:'— kein Projekt —',aktiv:p=>!p.archived});
@@ -245,7 +256,7 @@ function openCreateEditor(){
   document.getElementById('editStatus').value=columns.length?columns[0].key:'';
   document.getElementById('editPriority').value='normal';
   document.getElementById('editDue').value='';
-  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null,null);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(null);
   document.getElementById('editorSourceInfo').classList.add('hidden');
   document.getElementById('createProjectFromTaskWrap').classList.add('hidden');
@@ -270,7 +281,7 @@ function openEditor(id){
   document.getElementById('editStatus').value=t.status;
   auswahlWert(document.getElementById('editPriority'),t.priority);  // seit 1.9.12 (_auswahl.html)
   document.getElementById('editDue').value=t.due_date||'';
-  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(t.assigned_employee_id);
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(t.assigned_employee_id,t.min_visible_role);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(t.project_id);
   const info=document.getElementById('editorSourceInfo');
   if(t.source_label){info.classList.remove('hidden');info.textContent='Automatisch angelegt: '+t.source_label}
@@ -426,7 +437,7 @@ async function toggleArchiveTask(){
 }
 
 // Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus und Stammdaten (Mitarbeiter, Projekte für Filter und
-// Editor) je in einem eigenen Bereich.
+// Editor; seit 1.9.373 dazu, wer eine Aufgabe sähe) je in einem eigenen Bereich.
 async function init(){
   await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
   if(!authStatus?.authenticated){
@@ -434,7 +445,8 @@ async function init(){
     document.getElementById('loadStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  await lesen('stammdaten',()=>Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects?include_archived=true').catch(()=>[])]),d=>{[employees,projects]=d});
+  await lesen('stammdaten',()=>Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects?include_archived=true').catch(()=>[]),
+    api('/api/tasks/zustaendige').catch(()=>null)]),d=>{[employees,projects,zustaendige]=d});
   await loadColumns();
   await loadFilters();
   await loadTasks();
