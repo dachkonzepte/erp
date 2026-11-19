@@ -485,6 +485,71 @@ class Inquiry(Base):
     project: Mapped["Project | None"] = relationship(back_populates="source_inquiry", foreign_keys=[project_id])
 
 
+class WebAnfrage(Base):
+    """Eingang „Anfragen der Webseite“ (seit 1.10.0, Stufe W1a; docs/archiv/webseite-und-kundenportal.md): eine Anfrage, die das ERP über die
+    Schnittstelle des Empfangsdienstes abgeholt hat -- noch keine Anfrage (Inquiry), die braucht einen Kunden. Der Umschlag (dk-anfrage/1) bleibt
+    unverändert als JSON mit Prüfsumme; die Spalten daneben sind nur geprüfte Auszüge für Listen (Fremddaten: nie als Code, SQL oder HTML). Angelegt
+    und gelesen nur über app/webanfragen.py; eine Zeile entsteht erst, wenn alle Dateien vollständig und mit passender Prüfsumme abgelegt sind."""
+
+    __tablename__ = "webanfragen"
+    __table_args__ = (UniqueConstraint("nummer", name="uq_webanfragen_nummer"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nummer: Mapped[str] = mapped_column(String(40))  # Nummer der Webseite, z. B. R-20261110-0913-EFE7
+    art: Mapped[str | None] = mapped_column(String(20), nullable=True)  # kantservice | dach | pv | reparatur | wartung, sonst leer und zu prüfen
+    art_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    fassung: Mapped[str] = mapped_column(String(40))  # Fassung des Umschlags, heute dk-anfrage/1
+    eingang_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)  # naives UTC
+    betreff: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    kontakt_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    spamverdacht: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    pruefen_grund: Mapped[str | None] = mapped_column(String(300), nullable=True)  # feste Texte, nie Inhalte
+    umschlag: Mapped[str] = mapped_column(Text)
+    umschlag_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="neu", server_default="neu", index=True)
+    abgeholt_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    gemeldet_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # „übernommen“ beim Empfangsdienst bestätigt
+
+    dateien: Mapped[list["WebAnfrageDatei"]] = relationship(back_populates="webanfrage", cascade="all, delete-orphan",
+                                                             order_by="WebAnfrageDatei.id")
+
+
+class WebAnfrageDatei(Base):
+    """Datei einer Anfrage der Webseite (seit 1.10.0): anfrage.pdf oder foto-N.jpg, Typ am Inhalt bestimmt, Prüfsumme gegen die Angabe des Umschlags
+    geprüft. Abgelegt unter einem eigenen, zufälligen Namen (gespeichert_als) -- der Name aus dem Umschlag ist nie ein Pfad."""
+
+    __tablename__ = "webanfrage_dateien"
+    __table_args__ = (UniqueConstraint("webanfrage_id", "name", name="uq_webanfrage_datei_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    webanfrage_id: Mapped[int] = mapped_column(ForeignKey("webanfragen.id"), index=True)
+    name: Mapped[str] = mapped_column(String(40))
+    typ: Mapped[str] = mapped_column(String(40))
+    groesse: Mapped[int] = mapped_column()
+    sha256: Mapped[str] = mapped_column(String(64))
+    gespeichert_als: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    webanfrage: Mapped[WebAnfrage] = relationship(back_populates="dateien")
+
+
+class WebanfragenAbholung(Base):
+    """Stand des Abholens (seit 1.10.0), eine Zeile (id=1, legt app/grunddaten.py beim Start an): die Belegung eines Laufs (lauf_kennung, lauf_seit --
+    bedingtes UPDATE wie beim Outlook-Abgleich, zwei Läufe nie zugleich), der letzte Lauf und sein Ergebnis. Fehler nur als fester Text, nie mit
+    Inhalten oder dem Schlüssel; nicht_abgeholt: JSON [{nummer, grund}] des letzten Laufs."""
+
+    __tablename__ = "webanfragen_abholung"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    lauf_kennung: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    lauf_seit: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    letzter_lauf_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    letzter_erfolg_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    letzter_fehler: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    letzte_neu: Mapped[int] = mapped_column(default=0, server_default="0")
+    nicht_abgeholt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("project_number", name="uq_project_number"),)

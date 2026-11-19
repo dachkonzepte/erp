@@ -55,7 +55,7 @@ def _einzelzeilen():
         AISettings, GeneralSettings, IncomingInvoiceSettings, LaborRateSettings, MaintenanceSettings,
         MobileSettings, OperationalAssetSettings, OutlookSyncSettings, PlanningRegionSettings, PlanningSettings,
         ProductiveHoursSettings, RecurringCostSettings, SmtpSettings, TaskSettings, TimeBackofficeAdvancedSettings,
-        TimeTrackingSettings,
+        TimeTrackingSettings, WebanfragenAbholung,
     )
     return [
         (GeneralSettings, {}),
@@ -73,6 +73,7 @@ def _einzelzeilen():
         (RecurringCostSettings, {}),
         (TaskSettings, {}),
         (TimeTrackingSettings, {}),
+        (WebanfragenAbholung, {}),  # seit 1.10.0 (Stufe W1a): Stand und Belegung des Abholens der Anfragen der Webseite
         (TimeBackofficeAdvancedSettings, {}),  # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (die Spalte bleibt ungenutzt, Vorgabe aus)
     ]
 

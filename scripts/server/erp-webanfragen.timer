@@ -1,0 +1,12 @@
+# Alle 5 Minuten die Anfragen der Webseite abholen (seit 1.10.0, Stufe W1a; Entscheidung F11). Zwei Läufe zugleich verhindert die Sperre im ERP.
+[Unit]
+Description=ERP: Anfragen der Webseite alle 5 Minuten abholen
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

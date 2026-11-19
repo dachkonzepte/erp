@@ -151,6 +151,7 @@ FESTE_WERTE = {
     "incoming_invoices.payment_status": [("app.incoming_invoices", "mod.PAYMENT_STATUSES")],
     "inquiries.status": [("app.routers.inquiries", "mod.INQUIRY_STATUSES")],
     "inquiries.priority": [("app.routers.inquiries", "mod.INQUIRY_PRIORITIES")],
+    "webanfragen.status": [("app.webanfragen", "mod.STATUS")],  # seit 1.10.0 (Stufe W1a): Eingang der Anfragen der Webseite
     "inspection_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],
     "inspection_items.result": [("app.service_report_pdf", "mod.RESULT_LABELS")],
     "inspection_template_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],

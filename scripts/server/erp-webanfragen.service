@@ -1,0 +1,16 @@
+# Holt die Anfragen der Webseite in den Eingang des ERP (seit 1.10.0, Stufe W1a). Ein Lauf, ausgelöst von erp-webanfragen.timer.
+# Einrichten: siehe docs/archiv/webseite-und-kundenportal.md, „Server-Schritte W1a“. Lädt .env wie update.sh (set -a; source .env; set +a).
+[Unit]
+Description=ERP: Anfragen der Webseite abholen
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=tobias
+Group=tobias
+WorkingDirectory=/home/tobias/erp
+ExecStart=/bin/bash -c 'set -a; source .env; set +a; exec .venv/bin/python scripts/webanfragen_abholen.py'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+TimeoutStartSec=300
