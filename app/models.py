@@ -502,6 +502,10 @@ class WebAnfrage(Base):
     eingang_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)  # naives UTC
     betreff: Mapped[str | None] = mapped_column(String(255), nullable=True)
     kontakt_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Adresse des Objekts (seit 1.10.3): nur aus den strukturierten Angaben (app/webanfrage_angaben.py::objekt_adresse()), nie aus Betreff oder Nachricht
+    objekt_strasse: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    objekt_plz: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    objekt_ort: Mapped[str | None] = mapped_column(String(60), nullable=True)
     spamverdacht: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     pruefen_grund: Mapped[str | None] = mapped_column(String(300), nullable=True)  # feste Texte, nie Inhalte
     umschlag: Mapped[str] = mapped_column(Text)

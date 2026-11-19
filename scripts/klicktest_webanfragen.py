@@ -5,6 +5,9 @@ Musterdaten.
                     Fotos, Kantservice, Wartung mit Spamverdacht und einem Namen mit HTML), meldet sie beim Empfangsdienst als übernommen; die
                     Liste neueste zuerst mit Kennzeichen; kein Skript aus den Daten läuft; die Anfrage mit Kontakt, Angaben, PDF und Fotos (die
                     Fotos laden, das PDF kommt als PDF); noch einmal abholen: nichts Neues; Empfangsdienst aus: Meldung, Stand mit Fehler
+    Seit 1.10.3     Eingang in Berliner Zeit gleich der Minute der Nummer (Attrappe wie der echte Dienst); Adresse des Objekts in Liste, Start und
+                    oben auf der Anfrage; Kantservice ohne Adresse, mit „Ort“ im Kontakt; Abschnitte nur der Art (Reparatur ohne Kantteil-Zeichner);
+                    die Nachricht der Reparatur wiederholt nur die Angaben und steht eingeklappt
     Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über)
     Monteurin       der Eingang ist gesperrt, die Schnittstelle des ERP antwortet 403
 
@@ -19,7 +22,6 @@ Die Attrappe läuft in diesem Prozess auf 127.0.0.1; die Instanz bekommt ihre Ad
 
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -61,9 +63,10 @@ async def _abholen(tab):
 
 async def pruefen(tab, seed, p):
     a = ATTRAPPE
-    a.dazu(muster(R, "reparatur", fotos=2, eingang=datetime(2026, 11, 19, 9, 10, tzinfo=timezone.utc)))
-    a.dazu(muster(K, "kantservice", eingang=datetime(2026, 11, 19, 9, 11, tzinfo=timezone.utc)))
-    a.dazu(muster(W, "wartung", spam=True, name=BOESE, eingang=datetime(2026, 11, 19, 9, 12, tzinfo=timezone.utc)))
+    # seit 1.10.3: der Eingang folgt der Nummer in Berliner Zeit (wie der echte Dienst)
+    a.dazu(muster(R, "reparatur", fotos=2))
+    a.dazu(muster(K, "kantservice"))
+    a.dazu(muster(W, "wartung", spam=True, name=BOESE))
 
     # --- Büro: der Weg in den Eingang ---
     await tab.fenster(1440, 1000)
@@ -80,12 +83,15 @@ async def pruefen(tab, seed, p):
     p.pruefe("Abholen: Ergebnis", await _abholen(tab), ["3 Anfragen neu abgeholt.", "status ok"])
     p.pruefe("Abholen: beim Empfangsdienst gemeldet", sorted(a.uebernommen), [K, R, W])
     p.pruefe("Liste: neueste zuerst", await tab.js(f"{ZEILEN}.map(z=>z.children[1].textContent)"), [W, K, R])
-    p.pruefe("Liste: Eingang in Berliner Zeit", await tab.js(f"{ZEILEN}[2].children[0].textContent"), "19.11.2026 10:10")
+    p.pruefe("Liste: Eingang in Berliner Zeit wie die Nummer", await tab.js(f"{ZEILEN}.map(z=>z.children[0].textContent)"),
+             ["19.11.2026 09:12", "19.11.2026 09:11", "19.11.2026 09:10"])
+    p.pruefe("Liste: Adresse des Objekts", await tab.js(f"{ZEILEN}.map(z=>z.children[4].textContent)"),
+             ["Musterweg 1, 00000 Musterstadt", "—", "Musterweg 1, 00000 Musterstadt"])
     p.pruefe("Liste: Spamverdacht nur bei der Wartung",
              await tab.js(f"{ZEILEN}.map(z=>!!z.querySelector('.kennzeichen.spam'))"), [True, False, False])
     p.pruefe("Liste: Name mit HTML als Text", await tab.js(f"{ZEILEN}[0].children[3].textContent"), BOESE)
     p.pruefe("Liste: kein Skript aus den Daten", await tab.js("window.__boese===undefined&&!document.querySelector('#eingangTabelle img')"), True)
-    p.pruefe("Liste: Dateien", await tab.js(f"{ZEILEN}.map(z=>z.children[6].textContent)"), ["1", "1", "3"])
+    p.pruefe("Liste: Dateien", await tab.js(f"{ZEILEN}.map(z=>z.children[7].textContent)"), ["1", "1", "3"])
     p.pruefe("Stand: 3 im Eingang", await tab.js("document.getElementById('standText').textContent.includes('3 im Eingang')"), True)
     p.pruefe("Eingang: JS-Fehler", tab.fehler, [])
     await _thema(tab, "light", "/anfragen/webseite", EINGANG_BEREIT)
@@ -104,6 +110,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Start: die neuesten mit Weg", await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.getAttribute('href').split('/').length)"),
              [4, 4, 4])
     p.pruefe("Start: kein Skript aus den Daten", await tab.js("window.__boese===undefined"), True)
+    p.pruefe("Start: Adresse des Objekts", await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.textContent.includes('Musterweg 1, 00000 Musterstadt'))"),
+             [True, False, True])
     p.pruefe("Start: JS-Fehler", tab.fehler, [])
     await tab.bild("webanfragen_start_1440_hell")
     await tab.js(f"[...{widget}.querySelectorAll('a.task-row')][2].click()")
@@ -118,7 +126,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Anfrage: Kopf", await tab.js("[document.getElementById('seitenkopfTitel').textContent,document.getElementById('seitenkopfKennung').textContent]"),
              ["Reparatur-Anfrage", R])
     p.pruefe("Anfrage: Kontakt", await tab.js("document.querySelector('#kontakt .zeile dd').textContent"), "Max Muster")
+    p.pruefe("Anfrage: Adresse oben", await tab.js("document.getElementById('seitenkopfUntertitel').textContent"),
+             "Objekt: Musterweg 1, 00000 Musterstadt · Eingang 19.11.2026 09:10")
+    p.pruefe("Anfrage: Kontakt ohne abgeleiteten Ort", await tab.js("[...document.querySelectorAll('#kontakt dt')].map(x=>x.textContent)"),
+             ["Name", "Telefon", "E-Mail"])
     p.pruefe("Anfrage: Angaben aus dk-reparatur/1", await tab.js("document.getElementById('angaben').textContent.includes('Rinne verstopft')"), True)
+    p.pruefe("Anfrage: kein Abschnitt des Kantservice", await tab.js(
+        "['Kantteil-Zeichner','Aufmaß vor Ort'].map(x=>document.getElementById('angaben').textContent.includes(x))"), [False, False])
+    p.pruefe("Anfrage: Nachricht eingeklappt", await tab.js(
+        "(d=>!!d&&!d.open&&d.querySelector('summary').textContent)(document.querySelector('#anfrage details.nachricht'))"),
+        "Wiederholt nur die Angaben aus dem Formular – anzeigen")
     await tab.warten("[...document.querySelectorAll('.fotos img')].every(i=>i.complete&&i.naturalWidth>0)")
     p.pruefe("Anfrage: zwei Fotos geladen", await tab.js("[...document.querySelectorAll('.fotos img')].filter(i=>i.naturalWidth>0).length"), 2)
     p.pruefe("Anfrage: PDF als PDF", await tab.js(
@@ -130,6 +147,17 @@ async def pruefen(tab, seed, p):
     await _thema(tab, "dark", f"/anfragen/webseite/{await tab.js('ID')}", ANFRAGE_BEREIT)
     await tab.bild_ganz("webanfragen_anfrage_1440_dunkel")
     await _thema(tab, "light", f"/anfragen/webseite/{await tab.js('ID')}", ANFRAGE_BEREIT)
+
+    # --- Kantservice: ohne Adresse, „Ort“ im Kontakt, Positionen ---
+    await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
+    await tab.js(f"{ZEILEN}[1].querySelector('a').click()")
+    await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Kantservice: ohne Adresse", await tab.js("document.getElementById('seitenkopfUntertitel').textContent.split(' · ')[0]"),
+             "Kantservice – ohne Objekt-Adresse")
+    p.pruefe("Kantservice: Ort im Kontakt", await tab.js("[...document.querySelectorAll('#kontakt dt')].map(x=>x.textContent).includes('Ort')"), True)
+    p.pruefe("Kantservice: Positionen", await tab.js("document.getElementById('angaben').textContent.includes('Kantteil-Zeichner')"), True)
+    p.pruefe("Kantservice: Nachricht offen", await tab.js("!document.querySelector('#anfrage details')"), True)
 
     # --- die Anfrage mit Spamverdacht und HTML im Namen ---
     await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)

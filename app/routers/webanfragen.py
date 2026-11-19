@@ -16,6 +16,7 @@ from ..ids import Id
 from ..models import AppUser, WebAnfrage, WebAnfrageDatei
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageOut
+from ..webanfrage_angaben import abschnitte, nachricht_wiederholt
 from ..webanfragen import EINGANG_MAX, KNOPF_FRIST, KNOPF_HOECHSTENS, abholen, datei_pfad, eingang, stand, zeile_zu_dict
 
 router = APIRouter()
@@ -55,8 +56,10 @@ def get_eine(webanfrage_id: Id, db: Session = Depends(get_db, scope="function"),
         umschlag = json.loads(zeile.umschlag)
     except ValueError:
         umschlag = None
-    return {**zeile_zu_dict(zeile), "umschlag": umschlag if isinstance(umschlag, dict) else None,
-            "dateiliste": [{"id": d.id, "name": d.name, "typ": d.typ, "groesse": d.groesse} for d in zeile.dateien]}
+    umschlag = umschlag if isinstance(umschlag, dict) else None
+    return {**zeile_zu_dict(zeile), "umschlag": umschlag,
+            "dateiliste": [{"id": d.id, "name": d.name, "typ": d.typ, "groesse": d.groesse} for d in zeile.dateien],
+            "abschnitte": abschnitte(zeile.art, umschlag), "nachricht_wiederholt": nachricht_wiederholt(zeile.art, umschlag)}
 
 
 @router.get("/api/webanfragen/{webanfrage_id}/dateien/{datei_id}")

@@ -58,7 +58,7 @@ def test_abholen_legt_an_und_meldet(db_session, dienst, tmp_path):
     r = zeilen[R1]
     assert (r.art, r.art_name, r.fassung, r.status, r.kontakt_name, r.spamverdacht, r.pruefen_grund) == (
         "reparatur", "Reparatur-Anfrage", "dk-anfrage/1", "neu", "Max Muster", False, None)
-    assert r.eingang_am == datetime(2026, 11, 19, 9, 10)
+    assert r.eingang_am == datetime(2026, 11, 19, 8, 10, 27)  # seit 1.10.3: 09:10:27 in Berlin wie die Nummer (Attrappe wie der echte Dienst), naiv UTC
     assert [(d.name, d.typ) for d in r.dateien] == [("anfrage.pdf", "application/pdf"), ("foto-1.jpg", "image/jpeg"), ("foto-2.jpg", "image/jpeg")]
     for d in r.dateien:
         inhalt = W.datei_pfad(d).read_bytes()
@@ -317,7 +317,7 @@ def test_proxy_der_umgebung_nie_benutzt(db_session, dienst, monkeypatch):
 
 def test_ausfall_mitten_in_einer_datei(db_session, dienst, tmp_path):
     dienst.dazu(muster(K1, "kantservice"))
-    dienst.dazu(muster(R1, fotos=2))  # nach K1 einsortiert (K < R)
+    dienst.dazu(muster(R1, fotos=2))  # seit 1.10.3 vor K1 (Minute 09:10 vor 09:12, wie der echte Dienst)
     dienst.stoerung["abbruch_datei"] = (R1, "foto-2.jpg")
     erg = W.abholen(db_session)
     assert (erg.fehler, erg.neu, erg.nicht_abgeholt) == (None, 1, [{"nummer": R1, "grund": W.G_UNVOLLSTAENDIG}])

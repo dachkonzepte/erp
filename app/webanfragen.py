@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session
 from .dateiauslieferung import typ_aus_inhalt
 from .grunddaten import einzelzeile
 from .models import WebAnfrage, WebAnfrageDatei, WebanfragenAbholung
+from .webanfrage_angaben import objekt_adresse
 from .paths import data_dir
 
 logger = logging.getLogger(__name__)
@@ -477,6 +478,7 @@ def _eine_holen(db: Session, v: Verbindung, nummer: str, erg: Ergebnis) -> WebAn
             nummer=nummer, art=art, art_name=art_name,
             fassung=fassung if isinstance(fassung, str) and FASSUNG_ZEICHEN.match(fassung) else "unbekannt",
             eingang_am=eingang_am, betreff=betreff, kontakt_name=name, spamverdacht=umschlag.get("spamverdacht") is True,
+            **_adresse_spalten(art if art in ARTEN else None, umschlag),
             pruefen_grund="; ".join(gruende) or None, umschlag=daten.decode("utf-8"), umschlag_sha256=hashlib.sha256(daten).hexdigest(),
             status=STATUS_NEU, dateien=[WebAnfrageDatei(**d) for d in dateien],
         )
@@ -504,6 +506,12 @@ def _eine_holen(db: Session, v: Verbindung, nummer: str, erg: Ergebnis) -> WebAn
     if zeile.pruefen_grund:
         erg.pruefen += 1
     return zeile
+
+
+def _adresse_spalten(art: str | None, umschlag: dict) -> dict:
+    """Die Adresse des Objekts für die Spalten des Eingangs (seit 1.10.3) -- nur aus den strukturierten Angaben."""
+    adresse = objekt_adresse(art, umschlag) or {}
+    return {"objekt_strasse": adresse.get("strasse"), "objekt_plz": adresse.get("plz"), "objekt_ort": adresse.get("ort")}
 
 
 def _wegraeumen(pfade: list[Path]) -> None:
@@ -603,6 +611,7 @@ def zeile_zu_dict(zeile: WebAnfrage) -> dict:
     return {
         "id": zeile.id, "nummer": zeile.nummer, "art": zeile.art, "art_name": zeile.art_name or ARTEN.get(zeile.art or ""),
         "fassung": zeile.fassung, "eingang_am": zeile.eingang_am, "betreff": zeile.betreff, "kontakt_name": zeile.kontakt_name,
+        "objekt_strasse": zeile.objekt_strasse, "objekt_plz": zeile.objekt_plz, "objekt_ort": zeile.objekt_ort,
         "spamverdacht": zeile.spamverdacht, "pruefen_grund": zeile.pruefen_grund, "status": zeile.status, "abgeholt_am": zeile.abgeholt_am,
         "gemeldet_am": zeile.gemeldet_am, "dateien": len(zeile.dateien),
     }

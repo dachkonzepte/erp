@@ -224,6 +224,8 @@ async function renderDueAssetsWidget(container){
 // (buero_auftrag/buero_finanzen) bekamen nur "Nur für Büro und Admin verfügbar." zu sehen.
 /* Seit 1.10.2 (Stufe W1a): neue Anfragen der Webseite fallen dem Büro auf -- Zahl im Eingang (davon Spamverdacht und zu prüfen), die fünf
    neuesten mit Weg zur Anfrage, ein Fehler des letzten Laufs. Jeder Wert stammt aus dem Formular der Webseite und geht nur über esc() ins HTML. */
+/* Seit 1.10.3 (W1b): die Adresse des Objekts auch hier -- nur aus den strukturierten Angaben (Spalten vom Server). */
+function webanfrageAdresse(z){const ort=[z.objekt_plz,z.objekt_ort].filter(Boolean).join(' ');return [z.objekt_strasse,ort].filter(Boolean).join(', ')}
 async function renderWebanfragenWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
@@ -234,7 +236,7 @@ async function renderWebanfragenWidget(container){
     const hinweis=!s.eingerichtet?'<div class="muted small" style="margin-top:8px">Die Schnittstelle zum Empfangsdienst ist noch nicht eingerichtet.</div>'
       :(s.letzter_fehler?`<div class="status err" style="margin-top:8px">Letzter Lauf: ${esc(s.letzter_fehler)}</div>`:'');
     container.innerHTML=`<div class="small" style="margin-bottom:8px">${kopf.join(' · ')}</div>`
-      +(l.length?`<div class="task-list">${l.map(z=>`<a class="task-row" href="/anfragen/webseite/${z.id}" style="color:inherit;text-decoration:none"><span class="task-type">${esc(z.art_name||z.art||'Anfrage')}</span><span class="task-main"><span class="task-title">${esc(z.kontakt_name||z.nummer)}</span><span class="muted small">${esc(z.nummer)}${z.spamverdacht?' · Spamverdacht':''}${z.pruefen_grund?' · zu prüfen':''}</span></span><span class="task-due">${esc(berlinZeitpunkt(z.eingang_am,'datum'))}</span></a>`).join('')}</div>`
+      +(l.length?`<div class="task-list">${l.map(z=>`<a class="task-row" href="/anfragen/webseite/${z.id}" style="color:inherit;text-decoration:none"><span class="task-type">${esc(z.art_name||z.art||'Anfrage')}</span><span class="task-main"><span class="task-title">${esc(z.kontakt_name||z.nummer)}</span><span class="muted small">${esc(z.nummer)}${webanfrageAdresse(z)?' · '+esc(webanfrageAdresse(z)):''}${z.spamverdacht?' · Spamverdacht':''}${z.pruefen_grund?' · zu prüfen':''}</span></span><span class="task-due">${esc(berlinZeitpunkt(z.eingang_am,'datum'))}</span></a>`).join('')}</div>`
         :'<div class="status ok">Keine Anfragen der Webseite im Eingang.</div>')+hinweis;
   });
 }

@@ -18,11 +18,13 @@ from sqlalchemy import select
 from app import webanfragen as W
 from app.models import WebAnfrage, WebAnfrageDatei
 from app.routers import webanfragen as router_modul
+from app.webanfrage_angaben import abschnitte, nachricht_wiederholt
 from scripts.empfangsdienst_attrappe import Attrappe, jpeg_bytes, muster
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
 from tests.test_v447_auswahl_altwerte import WIRKSAM
 
 R1, R2 = "R-20261119-0910-0A1B", "R-20261119-0911-0C2D"
+K1 = "K-20261119-0912-0E3F"
 
 
 def _zeile(db, nummer, eingang, **mehr):
@@ -148,9 +150,12 @@ BOESE = '<img src=x onerror="window.__boese=1">'
 
 
 def _detail(umschlag: dict, **mehr) -> dict:
+    """Die Antwort von GET /api/webanfragen/{id}; Abschnitte und „wiederholt“ seit 1.10.3 aus denselben Funktionen wie der Server."""
+    art = mehr.get("art", "reparatur")
     return {"id": 7, "nummer": R1, "art": "reparatur", "art_name": "Reparatur-Anfrage", "fassung": "dk-anfrage/1", "eingang_am": "2026-11-19T08:10:00",
             "betreff": None, "kontakt_name": None, "spamverdacht": False, "pruefen_grund": None, "status": "neu", "abgeholt_am": "2026-11-19T08:11:00",
-            "gemeldet_am": None, "dateien": 0, "umschlag": umschlag, "dateiliste": [], **mehr}
+            "gemeldet_am": None, "dateien": 0, "umschlag": umschlag, "dateiliste": [],
+            "abschnitte": abschnitte(art, umschlag), "nachricht_wiederholt": nachricht_wiederholt(art, umschlag), **mehr}
 
 
 def _lauf_detail(d: dict) -> dict:
@@ -196,9 +201,13 @@ def test_detail_allgemeine_angaben_und_dateien():
                                            {"id": 4, "name": "foto-1.jpg", "typ": "image/jpeg", "groesse": 4096}])
     erg = _lauf_detail(d)
     assert "Preise und Förderung hat der Konfigurator" in erg["angaben"] and "1234,5" in erg["angaben"]
-    assert "traufblech" in erg["angaben"] and "Aufmaß vor Ort gewünscht" in erg["angaben"]
+    # seit 1.10.3: Positionen und Aufmaß gehören nur zum Kantservice -- bei einer Dach-Anfrage nicht (Fund aus echten Anfragen)
+    assert "traufblech" not in erg["angaben"] and "Aufmaß vor Ort gewünscht" not in erg["angaben"]
     assert 'href="/api/webanfragen/1/dateien/3"' in erg["dateien"] and 'src="/api/webanfragen/1/dateien/4"' in erg["dateien"]
     assert "<img src=x" not in erg["angaben"]
+    k = muster(K1, "kantservice", aufmass=True)["umschlag"]
+    erg = _lauf_detail(_detail(k, art="kantservice"))
+    assert "traufblech" in erg["angaben"] and "Aufmaß vor Ort gewünscht</dt><dd>ja" in erg["angaben"]
 
 
 @nur_mit_node

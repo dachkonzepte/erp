@@ -97,3 +97,42 @@ Antwortschema der Liste ist eine Positivliste und ließ den Umschlag ohnehin weg
 | Nr. 4 – `anzahl` 1–500 | ohne Grenzen (`1102_4b`) | 1 rot: 0 und 501 angenommen |
 
 12 Gegenproben, alle rot aus dem geprüften Grund; alle Dateien byte-gleich zurück.
+
+## W1b, 1.10.3: Anzeige nach den Funden
+
+Probendatei im Scratchpad (`proben_1103.py`), Lauf mit `tests/test_v775_webanfragen_anzeige.py`; alle 31 rot aus dem geprüften Grund (je FAILED, kein ERROR),
+alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Kantservice ohne Adresse | Ort aus `kontakt.ort` (`1103_1`) | 5 rot |
+| Nr. 1 – nie aus dem Betreff | ohne Angaben der Betreff als Straße (`1103_1b`) | 4 rot |
+| Nr. 1 – Reparatur aus `daten.objekt` | aus `daten` selbst (`1103_1c`) | 5 rot |
+| Nr. 2 – ohne Steuerzeichen | Prüfung weg (`1103_2`) | 1 rot |
+| Nr. 2 – innerhalb der Grenzen | Grenze weg (`1103_2b`) | 1 rot |
+| Nr. 2 – andere Fassung liefert nichts | Fassung nicht prüfen (`1103_2c`) | 2 rot |
+| Nr. 2 – Leerraum zusammengefasst | nur `strip()` (`1103_2d`) | 1 rot |
+| Nr. 3 – Abholen füllt die Spalten | Spalten nicht setzen (`1103_3`) | 2 rot |
+| Nr. 3 – Migration füllt den Bestand | nichts schreiben (`1103_3b`) | 2 rot: SQLite und PostgreSQL |
+| Nr. 3 – `downgrade()` nimmt die Spalten weg | nur eine Spalte (`1103_3c`) | 2 rot: SQLite und PostgreSQL |
+| Nr. 4 – oben auf der Anfrage | Untertitel ohne Adresse (`1103_4`) | 1 rot |
+| Nr. 4 – Zeile „Objekt“ in der Karte | Zeile weg (`1103_4b`) | 1 rot |
+| Nr. 4 – Spalte der Liste | Spalte leer (`1103_4c`) | 1 rot |
+| Nr. 4 – Widget auf „Start“ | Adresse weg (`1103_4d`) | 1 rot |
+| Nr. 4 – über esc() | Adresse ohne esc() im Widget (`1103_4e`) | 1 rot |
+| Nr. 5 – kein abgeleiteter Ort | „Ort“ bei jeder Art (`1103_5`) | 1 rot |
+| Nr. 5 – Ort beim Kantservice | Kantservice ohne „Ort“ (`1103_5b`) | 1 rot |
+| Nr. 6 – Kantservice nur beim Kantservice | Art nicht prüfen (`1103_6`) | 1 rot |
+| Nr. 6 – nur mit Inhalt | leere Positionen genügen (`1103_6b`) | 1 rot |
+| Nr. 6 – die Seite folgt dem Server | alte Bedingung `Array.isArray(u.positionen)` (`1103_6c`) | 1 rot |
+| Nr. 6 – „Preise prüfen“ nur beim Konfigurator | Hinweis bei jeder Art mit Angaben (`1103_6d`) | 1 rot |
+| Nr. 6 – „weitere“ bei unbekannter Fassung oder Art | nie (`1103_6e`) | 1 rot |
+| Nr. 7 – eingeklappt nur, wenn gleich | ohne Vergleich (`1103_7`) | 2 rot |
+| Nr. 7 – die Seite klappt ein | nie eingeklappt (`1103_7b`) | 1 rot |
+| Nr. 7 – Zeilenenden dürfen abweichen | genauer Vergleich (`1103_7c`) | 1 rot |
+| Nr. 8 – Eingang aus der Unix-Zeit als UTC | `fromtimestamp()` in Ortszeit (`1103_8`) | 2 rot: Winter und Sommer (rot auf einem Rechner in Berlin -- auf einem Rechner in UTC bliebe diese Probe grün; die Anzeige prüft der Klicktest) |
+| Nr. 9 – Nummer in Berlin | Nummer aus UTC (`1103_9`) | 2 rot |
+| Nr. 9 – Eingang in Berlin mit Versatz | Eingang in UTC (`1103_9b`) | 3 rot |
+| Nr. 9 – Liste nach Minute, dann Nummer | nur nach Nummer (`1103_9c`) | 1 rot |
+| Nr. 9 – Liste mit allen Kopfdaten | nur `nr` (`1103_9d`) | 1 rot |
+| Nr. 9 – `positionen` bei jeder Art | nur beim Kantservice (`1103_9e`) | 1 rot |

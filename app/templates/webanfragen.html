@@ -75,7 +75,8 @@
 {% include "_seitenkopf.html" %}
 <script>
 /* Seit 1.10.1 (Stufe W1a, docs/archiv/webseite-und-kundenportal.md): Eingang der Anfragen der Webseite. Jeder Wert stammt aus dem Formular der
-   Webseite (Fremddaten) und geht nur über esc() ins HTML. */
+   Webseite (Fremddaten) und geht nur über esc() ins HTML. Seit 1.10.3 (W1b) mit der Adresse des Objekts (Spalte „Objekt“, nur aus den strukturierten
+   Angaben, vom Server). */
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
 let stand=null, liste=[];
@@ -108,12 +109,14 @@ function kennzeichen(z){
   return k.join('');
 }
 
+function objektAdresseText(z){const ort=[z.objekt_plz,z.objekt_ort].filter(Boolean).join(' ');return [z.objekt_strasse,ort].filter(Boolean).join(', ')}
+
 function listeZeichnen(){
   const r=document.getElementById('listeRahmen');
   if(!liste.length){r.innerHTML='<div class="leer">Noch keine Anfragen der Webseite im Eingang.</div>';return}
-  r.innerHTML=`<table id="eingangTabelle"><thead><tr><th>Eingang</th><th>Nummer</th><th>Art</th><th>Name</th><th>Betreff</th><th>Hinweise</th><th>Dateien</th></tr></thead><tbody>${
+  r.innerHTML=`<table id="eingangTabelle"><thead><tr><th>Eingang</th><th>Nummer</th><th>Art</th><th>Name</th><th>Objekt</th><th>Betreff</th><th>Hinweise</th><th>Dateien</th></tr></thead><tbody>${
     liste.map(z=>`<tr data-id="${z.id}"><td class="nw" data-titel="Eingang">${esc(berlinZeitpunkt(z.eingang_am))||'—'}</td><td class="nw" data-titel="Nummer"><a href="/anfragen/webseite/${z.id}">${esc(z.nummer)}</a></td>`
-      +`<td data-titel="Art">${esc(z.art_name||z.art||'—')}</td><td data-titel="Name">${esc(z.kontakt_name||'—')}</td><td data-titel="Betreff">${esc(z.betreff||'—')}</td><td data-titel="Hinweise">${kennzeichen(z)}</td><td class="nw" data-titel="Dateien">${Number(z.dateien)}</td></tr>`).join('')
+      +`<td data-titel="Art">${esc(z.art_name||z.art||'—')}</td><td data-titel="Name">${esc(z.kontakt_name||'—')}</td><td data-titel="Objekt">${esc(objektAdresseText(z)||'—')}</td><td data-titel="Betreff">${esc(z.betreff||'—')}</td><td data-titel="Hinweise">${kennzeichen(z)}</td><td class="nw" data-titel="Dateien">${Number(z.dateien)}</td></tr>`).join('')
   }</tbody></table>`;
 }
 

@@ -4,6 +4,9 @@ Bildet die ERP-Schnittstelle nach (dk-anfrage/1, ERP-SCHNITTSTELLE.txt des Empfa
 docs/archiv/webseite-und-kundenportal.md): GET /erp/v1/anfragen (anzahl, nach, alle), GET /erp/v1/anfragen/<nr>, GET …/dateien/<name>,
 POST …/<nr>/uebernommen. Schlüssel als Bearer, falscher Schlüssel oder eine Kopfzeile X-Real-IP: 404 wie das Original. Lauscht nur auf 127.0.0.1.
 
+Seit 1.10.3 (Stufe W1b) Aufbau und Zeitformat wie der echte Dienst (anfrage.py::umschlag(), erp_liste(), zeit_iso(), neue_nr()): Nummer und Eingang
+in Ortszeit Europe/Berlin, die Liste mit allen Kopfdaten nach Minute und Nummer, je Art die echten Felder (siehe muster()).
+
 Musterdaten (muster()) mit erfundenen Namen; Störungen über das Wörterbuch stoerung (siehe Handler): Status der Liste, Umleitung, roher Inhalt der Liste
 oder eines Umschlags, Abbruch mitten in einer Datei, Status beim Melden. Jeder Aufruf steht in aufrufe (Methode, Pfad, mit Schlüssel ja/nein).
 
@@ -21,6 +24,7 @@ import secrets
 import threading
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -51,40 +55,173 @@ def jpeg_bytes(farbe: tuple[int, int, int] = (90, 120, 160), groesse: tuple[int,
 
 ARTEN = {"reparatur": ("R", "Reparatur-Anfrage"), "wartung": ("W", "Wartungs-Anfrage"), "kantservice": ("K", "Kantservice-Anfrage"),
          "dach": ("D", "Anfrage Dachsanierung"), "pv": ("P", "Anfrage Photovoltaik")}
+BERLIN = ZoneInfo("Europe/Berlin")
+QUELLE = "www.dachkonzepte.gmbh"
 
 
-def muster(nummer: str, art: str = "reparatur", *, fotos: int = 0, spam: bool = False, name: str = "Max Muster",
-           eingang: datetime | None = None) -> dict:
-    """Eine Musteranfrage: {"umschlag": dict, "dateien": {name: bytes}} -- erfundene Daten, Prüfsummen passend."""
-    eingang = eingang or datetime(2026, 11, 19, 9, 10, tzinfo=timezone.utc)
-    dateien = {"anfrage.pdf": pdf_bytes(f"Anfrage {nummer}")}
-    for i in range(1, fotos + 1):
-        dateien[f"foto-{i}.jpg"] = jpeg_bytes((60 + 40 * i, 110, 150))
-    art_name = ARTEN.get(art, ("X", "Anfrage"))[1]
-    daten = None
-    if art in ("reparatur", "wartung"):
-        daten = {"schema": "dk-reparatur/1", "anliegen": art, "anliegen_text": art_name,
-                 "melder": {"rolle": "eigentuemer", "rolle_text": "Eigentümer/in", "name": name, "firma": None, "hausverwaltung": None,
-                            "telefon": "0000 000000", "email": "muster@example.invalid", "erreichbar": "vormittags"},
-                 "objekt": {"strasse": "Musterweg 1", "plz": "00000", "ort": "Musterstadt", "land": "DE", "lage": None, "gebaeude": "efh",
-                            "gebaeude_text": "Einfamilienhaus", "geschosse": "2", "geschosse_text": "2", "objektnummer": None, "vor_ort": None},
-                 "anfrage": {"bereiche": ["rinne"], "bereiche_text": "Dachrinne / Fallrohr", "schaeden": ["rinne"],
-                             "schaeden_text": "Rinne verstopft / läuft über", "seit": "tage", "seit_text": "Seit einigen Tagen",
-                             "beschreibung": "Die Rinne läuft bei Regen über. <b>Musterdaten</b>"},
-                 "termin": {"zeitraum": "2wochen", "zeitraum_text": "In den nächsten 2 Wochen"}, "fotos": fotos}
-    umschlag = {
-        "schema": "dk-anfrage/1", "nr": nummer, "art": art, "art_name": art_name,
-        "eingang": eingang.isoformat(), "zeit": int(eingang.timestamp()), "quelle": "www.example.invalid",
-        "kontakt": {"name": name, "telefon": "0000 000000", "email": "muster@example.invalid", "ort": "00000 Musterstadt"},
-        "betreff": f"{art_name} {nummer} – {name}, 00000 Musterstadt", "text": f"{art_name}\nName: {name}\nMusterdaten.",
-        "daten": daten, "spamverdacht": spam, "uebernommen": None,
-        "dateien": [{"name": n, "typ": "application/pdf" if n.endswith(".pdf") else "image/jpeg", "bytes": len(b),
-                     "sha256": hashlib.sha256(b).hexdigest(), "pfad": f"/erp/v1/anfragen/{nummer}/dateien/{n}"} for n, b in dateien.items()],
+def zeit_iso(zeitpunkt: datetime) -> str:
+    """Wie anfrage.py::zeit_iso() des Empfangsdienstes: Ortszeit Europe/Berlin (der Dienst läuft mit TZ=Europe/Berlin) mit Versatz, ohne Bruchteile --
+    2026-11-10T09:13:27+01:00."""
+    z = zeitpunkt.astimezone(BERLIN).strftime("%Y-%m-%dT%H:%M:%S%z")
+    return z[:-2] + ":" + z[-2:]
+
+
+def nummer_aus(art: str, eingang: datetime, kennung: str = "0A1B") -> str:
+    """Wie anfrage.py::neue_nr(): Kürzel, Datum und Minute in Ortszeit Europe/Berlin, vier Hex-Zeichen."""
+    return f"{ARTEN.get(art, ('X',))[0]}-{eingang.astimezone(BERLIN):%Y%m%d-%H%M}-{kennung}"
+
+
+def eingang_aus(nummer: str) -> datetime | None:
+    """Der Eingang zur Nummer (Minute aus der Nummer, Ortszeit Europe/Berlin, 27 Sekunden) -- None bei einer anderen Form."""
+    try:
+        return datetime.strptime(nummer[2:15], "%Y%m%d-%H%M").replace(second=27, tzinfo=BERLIN)
+    except (ValueError, IndexError):
+        return None
+
+
+# --- Reparatur und Wartung: dk-reparatur/1, Texte wie reparatur.py des Empfangsdienstes (eigene Kopie -- das ERP baut sie unabhängig nach) -----------
+ROLLE_TEXT = {"eigentuemer": "Eigentümer/in", "verwaltung": "Hausverwaltung / Firma", "mieter": "Mieter/in"}
+
+
+def reparatur_daten(art: str, *, name: str, rolle: str, firma: str | None, hausverwaltung: str | None, telefon: str | None, email: str | None,
+                    strasse: str, plz: str, ort: str, fotos: int, vor_ort: dict | None, beschreibung: str | None) -> dict:
+    rep = art == "reparatur"
+    return {
+        "schema": "dk-reparatur/1",
+        "anliegen": art, "anliegen_text": "Reparatur" if rep else "Wartung",
+        "wartung_art": None if rep else "vertrag", "wartung_art_text": None if rep else "Wartungsvertrag (jährliche Wartung)",
+        "melder": {"rolle": rolle, "rolle_text": ROLLE_TEXT[rolle], "name": name, "firma": firma if rolle == "verwaltung" else None,
+                   "hausverwaltung": hausverwaltung if rolle == "mieter" else None, "telefon": telefon, "email": email, "erreichbar": "vormittags"},
+        "objekt": {"strasse": strasse, "plz": plz, "ort": ort, "land": "DE", "gebaeude": "efh", "gebaeude_text": "Einfamilienhaus", "geschosse": "2",
+                   "geschosse_text": "2", "lage": None, "objektnummer": None,
+                   "vor_ort": {"name": (vor_ort or {}).get("name"), "telefon": (vor_ort or {}).get("telefon")}},
+        "anfrage": {"bereiche": ["rinne"] if rep else [], "bereiche_text": "Dachrinne / Fallrohr" if rep else None,
+                    "schaeden": ["rinne"] if rep else [], "schaeden_text": "Rinne verstopft / läuft über" if rep else None,
+                    "seit": "tage" if rep else None, "seit_text": "Seit einigen Tagen" if rep else None,
+                    "beschreibung": beschreibung if beschreibung is not None else ("Die Rinne läuft bei Regen über. <b>Musterdaten</b>" if rep else None)},
+        "termin": {"zeitraum": "2wochen", "zeitraum_text": "In den nächsten 2 Wochen"},
+        "fotos": fotos,
     }
-    if art == "kantservice":
-        umschlag["positionen"] = [{"vorlage": "traufblech", "laenge": 2000, "stk": 3}]
-        umschlag["aufmass"] = False
+
+
+def _reparatur_zeilen(d: dict) -> list:
+    m, o, a, t = d["melder"], d["objekt"], d["anfrage"], d["termin"]
+    out = [("Anliegen", d["anliegen_text"] + (f" – {d['wartung_art_text']}" if d["wartung_art"] else ""))]
+    out += [(None, "Wer meldet"), ("Rolle", m["rolle_text"]), ("Name", m["name"])]
+    for lab, v in (("Firma / Hausverwaltung", m["firma"]), ("Hausverwaltung/Vermieter (laut Mieter)", m["hausverwaltung"]), ("Telefon", m["telefon"]),
+                   ("E-Mail", m["email"]), ("Erreichbar", m["erreichbar"])):
+        if v:
+            out.append((lab, v))
+    out += [(None, "Gebäude"), ("Anschrift", f"{o['strasse']}, {o['plz']} {o['ort']}"), ("Art des Gebäudes", o["gebaeude_text"])]
+    for lab, v in (("Geschosse", o["geschosse_text"]), ("Wohnung / Lage", o["lage"]), ("Objekt-/Auftragsnummer", o["objektnummer"]),
+                   ("Ansprechpartner vor Ort", o["vor_ort"]["name"]), ("Telefon vor Ort", o["vor_ort"]["telefon"])):
+        if v:
+            out.append((lab, v))
+    out.append((None, "Schaden" if d["anliegen"] == "reparatur" else "Wartung"))
+    for lab, v in (("Bereich", a["bereiche_text"]), ("Was ist passiert", a["schaeden_text"]), ("Seit wann", a["seit_text"]),
+                   ("Beschreibung", a["beschreibung"])):
+        if v:
+            out.append((lab, v))
+    if t["zeitraum"]:
+        out += [(None, "Termin"), ("Zeitraum", t["zeitraum_text"])]
+    out.append(("Fotos", str(d["fotos"]) if d["fotos"] else "keine"))
+    return out
+
+
+def reparatur_text(d: dict) -> str:
+    z = [f"{'Reparatur-Anfrage' if d['anliegen'] == 'reparatur' else 'Wartungs-Anfrage'} über die Webseite (Wartung & Reparatur)"]
+    for lab, v in _reparatur_zeilen(d):
+        z += ["", v] if lab is None else [f"{lab}: {v}"]
+    return "\n".join(z)
+
+
+def reparatur_betreff(d: dict) -> str:
+    o, a = d["objekt"], d["anfrage"]
+    teil = (a["bereiche_text"] or "") if d["anliegen"] == "reparatur" else (d["wartung_art_text"] or "Wartung")
+    return " ".join((o["strasse"] + (f" – {teil}" if teil else "")).split())[:160]
+
+
+def muster(nummer: str | None = None, art: str = "reparatur", *, fotos: int = 0, spam: bool = False, name: str = "Max Muster",
+           eingang: datetime | None = None, rolle: str = "eigentuemer", firma: str | None = None, hausverwaltung: str | None = None,
+           telefon: str | None = "0000 000000", email: str | None = "muster@example.invalid", strasse: str = "Musterweg 1", plz: str = "00000",
+           ort: str = "Musterstadt", adresse: bool = True, vor_ort: dict | None = None, beschreibung: str | None = None,
+           nachricht: str | None = None, aufmass: bool = False, kennung: str = "0A1B") -> dict:
+    """Eine Musteranfrage: {"umschlag": dict, "dateien": {name: bytes}} -- erfundene Daten, Aufbau wie anfrage.py::umschlag() des Empfangsdienstes
+    (seit 1.10.3, Stufe W1b):
+
+    - Nummer und Eingang in Ortszeit Europe/Berlin: ohne Eingang aus der Nummer (ihre Minute), ohne Nummer aus dem Eingang; Vorgabe 19.11.2026 09:10
+      in Berlin. Eingang als ISO 8601 mit Versatz, zeit als Unix-Zeit.
+    - jede Art trägt positionen ([] außer Kantservice) und aufmass (false außer Kantservice) -- wie der echte Dienst.
+    - Reparatur und Wartung: daten dk-reparatur/1, kontakt abgeleitet („Name (Firma)“, ort „PLZ Ort“ des Objekts), betreff „Straße – Bereich“, text aus
+      den Angaben (rolle eigentuemer | verwaltung mit firma | mieter mit hausverwaltung); PDF und fotos Fotos. nachricht ersetzt den Text.
+    - Dach (daten version 1) und PV (version 2): Straße, PLZ, Ort freiwillig (adresse=False: leer), kontakt.ort „Straße, PLZ Ort“; keine Dateien;
+      nachricht kommt wie auf der Webseite unter „Nachricht:“ in den Text.
+    - Kantservice: keine daten, nur kontakt.ort (freies Feld), positionen und aufmass; PDF der Skizzen.
+    """
+    if eingang is None:
+        eingang = (eingang_aus(nummer) if nummer else None) or datetime(2026, 11, 19, 9, 10, 27, tzinfo=BERLIN)
+    if eingang.tzinfo is None:
+        eingang = eingang.replace(tzinfo=timezone.utc)  # naiv = UTC wie im ERP
+    nummer = nummer or nummer_aus(art, eingang, kennung)
+    art_name = ARTEN.get(art, ("X", "Anfrage"))[1]
+    dateien: dict[str, bytes] = {}
+    daten = None
+    positionen: list = []
+    if art in ("reparatur", "wartung"):
+        daten = reparatur_daten(art, name=name, rolle=rolle, firma=firma, hausverwaltung=hausverwaltung, telefon=telefon, email=email,
+                                strasse=strasse, plz=plz, ort=ort, fotos=fotos, vor_ort=vor_ort, beschreibung=beschreibung)
+        kontakt_name = name + (f" ({daten['melder']['firma']})" if daten["melder"]["firma"] else "")
+        kontakt_ort = f"{plz} {ort}"
+        betreff = reparatur_betreff(daten)
+        text = nachricht if nachricht is not None else reparatur_text(daten)
+        dateien["anfrage.pdf"] = pdf_bytes(f"Anfrage {nummer}")
+        for i in range(1, fotos + 1):
+            dateien[f"foto-{i}.jpg"] = jpeg_bytes((60 + 40 * i, 110, 150))
+    elif art in ("dach", "pv"):
+        s, pz, o = (strasse, plz, ort) if adresse else ("", "", "")
+        kontakt_name = name
+        kontakt_ort = ", ".join(x for x in (s, " ".join(x for x in (pz, o) if x)) if x) or None
+        if art == "dach":
+            daten = {"version": 1, "haustyp": "efh", "dachform": "satteldach", "wohneinheiten": 1, "flaeche": 120, "flaeche_unbekannt": False,
+                     "konzept": "standard", "fenster": [], "wann": "", "strasse": s, "plz": pz, "ort": o,
+                     "ergebnis": {"dach_netto": 30000, "fenster_netto": 0, "netto": 30000, "brutto": 35700, "von": 32000, "bis": 39000, "mwst": 19},
+                     "foerderung": None, "stand_werte": "2026-11", "stand_foerderung": "2026-11"}
+            betreff = "Standard, 120 m², Satteldach"
+            text = "Dach-Konfigurator – Anfrage Dachsanierung\nDachfläche: 120 m²" + (f"\nAnschrift des Hauses: {kontakt_ort}" if kontakt_ort else "")
+        else:
+            daten = {"version": 2, "kunde": "privat", "verbrauch": 4500, "verbrauch_quelle": "eingetragen", "personen": None, "betrieb": None, "eautos": 0,
+                     "dachform": "satteldach", "ausrichtung": "sued", "flaeche": None, "vorschlag": "mittel", "anlage_kwp": 9.6, "speicher_kwh": 10,
+                     "ertrag_kwh": 9200, "begrenzt": False, "extras": [], "extras_enthalten": [], "zustand": [], "wann": "", "strasse": s, "plz": pz,
+                     "ort": o, "ergebnis": {"anlage_speicher": 21000, "extras": 0, "summe": 21000, "von": 19000, "bis": 23000, "netto": False},
+                     "stand_werte": "2026-11"}
+            betreff = "Mittel, 9,6 kWp, 10 kWh Speicher, Satteldach"
+            text = "PV-Konfigurator – Anfrage Photovoltaik\nAnlage: 9,6 kWp" + (f"\nAnschrift des Gebäudes: {kontakt_ort}" if kontakt_ort else "")
+        if nachricht:
+            text += "\n\nNachricht:\n" + nachricht
+    else:
+        kontakt_name = name
+        kontakt_ort = "00000 Musterstadt"
+        betreff = "Anfrage Kantteil" + (" mit Aufmaß vor Ort" if aufmass else "")
+        text = nachricht if nachricht is not None else "Kantteil: Traufblech, 3 × 2000 mm"
+        if art == "kantservice":
+            positionen = [{"typ": "kt", "vorlage": "traufblech", "laenge": 2000, "stk": 3}]
+        dateien["anfrage.pdf"] = pdf_bytes(f"Anfrage {nummer}")
+    umschlag = {
+        "schema": "dk-anfrage/1", "nr": nummer, "art": art, "art_name": art_name, "eingang": zeit_iso(eingang), "zeit": int(eingang.timestamp()),
+        "quelle": QUELLE, "kontakt": {"name": kontakt_name, "telefon": telefon or None, "email": email or None, "ort": kontakt_ort or None},
+        "betreff": betreff, "text": text, "daten": daten, "positionen": positionen, "aufmass": bool(aufmass and art == "kantservice"),
+        "spamverdacht": spam,
+        "dateien": [{"name": n, "typ": "application/pdf" if n.endswith(".pdf") else "image/jpeg", "bytes": len(b),
+                     "sha256": hashlib.sha256(b).hexdigest(), "pfad": f"/erp/v1/anfragen/{nummer}/dateien/{n}"}
+                    | ({} if n.endswith(".pdf") else {"breite": 320, "hoehe": 240}) for n, b in dateien.items()],
+        "uebernommen": None,
+    }
     return {"umschlag": umschlag, "dateien": dateien}
+
+
+def _folge(nummer: str) -> tuple[str, str]:
+    """Reihenfolge der Liste wie anfrage.py::_erp_folge(): Minute des Eingangs (aus der Nummer), dann Nummer."""
+    return (nummer[2:15], nummer)
 
 
 class Attrappe:
@@ -92,10 +229,27 @@ class Attrappe:
         self.schluessel = schluessel or secrets.token_hex(32)
         self.anfragen: dict[str, dict] = {}
         self.uebernommen: dict[str, str] = {}
+        self.meldungen: list[tuple[str, str]] = []  # jedes „übernommen“ in Reihenfolge (Nummer, erp_id) -- auch wiederholte
         self.stoerung: dict = {}
         self.aufrufe: list[tuple[str, str, bool]] = []
         self._server: ThreadingHTTPServer | None = None
         self._lock = threading.Lock()
+
+    def vermerk(self, nummer: str) -> dict | None:
+        """Wie anfrage.py::erp_vermerk(): {zeit, erp_id} oder None."""
+        if nummer not in self.uebernommen:
+            return None
+        return {"zeit": zeit_iso(datetime.now(timezone.utc)), "erp_id": self.uebernommen[nummer]}
+
+    def kopfdaten(self, nummer: str) -> dict:
+        """Ein Eintrag der Liste wie anfrage.py::erp_liste(): schema, nr, art, art_name, eingang, zeit, betreff, kontakt {name}, spamverdacht,
+        uebernommen, pfad (eine Nummer aus liste_extra ohne Anfrage nur mit nr)."""
+        u = self.anfragen.get(nummer, {}).get("umschlag")
+        if u is None:
+            return {"nr": nummer}
+        return {"schema": u["schema"], "nr": nummer, "art": u["art"], "art_name": u["art_name"], "eingang": u["eingang"], "zeit": u["zeit"],
+                "betreff": u["betreff"], "kontakt": {"name": u["kontakt"]["name"]}, "spamverdacht": u["spamverdacht"],
+                "uebernommen": self.vermerk(nummer), "pfad": f"/erp/v1/anfragen/{nummer}"}
 
     def dazu(self, anfrage: dict) -> str:
         nummer = anfrage["umschlag"]["nr"]
@@ -162,13 +316,13 @@ class Attrappe:
                     anzahl = int(q.get("anzahl", ["100"])[0])
                     nach = q.get("nach", [None])[0]
                     alle = q.get("alle", ["0"])[0] == "1"
-                    nummern = sorted(n for n in attrappe.anfragen if alle or n not in attrappe.uebernommen)
+                    nummern = sorted((n for n in attrappe.anfragen if alle or n not in attrappe.uebernommen), key=_folge)
                     if "liste_extra" in st:
                         nummern = nummern + list(st["liste_extra"])
                     if nach:
-                        nummern = [n for n in nummern if n > nach]
+                        nummern = [n for n in nummern if _folge(n) > _folge(nach)]
                     seite, weitere = nummern[:anzahl], len(nummern) > anzahl
-                    eintraege = [{"nr": n, "art": attrappe.anfragen.get(n, {}).get("umschlag", {}).get("art")} for n in seite]
+                    eintraege = [attrappe.kopfdaten(n) for n in seite]
                     return self._json(200, {"ok": True, "schema": "dk-anfrage/1", "anfragen": eintraege, "weitere": weitere,
                                             "naechste": seite[-1] if weitere else None, "version": "attrappe"})
                 if len(pfad) == 5 and pfad[:4] == ["", "erp", "v1", "anfragen"]:
@@ -178,7 +332,7 @@ class Attrappe:
                     if nummer not in attrappe.anfragen:
                         return self._json(404, {"ok": False})
                     umschlag = dict(attrappe.anfragen[nummer]["umschlag"])
-                    umschlag["uebernommen"] = {"erp_id": attrappe.uebernommen[nummer]} if nummer in attrappe.uebernommen else None
+                    umschlag["uebernommen"] = attrappe.vermerk(nummer)
                     return self._json(200, umschlag)
                 if len(pfad) == 7 and pfad[:4] == ["", "erp", "v1", "anfragen"] and pfad[5] == "dateien":
                     nummer, name = unquote(pfad[4]), unquote(pfad[6])
@@ -222,6 +376,7 @@ class Attrappe:
                     except (ValueError, KeyError, TypeError):
                         return self._json(400, {"ok": False, "fehler": "erp_id fehlt"})
                     attrappe.uebernommen[nummer] = erp_id
+                    attrappe.meldungen.append((nummer, erp_id))
                     return self._json(200, {"ok": True})
                 return self._json(404, {"ok": False})
 

@@ -395,11 +395,13 @@ def befuellen(db, k):
 
     from app.models import WebAnfrage
     eingang = _utc_now() - timedelta(hours=3)
-    wa = muster(f"R-{eingang:%Y%m%d}-0905-0A1B", "reparatur", eingang=eingang)["umschlag"]
+    wa = muster(art="reparatur", eingang=eingang)["umschlag"]  # seit 1.10.3: Nummer aus dem Eingang in Berliner Zeit (wie der echte Dienst)
     wa["dateien"] = []
     roh = json.dumps(wa, ensure_ascii=False)
+    wa_objekt = wa["daten"]["objekt"]
     webanfrage = WebAnfrage(nummer=wa["nr"], art="reparatur", art_name=wa["art_name"], fassung="dk-anfrage/1",
                             eingang_am=eingang.replace(tzinfo=None), betreff=wa["betreff"], kontakt_name=wa["kontakt"]["name"], umschlag=roh,
+                            objekt_strasse=wa_objekt["strasse"], objekt_plz=wa_objekt["plz"], objekt_ort=wa_objekt["ort"],
                             umschlag_sha256=hashlib.sha256(roh.encode("utf-8")).hexdigest(), status="neu",
                             gemeldet_am=_utc_now().replace(tzinfo=None))
     db.add(webanfrage)

@@ -924,6 +924,9 @@ class WebAnfrageOut(BaseModel):
     eingang_am: datetime | None = None
     betreff: str | None = None
     kontakt_name: str | None = None
+    objekt_strasse: str | None = None  # seit 1.10.3: Adresse des Objekts aus den strukturierten Angaben
+    objekt_plz: str | None = None
+    objekt_ort: str | None = None
     spamverdacht: bool
     pruefen_grund: str | None = None
     status: str
@@ -943,6 +946,8 @@ class WebAnfrageDetailOut(WebAnfrageOut):
     """Eine Anfrage mit dem Umschlag, wie ihn der Empfangsdienst geliefert hat (Fremddaten: die Seite setzt jeden Wert über esc())."""
     umschlag: dict | None = None
     dateiliste: list[WebAnfrageDateiOut] = Field(default_factory=list)
+    abschnitte: list[str] = Field(default_factory=list)  # seit 1.10.3: Abschnitte der Angaben -- nur die der Art, nur mit Inhalt
+    nachricht_wiederholt: bool = False  # seit 1.10.3: die Nachricht wiederholt nur die Angaben (Reparatur, Wartung) -- eingeklappt
 
 
 class WebanfragenNichtAbgeholtOut(BaseModel):
