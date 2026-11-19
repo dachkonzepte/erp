@@ -69,7 +69,7 @@ def _project_list_out(project: Project) -> ProjectListOut:
 def list_inquiries(customer_id: Id | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     stmt = (
         select(Inquiry)
-        .options(selectinload(Inquiry.customer), selectinload(Inquiry.property), selectinload(Inquiry.project))
+        .options(selectinload(Inquiry.customer), selectinload(Inquiry.property), selectinload(Inquiry.project), selectinload(Inquiry.webanfrage))
         .order_by(Inquiry.updated_at.desc(), Inquiry.id.desc())
     )
     if customer_id is not None:

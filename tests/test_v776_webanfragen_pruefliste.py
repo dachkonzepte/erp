@@ -197,7 +197,7 @@ def test_monteurin_nirgends(welt, router_test_client):
 
 def test_gruende_fest_und_gleich():
     assert set(WebAnfrageVerwerfenIn.model_fields["grund"].annotation.__args__) == set(W.VERWERFEN_GRUENDE)
-    assert W.STATUS == ("neu", "verworfen") and W.ERP_ID.match(W.ERP_ID_VERWORFEN)
+    assert W.STATUS == ("neu", "verworfen", "uebernommen") and W.ERP_ID.match(W.ERP_ID_VERWORFEN)  # seit 1.10.5 mit „übernommen“
 
 
 # --- Seiten (node) --------------------------------------------------------------------------------------------------------------------------

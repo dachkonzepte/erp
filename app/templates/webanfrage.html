@@ -41,6 +41,21 @@
   .verwerfen-panel[hidden]{display:none}
   .verwerfen-panel label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:650;color:var(--muted)}
   .meldung{font-size:12.5px;color:var(--muted);margin-top:8px}
+  /* seit 1.10.5: Als Anfrage übernehmen */
+  .ueb h3{margin:16px 0 6px;font-size:14px;color:var(--ink)}
+  .ueb-wahl{display:flex;flex-direction:column;gap:6px}
+  .ueb-wahl label{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--ink)}
+  .ueb-wahl small{color:var(--muted)}
+  .ueb-felder{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin-top:8px}
+  .ueb-felder[hidden],.ueb-zeile[hidden]{display:none}
+  .ueb-felder label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:650;color:var(--muted)}
+  .ueb-felder .breit{grid-column:1/-1}
+  .ueb-felder fieldset{border:0;padding:0;margin:0;display:flex;gap:14px;align-items:center;font-size:13px;color:var(--ink)}
+  .ueb-felder fieldset label{flex-direction:row;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink)}
+  .ueb-felder fieldset legend{font-size:12px;font-weight:650;color:var(--muted);padding:0;margin-right:8px;float:left}
+  .ueb-zeile{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:8px;color:var(--ink)}
+  .ueb-fuss{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:14px}
+  @media(max-width:850px){.ueb-felder{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:850px){.raster{grid-template-columns:minmax(0,1fr)}.zeile{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:650px){main{padding:12px}.fotos img{width:150px;height:112px}}
 </style>
@@ -64,6 +79,7 @@
       <button type="button" class="ds-knopf" id="inDenEingangKnopf" data-klick="inDenEingang" hidden>Kein Spam – in den Eingang</button>
       <button type="button" class="ds-knopf" id="zurueckholenKnopf" data-klick="zurueckholen" hidden>Zurück in den Eingang</button>
       <button type="button" class="ds-knopf" id="verwerfenOeffnenKnopf" data-klick="verwerfenOeffnen" hidden>Verwerfen …</button>
+      <a class="ds-knopf" id="zurAnfrageLink" href="/inquiries" hidden>Zur Anfrage</a>
     </div>
     <div class="verwerfen-panel" id="verwerfenPanel" hidden>
       <label for="verwerfenGrund">Grund<select id="verwerfenGrund"></select></label>
@@ -72,6 +88,49 @@
     </div>
     <div id="aktionStatus" class="status" role="status"></div>
     <div class="meldung" id="meldungText"></div>
+  </section>
+  {# seit 1.10.5 (Stufe W1b): Als Anfrage übernehmen -- Vorschläge nur aus den strukturierten Angaben, nichts vorgewählt #}
+  <section class="card ueb" id="uebernahmeKarte" hidden>
+    <h2>Als Anfrage übernehmen</h2>
+    <div class="muted small" id="uebAuftraggeberText"></div>
+    <h3>Auftraggeber</h3>
+    <div class="ueb-wahl" id="uebKunden"></div>
+    <div class="ueb-felder" id="uebKundeNeu" hidden>
+      <label for="uebVorname">Vorname<input id="uebVorname" maxlength="120"></label>
+      <label for="uebNachname">Nachname bzw. Firma *<input id="uebNachname" maxlength="255"></label>
+      <label for="uebKundeAnsprech">Ansprechpartner<input id="uebKundeAnsprech" maxlength="255"></label>
+      <label for="uebKStrasse">Straße<input id="uebKStrasse" maxlength="255"></label>
+      <label for="uebKPlz">PLZ<input id="uebKPlz" maxlength="20"></label>
+      <label for="uebKOrt">Ort<input id="uebKOrt" maxlength="120"></label>
+      <label for="uebKEmail">E-Mail<input id="uebKEmail" maxlength="255"></label>
+      <label for="uebKTelefon">Telefon<input id="uebKTelefon" maxlength="80"></label>
+      <fieldset class="breit"><legend>Verbraucher *</legend>
+        <label><input type="radio" name="uebVerbraucher" id="uebVerbraucherJa" value="ja"> ja</label>
+        <label><input type="radio" name="uebVerbraucher" id="uebVerbraucherNein" value="nein"> nein</label></fieldset>
+      <div class="muted small breit" id="uebOrtKontakt"></div>
+    </div>
+    <h3>Objekt</h3>
+    <div class="ueb-wahl" id="uebObjekte"><div class="muted small">Erst den Auftraggeber wählen.</div></div>
+    <div class="ueb-felder" id="uebObjektNeu" hidden>
+      <label for="uebOName">Bezeichnung *<input id="uebOName" maxlength="255"></label>
+      <label for="uebOStrasse">Straße<input id="uebOStrasse" maxlength="255"></label>
+      <label for="uebOPlz">PLZ<input id="uebOPlz" maxlength="20"></label>
+      <label for="uebOOrt">Ort<input id="uebOOrt" maxlength="120"></label>
+      <label for="uebOVorOrt">Ansprechpartner vor Ort<input id="uebOVorOrt" maxlength="160"></label>
+      <label for="uebOVorOrtTel">Telefon vor Ort<input id="uebOVorOrtTel" maxlength="60"></label>
+    </div>
+    <label class="ueb-zeile" id="uebVorOrtZeile" hidden><input type="checkbox" id="uebVorOrt"><span id="uebVorOrtText"></span></label>
+    <h3>Anfrage</h3>
+    <div class="ueb-felder">
+      <label for="uebTitel" class="breit">Betreff *<input id="uebTitel" maxlength="255"></label>
+      <label for="uebBeschreibung" class="breit">Beschreibung<textarea id="uebBeschreibung" rows="6"></textarea></label>
+      <label for="uebAnsprech">Ansprechpartner<input id="uebAnsprech" maxlength="255"></label>
+      <label for="uebPrioritaet">Priorität<select id="uebPrioritaet"><option value="niedrig">Niedrig</option><option value="normal" selected>Normal</option><option value="hoch">Hoch</option><option value="dringend">Dringend</option></select></label>
+    </div>
+    <div class="ueb-fuss">
+      <button type="button" class="ds-knopf ds-knopf-aktion" id="uebernehmenKnopf" data-klick="uebernehmen">Als Anfrage übernehmen</button>
+      <span id="uebStatus" class="status" role="status"></span>
+    </div>
   </section>
   <div class="raster">
     <section class="card"><h2>Kontakt</h2><dl id="kontakt"><div class="muted small">Lädt …</div></dl></section>
@@ -196,7 +255,8 @@ let waAktuell=null;
 function bearbeitungZeichnen(d){
   waAktuell=d;
   const stand=document.getElementById('bearbeitungStand'),zeigen=(id,an)=>{document.getElementById(id).hidden=!an};
-  if(d.status==='verworfen')stand.textContent=`Verworfen${d.verworfen_grund_text?' ('+d.verworfen_grund_text+')':''}${d.erledigt_am?' am '+berlinZeitpunkt(d.erledigt_am):''}${d.erledigt_von_name?' von '+d.erledigt_von_name:''}.`;
+  if(d.status==='uebernommen')stand.textContent=`Übernommen als Anfrage ${d.anfrage_nummer||''}${d.erledigt_am?' am '+berlinZeitpunkt(d.erledigt_am):''}${d.erledigt_von_name?' von '+d.erledigt_von_name:''}.`;
+  else if(d.status==='verworfen')stand.textContent=`Verworfen${d.verworfen_grund_text?' ('+d.verworfen_grund_text+')':''}${d.erledigt_am?' am '+berlinZeitpunkt(d.erledigt_am):''}${d.erledigt_von_name?' von '+d.erledigt_von_name:''}.`;
   else if(d.in_pruefliste)stand.textContent=d.spamverdacht?'In der Prüfliste: Spamverdacht. Erst prüfen, dann in den Eingang geben oder verwerfen.':'In der Prüfliste: '+(d.pruefen_grund||'zu prüfen')+'.';
   else stand.textContent=`Im Eingang${d.geprueft_am?' (aus der Prüfliste gegeben am '+berlinZeitpunkt(d.geprueft_am)+(d.geprueft_von_name?' von '+d.geprueft_von_name:'')+')':''}.`;
   zeigen('inDenEingangKnopf',d.status==='neu'&&d.in_pruefliste);
@@ -205,6 +265,9 @@ function bearbeitungZeichnen(d){
   if(d.status!=='neu')document.getElementById('verwerfenPanel').hidden=true;
   const g=document.getElementById('verwerfenGrund');
   g.innerHTML='<option value="">Bitte wählen</option>'+Object.entries(d.verwerfen_gruende||{}).map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('');
+  const zurAnfrage=document.getElementById('zurAnfrageLink');
+  if(zurAnfrage){zurAnfrage.hidden=!d.inquiry_id;if(d.inquiry_id)zurAnfrage.setAttribute('href','/inquiries?inquiry='+Number(d.inquiry_id))}
+  uebernahmeLaden(d);
   document.getElementById('meldungText').textContent=d.meldung_offen
     ?`Meldung „${d.melden_soll}“ an den Empfangsdienst steht aus – der nächste Lauf meldet sie.`
     :(d.gemeldet_als?`Beim Empfangsdienst gemeldet als „${d.gemeldet_als}“.`:'');
@@ -229,6 +292,86 @@ aktion('inDenEingang',async()=>{
     waStatus('In den Eingang gegeben.',false);
   }catch(err){waStatus('Fehler: '+err.message,true)}
 });
+/* Seit 1.10.5: Als Anfrage übernehmen. Die Vorschläge kommen vom Server (nur strukturierte Angaben); nichts ist vorgewählt -- erst mit Auftraggeber und
+   Objekt geht der Knopf. Übernehmen ist abschließend (abschliessen()), danach zur neuen Anfrage. */
+let uebVorschlag=null,uebKunde=null,uebObjekt=null,uebObjektListe=[],uebKundeGefuellt=false,uebObjektGefuellt=false;
+async function uebernahmeLaden(d){
+  const karte=document.getElementById('uebernahmeKarte');
+  karte.hidden=!(d.status==='neu'&&!d.in_pruefliste);
+  if(karte.hidden||uebVorschlag)return;
+  await lesen('vorschlag',()=>api(`/api/webanfragen/${ID}/vorschlag`),v=>{uebVorschlag=v;uebZeichnen()})
+    .catch(err=>{const s=document.getElementById('uebStatus');s.className='status err';s.textContent='Vorschläge nicht geladen: '+err.message});
+}
+const uebFeld=(id,w)=>{document.getElementById(id).value=w==null?'':String(w)};
+function uebZeichnen(){
+  const v=uebVorschlag;
+  document.getElementById('uebAuftraggeberText').textContent=v.auftraggeber;
+  document.getElementById('uebKunden').innerHTML=(v.kunden||[]).map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-aenderung="uebKundeWahl"><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')} · ${esc((k.gruende||[]).join(', '))}</small></span></label>`).join('')
+    +'<label><input type="radio" name="uebKunde" value="neu" data-aenderung="uebKundeWahl"><span><b>Neuer Kunde</b> aus den Angaben<br><small>Die Felder unten kommen aus dem Formular – vor dem Übernehmen prüfen.</small></span></label>';
+  const a=v.anfrage||{};
+  uebFeld('uebTitel',a.titel);uebFeld('uebBeschreibung',a.beschreibung);uebFeld('uebAnsprech',a.ansprechpartner);
+}
+function uebObjekteZeichnen(){
+  const v=uebVorschlag,neuKunde=uebKunde==='neu';
+  document.getElementById('uebObjekte').innerHTML=(neuKunde
+      ?'<label><input type="radio" name="uebObjekt" value="hauptadresse" data-aenderung="uebObjektWahl"><span><b>Hauptadresse</b> des neuen Kunden</span></label>'
+      :uebObjektListe.map(p=>`<label><input type="radio" name="uebObjekt" value="${Number(p.id)}" data-aenderung="uebObjektWahl"><span><b>${esc(p.name)}</b>${p.adresse_gleich?' · <b>Adresse gleich</b>':''}<br><small>${esc(p.adresse||'ohne Anschrift')}</small></span></label>`).join(''))
+    +(v.objekt_neu?'<label><input type="radio" name="uebObjekt" value="neu" data-aenderung="uebObjektWahl"><span><b>Neues Objekt</b> aus den Angaben</span></label>':'')
+    +'<label><input type="radio" name="uebObjekt" value="keins" data-aenderung="uebObjektWahl"><span><b>Ohne Objekt</b></span></label>';
+  uebObjekt=null;document.getElementById('uebObjektNeu').hidden=true;document.getElementById('uebVorOrtZeile').hidden=true;
+}
+aktion('uebKundeWahl',async el=>{
+  uebKunde=el.value;document.getElementById('uebStatus').textContent='';
+  const neu=uebKunde==='neu',v=uebVorschlag;
+  document.getElementById('uebKundeNeu').hidden=!neu;
+  if(neu&&!uebKundeGefuellt){
+    const k=v.kunde_neu||{};uebKundeGefuellt=true;
+    uebFeld('uebVorname',k.first_name);uebFeld('uebNachname',k.last_name);uebFeld('uebKundeAnsprech',k.contact_person);uebFeld('uebKStrasse',k.street);
+    uebFeld('uebKPlz',k.postal_code);uebFeld('uebKOrt',k.city);uebFeld('uebKEmail',k.email);uebFeld('uebKTelefon',k.phone);
+    document.getElementById('uebVerbraucherJa').checked=k.is_consumer===true;document.getElementById('uebVerbraucherNein').checked=k.is_consumer===false;
+    document.getElementById('uebOrtKontakt').textContent=v.ort_kontakt?'Ort laut Formular: '+v.ort_kontakt:'';
+  }
+  if(neu){uebObjektListe=[];uebObjekteZeichnen();return}
+  await lesen('objekte',()=>api(`/api/webanfragen/${ID}/objekte?kunde_id=${Number(uebKunde)}`),liste=>{uebObjektListe=liste;uebObjekteZeichnen()});
+},'change');
+aktion('uebObjektWahl',el=>{
+  uebObjekt=el.value;document.getElementById('uebStatus').textContent='';
+  const v=uebVorschlag,neu=uebObjekt==='neu';
+  document.getElementById('uebObjektNeu').hidden=!neu;
+  if(neu&&!uebObjektGefuellt){const o=v.objekt_neu||{};uebObjektGefuellt=true;uebFeld('uebOName',o.name);uebFeld('uebOStrasse',o.street);uebFeld('uebOPlz',o.postal_code);uebFeld('uebOOrt',o.city);uebFeld('uebOVorOrt',o.site_contact_name);uebFeld('uebOVorOrtTel',o.site_contact_phone)}
+  const bestehend=uebObjektListe.find(p=>String(p.id)===uebObjekt),zeile=document.getElementById('uebVorOrtZeile');
+  zeile.hidden=!(bestehend&&v.vor_ort);document.getElementById('uebVorOrt').checked=false;
+  if(bestehend&&v.vor_ort)document.getElementById('uebVorOrtText').textContent=`Ansprechpartner vor Ort eintragen: ${[v.vor_ort.name,v.vor_ort.telefon].filter(Boolean).join(', ')} (bisher: ${[bestehend.site_contact_name,bestehend.site_contact_phone].filter(Boolean).join(', ')||'niemand'})`;
+},'change');
+const uebWert=id=>document.getElementById(id).value.trim()||null;
+aktion('uebernehmen',async()=>{
+  const s=document.getElementById('uebStatus'),fehler=t=>{s.className='status err';s.textContent=t};
+  if(!uebKunde)return fehler('Bitte einen Auftraggeber wählen.');
+  if(!uebObjekt)return fehler('Bitte ein Objekt wählen (oder „Ohne Objekt“).');
+  const ja=document.getElementById('uebVerbraucherJa').checked,nein=document.getElementById('uebVerbraucherNein').checked;
+  if(uebKunde==='neu'&&!uebWert('uebNachname'))return fehler('Bitte Nachname bzw. Firma des neuen Kunden angeben.');
+  if(uebKunde==='neu'&&!ja&&!nein)return fehler('Bitte wählen: Ist der neue Kunde Verbraucher?');
+  if(uebObjekt==='neu'&&!uebWert('uebOName'))return fehler('Bitte die Bezeichnung des neuen Objekts angeben.');
+  if(!uebWert('uebTitel'))return fehler('Bitte einen Betreff angeben.');
+  const daten={objekt:['neu','hauptadresse','keins'].includes(uebObjekt)?uebObjekt:'gewaehlt',titel:uebWert('uebTitel'),beschreibung:uebWert('uebBeschreibung'),
+    ansprechpartner:uebWert('uebAnsprech'),prioritaet:document.getElementById('uebPrioritaet').value,vor_ort_uebernehmen:document.getElementById('uebVorOrt').checked};
+  if(uebKunde==='neu')daten.kunde_neu={first_name:uebWert('uebVorname'),last_name:uebWert('uebNachname'),contact_person:uebWert('uebKundeAnsprech'),street:uebWert('uebKStrasse'),
+    postal_code:uebWert('uebKPlz'),city:uebWert('uebKOrt'),email:uebWert('uebKEmail'),phone:uebWert('uebKTelefon'),is_consumer:ja};
+  else daten.kunde_id=Number(uebKunde);
+  if(daten.objekt==='gewaehlt')daten.objekt_id=Number(uebObjekt);
+  if(uebObjekt==='neu')daten.objekt_neu={name:uebWert('uebOName'),street:uebWert('uebOStrasse'),postal_code:uebWert('uebOPlz'),city:uebWert('uebOOrt'),
+    site_contact_name:uebWert('uebOVorOrt'),site_contact_phone:uebWert('uebOVorOrtTel')};
+  await webanfrageUebernehmen(daten);
+});
+async function webanfrageUebernehmen(daten){
+  const s=document.getElementById('uebStatus');
+  let ergebnis=null;
+  try{
+    await abschliessen('anfrage',()=>api(`/api/webanfragen/${ID}/uebernehmen`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}),{anwenden:r=>{ergebnis=r}});
+  }catch(err){s.className='status err';s.textContent='Fehler: '+err.message;return}
+  s.className='status ok';s.textContent=`Übernommen als Anfrage ${ergebnis.inquiry_number}.`;
+  location.href='/inquiries?inquiry='+Number(ergebnis.inquiry_id);
+}
 aktion('zurueckholen',async()=>{
   if(!confirm('Diese Anfrage zurück in den Eingang holen?'))return;
   try{

@@ -18,7 +18,7 @@ from fastapi import Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..crm import KundennameZuLang, ensure_customer_profile, kundenname
+from ..crm import KundennameZuLang, ensure_customer_profile, kunde_anlegen, kundenname
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
@@ -206,37 +206,17 @@ def delete_customer_extra_info(customer_id: Id, info_id: Id, db: Session = Depen
 @router.post("/api/customers", response_model=CustomerOut)
 def create_customer(payload: CustomerCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     data = payload.model_dump(exclude={"extra_infos", "category", "customer_number", "default_payment_term_id"})
-    try:
-        data["name"] = kundenname(data.get("salutation"), data.get("title"), data.get("first_name"), data["last_name"])
+    try:  # seit 1.10.5 über app/crm.py::kunde_anlegen() -- dieselbe Stelle wie die Übernahme einer Anfrage der Webseite
+        customer = kunde_anlegen(db, data, category=payload.category, customer_number=payload.customer_number,
+                                 default_payment_term_id=payload.default_payment_term_id, set_payment_term=True)
     except KundennameZuLang as exc:  # seit 1.9.362
+        db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    customer = Customer(**data)
-    for info in payload.extra_infos:
-        customer.extra_infos.append(CustomerExtraInfo(**info.model_dump()))
-    db.add(customer)
-    db.flush()
-    try:
-        ensure_customer_profile(
-            db, customer, payload.category, payload.customer_number,
-            default_payment_term_id=payload.default_payment_term_id, set_payment_term=True,
-        )
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    # Die Kunden-Hauptadresse ist automatisch das erste Objekt. Dadurch kann ein
-    # neues Projekt sofort auf die Hauptadresse gebucht werden, ohne dass sie
-    # noch einmal manuell als Objekt erfasst werden muss.
-    main_property = Property(
-        customer_id=customer.id,
-        name="Hauptadresse",
-        street=customer.street,
-        postal_code=customer.postal_code,
-        city=customer.city,
-        notes="Automatisch aus der Kunden-Hauptadresse angelegt.",
-        is_primary_address=True,
-    )
-    db.add(main_property)
+    for info in payload.extra_infos:
+        customer.extra_infos.append(CustomerExtraInfo(**info.model_dump()))
     db.commit()
     customer = db.scalar(
         select(Customer)

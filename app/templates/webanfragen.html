@@ -123,6 +123,7 @@ function kennzeichen(z){
   const k=[];
   if(z.spamverdacht)k.push('<span class="kennzeichen spam">Spamverdacht</span>');
   if(z.pruefen_grund)k.push(`<span class="kennzeichen pruefen" title="${esc(z.pruefen_grund)}">Prüfen: ${esc(z.pruefen_grund)}</span>`);
+  if(z.status==='uebernommen')k.push(`<span class="kennzeichen erledigt">übernommen${z.anfrage_nummer?': '+esc(z.anfrage_nummer):''}</span>`);
   if(z.status==='verworfen')k.push(`<span class="kennzeichen erledigt">verworfen${z.verworfen_grund_text?': '+esc(z.verworfen_grund_text):''}</span>`);
   if(z.meldung_offen)k.push('<span class="kennzeichen" title="Der Empfangsdienst weiß noch nicht, was das ERP mit ihr getan hat – der nächste Lauf meldet es.">Meldung steht aus</span>');
   return k.join('');

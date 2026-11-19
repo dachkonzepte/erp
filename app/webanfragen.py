@@ -65,7 +65,8 @@ FASSUNG = "dk-anfrage/1"
 ARTEN = {"kantservice": "Kantservice", "dach": "Dachsanierung", "pv": "Photovoltaik", "reparatur": "Reparatur", "wartung": "Wartung"}
 STATUS_NEU = "neu"
 STATUS_VERWORFEN = "verworfen"  # seit 1.10.4
-STATUS = (STATUS_NEU, STATUS_VERWORFEN)  # 1.10.5 ergänzt übernommen
+STATUS_UEBERNOMMEN = "uebernommen"  # seit 1.10.5
+STATUS = (STATUS_NEU, STATUS_VERWORFEN, STATUS_UEBERNOMMEN)
 VERWERFEN_GRUENDE = {"spam": "Spam", "doppelt": "Doppelt", "test": "Test", "sonstiges": "Sonstiges"}  # seit 1.10.4, feste Gründe (nie freier Text)
 ANSICHTEN = ("eingang", "pruefliste", "erledigt")  # seit 1.10.4: Eingang, Prüfliste, Erledigt
 ERP_ID = re.compile(r"\A[A-Za-z0-9._:/-]{1,64}\Z")  # wie der Empfangsdienst (POST …/uebernommen)
@@ -675,7 +676,7 @@ def eingang(db: Session, anzahl: int = EINGANG_MAX, ansicht: str = "eingang") ->
     """Die Liste (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens anzahl (bis EINGANG_MAX; die Startseite nimmt seit
     1.10.2 die fünf neuesten). Seit 1.10.4 je Ansicht: eingang (neu, nicht in der Prüfliste), pruefliste, erledigt (zuletzt erledigt zuerst)."""
     from sqlalchemy.orm import selectinload
-    abfrage = select(WebAnfrage).options(selectinload(WebAnfrage.dateien))
+    abfrage = select(WebAnfrage).options(selectinload(WebAnfrage.dateien), selectinload(WebAnfrage.inquiry))
     if ansicht == "pruefliste":
         abfrage = abfrage.where(IN_PRUEFLISTE).order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc())
     elif ansicht == "erledigt":
@@ -763,4 +764,6 @@ def zeile_zu_dict(zeile: WebAnfrage) -> dict:
         "zustand": zustand(zeile), "in_pruefliste": in_pruefliste(zeile), "erledigt_am": zeile.erledigt_am, "verworfen_grund": zeile.verworfen_grund,
         "verworfen_grund_text": VERWERFEN_GRUENDE.get(zeile.verworfen_grund or ""), "gemeldet_als": zeile.gemeldet_als,
         "melden_soll": erp_id_der_zeile(zeile), "meldung_offen": meldung_offen(zeile),
+        # seit 1.10.5
+        "inquiry_id": zeile.inquiry_id, "anfrage_nummer": zeile.inquiry.inquiry_number if zeile.inquiry is not None else None,
     }

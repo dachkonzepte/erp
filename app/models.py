@@ -477,12 +477,15 @@ class Inquiry(Base):
     visit_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     follow_up_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Nummer der Webseite (seit 1.10.5, Stufe W1b): gesetzt nur beim Übernehmen einer Anfrage der Webseite (app/webanfrage_uebernahme.py)
+    webseite_nummer: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     customer: Mapped[Customer] = relationship(back_populates="inquiries")
     property: Mapped[Property | None] = relationship(back_populates="inquiries")
     project: Mapped["Project | None"] = relationship(back_populates="source_inquiry", foreign_keys=[project_id])
+    webanfrage: Mapped["WebAnfrage | None"] = relationship(back_populates="inquiry", uselist=False)  # seit 1.10.5: PDF und Fotos am Eingang
 
 
 class WebAnfrage(Base):
@@ -522,9 +525,11 @@ class WebAnfrage(Base):
     # Meldung an den Empfangsdienst (F2): melden_soll = erp_id, die er bekommen soll (leer = eingang-<id>); gemeldet_als = zuletzt bestätigt
     melden_soll: Mapped[str | None] = mapped_column(String(64), nullable=True)
     gemeldet_als: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    inquiry_id: Mapped[int | None] = mapped_column(ForeignKey("inquiries.id"), nullable=True, unique=True)  # seit 1.10.5: übernommen als
 
     dateien: Mapped[list["WebAnfrageDatei"]] = relationship(back_populates="webanfrage", cascade="all, delete-orphan",
                                                              order_by="WebAnfrageDatei.id")
+    inquiry: Mapped[Inquiry | None] = relationship(back_populates="webanfrage")
 
 
 class WebAnfrageDatei(Base):

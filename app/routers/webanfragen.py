@@ -18,7 +18,10 @@ from ..dateiauslieferung import datei_antwort
 from ..ids import Id
 from ..models import AppUser, WebAnfrage, WebAnfrageDatei
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageOut, WebAnfrageVerwerfenIn
+from ..crm import KundennameZuLang
+from ..schemas import (WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageObjektOut, WebAnfrageOut, WebAnfrageUebernehmenIn,
+                       WebAnfrageUebernommenOut, WebAnfrageVerwerfenIn, WebAnfrageVorschlagOut)
+from ..webanfrage_uebernahme import AuswahlFehlt, ObjektFremd, objekte, uebernehmen, vorschlag
 from ..webanfrage_angaben import abschnitte, nachricht_wiederholt
 from ..webanfragen import (EINGANG_MAX, KNOPF_FRIST, KNOPF_HOECHSTENS, VERWERFEN_GRUENDE, SchonErledigt, abholen, datei_pfad, eingang, in_den_eingang,
                            nachmelden, stand, verwerfen, zeile_zu_dict, zurueckholen)
@@ -101,6 +104,36 @@ def post_verwerfen(webanfrage_id: Id, payload: WebAnfrageVerwerfenIn, db: Sessio
 def post_in_den_eingang(webanfrage_id: Id, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Aus der Prüfliste in den Eingang (kein Spam bzw. geprüft)."""
     return _aktion(db, webanfrage_id, lambda: in_den_eingang(db, webanfrage_id, user.id), melden=False)
+
+
+@router.get("/api/webanfragen/{webanfrage_id}/vorschlag", response_model=WebAnfrageVorschlagOut)
+def get_vorschlag(webanfrage_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.10.5: Vorschläge zum Übernehmen -- schreibt nichts."""
+    return vorschlag(db, _zeile(db, webanfrage_id))
+
+
+@router.get("/api/webanfragen/{webanfrage_id}/objekte", response_model=list[WebAnfrageObjektOut])
+def get_objekte(webanfrage_id: Id, kunde_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.10.5: die Objekte eines Kunden mit „Adresse gleich“ zur Adresse der Anfrage."""
+    try:
+        return objekte(db, _zeile(db, webanfrage_id), kunde_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Kunde nicht gefunden.") from None
+
+
+@router.post("/api/webanfragen/{webanfrage_id}/uebernehmen", response_model=WebAnfrageUebernommenOut)
+def post_uebernehmen(webanfrage_id: Id, payload: WebAnfrageUebernehmenIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+    """Seit 1.10.5: als Anfrage übernehmen -- eine Transaktion; danach bekommt der Empfangsdienst die Anfragenummer (F2)."""
+    try:
+        inquiry = uebernehmen(db, webanfrage_id, payload, user.id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Anfrage, Kunde oder Objekt nicht gefunden.") from None
+    except SchonErledigt:
+        raise HTTPException(status_code=409, detail="Diese Anfrage ist nicht mehr in diesem Stand – bitte die Seite neu laden.") from None
+    except (ObjektFremd, AuswahlFehlt, KundennameZuLang) as fehler:
+        raise HTTPException(status_code=422, detail=str(fehler)) from None
+    nachmelden(db, webanfrage_id)
+    return {"inquiry_id": inquiry.id, "inquiry_number": inquiry.inquiry_number, "anfrage": _detail(db, webanfrage_id)}
 
 
 @router.post("/api/webanfragen/{webanfrage_id}/zurueckholen", response_model=WebAnfrageDetailOut)

@@ -227,6 +227,9 @@ GEPRUEFT = {
     # seit 1.10.1 (Stufe W1a): die Datei einer Anfrage der Webseite
     "GET /api/webanfragen/{webanfrage_id}/dateien/{datei_id} datei_id":
         ("routers.webanfragen.get_datei", "datei is None or datei.webanfrage_id != webanfrage_id"),
+    # seit 1.10.5: beim Übernehmen nur ein Objekt des gewählten Kunden
+    "POST /api/webanfragen/{webanfrage_id}/uebernehmen objekt_id":
+        ("webanfrage_uebernahme.uebernehmen", "objekt.customer_id != kunde.id"),
     "GET /api/field-view/defects/{defect_id}/photos/{file_id} file_id":
         ("defects.field_photo", "d.files if f.id == file_id"),
     "GET /api/field-view/properties/{property_id}/documents/{source}/{document_id}/view document_id":
@@ -290,6 +293,9 @@ FREI = {
         "routers.projects.update_project", "customer = db.get(Customer, payload.customer_id) if customer is None"),
     "POST /api/properties customer_id": (_BESITZER, "routers.properties.create_property",
                                          "customer = db.get(Customer, payload.customer_id) if customer is None"),
+    "POST /api/webanfragen/{webanfrage_id}/uebernehmen kunde_id": (_BESITZER + " (Auftraggeber der übernommenen Anfrage, seit 1.10.5)",
+                                                                  "webanfrage_uebernahme.uebernehmen",
+                                                                  "kunde = db.get(Customer, e.kunde_id) if kunde is None"),
     "POST /api/inquiries customer_id": (_BESITZER, "routers.inquiries._validate_inquiry_customer_property",
                                         "customer = db.get(Customer, customer_id) if customer is None"),
     "PUT /api/inquiries/{inquiry_id} customer_id": (

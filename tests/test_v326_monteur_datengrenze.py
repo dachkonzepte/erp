@@ -460,7 +460,8 @@ PFAD_WERTE = {
 # "@name" steht für den Wert aus den Testdaten.
 QUERY_WERTE = {"start": "2026-01-01", "end": "2026-12-31", "start_date": "2026-01-01", "end_date": "2026-12-31",
                "work_kind": "bauwerk", "warranty_months": "48", "warranty_days": "0",  # Vorschau (seit 1.8.47)
-               "property_id": "@property_id", "context": "auftrag"}
+               "property_id": "@property_id", "context": "auftrag",
+               "kunde_id": 1}  # Objekte eines Kunden zum Übernehmen einer Anfrage der Webseite (seit 1.10.5)
 QUERY_JE_ROUTE = {
     "/api/field-view/properties/search": {"q": "Halle"},
     "/api/field-view/auftraege-suche": {"q": "AU-2026"},  # Auftragssuche im Dialog „Für welchen Auftrag?“ (seit 1.9.79)

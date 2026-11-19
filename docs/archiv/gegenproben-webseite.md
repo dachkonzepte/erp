@@ -173,3 +173,39 @@ aus dem geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurü
 | Nr. 10 – nur das Büro | Monteurin zugelassen (`1104_10`) | 1 rot |
 
 Ohne Gegenprobe: Nr. 9 „nichts wird gelöscht“ -- es gibt keinen Weg, der löscht (geprüft im Test: Umschlag und Dateien bleiben).
+
+## W1b, 1.10.5: Als Anfrage übernehmen
+
+Probendatei im Scratchpad (`proben_1105.py`), Lauf mit `tests/test_v777_webanfragen_uebernehmen.py`; alle 27 rot aus dem geprüften Grund (je FAILED, kein ERROR),
+alle Dateien byte-gleich zurück. Dazu Nr. 10 über den Klicktest.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Eigentümer Verbraucher ja, Firma nein | ohne Vorschlag (`1105_1`) | 2 rot |
+| Nr. 1 – Telefon und E-Mail des Mieters nie beim Kunden | beim Kunden (`1105_1b`) | 1 rot |
+| Nr. 1 – der Mieter Ansprechpartner vor Ort | nie (`1105_1c`) | 2 rot |
+| Nr. 1 – PV nach „privat/gewerbe“ | ohne (`1105_1d`) | 1 rot |
+| Nr. 1 – nie aus dem Betreff | Straße aus dem Betreff (`1105_1e`) | 2 rot |
+| Nr. 2 – E-Mail gleich | weg (`1105_2`) | 1 rot |
+| Nr. 2 – Telefon gleich (Ziffern) | nur genau gleich geschrieben (`1105_2b`) | 1 rot |
+| Nr. 2 – beim Mieter nur die Hausverwaltung | auch Telefon und E-Mail des Mieters (`1105_2c`) | 1 rot |
+| Nr. 2 – PLZ zusätzlich | weg (`1105_2d`) | 1 rot |
+| Nr. 3 – Adresse gleich | nie (`1105_3`) | 1 rot |
+| Nr. 4 – Verbraucher ohne Vorgabe am Server | Vorgabe ja (`1105_4`) | 1 rot |
+| Nr. 4 – Ansprechpartner vor Ort nur mit Haken | immer (`1105_4b`) | 1 rot |
+| Nr. 4 – auf der Seite nichts vorgewählt | „Neuer Kunde“ vorgewählt (`1105_4c`) | 1 rot |
+| Nr. 5 – nicht aus der Prüfliste | Prüfliste nicht beachten (`1105_5`) | 1 rot |
+| Nr. 5 – nie zweimal | Trefferzahl nicht prüfen (`1105_5b`) | 2 rot |
+| Nr. 5 – Quelle „Website“ | „sonstiges“ (`1105_5c`) | 1 rot |
+| Nr. 5 – Fotos ans Objekt | keine (`1105_5d`) | 2 rot |
+| Nr. 5 – scheitert etwas, keine Datei | nicht wegräumen (`1105_5e`) | 1 rot |
+| Nr. 5 – Kunde mit Hauptadresse an einer Stelle | ohne Hauptadresse in `kunde_anlegen()` (`1105_5f`) | 2 rot |
+| Nr. 6 – Objekt nur des Kunden | Vergleich weg (`1105_6`) | 1 rot |
+| Nr. 6 – unbekannter Kunde 404 | Prüfung weg (`1105_6b`) | 1 rot |
+| Nr. 7 – die Anfrage nennt die Nummer | leer (`1105_7`) | 1 rot |
+| Nr. 7 – Weg zum Eingang | Link auf „Anfragen“ (`1105_7b`) | 1 rot |
+| Nr. 8 – die Anfragenummer melden | `melden_soll` nicht setzen (`1105_8`) | 1 rot |
+| Nr. 9 – Historie | kein Eintrag (`1105_9`) | 1 rot |
+| Nr. 10 – Erledigt nennt die Anfragenummer | Kennzeichen weg (`1105_10`) | 1 rot |
+| Nr. 10 – danach die neue Anfrage | Weiterleitung weg (über `klicktest_webanfragen.py`) | rot: wartet vergeblich auf `/inquiries`, 2 Prüfungen rot |
+| Nr. 11 – nur das Büro | Monteurin zugelassen (`1105_11`) | 1 rot |

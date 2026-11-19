@@ -31,6 +31,25 @@ def kundenname(salutation: str | None, title: str | None, first_name: str | None
     return name
 
 
+def kunde_anlegen(db: Session, daten: dict, *, category: str | None = None, customer_number: str | None = None,
+                  default_payment_term_id: int | None = None, set_payment_term: bool = False) -> Customer:
+    """Einen Kunden anlegen wie POST /api/customers -- seit 1.10.5 an einer Stelle, auch für die Übernahme einer Anfrage der Webseite: Name aus Anrede,
+    Titel, Vor- und Nachname (kundenname(): KundennameZuLang), Profil mit Kundennummer, die Hauptadresse als erstes Objekt. Committet nicht.
+    ValueError aus ensure_customer_profile(), wenn die Kundennummer vergeben ist."""
+    from .models import Property
+    werte = dict(daten)
+    werte["name"] = kundenname(werte.get("salutation"), werte.get("title"), werte.get("first_name"), werte["last_name"])
+    customer = Customer(**werte)
+    db.add(customer)
+    db.flush()
+    ensure_customer_profile(db, customer, category, customer_number, default_payment_term_id=default_payment_term_id, set_payment_term=set_payment_term)
+    # Die Kunden-Hauptadresse ist automatisch das erste Objekt -- ein neues Projekt kann sofort auf sie gebucht werden.
+    db.add(Property(customer_id=customer.id, name="Hauptadresse", street=customer.street, postal_code=customer.postal_code, city=customer.city,
+                    notes="Automatisch aus der Kunden-Hauptadresse angelegt.", is_primary_address=True))
+    db.flush()
+    return customer
+
+
 def next_customer_number(db: Session) -> str:
     """Vergibt die nächste automatische Kundennummer -- seit 1.8.73 über issue_number() (gesperrt, hochgezählt); vorher
     nur die Vorschau, zwei gleichzeitig angelegte Kunden bekamen dieselbe."""

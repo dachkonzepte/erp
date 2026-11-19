@@ -16,6 +16,7 @@ def load_inquiry(db: Session, inquiry_id: int) -> Inquiry | None:
             selectinload(Inquiry.customer),
             selectinload(Inquiry.property),
             selectinload(Inquiry.project),
+            selectinload(Inquiry.webanfrage),
         )
         .where(Inquiry.id == inquiry_id)
     )
@@ -51,6 +52,9 @@ def inquiry_to_dict(inquiry: Inquiry) -> dict:
         "visit_at": inquiry.visit_at,
         "follow_up_at": inquiry.follow_up_at,
         "lost_reason": inquiry.lost_reason,
+        # seit 1.10.5: übernommen aus einer Anfrage der Webseite -- PDF und Fotos liegen am Eingang
+        "webseite_nummer": inquiry.webseite_nummer,
+        "webanfrage_id": inquiry.webanfrage.id if inquiry.webanfrage is not None else None,
         "created_at": inquiry.created_at,
         "updated_at": inquiry.updated_at,
     }

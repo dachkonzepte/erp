@@ -277,6 +277,7 @@ FIELD_LABELS = {
     "locked_until": "Gesperrt bis",
     "logo_filename": "Firmenlogo",
     "lost_reason": "Verlustgrund",
+    "webseite_nummer": "Nummer der Webseite",  # seit 1.10.5 (Anfrage aus der Webseite übernommen)
     "managing_director": "Geschäftsführer / Inhaber",
     "manual_sale_price": "Verkaufspreis von Hand",
     "manufacturer": "Hersteller",

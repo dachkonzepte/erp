@@ -10,7 +10,10 @@ Musterdaten.
                     die Nachricht der Reparatur wiederholt nur die Angaben und steht eingeklappt
     Seit 1.10.4     die Wartung mit Spamverdacht steht in der Prüfliste, nicht im Eingang und nicht auf „Start“; verwerfen mit Grund (Meldung
                     „verworfen“ an die Attrappe), Erledigt, zurück in den Eingang (wieder Prüfliste, Meldung eingang-<ID>), „Kein Spam – in den Eingang“
-    Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über); seit 1.10.4 Prüfliste und Bearbeitung
+    Seit 1.10.5     die Reparatur als Anfrage übernehmen: nichts vorgewählt (ohne Auswahl abgelehnt), neuer Kunde und neues Objekt aus den Angaben,
+                    danach die Anfrage mit Nummer der Webseite und den Dateien; die Attrappe bekommt die Anfragenummer; Erledigt nennt sie
+    Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über); seit 1.10.4 Prüfliste und Bearbeitung;
+                    seit 1.10.5 Übernehmen und die Anfrage danach
     Monteurin       der Eingang ist gesperrt, die Schnittstelle des ERP antwortet 403
 
 AUFRUF (aus dem Projektordner):
@@ -226,6 +229,37 @@ async def pruefen(tab, seed, p):
     await tab.bild_ganz("webanfragen_anfrage_412_hell")
     await tab.fenster(1440, 1000)
 
+    # --- seit 1.10.5: die Reparatur als Anfrage übernehmen ---
+    await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
+    await tab.js(f"{ZEILEN}.find(z=>z.children[1].textContent==={R!r}).querySelector('a').click()")
+    await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}&&!uebernahmeKarte.hidden&&uebKunden.children.length>0")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Übernehmen: nichts vorgewählt", await tab.js("document.querySelectorAll('#uebernahmeKarte input[type=radio]:checked').length"), 0)
+    p.pruefe("Übernehmen: ohne Auswahl abgelehnt", await tab.js("uebernehmenKnopf.click(),uebStatus.textContent"), "Bitte einen Auftraggeber wählen.")
+    await tab.js("(e=>{e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}))})(document.querySelector('input[name=uebKunde][value=neu]'))")
+    await tab.warten("!uebKundeNeu.hidden&&uebObjekte.querySelectorAll('input').length===3")
+    p.pruefe("Übernehmen: neuer Kunde aus den Angaben", await tab.js("[uebVorname.value,uebNachname.value,uebKStrasse.value,uebVerbraucherJa.checked]"),
+             ["Max", "Muster", "Musterweg 1", True])
+    p.pruefe("Übernehmen: ohne Objekt abgelehnt", await tab.js("uebernehmenKnopf.click(),uebStatus.textContent"), "Bitte ein Objekt wählen (oder „Ohne Objekt“).")
+    await tab.js("(e=>{e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}))})(document.querySelector('input[name=uebObjekt][value=neu]'))")
+    p.pruefe("Übernehmen: neues Objekt aus den Angaben", await tab.js("[uebOName.value,uebOStrasse.value,uebOPlz.value,uebOOrt.value]"),
+             ["Musterweg 1", "Musterweg 1", "00000", "Musterstadt"])
+    p.pruefe("Übernehmen: Feld des neuen Objekts sichtbar", await tab.js("getComputedStyle(uebObjektNeu).display"), "grid")
+    await tab.bild_ganz("webanfragen_uebernehmen_1440_hell")
+    await tab.js("uebernehmenKnopf.click()")
+    await tab.warten("location.pathname==='/inquiries'&&!document.getElementById('editorCard').classList.contains('hidden')")
+    await tab.warten("!!document.querySelector('#webanfrageDateien a')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Übernommen: die Anfrage mit Nummer der Webseite", await tab.js(
+        "(h=>[h.querySelector('a').textContent,h.querySelectorAll('#webanfrageDateien a').length,editSource.value])(document.getElementById('webanfrageHinweis'))"), [R, 3, "Website"])
+    p.pruefe("Übernommen: Anfragenummer an die Attrappe", a.uebernommen.get(R, "").startswith("ANF-"), True)
+    p.pruefe("Übernommen: JS-Fehler", tab.fehler, [])
+    await tab.bild_ganz("webanfragen_anfrage_danach_1440_hell")
+    await tab.oeffnen("/anfragen/webseite?x=1#erledigt", f"{EINGANG_BEREIT}&&{ZEILEN}.length>0")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Erledigt: übernommen mit Nummer", await tab.js(
+        f"{ZEILEN}.find(z=>z.children[1].textContent==={R!r}).querySelector('.kennzeichen.erledigt').textContent==='übernommen: '+{a.uebernommen.get(R, '')!r}"), True)
+
     # --- noch einmal abholen, dann ohne Empfangsdienst ---
     await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
     p.pruefe("Noch einmal: nichts Neues", await _abholen(tab), ["0 Anfragen neu abgeholt.", "status ok"])
@@ -233,7 +267,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Empfangsdienst aus: Meldung", await _abholen(tab), ["Empfangsdienst nicht erreichbar", "status err"])
     p.pruefe("Empfangsdienst aus: Stand", await tab.js("document.getElementById('standHinweis').textContent"),
              "Letzter Lauf: Empfangsdienst nicht erreichbar")
-    p.pruefe("Empfangsdienst aus: Liste bleibt", await tab.js(f"{ZEILEN}.length"), 3)
+    p.pruefe("Empfangsdienst aus: Liste bleibt", await tab.js(f"{ZEILEN}.length"), 2)  # seit 1.10.5: die Reparatur ist übernommen
 
     # --- Monteurin ---
     await tab.anmelden(seed["cookies"]["mo"])

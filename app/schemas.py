@@ -899,6 +899,8 @@ class InquiryOut(BaseModel):
     lost_reason: str | None
     created_at: datetime
     updated_at: datetime
+    webseite_nummer: str | None = None  # seit 1.10.5
+    webanfrage_id: int | None = None
 
 
 class InquiryConvertRequest(BaseModel):
@@ -942,6 +944,8 @@ class WebAnfrageOut(BaseModel):
     gemeldet_als: str | None = None
     melden_soll: str | None = None
     meldung_offen: bool = False
+    inquiry_id: int | None = None  # seit 1.10.5
+    anfrage_nummer: str | None = None
 
 
 class WebAnfrageDateiOut(BaseModel):
@@ -961,6 +965,76 @@ class WebAnfrageDetailOut(WebAnfrageOut):
     geprueft_am: datetime | None = None
     geprueft_von_name: str | None = None
     verwerfen_gruende: dict[str, str] = Field(default_factory=dict)
+
+
+class CustomerAusWebseiteIn(BaseModel):
+    """Seit 1.10.5: ein neuer Kunde beim Übernehmen einer Anfrage der Webseite -- die Seite füllt die Vorschläge aus den strukturierten Angaben, das Büro
+    bestätigt; Verbraucher ja/nein ohne Vorgabe (bei Hausverwaltung oder Vermieter laut Mieter wählt das Büro)."""
+    salutation: str | None = Field(default=None, max_length=50)
+    title: str | None = Field(default=None, max_length=80)
+    first_name: str | None = Field(default=None, max_length=120)
+    last_name: Pflichttext = Field(min_length=1, max_length=255)
+    contact_person: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+    email: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    is_consumer: bool
+
+
+class PropertyAusWebseiteIn(BaseModel):
+    """Seit 1.10.5: ein neues Objekt beim Übernehmen einer Anfrage der Webseite."""
+    name: Pflichttext = Field(min_length=1, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+    site_contact_name: str | None = Field(default=None, max_length=160)
+    site_contact_phone: str | None = Field(default=None, max_length=60)
+
+
+class WebAnfrageUebernehmenIn(BaseModel):
+    """Seit 1.10.5: „als Anfrage übernehmen“ -- Auftraggeber (bestehender Kunde ODER neuer), Objekt (gewählt, neu, Hauptadresse des neuen Kunden oder
+    keins), die Anfrage. Nichts davon ist vorgewählt; der Server prüft, dass ein gewähltes Objekt zum Kunden gehört (Regel 25)."""
+    kunde_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    kunde_neu: CustomerAusWebseiteIn | None = None
+    objekt: Literal["gewaehlt", "neu", "hauptadresse", "keins"]
+    objekt_id: int | None = Field(default=None, ge=INT4_MIN, le=INT4_MAX)
+    objekt_neu: PropertyAusWebseiteIn | None = None
+    vor_ort_uebernehmen: bool = False
+    titel: Pflichttext = Field(min_length=1, max_length=255)
+    beschreibung: str | None = None
+    ansprechpartner: str | None = Field(default=None, max_length=255)
+    prioritaet: Literal["niedrig", "normal", "hoch", "dringend"] = "normal"
+
+
+class WebAnfrageVorschlagOut(BaseModel):
+    """Seit 1.10.5: was die Seite zum Übernehmen vorschlägt (nur aus den strukturierten Angaben)."""
+    rolle: str
+    auftraggeber: str
+    kunden: list[dict] = Field(default_factory=list)
+    kunde_neu: dict = Field(default_factory=dict)
+    objekt_neu: dict | None = None
+    vor_ort: dict | None = None
+    ort_kontakt: str | None = None
+    anfrage: dict = Field(default_factory=dict)
+    uebernehmen_moeglich: bool = False
+
+
+class WebAnfrageObjektOut(BaseModel):
+    id: int
+    name: str
+    adresse: str | None = None
+    hauptadresse: bool = False
+    adresse_gleich: bool = False
+    site_contact_name: str | None = None
+    site_contact_phone: str | None = None
+
+
+class WebAnfrageUebernommenOut(BaseModel):
+    inquiry_id: int
+    inquiry_number: str
+    anfrage: WebAnfrageDetailOut
 
 
 class WebAnfrageVerwerfenIn(BaseModel):

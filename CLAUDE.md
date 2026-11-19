@@ -1620,7 +1620,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Art nur aus den strukturierten Feldern (`app/webanfrage_angaben.py`) -- Adresse des Objekts oben, in Liste und Widget (Spalten `objekt_*`), Abschnitte nur
   der Art und mit Inhalt, Nachricht eingeklappt, wenn sie nur die Angaben wiederholt; Nummer und Eingang des Empfangsdienstes in Berliner Zeit, die Attrappe
   wie der echte Dienst; seit 1.10.4 Prüfliste (Spamverdacht oder zu prüfen, bis „in den Eingang“), Verwerfen mit festem Grund, Zurückholen -- je ein
-  bedingtes UPDATE mit Eintrag in der Historie ohne Inhalte; „verworfen“ an den Empfangsdienst nur unter der Sperre des Abholens, sonst im nächsten Lauf) --
+  bedingtes UPDATE mit Eintrag in der Historie ohne Inhalte; „verworfen“ an den Empfangsdienst nur unter der Sperre des Abholens, sonst im nächsten Lauf;
+  seit 1.10.5 „als Anfrage übernehmen“ (`app/webanfrage_uebernahme.py`): Vorschlag nur aus den strukturierten Angaben, beim Mieter die Hausverwaltung als
+  Auftraggeber, nichts vorgewählt, eine Transaktion mit Kunde über `app/crm.py::kunde_anlegen()` (einzige Stelle, auch POST /api/customers), Objekt, Anfrage
+  mit `webseite_nummer`, Fotos ans Objekt; Meldung der Anfragenummer) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

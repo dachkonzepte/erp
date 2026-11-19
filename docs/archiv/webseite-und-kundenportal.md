@@ -391,3 +391,62 @@ Angepasste Erwartungen (Regel 28) -- „im Eingang“ zählt seit 1.10.4 ohne di
   prüft auch die Gruppe „webanfrage“ gegen `app/webanfragen.py::STATUS`.
 
 Gegenproben: `gegenproben-webseite.md`, „W1b, 1.10.4“ (27, alle rot).
+
+### Umsetzung 1.10.5: Als Anfrage übernehmen
+
+- `app/webanfrage_uebernahme.py` (neu): `angaben()` liest nur die strukturierten Felder (Melder, Firma, Hausverwaltung, Telefon, E-Mail, Objekt, vor Ort; beim
+  Kantservice, Dach und PV der Kontakt), `vorschlag()` (`GET /api/webanfragen/{id}/vorschlag`, schreibt nichts): wer Auftraggeber wird, bestehende Kunden mit
+  Gründen, ein neuer Kunde und ein neues Objekt zum Ausfüllen, Ansprechpartner vor Ort, Betreff und Beschreibung der Anfrage; `objekte()`
+  (`GET …/objekte?kunde_id=`): die Objekte des gewählten Kunden mit „Adresse gleich“; `uebernehmen()` (`POST …/uebernehmen`, `WebAnfrageUebernehmenIn`).
+- Ein Kunde entsteht nur noch über `app/crm.py::kunde_anlegen()` -- dieselbe Stelle für `POST /api/customers` und die Übernahme (Name, Profil mit
+  Kundennummer, Hauptadresse als erstes Objekt). `create_property_document(commit=False)` legt die Fotos in der Transaktion der Übernahme ab.
+- `inquiries.webseite_nummer` (eindeutig) und `webanfragen.inquiry_id` (eindeutig, Fremdschlüssel; Migration `5c1e9a7b3d20`, `downgrade()` bricht ab, solange
+  eine Anfrage übernommen ist). Die Anfrage nennt Nummer und Weg zum Eingang mit PDF und Fotos (`InquiryOut.webseite_nummer`, `webanfrage_id`; Seite
+  „Anfragen“, Karte der Anfrage). Statuskennzeichen „Übernommen“; Erledigt zeigt „übernommen: ANF-…“.
+- Seite der Anfrage: Karte „Als Anfrage übernehmen“ (nur bei einer neuen Anfrage im Eingang) -- Auftraggeber und Objekt als Auswahl ohne Vorauswahl, die
+  Felder des neuen Kunden und Objekts aus dem Vorschlag, „Als Anfrage übernehmen“ abschließend; danach die neue Anfrage (`/inquiries?inquiry=<ID>`).
+
+#### Festlegungen 1.10.5 (Bitte bestätigen)
+
+1. Der Vorschlag kommt nur aus den strukturierten Angaben, nie aus Betreff oder Nachricht (die beiden nur als Vorschlag für Betreff und Beschreibung der
+   Anfrage): Eigentümer -> der Melder wird Kunde (Verbraucher ja, die Adresse des Objekts als Vorschlag für seine Anschrift); Hausverwaltung bzw. Firma ->
+   die Firma wird Kunde (Verbraucher nein, ohne Anschrift), der Melder ihr Ansprechpartner; Mieter -> die Hausverwaltung bzw. der Vermieter aus dem
+   Pflichtfeld wird Kunde (Verbraucher ja/nein wählt das Büro), Telefon und E-Mail des Mieters gehören nie zum Kunden, der Mieter ist Ansprechpartner vor Ort
+   (ein angegebener Ansprechpartner vor Ort geht vor); Kantservice, Dach und PV -> der Kontakt wird Kunde (Dach Verbraucher ja, PV nach „privat/gewerbe“,
+   Kantservice offen; Kantservice ohne Objekt, sein „Ort“ nur als Hinweis).
+2. Bestehende Kunden werden mit ihren Gründen vorgeschlagen: „E-Mail gleich“ (auch die zweite E-Mail), „Telefon gleich“ (letzte sieben Ziffern, Telefon und
+   Mobil), „Name gleich“ (Person: Nach- und Vorname wie im Telefonbuch) bzw. „Name ähnlich“ (Firma, Hausverwaltung: enthalten); „PLZ gleich“ nur zusätzlich.
+   Beim Mieter nur nach dem Namen der Hausverwaltung. Höchstens zehn, die meisten Gründe zuerst.
+3. Zum gewählten Kunden stehen seine Objekte zur Wahl, „Adresse gleich“ (PLZ und Straße; „Str.“/„Straße“, ß/ss und Leerraum gleich) zuerst.
+4. Nichts ist vorgewählt: das Büro wählt Auftraggeber (bestehend oder neu) und Objekt (bestehend, neu, Hauptadresse des neuen Kunden, ohne); beim neuen
+   Kunden ist „Verbraucher“ am Server Pflicht ohne Vorgabe (die Seite belegt ihn nur vor, wo die Angaben es sagen); den Ansprechpartner vor Ort trägt die
+   Übernahme an einem bestehenden Objekt nur mit Haken ein (die Seite nennt den bisherigen).
+5. Übernehmen ist eine Transaktion: zuerst die Anfrage der Webseite (bedingtes UPDATE -- nicht aus der Prüfliste, nie zweimal, sonst 409), dann Kunde (über
+   `kunde_anlegen()`), Objekt, Anfrage (Status neu, Quelle „Website“, Nummer der Webseite), die Fotos ans Objekt (Kategorie „Bilder / Fotos“, verkleinert
+   wie ein Upload); scheitert etwas, bleibt nichts -- auch keine Datei.
+6. Ein gewähltes Objekt gehört zum gewählten Kunden (sonst 422); ein unbekannter Kunde oder ein unbekanntes Objekt 404 (Regel 25).
+7. Das PDF bleibt am Eingang; die Anfrage nennt die Nummer der Webseite mit Weg dorthin und PDF und Fotos als Links.
+8. Nach dem Übernehmen bekommt der Empfangsdienst die Anfragenummer (F2; passt sie nicht in seine Zeichen, `anfrage-<ID>`) -- wie beim Verwerfen unter der
+   Sperre des Abholens, sonst im nächsten Lauf.
+9. Die Historie nennt „übernommen“ mit Nummer und Anfragenummer, ohne Inhalte; Kunde, Objekt und Anfrage stehen in ihr wie jedes Anlegen.
+10. Danach öffnet die Seite die neue Anfrage; „Erledigt“ nennt „übernommen: ANF-…“.
+11. Lesen und Übernehmen nur das Büro ab Büro – Auftrag; die Monteurin an keinem Weg.
+
+#### Tests und Prüfung 1.10.5
+
+Neu `tests/test_v777_webanfragen_uebernehmen.py` (16 Tests: Vorschlag je Rolle, Kantservice/Dach/PV, nie aus Betreff oder Nachricht; bestehende Kunden mit
+Gründen, beim Mieter nur nach der Hausverwaltung; Objekte mit „Adresse gleich“; Übernehmen mit neuem Kunden, neuem Objekt, Fotos, Meldung, Historie, zweimal
+409, Nummer an der Anfrage; bestehender Kunde und Objekt ohne Haken; Ansprechpartner vor Ort nur mit Haken; fremdes Objekt 422, unbekanntes Objekt und
+unbekannter Kunde 404 -- nichts angelegt; eine fehlende Datei -- nichts angelegt, keine Datei; nicht aus der Prüfliste, Hauptadresse nur beim neuen Kunden,
+ohne Auftraggeber und ohne „Verbraucher“ 422; Monteurin nirgends; in node nichts vorgewählt und jeder Wert über esc(), die Anfrage nennt die Nummer, Erledigt
+nennt die Anfragenummer; Migration auf einem Bestand unter PostgreSQL). Die Tests der Kunden laufen unverändert über `kunde_anlegen()`. Klicktest
+`scripts/klicktest_webanfragen.py` um das Übernehmen erweitert (70 Prüfungen; dabei behoben: „ja“/„nein“ unter „Verbraucher“ standen unter dem Knopf, eine
+Meldung blieb nach der Auswahl stehen). Die volle Suite fand: die neue Spalte `inquiries.webseite_nummer` brauchte einen lesbaren Namen in der Änderungshistorie (`app/audit.py::FIELD_LABELS` „Nummer der Webseite“, Wächter `test_v436`/`test_v438`).
+
+Angepasste Erwartungen (Regel 28):
+- `tests/test_v776_webanfragen_pruefliste.py::test_gruende_fest_und_gleich` -- `STATUS` alt („neu“, „verworfen“), neu mit „uebernommen“.
+- `scripts/klicktest_webanfragen.py` -- „Empfangsdienst aus: Liste bleibt“ alt 3, neu 2 (die Reparatur ist vorher übernommen).
+- Aufbau geändert: `ABSCHLIESSEND` um `webanfrage.html::webanfrageUebernehmen` (`test_v399`); `objekt_id` der Übernahme in `GEPRUEFT`, `kunde_id` in `FREI`
+  (`tests/test_v373_zugehoerigkeit_struktur.py`); Testwert `kunde_id` in `QUERY_WERTE` (`tests/test_v326_monteur_datengrenze.py`).
+
+Gegenproben: `gegenproben-webseite.md`, „W1b, 1.10.5“ (27 über pytest und eine über den Klicktest, alle rot).
