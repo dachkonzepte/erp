@@ -389,6 +389,7 @@ ABSCHLIESSEND = {
     # Seit 1.8.99 (Festlegung 1.8.96 Nr. 6, korrigiert: Zahlung, Gegenbuchung, Erstattung, Storno, Abnahme, Mangel und
     # Nebenforderung sind abschließend) -- alle übrigen dieser Arten standen schon hier.
     ("incoming_invoices.html", "markPaidNow"): "Eingangsrechnung als bezahlt markieren (Zahlung)",
+    ("webanfrage.html", "webanfrageVerwerfen"): "Anfrage der Webseite verwerfen (gibt „verworfen“ an den Empfangsdienst)",  # seit 1.10.4 (Stufe W1b)
 }
 
 # Adressen, die nach einer abschließenden Aktion klingen -- jede schreibende Anfrage, deren Adresse darauf passt, steht in

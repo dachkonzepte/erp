@@ -55,6 +55,8 @@ function statusTabelle() {
     checkliste: { entwurf: ['Entwurf', 'entwurf'], abgeschlossen: ['Abgeschlossen', 'erledigt'], gegenstandslos: ['Gegenstandslos', 'ruht'] },
     checklistenvorlage: { entwurf: ['Entwurf', 'entwurf'], veroeffentlicht: ['Veröffentlicht', 'erledigt'], archiviert: ['Archiviert', 'ruht'] },
     pruefvorlage: { archiviert: ['Archiviert', 'ruht'] },
+    // seit 1.10.4 (Stufe W1b): eine Anfrage der Webseite (app/webanfragen.py::zustand(); 1.10.5 ergänzt uebernommen)
+    webanfrage: { neu: ['Neu', 'wartet'], pruefliste: ['Prüfliste', 'wartet'], verworfen: ['Verworfen', 'ruht'] },
     dachflaeche: { archiviert: ['Archiviert', 'ruht'] },
     // seit 1.9.24: Stand einer Arbeitsvorbereitung (Auswahl „Status“ der Seite, work_preparations.status; der Server schreibt selbst nur offen)
     arbeitsvorbereitung: {

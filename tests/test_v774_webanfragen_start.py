@@ -54,7 +54,7 @@ def _widget(stand: dict, liste: list) -> str:
 
 
 STAND = {"eingerichtet": True, "laeuft": False, "letzter_lauf_am": "2026-11-19T08:11:00", "letzter_erfolg_am": "2026-11-19T08:11:00",
-         "letzter_fehler": None, "letzte_neu": 2, "nicht_abgeholt": [], "neu": 2, "spamverdacht": 1, "pruefen": 1}
+         "letzter_fehler": None, "letzte_neu": 2, "nicht_abgeholt": [], "neu": 2, "pruefliste": 3, "spamverdacht": 1, "pruefen": 1}
 ZEILE = {"id": 9, "nummer": "W-20261119-0912-0E3F", "art": "wartung", "art_name": BOESE, "fassung": "dk-anfrage/1", "eingang_am": "2026-11-19T08:12:00",
          "betreff": BOESE, "kontakt_name": BOESE, "spamverdacht": True, "pruefen_grund": "unbekannte Art", "status": "neu",
          "abgeholt_am": "2026-11-19T08:13:00", "gemeldet_am": None, "dateien": 0}
@@ -63,7 +63,8 @@ ZEILE = {"id": 9, "nummer": "W-20261119-0912-0E3F", "art": "wartung", "art_name"
 @nur_mit_node
 def test_widget_zeigt_zahl_und_die_neuesten():
     html = _widget(STAND, [ZEILE])
-    assert '<a href="/anfragen/webseite" ' in html and "2 im Eingang</a> · davon 1 mit Spamverdacht · 1 zu prüfen" in html
+    # seit 1.10.4: Spamverdacht und „zu prüfen“ zählen in der Prüfliste, mit Weg dorthin
+    assert '<a href="/anfragen/webseite" ' in html and '2 im Eingang</a> · <a href="/anfragen/webseite#pruefliste"' in html and "3 in der Prüfliste</a>" in html
     assert 'href="/anfragen/webseite/9"' in html and "W-20261119-0912-0E3F · Spamverdacht · zu prüfen" in html and "19.11.2026" in html
     assert "<img" not in html and "&lt;img src=x" in html
 

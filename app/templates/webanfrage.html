@@ -33,7 +33,14 @@
   .fotos img{display:block;width:180px;height:135px;object-fit:cover}
   .dateien{margin:0 0 10px;padding-left:18px;font-size:13.5px}
   .dateien a{color:var(--ds-link);font-weight:650}
-  .status{font-size:13px;font-weight:600;color:var(--muted)}.status.err{color:var(--danger)}
+  .status{font-size:13px;font-weight:600;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
+  /* seit 1.10.4: Bearbeitung (Verwerfen, In den Eingang, Zurückholen) */
+  .bearbeitung{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+  .bearbeitung .stand{flex:1 1 320px;font-size:13.5px;color:var(--ink)}
+  .verwerfen-panel{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .verwerfen-panel[hidden]{display:none}
+  .verwerfen-panel label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:650;color:var(--muted)}
+  .meldung{font-size:12.5px;color:var(--muted);margin-top:8px}
   @media(max-width:850px){.raster{grid-template-columns:minmax(0,1fr)}.zeile{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:650px){main{padding:12px}.fotos img{width:150px;height:112px}}
 </style>
@@ -49,6 +56,23 @@
     {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/inquiries">Anfragen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/anfragen/webseite">Anfragen der Webseite</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page" id="pfadNummer">Anfrage</span>{% endif %}
   {% endcall %}
   <div id="hinweise"></div>
+  {# seit 1.10.4 (Stufe W1b): Stand und Aktionen des Büros #}
+  <section class="card" id="bearbeitungKarte">
+    <h2>Bearbeitung</h2>
+    <div class="bearbeitung">
+      <div class="stand" id="bearbeitungStand">Lädt …</div>
+      <button type="button" class="ds-knopf" id="inDenEingangKnopf" data-klick="inDenEingang" hidden>Kein Spam – in den Eingang</button>
+      <button type="button" class="ds-knopf" id="zurueckholenKnopf" data-klick="zurueckholen" hidden>Zurück in den Eingang</button>
+      <button type="button" class="ds-knopf" id="verwerfenOeffnenKnopf" data-klick="verwerfenOeffnen" hidden>Verwerfen …</button>
+    </div>
+    <div class="verwerfen-panel" id="verwerfenPanel" hidden>
+      <label for="verwerfenGrund">Grund<select id="verwerfenGrund"></select></label>
+      <button type="button" class="ds-knopf" id="verwerfenKnopf" data-klick="verwerfen">Verwerfen</button>
+      <button type="button" class="ds-knopf" data-klick="verwerfenAbbrechen">Abbrechen</button>
+    </div>
+    <div id="aktionStatus" class="status" role="status"></div>
+    <div class="meldung" id="meldungText"></div>
+  </section>
   <div class="raster">
     <section class="card"><h2>Kontakt</h2><dl id="kontakt"><div class="muted small">Lädt …</div></dl></section>
     <section class="card"><h2>Anfrage</h2><dl id="anfrage"></dl></section>
@@ -64,6 +88,7 @@
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_seitenkopf.html" %}
+{% include "_aktionen.html" %}
 <script>
 /* Seit 1.10.1 (Stufe W1a, docs/archiv/webseite-und-kundenportal.md): eine Anfrage der Webseite, nur lesen. Der Umschlag kommt unverändert vom
    Empfangsdienst -- jeder Wert, auch jeder Schlüssel, ist Fremddaten und geht nur über esc() ins HTML; Links nur mit festem Anfang (tel:, mailto:,
@@ -126,7 +151,7 @@ const ORT_AUS_OBJEKT=['reparatur','wartung','dach','pv'];
 function zeichnen(d){
   const u=d.umschlag||{},k=(u.kontakt&&typeof u.kontakt==='object')?u.kontakt:{};
   const adresse=objektAdresseText(d);
-  seitenkopf({titel:d.art_name||'Anfrage der Webseite',kennung:d.nummer,
+  seitenkopf({titel:d.art_name||'Anfrage der Webseite',kennung:d.nummer,status:statusKennzeichen('webanfrage',d.zustand),
     untertitel:(adresse?'Objekt: '+adresse:(d.art==='kantservice'?'Kantservice – ohne Objekt-Adresse':'ohne Objekt-Adresse'))
       +' · '+(d.eingang_am?'Eingang '+berlinZeitpunkt(d.eingang_am):'Eingang unbekannt')});
   document.getElementById('pfadNummer').textContent=d.nummer;
@@ -161,8 +186,56 @@ function zeichnen(d){
     +(fotos.length?`<div class="fotos">${fotos.map(f=>`<a href="/api/webanfragen/${ID}/dateien/${f.id}" target="_blank" rel="noopener" title="${esc(f.name)}"><img src="/api/webanfragen/${ID}/dateien/${f.id}" alt="${esc(f.name)}" loading="lazy"></a>`).join('')}</div>`:'')
     ||'<div class="muted small">Keine Dateien.</div>';
   document.getElementById('herkunft').innerHTML=[angabeZeile('Nummer der Webseite',esc(d.nummer)),angabeZeile('Fassung',esc(d.fassung)),angabeZeile('Abgeholt',esc(berlinZeitpunkt(d.abgeholt_am))),
-    angabeZeile('Beim Empfangsdienst gemeldet',d.gemeldet_am?esc(berlinZeitpunkt(d.gemeldet_am)):'noch nicht – der nächste Lauf meldet es')].join('');
+    angabeZeile('Beim Empfangsdienst gemeldet',d.gemeldet_am?`${esc(berlinZeitpunkt(d.gemeldet_am))}${d.gemeldet_als?' als „'+esc(d.gemeldet_als)+'“':''}`:'noch nicht – der nächste Lauf meldet es')].join('');
+  bearbeitungZeichnen(d);
 }
+
+/* Seit 1.10.4: Stand und Aktionen. Verwerfen nur mit festem Grund (Liste vom Server), abschließend (abschliessen()); In den Eingang und Zurückholen
+   über speichern(). Danach meldet der Server dem Empfangsdienst, wenn gerade kein Lauf abholt. */
+let waAktuell=null;
+function bearbeitungZeichnen(d){
+  waAktuell=d;
+  const stand=document.getElementById('bearbeitungStand'),zeigen=(id,an)=>{document.getElementById(id).hidden=!an};
+  if(d.status==='verworfen')stand.textContent=`Verworfen${d.verworfen_grund_text?' ('+d.verworfen_grund_text+')':''}${d.erledigt_am?' am '+berlinZeitpunkt(d.erledigt_am):''}${d.erledigt_von_name?' von '+d.erledigt_von_name:''}.`;
+  else if(d.in_pruefliste)stand.textContent=d.spamverdacht?'In der Prüfliste: Spamverdacht. Erst prüfen, dann in den Eingang geben oder verwerfen.':'In der Prüfliste: '+(d.pruefen_grund||'zu prüfen')+'.';
+  else stand.textContent=`Im Eingang${d.geprueft_am?' (aus der Prüfliste gegeben am '+berlinZeitpunkt(d.geprueft_am)+(d.geprueft_von_name?' von '+d.geprueft_von_name:'')+')':''}.`;
+  zeigen('inDenEingangKnopf',d.status==='neu'&&d.in_pruefliste);
+  zeigen('verwerfenOeffnenKnopf',d.status==='neu');
+  zeigen('zurueckholenKnopf',d.status==='verworfen');
+  if(d.status!=='neu')document.getElementById('verwerfenPanel').hidden=true;
+  const g=document.getElementById('verwerfenGrund');
+  g.innerHTML='<option value="">Bitte wählen</option>'+Object.entries(d.verwerfen_gruende||{}).map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('');
+  document.getElementById('meldungText').textContent=d.meldung_offen
+    ?`Meldung „${d.melden_soll}“ an den Empfangsdienst steht aus – der nächste Lauf meldet sie.`
+    :(d.gemeldet_als?`Beim Empfangsdienst gemeldet als „${d.gemeldet_als}“.`:'');
+}
+function waStatus(text,fehler){const s=document.getElementById('aktionStatus');s.className=fehler?'status err':'status ok';s.textContent=text}
+aktion('verwerfenOeffnen',()=>{document.getElementById('verwerfenPanel').hidden=false;document.getElementById('verwerfenGrund').focus()});
+aktion('verwerfenAbbrechen',()=>{document.getElementById('verwerfenPanel').hidden=true});
+aktion('verwerfen',async()=>{
+  const grund=document.getElementById('verwerfenGrund').value;
+  if(!grund){waStatus('Bitte einen Grund wählen.',true);return}
+  await webanfrageVerwerfen(grund);
+});
+async function webanfrageVerwerfen(grund){
+  try{
+    await abschliessen('anfrage',()=>api(`/api/webanfragen/${ID}/verwerfen`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grund})}),{anwenden:zeichnen});
+    waStatus('Verworfen.',false);
+  }catch(err){waStatus('Fehler: '+err.message,true)}
+}
+aktion('inDenEingang',async()=>{
+  try{
+    await speichern('anfrage',()=>api(`/api/webanfragen/${ID}/eingang`,{method:'POST'}),{anwenden:zeichnen});
+    waStatus('In den Eingang gegeben.',false);
+  }catch(err){waStatus('Fehler: '+err.message,true)}
+});
+aktion('zurueckholen',async()=>{
+  if(!confirm('Diese Anfrage zurück in den Eingang holen?'))return;
+  try{
+    await speichern('anfrage',()=>api(`/api/webanfragen/${ID}/zurueckholen`,{method:'POST'}),{anwenden:zeichnen});
+    waStatus('Zurück im Eingang.',false);
+  }catch(err){waStatus('Fehler: '+err.message,true)}
+});
 
 lesen('anfrage',()=>api(`/api/webanfragen/${ID}`),zeichnen).catch(err=>{
   document.getElementById('kontakt').innerHTML=`<div class="status err">Fehler: ${esc(err.message)}</div>`;

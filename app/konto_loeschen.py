@@ -38,6 +38,8 @@ BEREICHE = {
     ("time_tracking_settings", "locked_by_user_id"): "Abschluss der Zeiterfassung",
     ("calendar_events", "owner_user_id"): "Kalendertermine",
     ("outlook_series_occurrences", "owner_user_id"): "Kalendertermine",
+    ("webanfragen", "geprueft_von_user_id"): "Anfragen der Webseite",  # seit 1.10.4
+    ("webanfragen", "erledigt_von_user_id"): "Anfragen der Webseite",
 }
 
 

@@ -136,3 +136,40 @@ alle Dateien byte-gleich zurück.
 | Nr. 9 – Liste nach Minute, dann Nummer | nur nach Nummer (`1103_9c`) | 1 rot |
 | Nr. 9 – Liste mit allen Kopfdaten | nur `nr` (`1103_9d`) | 1 rot |
 | Nr. 9 – `positionen` bei jeder Art | nur beim Kantservice (`1103_9e`) | 1 rot |
+
+## W1b, 1.10.4: Prüfliste und Verwerfen
+
+Probendatei im Scratchpad (`proben_1104.py`), Lauf mit `tests/test_v776_webanfragen_pruefliste.py` (Nr. 3c mit `tests/test_v399_abschliessen.py`); alle 27 rot
+aus dem geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – auch mit einem Grund zum Prüfen | nur Spamverdacht (`1104_1`) | 1 rot |
+| Nr. 1 – der Eingang ohne die Prüfliste | Eingang = alle neuen (`1104_1b`) | 2 rot |
+| Nr. 1 – in den Eingang gegeben = nicht mehr Prüfliste | `geprueft_am` nicht beachten (`1104_1c`) | 1 rot |
+| Nr. 1 – „Start“ nennt die Prüfliste | Zeile weg (`1104_1d`) | 1 rot |
+| Nr. 1 – Zahl im Eingang ohne Prüfliste | alle neuen zählen (`1104_1e`) | 1 rot |
+| Nr. 2 – In den Eingang nur aus der Prüfliste | jede neue (`1104_2`) | 1 rot |
+| Nr. 3 – nur ein fester Grund | freier Text (`1104_3`) | 2 rot |
+| Nr. 3 – nur eine neue Anfrage | ohne Bedingung (`1104_3b`) | 1 rot |
+| Nr. 3 – abschließende Aktion | über `speichern()` (`1104_3c`) | 1 rot (Wächter Regel 29) |
+| Nr. 4 – Zurückholen nur verworfen | ohne Bedingung (`1104_4`) | 1 rot |
+| Nr. 4 – wieder, wo sie war | beim Zurückholen als geprüft vermerken (`1104_4b`) | 1 rot |
+| Nr. 5 – nie zweimal | Trefferzahl nicht prüfen (`1104_5`) | 3 rot |
+| Nr. 5 – unbekannt 404 | 409 statt 404 (`1104_5b`) | 2 rot |
+| Nr. 6 – Eintrag in der Historie | keiner beim Verwerfen (`1104_6`, nach dem Umbau für `test_v732` neu angesetzt) | 1 rot |
+| Nr. 6 – ohne Inhalte | Betreff im neuen Wert (`1104_6b`, ebenso neu angesetzt; `1104_5` danach noch einmal: 3 rot) | 1 rot |
+| Nr. 7 – „verworfen“ melden | `melden_soll` nicht setzen (`1104_7`) | 5 rot |
+| Nr. 7 – direkt nach der Aktion | nie (`1104_7b`) | 2 rot |
+| Nr. 7 – nur unter der Sperre | auch ohne Sperre (`1104_7c`) | 1 rot: an einem laufenden Lauf vorbei gemeldet |
+| Nr. 7 – der Lauf holt nach | `_offene_melden()` weg (`1104_7d`) | 2 rot |
+| Nr. 7 – mit dem Stand von jetzt | immer eingang-<ID> (`1104_7e`) | 5 rot |
+| Nr. 7 – nach dem Zurückholen eingang-<ID> | anderer Wert (`1104_7f`) | 1 rot |
+| Nr. 8 – die Seite nennt die offene Meldung | nie (`1104_8`) | 1 rot |
+| Nr. 8 – Liste nennt offene Meldungen | Kennzeichen weg (`1104_8b`) | 1 rot |
+| Nr. 8 – Stand nennt offene Meldungen | Zeile weg (`1104_8c`) | 1 rot |
+| Nr. 9 – zuletzt erledigt zuerst | nach ID (`1104_9`) | 1 rot |
+| Nr. 9 (Seite) – Knöpfe je Stand | „In den Eingang“ bei jeder neuen (`1104_9b`) | 1 rot |
+| Nr. 10 – nur das Büro | Monteurin zugelassen (`1104_10`) | 1 rot |
+
+Ohne Gegenprobe: Nr. 9 „nichts wird gelöscht“ -- es gibt keinen Weg, der löscht (geprüft im Test: Umschlag und Dateien bleiben).

@@ -933,6 +933,15 @@ class WebAnfrageOut(BaseModel):
     abgeholt_am: datetime
     gemeldet_am: datetime | None = None
     dateien: int
+    # seit 1.10.4: Prüfliste, Erledigen, Meldung an den Empfangsdienst
+    zustand: str = "neu"
+    in_pruefliste: bool = False
+    erledigt_am: datetime | None = None
+    verworfen_grund: str | None = None
+    verworfen_grund_text: str | None = None
+    gemeldet_als: str | None = None
+    melden_soll: str | None = None
+    meldung_offen: bool = False
 
 
 class WebAnfrageDateiOut(BaseModel):
@@ -948,6 +957,15 @@ class WebAnfrageDetailOut(WebAnfrageOut):
     dateiliste: list[WebAnfrageDateiOut] = Field(default_factory=list)
     abschnitte: list[str] = Field(default_factory=list)  # seit 1.10.3: Abschnitte der Angaben -- nur die der Art, nur mit Inhalt
     nachricht_wiederholt: bool = False  # seit 1.10.3: die Nachricht wiederholt nur die Angaben (Reparatur, Wartung) -- eingeklappt
+    erledigt_von_name: str | None = None  # seit 1.10.4
+    geprueft_am: datetime | None = None
+    geprueft_von_name: str | None = None
+    verwerfen_gruende: dict[str, str] = Field(default_factory=dict)
+
+
+class WebAnfrageVerwerfenIn(BaseModel):
+    """Seit 1.10.4: Verwerfen nur mit einem festen Grund (app/webanfragen.py::VERWERFEN_GRUENDE) -- nie freier Text."""
+    grund: Literal["spam", "doppelt", "test", "sonstiges"]
 
 
 class WebanfragenNichtAbgeholtOut(BaseModel):
@@ -964,9 +982,11 @@ class WebanfragenStandOut(BaseModel):
     letzter_fehler: str | None = None
     letzte_neu: int
     nicht_abgeholt: list[WebanfragenNichtAbgeholtOut] = Field(default_factory=list)
-    neu: int
-    spamverdacht: int
+    neu: int  # seit 1.10.4 im Eingang ohne Prüfliste
+    pruefliste: int = 0  # seit 1.10.4
+    spamverdacht: int  # seit 1.10.4 in der Prüfliste
     pruefen: int
+    meldung_offen: int = 0  # seit 1.10.4
 
 
 class WebanfragenAbholErgebnisOut(BaseModel):

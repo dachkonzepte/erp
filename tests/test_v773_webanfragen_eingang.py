@@ -65,12 +65,15 @@ def test_monteurin_nirgends(welt, router_test_client):
 
 
 def test_liste_neueste_zuerst_ohne_umschlag(welt, router_test_client):
-    antwort = _client(router_test_client, welt).get("/api/webanfragen")
+    c = _client(router_test_client, welt)
+    antwort = c.get("/api/webanfragen")
     assert antwort.status_code == 200
     liste = antwort.json()
-    assert [z["id"] for z in liste] == [welt["neu"], welt["alt"], welt["ohne"]]  # ohne Eingang am Ende
-    assert all("umschlag" not in z for z in liste) and liste[0]["spamverdacht"] is True and liste[1]["dateien"] == 1
-    assert liste[2]["pruefen_grund"] == W.P_EINGANG
+    # seit 1.10.4: Spamverdacht und „zu prüfen“ stehen in der Prüfliste, nicht im Eingang
+    assert [z["id"] for z in liste] == [welt["alt"]] and liste[0]["dateien"] == 1 and "umschlag" not in liste[0]
+    pruef = c.get("/api/webanfragen?ansicht=pruefliste").json()
+    assert [z["id"] for z in pruef] == [welt["neu"], welt["ohne"]]  # ohne Eingang am Ende
+    assert all("umschlag" not in z for z in pruef) and pruef[0]["spamverdacht"] is True and pruef[1]["pruefen_grund"] == W.P_EINGANG
 
 
 def test_eine_anfrage_mit_umschlag_und_dateien(welt, router_test_client):
@@ -125,7 +128,7 @@ def test_knopf_ruft_mit_seinen_grenzen(welt, router_test_client, monkeypatch):
 def test_stand_ohne_schluessel(welt, router_test_client, monkeypatch):
     monkeypatch.delenv(W.SCHLUESSEL_VARIABLE, raising=False)
     s = _client(router_test_client, welt).get("/api/webanfragen/stand").json()
-    assert s["eingerichtet"] is False and s["neu"] == 3 and s["spamverdacht"] == 1 and s["pruefen"] == 1
+    assert s["eingerichtet"] is False and (s["neu"], s["pruefliste"], s["spamverdacht"], s["pruefen"]) == (1, 2, 1, 1)  # seit 1.10.4 neu = Eingang
 
 
 def test_knopf_holt_mit_grenze_und_ohne_schluessel_in_der_antwort(welt, router_test_client, monkeypatch):
@@ -139,7 +142,7 @@ def test_knopf_holt_mit_grenze_und_ohne_schluessel_in_der_antwort(welt, router_t
         r = _client(router_test_client, welt).post("/api/webanfragen/abholen")
         assert r.status_code == 200, r.text
         e = r.json()
-        assert (e["neu"], e["weitere"], e["fehler"], e["stand"]["neu"]) == (2, True, None, 5)
+        assert (e["neu"], e["weitere"], e["fehler"], e["stand"]["neu"], e["stand"]["pruefliste"]) == (2, True, None, 3, 2)  # seit 1.10.4 ohne Prüfliste
         assert a.schluessel not in r.text
     assert len(welt["db"].scalars(select(WebAnfrage)).all()) == 5
 
@@ -214,14 +217,14 @@ def test_detail_allgemeine_angaben_und_dateien():
 def test_liste_setzt_jeden_wert_ueber_esc():
     zeile = {"id": 5, "nummer": R1, "art": "reparatur", "art_name": BOESE, "fassung": "dk-anfrage/1", "eingang_am": "2026-11-19T08:10:00",
              "betreff": BOESE, "kontakt_name": BOESE, "spamverdacht": True, "pruefen_grund": BOESE, "status": "neu",
-             "abgeholt_am": "2026-11-19T08:11:00", "gemeldet_am": None, "dateien": 2}
+             "abgeholt_am": "2026-11-19T08:11:00", "gemeldet_am": None, "dateien": 2, "meldung_offen": True}
     stand = {"eingerichtet": True, "laeuft": False, "letzter_lauf_am": "2026-11-19T08:11:00", "letzter_erfolg_am": "2026-11-19T08:11:00",
              "letzter_fehler": None, "letzte_neu": 1, "nicht_abgeholt": [{"nummer": R2, "grund": BOESE}], "neu": 1, "spamverdacht": 1, "pruefen": 1}
     ablauf = (f"stand = {json.dumps(stand)}; liste = [{json.dumps(zeile)}]; standZeichnen(); listeZeichnen();"
               "return [_element('standText').innerHTML, _element('standHinweis').innerHTML, _element('listeRahmen').innerHTML];")
     text, hinweis, tabelle = im_browser(seite("webanfragen.html", "\nladen().catch(") + WIRKSAM, ablauf)["ergebnis"]
     assert "<img" not in text + hinweis + tabelle and "&lt;img" in tabelle and "&lt;img" in hinweis
-    assert 'href="/anfragen/webseite/5"' in tabelle and "Spamverdacht" in tabelle and "noch nicht gemeldet" in tabelle
+    assert 'href="/anfragen/webseite/5"' in tabelle and "Spamverdacht" in tabelle and "Meldung steht aus" in tabelle  # seit 1.10.4 statt „noch nicht gemeldet“
     assert "19.11.2026 09:10" in tabelle  # Eingang in Berliner Zeit
 
 
@@ -232,5 +235,5 @@ def test_ergebnis_des_knopfs_in_worten():
               " ergebnisText({neu: 0, pruefen: 0, nicht_abgeholt: [], weitere: false, fehler: 'Empfangsdienst nicht erreichbar', laeuft_schon: false}),"
               " ergebnisText({laeuft_schon: true})];")
     assert im_browser(seite("webanfragen.html", "\nladen().catch("), ablauf)["ergebnis"] == [
-        "1 Anfrage neu abgeholt.", "3 Anfragen neu abgeholt, davon 1 zu prüfen; 1 nicht abgeholt (siehe oben) – weitere holt der nächste Lauf.",
+        "1 Anfrage neu abgeholt.", "3 Anfragen neu abgeholt, davon 1 in der Prüfliste; 1 nicht abgeholt (siehe oben) – weitere holt der nächste Lauf.",
         "Empfangsdienst nicht erreichbar", "Gerade holt schon ein anderer Lauf ab – die Liste zeigt gleich, was er bringt."]

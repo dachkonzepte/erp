@@ -32,6 +32,13 @@
   .kennzeichen.spam{background:var(--danger-soft);color:var(--danger)}
   .kennzeichen.pruefen{background:var(--warning-soft);color:var(--warning)}
   .leer{color:var(--muted);font-size:13px;padding:8px 2px}
+  /* seit 1.10.4: Reiter Eingang, Prüfliste, Erledigt (wie „Zeiten“) */
+  .reiter{display:flex;gap:28px;border-bottom:1px solid var(--ds-linie);overflow-x:auto;margin:0 0 12px}
+  .reiter a{height:44px;padding:0 4px;display:inline-flex;align-items:center;gap:8px;color:var(--ds-text-2);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap}
+  .reiter a:hover{color:var(--ds-text)}
+  .reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
+  .reiter-zahl{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-signal);color:var(--ds-auf-signal);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+  .kennzeichen.erledigt{background:var(--ds-flaeche-2,var(--soft));color:var(--ds-text-2,var(--muted))}
   @media(max-width:650px){main{padding:12px}
     /* schmal: jede Anfrage als Block, jede Angabe mit ihrer Überschrift (data-titel) */
     #eingangTabelle thead{display:none}
@@ -62,7 +69,12 @@
   </section>
 
   <section class="card">
-    <h2>Eingang</h2>
+    {# seit 1.10.4: Eingang (neu), Prüfliste (Spamverdacht oder zu prüfen), Erledigt (verworfen, übernommen) #}
+    <nav class="reiter" aria-label="Ansichten der Anfragen der Webseite">
+      <a href="#eingang" data-ansicht="eingang" aria-current="page">Eingang<span class="reiter-zahl" id="zahlEingang" hidden></span></a>
+      <a href="#pruefliste" data-ansicht="pruefliste">Prüfliste<span class="reiter-zahl" id="zahlPruefliste" hidden></span></a>
+      <a href="#erledigt" data-ansicht="erledigt">Erledigt</a>
+    </nav>
     <div class="rahmen" id="listeRahmen"><div class="leer">Lädt …</div></div>
   </section>
 </main>
@@ -80,13 +92,17 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
 let stand=null, liste=[];
+/* seit 1.10.4: die Ansicht kommt nur aus der festen Liste (Anker der Adresse) */
+const WA_ANSICHTEN=['eingang','pruefliste','erledigt'];
+let ansicht=WA_ANSICHTEN.includes(location.hash.slice(1))?location.hash.slice(1):'eingang';
+const WA_LEER={eingang:'Noch keine Anfragen der Webseite im Eingang.',pruefliste:'Nichts in der Prüfliste.',erledigt:'Noch nichts erledigt.'};
 
 function standZeichnen(){
   const s=stand;
   const teile=[];
   teile.push(`<span><b>${Number(s.neu)}</b> im Eingang</span>`);
-  if(s.spamverdacht)teile.push(`<span>davon <b>${Number(s.spamverdacht)}</b> mit Spamverdacht</span>`);
-  if(s.pruefen)teile.push(`<span>davon <b>${Number(s.pruefen)}</b> zu prüfen</span>`);
+  if(s.pruefliste)teile.push(`<span><b>${Number(s.pruefliste)}</b> in der Prüfliste${s.spamverdacht?` (davon ${Number(s.spamverdacht)} mit Spamverdacht)`:''}</span>`);
+  if(s.meldung_offen)teile.push(`<span>${Number(s.meldung_offen)} ${Number(s.meldung_offen)===1?'Meldung':'Meldungen'} an den Empfangsdienst stehen aus</span>`);
   teile.push(`<span>Zuletzt abgeholt: <b>${s.letzter_lauf_am?esc(berlinZeitpunkt(s.letzter_lauf_am)):'noch nie'}</b></span>`);
   if(s.letzter_erfolg_am&&s.letzter_erfolg_am!==s.letzter_lauf_am)teile.push(`<span>zuletzt ohne Fehler: ${esc(berlinZeitpunkt(s.letzter_erfolg_am))}</span>`);
   if(s.laeuft)teile.push('<span class="muted">holt gerade ab …</span>');
@@ -99,13 +115,16 @@ function standZeichnen(){
       s.nicht_abgeholt.map(x=>`<li>${esc(x.nummer||'ohne gültige Nummer')} – ${esc(x.grund)}</li>`).join('')}</ul></div>`);
   }
   document.getElementById('standHinweis').innerHTML=h.join('');
+  const zahl=(id,n)=>{const el=document.getElementById(id);el.textContent=String(Number(n)||0);el.hidden=!Number(n)};
+  zahl('zahlEingang',s.neu);zahl('zahlPruefliste',s.pruefliste);
 }
 
 function kennzeichen(z){
   const k=[];
   if(z.spamverdacht)k.push('<span class="kennzeichen spam">Spamverdacht</span>');
   if(z.pruefen_grund)k.push(`<span class="kennzeichen pruefen" title="${esc(z.pruefen_grund)}">Prüfen: ${esc(z.pruefen_grund)}</span>`);
-  if(!z.gemeldet_am)k.push('<span class="kennzeichen" title="Der Empfangsdienst weiß noch nicht, dass das ERP sie hat – der nächste Lauf meldet es.">noch nicht gemeldet</span>');
+  if(z.status==='verworfen')k.push(`<span class="kennzeichen erledigt">verworfen${z.verworfen_grund_text?': '+esc(z.verworfen_grund_text):''}</span>`);
+  if(z.meldung_offen)k.push('<span class="kennzeichen" title="Der Empfangsdienst weiß noch nicht, was das ERP mit ihr getan hat – der nächste Lauf meldet es.">Meldung steht aus</span>');
   return k.join('');
 }
 
@@ -113,22 +132,30 @@ function objektAdresseText(z){const ort=[z.objekt_plz,z.objekt_ort].filter(Boole
 
 function listeZeichnen(){
   const r=document.getElementById('listeRahmen');
-  if(!liste.length){r.innerHTML='<div class="leer">Noch keine Anfragen der Webseite im Eingang.</div>';return}
+  if(!liste.length){r.innerHTML=`<div class="leer">${WA_LEER[ansicht]}</div>`;return}
   r.innerHTML=`<table id="eingangTabelle"><thead><tr><th>Eingang</th><th>Nummer</th><th>Art</th><th>Name</th><th>Objekt</th><th>Betreff</th><th>Hinweise</th><th>Dateien</th></tr></thead><tbody>${
     liste.map(z=>`<tr data-id="${z.id}"><td class="nw" data-titel="Eingang">${esc(berlinZeitpunkt(z.eingang_am))||'—'}</td><td class="nw" data-titel="Nummer"><a href="/anfragen/webseite/${z.id}">${esc(z.nummer)}</a></td>`
       +`<td data-titel="Art">${esc(z.art_name||z.art||'—')}</td><td data-titel="Name">${esc(z.kontakt_name||'—')}</td><td data-titel="Objekt">${esc(objektAdresseText(z)||'—')}</td><td data-titel="Betreff">${esc(z.betreff||'—')}</td><td data-titel="Hinweise">${kennzeichen(z)}</td><td class="nw" data-titel="Dateien">${Number(z.dateien)}</td></tr>`).join('')
   }</tbody></table>`;
 }
 
-async function laden(){
-  await lesen('eingang',()=>Promise.all([api('/api/webanfragen/stand'),api('/api/webanfragen')]),([s,l])=>{stand=s;liste=l;standZeichnen();listeZeichnen()});
+function reiterZeichnen(){
+  document.querySelectorAll('.reiter a').forEach(a=>{if(a.dataset.ansicht===ansicht)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
 }
+
+async function laden(){
+  reiterZeichnen();
+  await lesen('eingang',()=>Promise.all([api('/api/webanfragen/stand'),api('/api/webanfragen?ansicht='+encodeURIComponent(ansicht))]),
+    ([s,l])=>{stand=s;liste=l;standZeichnen();listeZeichnen()});
+}
+
+window.addEventListener('hashchange',()=>{const neu=location.hash.slice(1);if(WA_ANSICHTEN.includes(neu)&&neu!==ansicht){ansicht=neu;laden().catch(()=>{})}});
 
 function ergebnisText(e){
   if(e.laeuft_schon)return 'Gerade holt schon ein anderer Lauf ab – die Liste zeigt gleich, was er bringt.';
   if(e.fehler)return e.fehler;
   let t=e.neu===1?'1 Anfrage neu abgeholt':`${e.neu} Anfragen neu abgeholt`;
-  if(e.pruefen)t+=`, davon ${e.pruefen} zu prüfen`;
+  if(e.pruefen)t+=`, davon ${e.pruefen} in der Prüfliste`;
   if(e.nicht_abgeholt.length)t+=`; ${e.nicht_abgeholt.length} nicht abgeholt (siehe oben)`;
   if(e.weitere)t+=' – weitere holt der nächste Lauf.';
   return t+(e.weitere?'':'.');

@@ -1619,7 +1619,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Klicktest `klicktest_webanfragen.py`; seit 1.10.2 Standard-Widget „Anfragen der Webseite“ auf „Start“ unter „Meine Aufgaben“; W1b ab 1.10.3: Angaben je
   Art nur aus den strukturierten Feldern (`app/webanfrage_angaben.py`) -- Adresse des Objekts oben, in Liste und Widget (Spalten `objekt_*`), Abschnitte nur
   der Art und mit Inhalt, Nachricht eingeklappt, wenn sie nur die Angaben wiederholt; Nummer und Eingang des Empfangsdienstes in Berliner Zeit, die Attrappe
-  wie der echte Dienst) --
+  wie der echte Dienst; seit 1.10.4 Prüfliste (Spamverdacht oder zu prüfen, bis „in den Eingang“), Verwerfen mit festem Grund, Zurückholen -- je ein
+  bedingtes UPDATE mit Eintrag in der Historie ohne Inhalte; „verworfen“ an den Empfangsdienst nur unter der Sperre des Abholens, sonst im nächsten Lauf) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

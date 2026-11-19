@@ -512,7 +512,16 @@ class WebAnfrage(Base):
     umschlag_sha256: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), default="neu", server_default="neu", index=True)
     abgeholt_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    gemeldet_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # „übernommen“ beim Empfangsdienst bestätigt
+    gemeldet_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # zuletzt „übernommen“ beim Empfangsdienst bestätigt
+    # Prüfliste und Erledigen (seit 1.10.4, Stufe W1b): geprueft = aus der Prüfliste in den Eingang gegeben; erledigt = verworfen (1.10.5: übernommen)
+    geprueft_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    geprueft_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    erledigt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    erledigt_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    verworfen_grund: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Schlüssel aus app/webanfragen.py::VERWERFEN_GRUENDE
+    # Meldung an den Empfangsdienst (F2): melden_soll = erp_id, die er bekommen soll (leer = eingang-<id>); gemeldet_als = zuletzt bestätigt
+    melden_soll: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    gemeldet_als: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     dateien: Mapped[list["WebAnfrageDatei"]] = relationship(back_populates="webanfrage", cascade="all, delete-orphan",
                                                              order_by="WebAnfrageDatei.id")

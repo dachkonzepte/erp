@@ -16,6 +16,11 @@ Angreifer:
 - Fällt der Empfangsdienst mitten in einer Anfrage aus, bleibt nichts halb angelegt (Dateien weg, keine Zeile); der Lauf endet mit dem Fehler.
 - Ein Lauf belegt den Stand (bedingtes UPDATE wie beim Outlook-Abgleich, SPERRE_GILT); ein zweiter Lauf zugleich tut nichts.
 
+Seit 1.10.4 (Stufe W1b): Prüfliste (Spamverdacht oder ein Grund zum Prüfen, bis das Büro sie in den Eingang gibt), Verwerfen mit festem Grund,
+„zurück in den Eingang“ -- je ein bedingtes UPDATE (nie zweimal erledigt), ein Eintrag in der Änderungshistorie ohne Inhalte. Gemeldet wird, was die
+Anfrage beim Empfangsdienst sein soll (melden_soll: „verworfen“, 1.10.5 die Anfragenummer; leer = eingang-<ID>), nur unter der Sperre des Abholens:
+direkt nach der Aktion, wenn gerade kein Lauf abholt, sonst und bei einem Fehler im nächsten Lauf.
+
 Rollenlos wie jede Geschäftslogik; wer abholen und lesen darf, entscheidet app/routers/webanfragen.py.
 """
 
@@ -37,11 +42,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, and_, cast, func, literal, not_, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .audit import record_audit_entry
 from .dateiauslieferung import typ_aus_inhalt
 from .grunddaten import einzelzeile
 from .models import WebAnfrage, WebAnfrageDatei, WebanfragenAbholung
@@ -58,7 +64,13 @@ LOKALE_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 FASSUNG = "dk-anfrage/1"
 ARTEN = {"kantservice": "Kantservice", "dach": "Dachsanierung", "pv": "Photovoltaik", "reparatur": "Reparatur", "wartung": "Wartung"}
 STATUS_NEU = "neu"
-STATUS = (STATUS_NEU,)  # W1b ergänzt übernommen und verworfen
+STATUS_VERWORFEN = "verworfen"  # seit 1.10.4
+STATUS = (STATUS_NEU, STATUS_VERWORFEN)  # 1.10.5 ergänzt übernommen
+VERWERFEN_GRUENDE = {"spam": "Spam", "doppelt": "Doppelt", "test": "Test", "sonstiges": "Sonstiges"}  # seit 1.10.4, feste Gründe (nie freier Text)
+ANSICHTEN = ("eingang", "pruefliste", "erledigt")  # seit 1.10.4: Eingang, Prüfliste, Erledigt
+ERP_ID = re.compile(r"\A[A-Za-z0-9._:/-]{1,64}\Z")  # wie der Empfangsdienst (POST …/uebernommen)
+ERP_ID_VERWORFEN = "verworfen"  # seit 1.10.4 (F2)
+ART_HISTORIE = "Anfrage der Webseite"  # entity_type der Änderungshistorie (seit 1.10.4)
 
 NUMMER = re.compile(r"\A[A-Z]{1,3}-\d{8}-\d{4}-[0-9A-F]{4,8}\Z")
 DATEINAME = re.compile(r"\A(?:anfrage\.pdf|foto-[1-9][0-9]?\.jpg)\Z")
@@ -82,6 +94,8 @@ KNOPF_HOECHSTENS = 20          # „Jetzt abholen“ (seit 1.10.1): höchstens s
 KNOPF_FRIST = 40               # … und nach so vielen Sekunden keine neue mehr (die Seite wartet höchstens 60 s)
 EINGANG_MAX = 500              # Zeilen der Liste des Eingangs (die neuesten)
 ZEITLIMIT = 15                 # Sekunden je Aufruf
+MELDEN_ZEITLIMIT = 5           # Sekunden der Meldung direkt nach einer Aktion im Büro (seit 1.10.4; sonst meldet der nächste Lauf)
+MELDEN_JE_LAUF = 50            # offene Meldungen je Lauf (seit 1.10.4)
 SPERRE_GILT = timedelta(minutes=10)
 
 # Feste Texte -- nie mit Inhalten der Antwort oder dem Schlüssel
@@ -195,10 +209,10 @@ def _lesen(antwort, hoechstens: int) -> bytes:
     return daten
 
 
-def _aufruf(v: Verbindung, methode: str, pfad: str, hoechstens: int, koerper: dict | None = None) -> tuple[int, bytes]:
+def _aufruf(v: Verbindung, methode: str, pfad: str, hoechstens: int, koerper: dict | None = None, zeitlimit: float = ZEITLIMIT) -> tuple[int, bytes]:
     """(Status, Inhalt). Ein HTTP-Fehler ist ein Status (Inhalt leer); nicht erreichbar oder abgebrochen: SchnittstellenFehler. Zu groß: _Unlesbar."""
     try:
-        with _oeffner().open(_anfrage(v, methode, pfad, koerper), timeout=ZEITLIMIT) as antwort:
+        with _oeffner().open(_anfrage(v, methode, pfad, koerper), timeout=zeitlimit) as antwort:
             return antwort.status, _lesen(antwort, hoechstens)
     except SchnittstellenFehler:
         raise
@@ -262,7 +276,7 @@ def stand(db: Session, jetzt: datetime | None = None) -> dict:
         nicht = json.loads(zeile.nicht_abgeholt) if zeile.nicht_abgeholt else []
     except ValueError:
         nicht = []
-    zaehler = dict(db.execute(select(WebAnfrage.status, func.count(WebAnfrage.id)).group_by(WebAnfrage.status)).all())
+    zaehlen = lambda *bedingung: db.scalar(select(func.count(WebAnfrage.id)).where(*bedingung))  # noqa: E731
     return {
         "eingerichtet": eingerichtet(),
         "laeuft": zeile.lauf_seit is not None and zeile.lauf_seit >= jetzt - SPERRE_GILT,
@@ -271,9 +285,12 @@ def stand(db: Session, jetzt: datetime | None = None) -> dict:
         "letzter_fehler": zeile.letzter_fehler,
         "letzte_neu": zeile.letzte_neu,
         "nicht_abgeholt": nicht,
-        "neu": zaehler.get(STATUS_NEU, 0),
-        "spamverdacht": db.scalar(select(func.count(WebAnfrage.id)).where(WebAnfrage.status == STATUS_NEU, WebAnfrage.spamverdacht.is_(True))),
-        "pruefen": db.scalar(select(func.count(WebAnfrage.id)).where(WebAnfrage.status == STATUS_NEU, WebAnfrage.pruefen_grund.is_not(None))),
+        # seit 1.10.4: „neu“ = im Eingang (ohne Prüfliste); Spamverdacht und „zu prüfen“ zählen in der Prüfliste
+        "neu": zaehlen(WebAnfrage.status == STATUS_NEU, not_(IN_PRUEFLISTE)),
+        "pruefliste": zaehlen(IN_PRUEFLISTE),
+        "spamverdacht": zaehlen(IN_PRUEFLISTE, WebAnfrage.spamverdacht.is_(True)),
+        "pruefen": zaehlen(IN_PRUEFLISTE, WebAnfrage.pruefen_grund.is_not(None)),
+        "meldung_offen": zaehlen(MELDUNG_OFFEN),
     }
 
 
@@ -404,18 +421,65 @@ class Ergebnis:
                 "fehler": self.fehler, "laeuft_schon": self.laeuft_schon, "weitere": self.weitere}
 
 
-def _melden(db: Session, v: Verbindung, zeile: WebAnfrage, erg: Ergebnis) -> None:
+def erp_id_der_zeile(zeile: WebAnfrage) -> str:
+    """Was der Empfangsdienst als „übernommen“ bekommen soll (seit 1.10.4): melden_soll, sonst eingang-<ID>."""
+    return zeile.melden_soll or f"eingang-{zeile.id}"
+
+
+def meldung_offen(zeile: WebAnfrage) -> bool:
+    """Der Empfangsdienst hat noch nicht bestätigt, was er bekommen soll (seit 1.10.4)."""
+    return zeile.gemeldet_als != erp_id_der_zeile(zeile)
+
+
+def _melden(db: Session, v: Verbindung, zeile: WebAnfrage, erg: Ergebnis, zeitlimit: float = ZEITLIMIT) -> None:
     pfad = f"/erp/v1/anfragen/{urllib.parse.quote(zeile.nummer, safe='')}/uebernommen"
+    erp_id = erp_id_der_zeile(zeile)
+    if not ERP_ID.match(erp_id):  # nie etwas, das der Empfangsdienst nicht annimmt
+        return
     try:
-        status, daten = _aufruf(v, "POST", pfad, 64_000, {"erp_id": f"eingang-{zeile.id}"})
+        status, daten = _aufruf(v, "POST", pfad, 64_000, {"erp_id": erp_id}, zeitlimit)
         antwort = _json(daten) if status == 200 else None
         gut = isinstance(antwort, dict) and antwort.get("ok") is True
     except _Unlesbar:
         gut = False
     if gut:
         zeile.gemeldet_am = datetime.utcnow()
+        zeile.gemeldet_als = erp_id
         db.commit()
         erg.gemeldet += 1
+
+
+def _offene_melden(db: Session, v: Verbindung, erg: Ergebnis) -> None:
+    """Seit 1.10.4: was im Eingang schon erledigt ist (verworfen, übernommen), steht beim Empfangsdienst nicht mehr in der Liste -- seine Meldung
+    holt der Lauf hier nach, mit dem Stand von jetzt (expire_all: eine Aktion im Büro während des Laufs zählt)."""
+    db.expire_all()
+    for zeile in db.scalars(select(WebAnfrage).where(MELDUNG_OFFEN, WebAnfrage.melden_soll.is_not(None))
+                            .order_by(WebAnfrage.id).limit(MELDEN_JE_LAUF)).all():
+        _melden(db, v, zeile, erg)
+
+
+def nachmelden(db: Session, webanfrage_id: int) -> bool:
+    """Direkt nach einer Aktion im Büro (seit 1.10.4): diese Anfrage beim Empfangsdienst melden -- nur unter der Sperre des Abholens; läuft gerade
+    ein Lauf, meldet er sie. Kurzes Zeitlimit; scheitert es, meldet der nächste Lauf. Gibt zurück, ob gemeldet wurde."""
+    v, _ = verbindung()
+    if v is None:
+        return False
+    kennung = _sperre_nehmen(db, datetime.utcnow())
+    if kennung is None:
+        return False
+    erg = Ergebnis()
+    try:
+        db.expire_all()
+        zeile = db.get(WebAnfrage, webanfrage_id)
+        if zeile is not None and meldung_offen(zeile):
+            try:
+                _melden(db, v, zeile, erg, MELDEN_ZEITLIMIT)
+            except SchnittstellenFehler:
+                pass
+    finally:
+        db.rollback()
+        _sperre_freigeben(db, kennung, {})
+    return erg.gemeldet == 1
 
 
 def _eine_holen(db: Session, v: Verbindung, nummer: str, erg: Ergebnis) -> WebAnfrage | None:
@@ -508,6 +572,13 @@ def _eine_holen(db: Session, v: Verbindung, nummer: str, erg: Ergebnis) -> WebAn
     return zeile
 
 
+# seit 1.10.4: Prüfliste und offene Meldung als SQL (gleich in_pruefliste() und meldung_offen())
+IN_PRUEFLISTE = and_(WebAnfrage.status == STATUS_NEU, WebAnfrage.geprueft_am.is_(None),
+                     or_(WebAnfrage.spamverdacht.is_(True), WebAnfrage.pruefen_grund.is_not(None)))
+MELDUNG_OFFEN = or_(WebAnfrage.gemeldet_als.is_(None),
+                    WebAnfrage.gemeldet_als != func.coalesce(WebAnfrage.melden_soll, literal("eingang-", String) + cast(WebAnfrage.id, String)))
+
+
 def _adresse_spalten(art: str | None, umschlag: dict) -> dict:
     """Die Adresse des Objekts für die Spalten des Eingangs (seit 1.10.3) -- nur aus den strukturierten Angaben."""
     adresse = objekt_adresse(art, umschlag) or {}
@@ -578,6 +649,7 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
                 break
         else:
             erg.weitere = True
+        _offene_melden(db, v, erg)  # seit 1.10.4
     except SchnittstellenFehler as fehler:
         erg.fehler = str(fehler)
     finally:
@@ -599,12 +671,85 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
 # Lesen (Eingang)
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 
-def eingang(db: Session, anzahl: int = EINGANG_MAX) -> list[WebAnfrage]:
-    """Die Liste des Eingangs (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens anzahl (bis EINGANG_MAX; die
-    Startseite nimmt seit 1.10.2 die fünf neuesten)."""
+def eingang(db: Session, anzahl: int = EINGANG_MAX, ansicht: str = "eingang") -> list[WebAnfrage]:
+    """Die Liste (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens anzahl (bis EINGANG_MAX; die Startseite nimmt seit
+    1.10.2 die fünf neuesten). Seit 1.10.4 je Ansicht: eingang (neu, nicht in der Prüfliste), pruefliste, erledigt (zuletzt erledigt zuerst)."""
     from sqlalchemy.orm import selectinload
-    return list(db.scalars(select(WebAnfrage).options(selectinload(WebAnfrage.dateien))
-                           .order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc()).limit(min(anzahl, EINGANG_MAX))))
+    abfrage = select(WebAnfrage).options(selectinload(WebAnfrage.dateien))
+    if ansicht == "pruefliste":
+        abfrage = abfrage.where(IN_PRUEFLISTE).order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc())
+    elif ansicht == "erledigt":
+        abfrage = abfrage.where(WebAnfrage.status != STATUS_NEU).order_by(WebAnfrage.erledigt_am.desc().nulls_last(), WebAnfrage.id.desc())
+    else:
+        abfrage = abfrage.where(WebAnfrage.status == STATUS_NEU, not_(IN_PRUEFLISTE)).order_by(WebAnfrage.eingang_am.desc().nulls_last(),
+                                                                                                WebAnfrage.id.desc())
+    return list(db.scalars(abfrage.limit(min(anzahl, EINGANG_MAX))))
+
+
+def in_pruefliste(zeile: WebAnfrage) -> bool:
+    """Seit 1.10.4: Spamverdacht oder ein Grund zum Prüfen, noch neu und noch nicht in den Eingang gegeben."""
+    return zeile.status == STATUS_NEU and zeile.geprueft_am is None and (zeile.spamverdacht or zeile.pruefen_grund is not None)
+
+
+def zustand(zeile: WebAnfrage) -> str:
+    """Für das Statuskennzeichen: pruefliste | neu | verworfen (1.10.5: uebernommen)."""
+    return "pruefliste" if in_pruefliste(zeile) else zeile.status
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# Aktionen des Büros (seit 1.10.4) -- je ein bedingtes UPDATE, ein Eintrag in der Änderungshistorie ohne Inhalte (Nummer und Stand)
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+
+class SchonErledigt(Exception):
+    """Die Anfrage ist nicht (mehr) in dem Stand, den die Aktion verlangt -- 409."""
+
+
+def _aendern(db: Session, webanfrage_id: int, bedingung: list, werte: dict) -> WebAnfrage:
+    """Das bedingte UPDATE einer Aktion -- committet nicht; der Aufrufer schreibt die Historie (Aktion als fester Text, tests/test_v732) und committet."""
+    zeile = db.get(WebAnfrage, webanfrage_id)
+    if zeile is None:
+        raise LookupError(webanfrage_id)
+    treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, *bedingung).values(**werte)).rowcount
+    if treffer != 1:
+        db.rollback()
+        raise SchonErledigt()
+    return zeile
+
+
+def _fertig(db: Session, zeile: WebAnfrage) -> WebAnfrage:
+    db.commit()
+    db.refresh(zeile)
+    return zeile
+
+
+def verwerfen(db: Session, webanfrage_id: int, grund: str, user_id: int | None) -> WebAnfrage:
+    """Verwerfen mit festem Grund: nur eine neue Anfrage (auch aus der Prüfliste); danach soll der Empfangsdienst „verworfen“ bekommen (F2)."""
+    if grund not in VERWERFEN_GRUENDE:
+        raise ValueError(grund)
+    zeile = _aendern(db, webanfrage_id, [WebAnfrage.status == STATUS_NEU],
+                     {"status": STATUS_VERWORFEN, "erledigt_am": datetime.utcnow(), "erledigt_von_user_id": user_id, "verworfen_grund": grund,
+                      "melden_soll": ERP_ID_VERWORFEN})
+    record_audit_entry(db, action="verworfen", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer, field_name="status",
+                       old_value=STATUS_NEU, new_value=f"{STATUS_VERWORFEN} ({VERWERFEN_GRUENDE[grund]})")
+    return _fertig(db, zeile)
+
+
+def in_den_eingang(db: Session, webanfrage_id: int, user_id: int | None) -> WebAnfrage:
+    """Aus der Prüfliste in den Eingang („kein Spam“ bzw. „geprüft“) -- nur, solange sie in der Prüfliste steht."""
+    zeile = _aendern(db, webanfrage_id, [IN_PRUEFLISTE], {"geprueft_am": datetime.utcnow(), "geprueft_von_user_id": user_id})
+    record_audit_entry(db, action="aus der Prüfliste", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer,
+                       field_name="status", old_value="Prüfliste", new_value="Eingang")
+    return _fertig(db, zeile)
+
+
+def zurueckholen(db: Session, webanfrage_id: int, user_id: int | None) -> WebAnfrage:
+    """Eine verworfene Anfrage zurück in den Eingang; der Empfangsdienst bekommt wieder eingang-<ID>. user_id steht in der Historie (Anfragekontext)."""
+    zeile = _aendern(db, webanfrage_id, [WebAnfrage.status == STATUS_VERWORFEN],
+                     {"status": STATUS_NEU, "erledigt_am": None, "erledigt_von_user_id": None, "verworfen_grund": None,
+                      "melden_soll": f"eingang-{webanfrage_id}"})
+    record_audit_entry(db, action="zurückgeholt", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer, field_name="status",
+                       old_value=STATUS_VERWORFEN, new_value=STATUS_NEU)
+    return _fertig(db, zeile)
 
 
 def zeile_zu_dict(zeile: WebAnfrage) -> dict:
@@ -614,4 +759,8 @@ def zeile_zu_dict(zeile: WebAnfrage) -> dict:
         "objekt_strasse": zeile.objekt_strasse, "objekt_plz": zeile.objekt_plz, "objekt_ort": zeile.objekt_ort,
         "spamverdacht": zeile.spamverdacht, "pruefen_grund": zeile.pruefen_grund, "status": zeile.status, "abgeholt_am": zeile.abgeholt_am,
         "gemeldet_am": zeile.gemeldet_am, "dateien": len(zeile.dateien),
+        # seit 1.10.4
+        "zustand": zustand(zeile), "in_pruefliste": in_pruefliste(zeile), "erledigt_am": zeile.erledigt_am, "verworfen_grund": zeile.verworfen_grund,
+        "verworfen_grund_text": VERWERFEN_GRUENDE.get(zeile.verworfen_grund or ""), "gemeldet_als": zeile.gemeldet_als,
+        "melden_soll": erp_id_der_zeile(zeile), "meldung_offen": meldung_offen(zeile),
     }

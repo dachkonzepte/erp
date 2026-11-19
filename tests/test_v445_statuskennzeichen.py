@@ -86,6 +86,9 @@ def test_jeder_wert_des_servers_steht_in_der_tabelle(tabellen):
     av = re.search(r'<select id="prepStatus">(.*?)</select>', (vj.TEMPLATES / "work_preparation.html").read_text(encoding="utf-8"), flags=re.S)
     assert set(re.findall(r'value="([^"]*)"', av.group(1))) | set(FESTE_LITERALE["work_preparations.status"]) <= set(t["arbeitsvorbereitung"])
     assert rechnung <= set(t["rechnung"]), sorted(rechnung - set(t["rechnung"]))
+    # seit 1.10.4: jeder Zustand einer Anfrage der Webseite (app/webanfragen.py::zustand(): Status oder „pruefliste“)
+    from app.webanfragen import STATUS as WEBANFRAGE_STATUS
+    assert set(WEBANFRAGE_STATUS) | {"pruefliste"} <= set(t["webanfrage"])
 
 
 def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):

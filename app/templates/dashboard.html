@@ -231,8 +231,8 @@ async function renderWebanfragenWidget(container){
   if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
   await lesen('webanfragen',()=>Promise.all([api('/api/webanfragen/stand'),api('/api/webanfragen?anzahl=5')]),([s,l])=>{
     const kopf=[`<a href="/anfragen/webseite" style="color:var(--ds-link);font-weight:700">${Number(s.neu)} im Eingang</a>`];
-    if(s.spamverdacht)kopf.push(`davon ${Number(s.spamverdacht)} mit Spamverdacht`);
-    if(s.pruefen)kopf.push(`${Number(s.pruefen)} zu prüfen`);
+    // seit 1.10.4: Spamverdacht und „zu prüfen“ stehen in der Prüfliste, nicht im Eingang
+    if(s.pruefliste)kopf.push(`<a href="/anfragen/webseite#pruefliste" style="color:var(--ds-link)">${Number(s.pruefliste)} in der Prüfliste</a>`);
     const hinweis=!s.eingerichtet?'<div class="muted small" style="margin-top:8px">Die Schnittstelle zum Empfangsdienst ist noch nicht eingerichtet.</div>'
       :(s.letzter_fehler?`<div class="status err" style="margin-top:8px">Letzter Lauf: ${esc(s.letzter_fehler)}</div>`:'');
     container.innerHTML=`<div class="small" style="margin-bottom:8px">${kopf.join(' · ')}</div>`

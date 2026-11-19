@@ -8,7 +8,9 @@ Musterdaten.
     Seit 1.10.3     Eingang in Berliner Zeit gleich der Minute der Nummer (Attrappe wie der echte Dienst); Adresse des Objekts in Liste, Start und
                     oben auf der Anfrage; Kantservice ohne Adresse, mit „Ort“ im Kontakt; Abschnitte nur der Art (Reparatur ohne Kantteil-Zeichner);
                     die Nachricht der Reparatur wiederholt nur die Angaben und steht eingeklappt
-    Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über)
+    Seit 1.10.4     die Wartung mit Spamverdacht steht in der Prüfliste, nicht im Eingang und nicht auf „Start“; verwerfen mit Grund (Meldung
+                    „verworfen“ an die Attrappe), Erledigt, zurück in den Eingang (wieder Prüfliste, Meldung eingang-<ID>), „Kein Spam – in den Eingang“
+    Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über); seit 1.10.4 Prüfliste und Bearbeitung
     Monteurin       der Eingang ist gesperrt, die Schnittstelle des ERP antwortet 403
 
 AUFRUF (aus dem Projektordner):
@@ -82,17 +84,28 @@ async def pruefen(tab, seed, p):
     # --- Jetzt abholen ---
     p.pruefe("Abholen: Ergebnis", await _abholen(tab), ["3 Anfragen neu abgeholt.", "status ok"])
     p.pruefe("Abholen: beim Empfangsdienst gemeldet", sorted(a.uebernommen), [K, R, W])
-    p.pruefe("Liste: neueste zuerst", await tab.js(f"{ZEILEN}.map(z=>z.children[1].textContent)"), [W, K, R])
+    # seit 1.10.4: die Wartung mit Spamverdacht steht in der Prüfliste, nicht im Eingang
+    p.pruefe("Liste: neueste zuerst", await tab.js(f"{ZEILEN}.map(z=>z.children[1].textContent)"), [K, R])
     p.pruefe("Liste: Eingang in Berliner Zeit wie die Nummer", await tab.js(f"{ZEILEN}.map(z=>z.children[0].textContent)"),
-             ["19.11.2026 09:12", "19.11.2026 09:11", "19.11.2026 09:10"])
-    p.pruefe("Liste: Adresse des Objekts", await tab.js(f"{ZEILEN}.map(z=>z.children[4].textContent)"),
-             ["Musterweg 1, 00000 Musterstadt", "—", "Musterweg 1, 00000 Musterstadt"])
-    p.pruefe("Liste: Spamverdacht nur bei der Wartung",
-             await tab.js(f"{ZEILEN}.map(z=>!!z.querySelector('.kennzeichen.spam'))"), [True, False, False])
-    p.pruefe("Liste: Name mit HTML als Text", await tab.js(f"{ZEILEN}[0].children[3].textContent"), BOESE)
+             ["19.11.2026 09:11", "19.11.2026 09:10"])
+    p.pruefe("Liste: Adresse des Objekts", await tab.js(f"{ZEILEN}.map(z=>z.children[4].textContent)"), ["—", "Musterweg 1, 00000 Musterstadt"])
+    p.pruefe("Liste: Dateien", await tab.js(f"{ZEILEN}.map(z=>z.children[7].textContent)"), ["1", "3"])
+    p.pruefe("Stand: 2 im Eingang, 1 in der Prüfliste", await tab.js(
+        "['2 im Eingang','1 in der Prüfliste'].map(x=>document.getElementById('standText').textContent.includes(x))"), [True, True])
+    p.pruefe("Reiter: Zahlen", await tab.js("[zahlEingang.textContent,zahlPruefliste.textContent]"), ["2", "1"])
+    await tab.js("document.querySelector('.reiter a[data-ansicht=\"pruefliste\"]').click()")
+    await tab.warten(f"location.hash==='#pruefliste'&&{ZEILEN}.length===1")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Prüfliste: die Wartung mit Spamverdacht", await tab.js(f"[{ZEILEN}[0].children[1].textContent,!!{ZEILEN}[0].querySelector('.kennzeichen.spam')]"),
+             [W, True])
+    p.pruefe("Prüfliste: Name mit HTML als Text", await tab.js(f"{ZEILEN}[0].children[3].textContent"), BOESE)
     p.pruefe("Liste: kein Skript aus den Daten", await tab.js("window.__boese===undefined&&!document.querySelector('#eingangTabelle img')"), True)
-    p.pruefe("Liste: Dateien", await tab.js(f"{ZEILEN}.map(z=>z.children[7].textContent)"), ["1", "1", "3"])
-    p.pruefe("Stand: 3 im Eingang", await tab.js("document.getElementById('standText').textContent.includes('3 im Eingang')"), True)
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    await tab.oeffnen("/anfragen/webseite?thema=light#pruefliste", f"{EINGANG_BEREIT}&&{ZEILEN}.length===1")  # Anker nach der Abfrage
+    await tab.warte_auf_ruhe()
+    p.pruefe("Prüfliste: hell", await tab.js("document.documentElement.getAttribute('data-theme')"), "light")
+    await tab.bild_ganz("webanfragen_pruefliste_1440_hell")
+    await tab.oeffnen("/anfragen/webseite#eingang", EINGANG_BEREIT)
     p.pruefe("Eingang: JS-Fehler", tab.fehler, [])
     await _thema(tab, "light", "/anfragen/webseite", EINGANG_BEREIT)
     await tab.bild_ganz("webanfragen_eingang_1440_hell")
@@ -106,21 +119,23 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("Start: Widgets", await tab.js("[...document.querySelectorAll('.widget-card h2')].map(h=>h.textContent).slice(0,2)"),
              ["Meine Aufgaben", "Anfragen der Webseite"])
-    p.pruefe("Start: Zahl im Eingang", await tab.js(f"{widget}.querySelector('a').textContent"), "3 im Eingang")
-    p.pruefe("Start: die neuesten mit Weg", await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.getAttribute('href').split('/').length)"),
-             [4, 4, 4])
+    p.pruefe("Start: Zahl im Eingang", await tab.js(f"{widget}.querySelector('a').textContent"), "2 im Eingang")
+    p.pruefe("Start: Prüfliste mit Weg", await tab.js(f"(a=>[a.textContent,a.getAttribute('href')])({widget}.querySelectorAll('a')[1])"),
+             ["1 in der Prüfliste", "/anfragen/webseite#pruefliste"])
+    p.pruefe("Start: die neuesten mit Weg (ohne Prüfliste)",
+             await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.getAttribute('href').split('/').length)"), [4, 4])
     p.pruefe("Start: kein Skript aus den Daten", await tab.js("window.__boese===undefined"), True)
     p.pruefe("Start: Adresse des Objekts", await tab.js(f"[...{widget}.querySelectorAll('a.task-row')].map(a=>a.textContent.includes('Musterweg 1, 00000 Musterstadt'))"),
-             [True, False, True])
+             [False, True])
     p.pruefe("Start: JS-Fehler", tab.fehler, [])
     await tab.bild("webanfragen_start_1440_hell")
-    await tab.js(f"[...{widget}.querySelectorAll('a.task-row')][2].click()")
+    await tab.js(f"[...{widget}.querySelectorAll('a.task-row')][1].click()")
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
     p.pruefe("Start: Klick öffnet die Anfrage", await tab.js("document.getElementById('seitenkopfKennung').textContent"), R)
     await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
 
     # --- eine Anfrage ---
-    await tab.js(f"{ZEILEN}[2].querySelector('a').click()")
+    await tab.js(f"{ZEILEN}[1].querySelector('a').click()")
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
     await tab.warte_auf_ruhe()
     p.pruefe("Anfrage: Kopf", await tab.js("[document.getElementById('seitenkopfTitel').textContent,document.getElementById('seitenkopfKennung').textContent]"),
@@ -150,7 +165,7 @@ async def pruefen(tab, seed, p):
 
     # --- Kantservice: ohne Adresse, „Ort“ im Kontakt, Positionen ---
     await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
-    await tab.js(f"{ZEILEN}[1].querySelector('a').click()")
+    await tab.js(f"{ZEILEN}[0].querySelector('a').click()")
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
     await tab.warte_auf_ruhe()
     p.pruefe("Kantservice: ohne Adresse", await tab.js("document.getElementById('seitenkopfUntertitel').textContent.split(' · ')[0]"),
@@ -159,13 +174,44 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kantservice: Positionen", await tab.js("document.getElementById('angaben').textContent.includes('Kantteil-Zeichner')"), True)
     p.pruefe("Kantservice: Nachricht offen", await tab.js("!document.querySelector('#anfrage details')"), True)
 
-    # --- die Anfrage mit Spamverdacht und HTML im Namen ---
-    await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
+    # --- die Anfrage mit Spamverdacht und HTML im Namen (Prüfliste) ---
+    await tab.oeffnen("/anfragen/webseite#pruefliste", f"{EINGANG_BEREIT}&&{ZEILEN}.length===1")
     await tab.js(f"{ZEILEN}[0].querySelector('a').click()")
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
+    await tab.warte_auf_ruhe()
     p.pruefe("Spam: Hinweis", await tab.js("document.getElementById('hinweise').textContent.startsWith('Spamverdacht')"), True)
     p.pruefe("Spam: Name als Text, kein Skript", await tab.js(
         "[document.querySelector('#kontakt .zeile dd').textContent, window.__boese===undefined]"), [BOESE, True])
+    # --- seit 1.10.4: Bearbeitung ---
+    BEARB = "[document.getElementById('seitenkopfStatus').textContent,document.getElementById('bearbeitungStand').textContent.split(':')[0]," \
+            "!inDenEingangKnopf.hidden,!verwerfenOeffnenKnopf.hidden,!zurueckholenKnopf.hidden]"
+    p.pruefe("Prüfliste: Stand und Knöpfe", await tab.js(BEARB), ["Prüfliste", "In der Prüfliste", True, True, False])
+    p.pruefe("Verwerfen: Feld erst nach dem Klick sichtbar", await tab.js("getComputedStyle(verwerfenPanel).display"), "none")
+    await tab.bild_ganz("webanfragen_bearbeitung_1440_hell")
+    await tab.js("verwerfenOeffnenKnopf.click()")
+    p.pruefe("Verwerfen: Feld nach dem Klick sichtbar", await tab.js("getComputedStyle(verwerfenPanel).display"), "flex")
+    p.pruefe("Verwerfen: ohne Grund nicht", await tab.js("verwerfenKnopf.click(),aktionStatus.textContent"), "Bitte einen Grund wählen.")
+    await tab.js("verwerfenGrund.value='spam';verwerfenKnopf.click()")
+    await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Verworfen'")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Verwerfen: Stand", await tab.js("bearbeitungStand.textContent.startsWith('Verworfen (Spam) am 19.11.2026')"), True)
+    p.pruefe("Verwerfen: an die Attrappe gemeldet", a.uebernommen.get(W), "verworfen")
+    p.pruefe("Verwerfen: Meldung auf der Seite", await tab.js("meldungText.textContent"), "Beim Empfangsdienst gemeldet als „verworfen“.")
+    p.pruefe("Verwerfen: Knöpfe", await tab.js(BEARB + ".slice(2)"), [False, False, True])
+    await tab.oeffnen("/anfragen/webseite#erledigt", f"{EINGANG_BEREIT}&&{ZEILEN}.length===1")
+    p.pruefe("Erledigt: verworfen mit Grund", await tab.js(f"{ZEILEN}[0].querySelector('.kennzeichen.erledigt').textContent"), "verworfen: Spam")
+    await tab.js(f"{ZEILEN}[0].querySelector('a').click()")
+    await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
+    await tab.warte_auf_ruhe()
+    await tab.js("window.confirm=()=>true;zurueckholenKnopf.click()")
+    await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Prüfliste'")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Zurückholen: wieder in der Prüfliste, Meldung eingang", [a.meldungen[-1][0], a.meldungen[-1][1].startswith("eingang-")], [W, True])
+    await tab.js("inDenEingangKnopf.click()")
+    await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Neu'")
+    await tab.warte_auf_ruhe()
+    p.pruefe("In den Eingang: Stand", await tab.js("bearbeitungStand.textContent.startsWith('Im Eingang (aus der Prüfliste gegeben am 19.11.2026')"), True)
+    p.pruefe("Bearbeitung: JS-Fehler", tab.fehler, [])
 
     # --- 412 px ---
     await tab.fenster(412, 900, mobil=True)
@@ -173,7 +219,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("412: Eingang läuft nicht über", await tab.ueberlauf(), [])
     await tab.bild_ganz("webanfragen_eingang_412_hell")
-    await tab.js(f"{ZEILEN}[2].querySelector('a').click()")
+    await tab.js(f"{ZEILEN}[2].querySelector('a').click()")  # R (die Wartung steht seit dem Klick „in den Eingang“ wieder im Eingang)
     await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}")
     await tab.warte_auf_ruhe()
     p.pruefe("412: Anfrage läuft nicht über", await tab.ueberlauf(), [])
