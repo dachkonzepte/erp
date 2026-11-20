@@ -76,14 +76,15 @@ def _store_uploaded_file(property_id: int, original_filename: str, data: bytes) 
 
 def create_property_document(
     db: Session, property_id: int, *, category_id: int, file_data: bytes, original_filename: str,
-    description: str | None = None, uploaded_by_employee_id: int | None = None, commit: bool = True,
+    description: str | None = None, uploaded_by_employee_id: int | None = None, commit: bool = True, webanfrage_id: int | None = None,
 ) -> PropertyDocument:
-    """commit=False (seit 1.10.5): nur flush -- der Aufrufer committet mit seiner Transaktion und räumt die Datei bei einem Fehler weg."""
+    """commit=False (seit 1.10.5): nur flush -- der Aufrufer committet mit seiner Transaktion und räumt die Datei bei einem Fehler weg.
+    webanfrage_id (seit 1.10.9): nur das Übernehmen einer Anfrage der Webseite setzt ihn, kein Upload-Weg."""
     stored, content_type = _store_uploaded_file(property_id, original_filename, file_data)
     doc = PropertyDocument(
         property_id=property_id, category_id=category_id, original_filename=Path(original_filename).name,
         stored_filename=stored, content_type=content_type, file_size=len(file_data),
-        description=(description or None), uploaded_by_employee_id=uploaded_by_employee_id,
+        description=(description or None), uploaded_by_employee_id=uploaded_by_employee_id, webanfrage_id=webanfrage_id,
     )
     db.add(doc)
     if not commit:

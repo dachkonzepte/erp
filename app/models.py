@@ -914,6 +914,9 @@ class PropertyDocument(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     uploaded_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
+    # Seit 1.10.9 (Stufe W1c): eine Kopie der Fotos einer Anfrage der Webseite, die das Übernehmen ans Objekt legt (app/webanfrage_uebernahme.py),
+    # zeigt auf ihren Eingang -- bis 1.10.8 nur am Text erkennbar (Beschreibung „Foto der Anfrage der Webseite <Nummer>“). Von Hand hochgeladen nie.
+    webanfrage_id: Mapped[int | None] = mapped_column(ForeignKey("webanfragen.id"), nullable=True, index=True)
 
     property: Mapped["Property"] = relationship(back_populates="documents")
     document_category: Mapped["DocumentCategory"] = relationship()

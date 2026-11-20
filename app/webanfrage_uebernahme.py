@@ -279,7 +279,8 @@ def uebernehmen(db: Session, webanfrage_id: int, e, user_id: int | None) -> Inqu
                     continue
                 doc = create_property_document(db, objekt.id, category_id=kategorie, file_data=datei_pfad(datei).read_bytes(),
                                                original_filename=f"{zeile.nummer}-{datei.name}",
-                                               description=f"Foto der Anfrage der Webseite {zeile.nummer}", commit=False)
+                                               description=f"Foto der Anfrage der Webseite {zeile.nummer}", commit=False,
+                                               webanfrage_id=webanfrage_id)  # seit 1.10.9 der Eingang als Fremdschlüssel
                 geschrieben.append(document_path(doc))
         db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id).values(inquiry_id=inquiry.id, melden_soll=erp_id_aus(inquiry)))
         record_audit_entry(db, action="übernommen", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer, field_name="status",

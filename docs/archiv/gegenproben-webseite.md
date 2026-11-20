@@ -253,3 +253,17 @@ Verschieben neu: rot über die Reihenfolge). Dazu Nr. 4 über den Klicktest.
 | Nr. 5 – Auswahl aufgehoben | ohne Aufheben (`1108_8`) | 1 rot |
 | Nr. 3 – Hinweis mit der Zahl aller | nur die gezeigten (`1108_9`) | 1 rot |
 | Nr. 4 – danach seine Objekte | ohne `data-aenderung` (über `klicktest_webanfragen.py`) | rot: wartet vergeblich auf die Objekte, 5 Prüfungen rot |
+
+## W1c, 1.10.9: Objektdokument → Eingang der Webseite
+
+Probendatei im Scratchpad (`gp_1109.py` über `gegenprobe.py`: Marker `GEGENPROBE` in der geänderten Zeile, danach byte-genau zurück, Prüfsumme verglichen),
+Lauf mit `tests/test_v780_objektdokument_webanfrage.py`; alle 6 rot aus dem geprüften Grund (je FAILED, kein ERROR).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Übernehmen setzt den Eingang | `webanfrage_id=None` beim Übernehmen | 1 rot |
+| Nr. 2 – ein Upload trägt keinen | Vorgabe `webanfrage_id or 1` in `create_property_document()` | 1 rot |
+| Nr. 3 – nur am Objekt der übernommenen Anfrage | Bedingung Objekt weg | 2 rot (SQLite, PostgreSQL) |
+| Nr. 3 – nur mit „<Nummer>-“ im Dateinamen | Bedingung Dateiname weg | 2 rot |
+| Nr. 3 – Beschreibung genau, „%“ wörtlich | `LIKE :text || '%'` statt Gleichheit | 2 rot |
+| Nr. 4 – downgrade nimmt nur die Spalte | `DELETE` der verknüpften Dokumente im downgrade | 2 rot |

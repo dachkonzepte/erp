@@ -469,7 +469,7 @@ Bearbeitung über `app/berlin_time.py::utc_jetzt()` (Vorbild 1.9.367): abgeholt 
 Lauf (mit und ohne Verbindung), letzter Erfolg, geprüft, verworfen, übernommen. Die Sperre des Abholens (`lauf_seit`, `stand()["laeuft"]`) bleibt auf der
 echten Uhr. Im Betrieb ändert sich nichts (dieselbe Zeit, ohne Mikrosekunden); der Klicktest blieb unverändert und ist wieder 70/70.
 
-#### Festlegungen 1.10.7 (Bitte bestätigen)
+#### Festlegungen 1.10.7 (bestätigt am 20.11.2026)
 
 1. Abgeholt, gemeldet, letzter Lauf, letzter Erfolg, geprüft, verworfen und übernommen kommen aus `utc_jetzt()` -- dieselbe Uhr wie `berlin_now()`, im Betrieb
    gleich `datetime.utcnow()`, unter einer festen Uhr (Tests, Klicktests) stimmig zum Rest der Seite.
@@ -500,7 +500,7 @@ bestehenden Kunden wählen“ mit Suche, danach seine Objekte wie beim Vorschlag
   `lesen('kundensuche', …)` (ältere Antworten verworfen); ein Treffer ist eine Wahl in derselben Radiogruppe wie ein Vorschlag (`data-quelle="suche"`), danach
   seine Objekte über `…/objekte?kunde_id=`.
 
-#### Festlegungen 1.10.8 (Bitte bestätigen)
+#### Festlegungen 1.10.8 (bestätigt am 20.11.2026)
 
 1. „Anderen bestehenden Kunden wählen“ steht immer auf der Karte, für jede Rolle der Anfrage (auch beim Mieter), zwischen den Vorschlägen und „Neuer Kunde“ --
    erst suchen, dann neu anlegen. Ohne Vorschlag steht dort „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.“
@@ -530,3 +530,71 @@ Angepasste Erwartungen (Regel 28):
   gebaut, der Wächter schlug im Lauf vor dem Commit an.
 
 Gegenproben: `gegenproben-webseite.md`, „Nachrunde W1b, 1.10.8“ (16 über pytest und eine über den Klicktest, alle rot).
+
+## W1c: Archiv (ab 1.10.9)
+
+### Befund F12 und die Antworten des Betriebs (20.11.2026)
+
+Vor W1c ein Befund nur zum Lesen (`befund_f12_ac14e6f.txt`, 20.11.2026): was unter „kein Auftrag“ fällt, welche Zeitpunkte „letzter Kontakt“ sicher belegen,
+die Aufbewahrungspflichten mit Quellen (§ 257 HGB, § 147 AO, § 14b UStG, GoBD; strittig: versendete Angebote ohne Auftrag), ein Nur-Lese-Befehl für die
+Mengen auf dem Server und ein Vorschlag für W1c. Kurz:
+
+- **„Kein Auftrag“** heißt: keine Zeile in `orders` (jeder Status, auch storniert). Ein Kunde hat einen Auftrag, wenn ihm ein Auftrag, ein Projekt mit Auftrag,
+  ein Wartungsvertrag, eine Rechnung oder eine Zahlung gehört. Mustervorgänge gehören nicht dazu; Kunden aus dem Adressimport sind nicht sicher zu beurteilen
+  (Aufträge im Altsystem).
+- **Letzter Kontakt** sicher: Eingang der Webseite, Versand und nachgetragene Zustellung, Empfang bestätigt, Termin mit Bezug zu Projekt oder Angebot,
+  Besichtigung. Nicht bekannt: Telefonate, Mails außerhalb des ERP, Antworten des Kunden -- dafür „Kontakt vermerken“.
+
+Antworten des Betriebs (20.11.2026):
+
+- Mengen auf dem Server (Nur-Lese-Befehl): Eingang neu 7 (ältester 04.11.), verworfen 1, übernommen 0; Anfragen, Projekte und Angebote ohne Auftrag je 0;
+  Kunden ohne Auftrag 159, davon 158 aus dem Adressimport; Rohzeilen des Adressimports 345, davon 186 ohne Kunden; Termine ohne Bezug 29; Historie 1444.
+  Hinweis des Betriebs: `NOT IN` über eine Spalte mit NULL liefert still nichts -- im Befehl um `IS NOT NULL` ergänzt; im Code von W1c `NOT EXISTS` oder
+  gleichwertig, mit Test auf NULL.
+- F1 so lassen: „Ansprechpartner vor Ort eintragen“ ist nie vorbelegt. F2 ja: die vier weiteren Stellen mit Muster-Merkmalen in einem eigenen Doku-Commit vor
+  W1c (`8fffc5b`). F3 (a), (c), (d), (e) gehen an den Rechtsberater; (b) entfällt -- die Datenschutzerklärung online (Paket 2026-11-19a) sagt: archivieren
+  sechs Monate nach dem letzten Kontakt, die personenbezogenen Daten löschen drei Jahre nach Ende des Jahres der Archivierung (der Befund las eine alte
+  Fassung). F4 grundsätzlich ja (Ausnahme von Regel 21 für Angebote ohne Auftrag nach Ablauf der Frist), gebaut erst in Stufe 2. F5: die lokale
+  `dachkonzepte_erp.db` wurde nie mit echten Daten benutzt. F6 ja: Kunden aus dem Adressimport nie automatisch. F7 nein: beim Anonymisieren keine Nummern
+  behalten (sie stehen in Mails im Postfach, die Zeile wäre sonst nur pseudonym), die Angebotssumme nur als Größenklasse. F8 ja: Archiv und Löschen
+  bestätigen Admin und Büro – Finanzen.
+
+Vorgabe für W1c (nur Stufe 1; Löschen ist frühestens 2030 fällig, Stufe 2 erst nach dem Rechtsberater):
+
+1. Archiv nach 6 Monaten ab letztem Kontakt wie im Befund 5.1–5.3: Eingänge, Anfragen, Projekte ohne Auftrag; Kunde und Objekt nur, wenn nichts mehr daran
+   hängt; Kunden aus dem Adressimport nie automatisch. Das vorhandene „archiviert“ am Projekt nutzen statt doppeln.
+2. „Kontakt vermerken“ (Datum, Art, ohne Inhalt) an Anfrage, Projekt und Kunde.
+3. Vorschau mit Herkunft des Datums, Bestätigen einzeln oder gesammelt (Admin, Büro – Finanzen), Zurückholen, Erinnerung auf „Start“ auch für unbearbeitete
+   Eingänge.
+4. Verworfene Eingänge mit Grund Spam, Test oder Doppelt 6 Monate nach Eingang ganz löschen, samt Dateien, nach Bestätigung; die Historie bleibt ohne Inhalte.
+   „Sonstiges“ wie die übrigen.
+5. Fremdschlüssel Objektdokument → Eingang der Webseite für die Fotokopien (heute nur am Text erkennbar).
+6. Stufe 2 im Archiv festhalten: Befund 5.4/5.5 mit F7, Ausnahme Regel 21, Fristen als Einstellung, dazu „Aufbewahrung der Server-Sicherungen auf dem NAS prüfen“.
+7. Nur melden mit Vorschlag: die Rohdaten des Adressimports (345 Zeilen, 186 ohne Kunden) -- werden sie noch gebraucht?
+
+Runden: 1.10.9 Fremdschlüssel Objektdokument → Eingang (Punkt 5), 1.10.10 Kontakt vermerken (Punkt 2), 1.10.11 Archiv und Zurückholen mit den Filtern
+(Punkt 1), 1.10.12 Seite „Aufbewahrung“ und Erinnerung auf „Start“ (Punkt 3), 1.10.13 verworfene Eingänge löschen (Punkt 4) und Stufe 2 (Punkt 6).
+
+### Umsetzung 1.10.9: Objektdokument → Eingang der Webseite
+
+- `PropertyDocument.webanfrage_id` (leer erlaubt, Fremdschlüssel auf `webanfragen`, Index): das Übernehmen setzt ihn an jeder Fotokopie
+  (`app/webanfrage_uebernahme.py` über `create_property_document(…, webanfrage_id=…)`); Beschreibung „Foto der Anfrage der Webseite <Nummer>“ und Dateiname
+  „<Nummer>-foto-N.jpg“ bleiben wie seit 1.10.5. Kein Upload-Weg (Büro, Monteurin) setzt ihn.
+- Migration `7e3a9c1f5b28`: neue Spalte; im Bestand verknüpft sie nur ein Dokument mit allen drei Merkmalen -- Beschreibung genau „Foto der Anfrage der
+  Webseite <Nummer>“, Dateiname beginnt mit „<Nummer>-“, die Anfrage, als die der Eingang übernommen wurde, liegt an genau diesem Objekt (`verknuepfen()`,
+  `substr`/`length`/`||` wie unter SQLite so unter PostgreSQL, kein `LIKE` mit der Nummer). `downgrade()` nimmt nur die Spalte weg. Auf dem Server sind
+  heute 0 Eingänge übernommen -- der Bestand bleibt leer.
+
+#### Festlegungen 1.10.9 (Bitte bestätigen)
+
+1. Jede Fotokopie, die das Übernehmen ans Objekt legt, trägt ihren Eingang als Fremdschlüssel; Beschreibung und Dateiname bleiben wie bisher.
+2. Ein von Hand hochgeladenes Objektdokument trägt nie einen Eingang -- auch nicht mit derselben Beschreibung.
+3. Im Bestand verknüpft die Migration nur bei allen drei Merkmalen (Beschreibung genau, Dateiname mit „<Nummer>-“, Objekt der übernommenen Anfrage); eine
+   leere Beschreibung, ein anderes Objekt, eine Anfrage ohne Objekt, ein nicht übernommener Eingang oder „%“ im Text bleiben leer.
+4. `downgrade()` nimmt nur die Spalte weg; Dokumente, Beschreibung und Dateiname bleiben.
+
+#### Tests und Prüfung 1.10.9
+
+Neu `tests/test_v780_objektdokument_webanfrage.py` (4 Tests: Übernehmen setzt den Eingang an jeder Fotokopie; ein Upload mit demselben Text trägt keinen;
+Migration auf einem Bestand mit neun Dokumenten -- zwei verknüpft, sieben aus je einem Grund leer, ein zweiter Lauf ändert nichts, downgrade lässt alles
+stehen -- unter SQLite und PostgreSQL). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.9“ (6, alle rot).
