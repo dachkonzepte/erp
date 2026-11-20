@@ -1,8 +1,8 @@
 """Vorprobe: Einzelbuchungen aus Time 4 durch den echten Nachtragsweg, die Lohndatei erzeugen und mit der Datei aus Time 4 vergleichen (seit 1.9.228,
 Lohn L1b, Punkt 5).
 
-    .venv\\Scripts\\python.exe scripts\\vorprobe_time4.py BUCHUNGEN.csv TIME4.txt [--azubis 91010,91012] [--teilzeit 91006=0,3,3,3,0]
-                                                      [--gleich 91008=91016] [--ausgabe ERP.txt]
+    .venv\\Scripts\\python.exe scripts\\vorprobe_time4.py BUCHUNGEN.csv TIME4.txt [--azubis 00091,00092] [--teilzeit 00093=0,4,4,4,0]
+                                                      [--gleich 00094=00095] [--ausgabe ERP.txt]
 
 Die Buchungen (Spalten personalnummer;datum;art;von;bis;stunden, wie bildgrundlage/lohn/time4_buchungen_JJJJ_MM.csv) gehen in eine Wegwerf-
 Datenbank (SQLite in einem Temp-Ordner, danach gelöscht -- nie die echte, Regel 16) mit den Grunddaten des Starts:
@@ -51,7 +51,7 @@ def main(argv=None) -> int:
     parser.add_argument("buchungen", type=Path)
     parser.add_argument("time4", type=Path)
     parser.add_argument("--azubis", default="")
-    parser.add_argument("--teilzeit", action="append", default=[], help="Nummer=Mo,Di,Mi,Do,Fr in Stunden, z. B. 91006=0,3,3,3,0")
+    parser.add_argument("--teilzeit", action="append", default=[], help="Nummer=Mo,Di,Mi,Do,Fr in Stunden, z. B. 00093=0,4,4,4,0")
     parser.add_argument("--gleich", action="append", default=[])
     parser.add_argument("--ausgabe", type=Path)
     args = parser.parse_args(argv)
