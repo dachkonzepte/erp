@@ -44,11 +44,13 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Kundendaten s
 
 
 @router.get("/api/customers", response_model=list[CustomerOut])
-def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep, archivierte: bool = False):
+    """Seit 1.10.11 (W1c) ohne Kunden im Archiv; archivierte=true auch sie (Seiten, die einen gespeicherten Kunden zeigen, bieten sie nicht neu an)."""
+    abfrage = select(Customer).options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
+    if not archivierte:
+        abfrage = abfrage.where(Customer.archiviert_am.is_(None))
     customers = db.scalars(
-        select(Customer)
-        .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
-        .order_by(*nach_namen(Customer.last_name, Customer.first_name), Customer.id)  # seit 1.9.355 nach Nachname, dann Vorname (F1)
+        abfrage.order_by(*nach_namen(Customer.last_name, Customer.first_name), Customer.id)  # seit 1.9.355 nach Nachname, dann Vorname (F1)
     ).all()
     # Seit 1.8.76 legt das Lesen kein fehlendes Profil mehr an (vorher samt Kundennummer aus dem Nummernkreis -- eine Anzeige
     # verbrauchte eine Nummer, Regel 23). Jeder Anlegeweg legt das Profil an; ein Altkunde ohne Profil zeigt keine Nummer, bis

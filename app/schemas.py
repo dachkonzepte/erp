@@ -291,6 +291,7 @@ class CustomerOut(_felder_ohne_pruefung(CustomerCreate, "_CustomerCreateFelder")
     # Seit 1.8.76 leer möglich: ein Altkunde ohne Profil -- das Lesen legt keins mehr an (keine Nummer beim Anzeigen).
     customer_number: str | None = None
     extra_infos: list[CustomerExtraInfoOut] = Field(default_factory=list)
+    archiviert_am: datetime | None = None  # seit 1.10.11 (Archiv): leer = nicht im Archiv
 
     @computed_field
     @property
@@ -349,6 +350,7 @@ class PropertyOut(_felder_ohne_pruefung(PropertyCreate, "_PropertyCreateFelder")
     id: int
     # Read-only -- wird nie über das normale Objektformular gesetzt, siehe Property.is_primary_address.
     is_primary_address: bool = False
+    kunde_im_archiv: bool = False  # seit 1.10.11: nur GET /api/properties?archivierte=true setzt es (der Kunde ist im Archiv)
 
 
 class PropertyAccessOut(BaseModel):
@@ -901,6 +903,7 @@ class InquiryOut(BaseModel):
     updated_at: datetime
     webseite_nummer: str | None = None  # seit 1.10.5
     webanfrage_id: int | None = None
+    archiviert_am: datetime | None = None  # seit 1.10.11 (Archiv)
 
 
 class InquiryConvertRequest(BaseModel):
@@ -1072,6 +1075,81 @@ class KontaktvermerkOut(BaseModel):
     weg_text: str
     created_at: datetime | None = None
     von: str | None = None
+
+
+class AufbewahrungKontaktOut(BaseModel):
+    tag: date
+    herkunft: str
+
+
+class AufbewahrungVorgangOut(BaseModel):
+    """Seit 1.10.11 (Stufe W1c): ein Vorgang ohne Auftrag in der Vorschau bzw. im Archiv -- Nummer und Titel, nie Inhalte aus Formular oder Nachricht."""
+    art: str
+    id: int
+    nummer: str
+    titel: str
+    kunde_id: int | None = None
+    letzter_kontakt: AufbewahrungKontaktOut | None = None
+    faellig_ab: date | None = None
+    faellig: bool = False
+    sperren: list[str] = Field(default_factory=list)
+    hinweise: list[str] = Field(default_factory=list)
+    mit: dict[str, int] = Field(default_factory=dict)
+    unbearbeitet: bool = False
+    archiviert_am: datetime | None = None
+
+
+class AufbewahrungKundeOut(BaseModel):
+    id: int
+    name: str
+    kundennummer: str | None = None
+    ort: str | None = None
+    letzter_kontakt: AufbewahrungKontaktOut | None = None
+    faellig_ab: date | None = None
+    faellig: bool = False
+    gruende: list[str] = Field(default_factory=list)
+    archiviert_am: datetime | None = None
+    vorgaenge: list[AufbewahrungVorgangOut] = Field(default_factory=list)
+
+
+class AufbewahrungVorschauOut(BaseModel):
+    heute: date
+    nach_monaten: int
+    eingaenge: list[AufbewahrungVorgangOut]
+    kunden: list[AufbewahrungKundeOut]
+    zahl: int
+    unbearbeitet: int
+    seit: date | None = None
+    stand: str
+
+
+class AufbewahrungArchivOut(BaseModel):
+    vorgaenge: list[AufbewahrungVorgangOut]
+    kunden: list[AufbewahrungKundeOut]
+
+
+class AufbewahrungGesammeltIn(BaseModel):
+    """Seit 1.10.11: „alle fälligen archivieren“ -- nur mit der Prüfsumme der Vorschau, die das Büro gesehen hat (keine Kennungen im Körper)."""
+    model_config = ConfigDict(extra="forbid")
+    stand: Pflichttext = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+
+
+class AufbewahrungEintragOut(BaseModel):
+    art: str
+    id: int
+    nummer: str | None = None
+    grund: str | None = None
+
+
+class AufbewahrungErgebnisOut(BaseModel):
+    archiviert: list[AufbewahrungEintragOut]
+    uebersprungen: list[AufbewahrungEintragOut]
+
+
+class AufbewahrungZurueckOut(BaseModel):
+    art: str
+    id: int
+    kunde_mit: bool = False
 
 
 class WebAnfrageVerwerfenIn(BaseModel):

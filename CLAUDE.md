@@ -1628,7 +1628,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   des Abholens auf der echten Uhr; seit 1.10.8 beim Übernehmen immer „Anderen bestehenden Kunden wählen“ -- die Kundensuche der Büro-Suche,
   `app/search.py::kunden_suchen()`, `GET /api/webanfragen/{id}/kunden`; W1c Archiv ab 1.10.9: die Fotokopien am Objekt tragen ihren Eingang
   (`property_documents.webanfrage_id`); seit 1.10.10 „Kontakt vermerken“ an Anfrage, Projekt und Kunde -- nur Tag und Weg, `app/kontaktvermerke.py`,
-  Dialog `_kontaktvermerk.html`) --
+  Dialog `_kontaktvermerk.html`; seit 1.10.11 das Archiv nach dem letzten Kontakt -- `app/aufbewahrung.py` (Einheiten, letzter Kontakt mit Herkunft,
+  fällig + 6 Monate, Kunde nur ohne Bindung und nie aus dem Import), bestätigen nur Admin und Büro – Finanzen (`darf_aufbewahrung()`), zurückholen jedes
+  Büro; im Archiv raus aus Listen (`archivierte=true` nur für Seiten mit gespeichertem Wert), Suche und Eingang; keine Mengenabfrage mit `NOT IN` über eine
+  Spalte, die leer sein darf) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

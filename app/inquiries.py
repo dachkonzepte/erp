@@ -55,6 +55,7 @@ def inquiry_to_dict(inquiry: Inquiry) -> dict:
         # seit 1.10.5: übernommen aus einer Anfrage der Webseite -- PDF und Fotos liegen am Eingang
         "webseite_nummer": inquiry.webseite_nummer,
         "webanfrage_id": inquiry.webanfrage.id if inquiry.webanfrage is not None else None,
+        "archiviert_am": inquiry.archiviert_am,  # seit 1.10.11 (Archiv)
         "created_at": inquiry.created_at,
         "updated_at": inquiry.updated_at,
     }

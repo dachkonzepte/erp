@@ -22,13 +22,13 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, selectinload
 
 from .document_categories import field_may_see_category
 from .dateiauslieferung import gespeicherter_typ
 from .document_storage import can_preview_type, is_image_type, make_stored_filename  # noqa: F401
-from .models import DocumentCategory, Project, PropertyDocument, ProjectDocument
+from .models import DocumentCategory, Project, PropertyDocument, ProjectDocument, WebAnfrage
 from .paths import data_dir
 
 PROPERTY_ROOT = Path(os.getenv("DACHKONZEPTE_PROPERTY_FILE_ROOT", data_dir() / "property_files"))
@@ -110,6 +110,12 @@ def _document_category_allowed(category: DocumentCategory | None, *, field_visib
     return True
 
 
+def _nicht_im_archiv():
+    """Seit 1.10.11 (W1c): die Fotokopie einer Anfrage der Webseite (webanfrage_id) fehlt, solange ihr Eingang im Archiv ist -- sie geht mit ihrer
+    Anfrage. NOT EXISTS: ein Dokument ohne Eingang (leer) bleibt."""
+    return ~exists().where(WebAnfrage.id == PropertyDocument.webanfrage_id, WebAnfrage.archiviert_am.is_not(None))
+
+
 def list_merged_documents_for_property(db: Session, property_id: int, *, field_visible_only: bool = False) -> list[dict]:
     """Führt PropertyDocument (eigene Objekt-Uploads) und ProjectDocument (aus allen NICHT
     archivierten Projekten dieses Objekts) zu einer gemeinsamen, nach Kategorie-Reihenfolge
@@ -122,7 +128,7 @@ def list_merged_documents_for_property(db: Session, property_id: int, *, field_v
     property_docs = db.scalars(
         select(PropertyDocument)
         .options(selectinload(PropertyDocument.document_category))
-        .where(PropertyDocument.property_id == property_id).order_by(PropertyDocument.id)
+        .where(PropertyDocument.property_id == property_id, _nicht_im_archiv()).order_by(PropertyDocument.id)
     ).all()
     project_docs = db.scalars(
         select(ProjectDocument)
@@ -169,7 +175,7 @@ def resolve_property_document_for_field(db: Session, property_id: int, source: s
         doc = db.scalar(
             select(PropertyDocument)
             .options(selectinload(PropertyDocument.document_category))
-            .where(PropertyDocument.id == document_id, PropertyDocument.property_id == property_id)
+            .where(PropertyDocument.id == document_id, PropertyDocument.property_id == property_id, _nicht_im_archiv())
         )
         if doc is None or not field_may_see_category(doc.document_category):
             return None

@@ -927,11 +927,15 @@ def get_or_create_project_profile(db: Session, project_id: int) -> ProjectProfil
     return profile
 
 
-def set_project_archived(db: Session, project: Project, archived: bool) -> Project:
+def set_project_archived(db: Session, project: Project, archived: bool, *, user_id: int | None = None) -> Project:
     """Rein informatives Aus-/Einblenden (seit 1.0.94) -- jederzeit
     umkehrbar, ändert an den Daten selbst nichts. Gilt für Mustervorgänge
-    wie für normale Projekte gleichermaßen."""
+    wie für normale Projekte gleichermaßen. Seit 1.10.11 (W1c) dasselbe Archiv wie die Aufbewahrung: Zeitpunkt und Konto; ein Projekt ohne Auftrag nimmt
+    seine Anfrage und deren Eingang mit; Entarchivieren zählt als Zurückholen (die 6 Monate zählen neu) und holt einen Kunden im Archiv mit zurück."""
+    from .aufbewahrung import projekt_von_hand
     project.archived = archived
+    db.flush()
+    projekt_von_hand(db, project.id, archived, user_id)
     db.commit()
     db.refresh(project)
     return project

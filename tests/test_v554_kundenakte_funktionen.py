@@ -79,7 +79,7 @@ FUNKTIONEN = [
      ['data-klick="eintrag-loeschen"', "/extra-infos/${id}`,{method:'DELETE'"]),
     # Objekte
     ("Objekte mit Hauptadresse, Notiz, Projekten, „Öffnen“; Kurzliste in der Übersicht", "Link", [("GET", "/api/properties")], "Au", "objekte",
-     ['id="properties"', 'id="uObjekteListe"', 'href="/properties/${p.id}"', "/api/properties?customer_id=${customerId}"]),
+     ['id="properties"', 'id="uObjekteListe"', 'href="/properties/${p.id}"', "/api/properties?archivierte=true&customer_id=${customerId}"]),
     ("„+ Objekt“ im Dialog", "Knopf", [("POST", "/api/properties")], "Au", "objekte",
      ['data-klick="objekt-neu"', 'id="propertyDialog"', "api('/api/properties',{method:'POST'"]),
     ("Objekt „Bearbeiten“ im Dialog (nicht die Hauptadresse)", "Knopf", [("PUT", "/api/properties/{property_id}")], "Au", "objekte",
@@ -90,7 +90,7 @@ FUNKTIONEN = [
      ['data-klick="dachflaeche-neu"', "api('/api/roof-areas',{method:'POST'", "location.href='/roof-areas/'+result.id"]),
     # Anfragen
     ("Anfragen mit Objekt, Status, Wiedervorlage; „Pipeline öffnen“", "Link", [("GET", "/api/inquiries")], "Au", "anfragen",
-     ['id="inquiries"', "/api/inquiries?customer_id=${customerId}", 'href="/inquiries"']),
+     ['id="inquiries"', "/api/inquiries?archivierte=true&customer_id=${customerId}", 'href="/inquiries"']),
     ("„Neue Anfrage“", "Link", [], "Au", "anfragen", ['id="newInquiryLink2"', "`/inquiries?customer_id=${customerId}`"]),
     # Dokumente
     ("Dokumente hochladen: Kategorie, Unterordner, Datum, Notiz, Dateien wählen oder hineinziehen", "Knopf",

@@ -140,7 +140,8 @@ def _kunden(db: Session, a: dict) -> list[dict]:
             bedingung.append(telefonbuch(Customer.first_name) == schluessel(vorname))
         dazu(select(Customer.id).where(*bedingung), "Name gleich")
     plz = (a["objekt"] or {}).get("plz")
-    kunden = db.scalars(select(Customer).where(Customer.id.in_(list(treffer))).order_by(Customer.id)).all() if treffer else []
+    kunden = db.scalars(select(Customer).where(Customer.id.in_(list(treffer)), Customer.archiviert_am.is_(None))  # 1.10.11: ohne Archiv
+                        .order_by(Customer.id)).all() if treffer else []
     out = []
     for k in kunden:
         gruende = treffer[k.id]
@@ -209,7 +210,8 @@ def _strasse_vergleichbar(text: str | None) -> str:
 
 def objekte(db: Session, zeile: WebAnfrage, kunde_id: int) -> list[dict]:
     """Die Objekte eines Kunden für die Auswahl -- „Adresse gleich“, wenn Straße und PLZ der Anfrage passen."""
-    if db.get(Customer, kunde_id) is None:
+    kunde = db.get(Customer, kunde_id)
+    if kunde is None or kunde.archiviert_am is not None:  # seit 1.10.11: Kunde im Archiv wie unbekannt
         raise LookupError(kunde_id)
     o = angaben(zeile)["objekt"] or {}
     out = []
@@ -234,7 +236,8 @@ def uebernehmen(db: Session, webanfrage_id: int, e, user_id: int | None) -> Inqu
         raise LookupError(webanfrage_id)
     geschrieben = []
     try:
-        treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, WebAnfrage.status == STATUS_NEU, not_(IN_PRUEFLISTE))
+        treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, WebAnfrage.status == STATUS_NEU, not_(IN_PRUEFLISTE),
+                                                          WebAnfrage.archiviert_am.is_(None))  # seit 1.10.11: nicht aus dem Archiv
                              .values(status=STATUS_UEBERNOMMEN, erledigt_am=utc_jetzt(), erledigt_von_user_id=user_id)).rowcount
         if treffer != 1:
             raise SchonErledigt()
@@ -242,7 +245,7 @@ def uebernehmen(db: Session, webanfrage_id: int, e, user_id: int | None) -> Inqu
             raise AuswahlFehlt("Bitte einen Auftraggeber wählen: einen bestehenden Kunden oder einen neuen.")
         if e.kunde_id is not None:
             kunde = db.get(Customer, e.kunde_id)
-            if kunde is None:
+            if kunde is None or kunde.archiviert_am is not None:  # seit 1.10.11: ein Kunde im Archiv wird nicht angeboten und nicht genommen
                 raise LookupError(e.kunde_id)
         else:
             kunde = kunde_anlegen(db, e.kunde_neu.model_dump())

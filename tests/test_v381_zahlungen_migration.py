@@ -174,9 +174,11 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         _ok(_alembic(url, "upgrade", BIS))
         engine.dispose()
         db = Session()
-        offen = db.get(Invoice, ids["offen"])
-        book_payment(db, customer_id=kunde, received_on=date(2026, 10, 1), amount=D("100"), note=None,
-                     lines=[Line(offen.id, zahlung=D("100"))])
+        # Seit 1.10.11 als Core-Insert (Muster tests/bestand_alt.py): book_payment() lädt den Kunden mit dem ORM von heute, das die Spalten des
+        # Archivs (customers.archiviert_am …) liest -- auf dem Stand BIS gibt es sie nicht. Gebucht wird wie book_payment(): Zahlung und Zuordnung.
+        zahlung = db.execute(insert(Payment.__table__).values(customer_id=kunde, received_on=date(2026, 10, 1), amount=D("100"))).inserted_primary_key[0]
+        db.execute(insert(PaymentAllocation.__table__).values(payment_id=zahlung, invoice_id=ids["offen"], kind="zahlung", amount=D("100")))
+        db.commit()
         db.close()
         _ok(_alembic(url, "downgrade", MIGRATION))
         lauf = _alembic(url, "downgrade", "-1")

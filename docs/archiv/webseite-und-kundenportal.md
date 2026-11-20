@@ -656,3 +656,94 @@ Klicktests der geänderten Seiten (Akte, Kundenakte, Anfragen) vor dem Commit: 4
 oben), danach 60/60.
 
 Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.10“ (17 über pytest, eine über den Klicktest, alle rot).
+
+### Umsetzung 1.10.11: Archiv nach dem letzten Kontakt (Rechnung, Bestätigen, Zurückholen, Filter)
+
+- Migration `9a4c2e7b1d56`: an `webanfragen`, `inquiries`, `customers` und `projects` je `archiviert_am` (naives UTC, leer = nicht im Archiv), `archiviert_von_user_id`
+  (Konto) und `zurueckgeholt_am`; am Projekt bleibt das vorhandene `archived` das Kennzeichen (nicht gedoppelt), die Spalten sagen nur wann und von wem.
+  `downgrade()` bricht ab, solange ein Eingang, eine Anfrage oder ein Kunde im Archiv ist.
+- `app/aufbewahrung.py`: `berechnen()` rechnet den ganzen Stand in einer festen Zahl Abfragen. Einheiten: Eingang ohne Übernahme (neu oder verworfen mit
+  „Sonstiges“; Spam, Test, Doppelt löscht 1.10.13), Anfrage ohne Projekt (mit ihrem Eingang), Projekt ohne Auftrag (keine Zeile in `orders`, auch keine
+  stornierte; kein Mustervorgang) mit Anfrage und Eingang. Letzter Kontakt = der späteste sichere Tag (Berlin) mit Herkunft: Eingang der Webseite, sonst das
+  Anlegen; vergangene Besichtigung; Kontaktvermerk; Angebot (nicht Entwurf) mit seinem Datum, per E-Mail versendet, zugestellt, Empfang bestätigt;
+  vergangener Termin am Projekt oder Angebot; Zurückholen. Fällig ab = + 6 Monate (`monate_spaeter()`, am Monatsende der letzte Tag). Sperren: offene Aufgabe
+  am Projekt, Vorlage eines Wartungsvertrags (Vertrag oder Position).
+- Kunde (`_kunden()`): geht nur mit, wenn ihm kein Auftrag, kein Projekt mit Auftrag, kein Wartungsvertrag, keine Rechnung und keine Zahlung gehört, er keinen
+  Mustervorgang hat, nicht im Adressbuch verknüpft ist, an seinen Objekten kein Vertrag, keine Checkliste und kein Vorgang eines anderen Kunden hängt, und
+  jeder seiner Vorgänge im Archiv oder mit ihm fällig ist; nie aus dem Adressimport. Sein letzter Kontakt ist der späteste aus Anlage, eigenen Vermerken,
+  Zurückholen und allen seinen Vorgängen. Seine Objekte gehen mit ihm (ein Objekt allein nie). Alle Mengen in Python bzw. mit EXISTS -- kein `NOT IN` über
+  eine Spalte, die leer sein darf.
+- `GET /api/aufbewahrung` (Vorschau: was fällig ist und was gesperrt ist, gruppiert je Kunde, Eingänge für sich, Zahl, „seit“, Zahl der unbearbeiteten
+  Eingänge, Prüfsumme `stand`) und `GET /api/aufbewahrung/archiv` -- ab Büro – Auftrag. `POST /api/aufbewahrung/{art}/{vorgang_id}/archivieren` (einzeln; ein
+  Kunde nimmt seine fälligen Vorgänge mit) und `POST /api/aufbewahrung/archivieren` (gesammelt, nur mit der Prüfsumme der Vorschau, sonst 409) -- Admin und
+  Büro – Finanzen (`app/permissions.py::darf_aufbewahrung()`). Bestätigt wird unter den Sperren neu gerechnet; was nicht mehr fällig ist, steht mit Grund unter
+  „uebersprungen“. `POST /api/aufbewahrung/{art}/{vorgang_id}/zurueckholen` -- ab Büro – Auftrag; nicht im Archiv 409.
+- Im Archiv fehlt eine Einheit in: `GET /api/customers`, `/api/properties`, `/api/inquiries` (mit `archivierte=true` auch sie, Objekte mit `kunde_im_archiv`);
+  Büro-Suche (Kunden, Objekte, Anfragen; Projekte und Angebote eines archivierten Projekts ohne Auftrag -- mit Auftrag bleibt es wie bisher auffindbar);
+  Objektsuche der Monteurin; Eingang der Webseite (Ansichten, Zähler, „Start“), Vorschlag und Suche beim Übernehmen; Objektdokumente (die Fotokopien eines
+  Eingangs im Archiv, Büro und Monteurin); Wiedervorlage auf „Start“ (über `/api/inquiries`). Über die Kennung bleibt alles lesbar.
+- Sperren am Rand: eine Anfrage an einem Kunden im Archiv anlegen oder ändern, ein Projekt für ihn anlegen, ein Projekt zu ihm wechseln -- 409 („erst
+  zurückholen“); beim Übernehmen ist er wie unbekannt (404); eine Aktion an einem Eingang im Archiv 409; ein Kontaktvermerk im Archiv 409.
+- Archivieren über das „⋮“ der Akte (wie bisher jedes Büro, `set_project_archived()` -> `projekt_von_hand()`): setzt Zeitpunkt und Konto, ohne Auftrag mit
+  Anfrage und Eingang; Entarchivieren zählt als Zurückholen und holt einen Kunden im Archiv mit.
+- Historie: je Einheit „archiviert“ bzw. „zurückgeholt“ unter der Art, die es schon gibt (Anfrage der Webseite, Anfrage, Projekt, Kunde), Feld „Archiv“
+  aktiv ↔ im Archiv, mit der Nummer, ohne Inhalte; das Projekt im Verlauf der Akte.
+- Seiten: „Projekt bearbeiten“ in der Akte und das Objektformular der Stammdaten laden die Kunden samt Archiv; ein gespeicherter Kunde im Archiv bleibt
+  gewählt („(im Archiv)“), neu angeboten werden nur aktive. Die Kundenakte lädt ihre Objekte und Anfragen samt Archiv. Die Seite „Aufbewahrung“ und die
+  Erinnerung auf „Start“ kommen mit 1.10.12.
+
+#### Festlegungen 1.10.11 (Bitte bestätigen)
+
+1. Einheiten: Eingang ohne Übernahme (neu oder verworfen mit „Sonstiges“), Anfrage ohne Projekt mit ihrem Eingang, Projekt ohne Auftrag (keine Zeile in
+   `orders`, auch keine stornierte; kein Mustervorgang) mit Anfrage und Eingang. Am Projekt gilt das vorhandene „archiviert“, dazu Zeitpunkt und Konto.
+2. Letzter Kontakt ist der späteste sichere Tag mit Herkunft: Eingang, sonst Anlage; vergangene Besichtigung; Kontaktvermerk; Angebot (nicht Entwurf) mit
+   Datum, versendet, zugestellt, Empfang bestätigt; vergangener Termin am Projekt oder Angebot; Zurückholen. Ein Entwurf, eine künftige Besichtigung und ein
+   künftiger Termin zählen nicht.
+3. Fällig ab = letzter Kontakt + 6 Monate; gibt es den Tag nicht, der letzte des Monats. Die 6 Monate stehen in Stufe 1 fest im Code.
+4. Nicht fällig, solange am Projekt eine offene Aufgabe hängt oder ein Wartungsvertrag (oder eine Position) es als Vorlage nimmt -- die Vorschau nennt den Grund.
+5. Ein Kunde geht nur mit, wenn nichts mehr an ihm hängt (Auftrag, Projekt mit Auftrag, Wartungsvertrag, Rechnung, Zahlung, Mustervorgang, Adressbuch,
+   Vertrag oder Checkliste an seinen Objekten, Vorgang eines anderen Kunden an seinen Objekten) und jeder seiner Vorgänge im Archiv oder mit ihm fällig ist;
+   Kunden aus dem Adressimport nie (F6). Seine Objekte gehen mit ihm, ein Objekt allein nie.
+6. Ins Archiv bestätigen Admin und Büro – Finanzen (F8): einzeln (ein Kunde nimmt seine fälligen Vorgänge mit) oder gesammelt -- gesammelt nur genau die Liste
+   der Vorschau (Prüfsumme), sonst 409 und nichts archiviert. Unter den Sperren neu gerechnet; was nicht mehr fällig ist, bleibt mit Grund.
+7. Im Archiv fehlt eine Einheit in Listen, Büro-Suche, Suche der Monteurin, Eingang der Webseite (samt Zählern), Vorschlag und Suche beim Übernehmen, den
+   Fotokopien am Objekt und der Wiedervorlage auf „Start“; über die Kennung bleibt sie lesbar. Ein archiviertes Projekt mit Auftrag bleibt in der Suche (wie
+   bisher).
+8. Zurückholen darf jedes Büro (F12: „Büro und Admin“); ab dem Zurückholen zählen die 6 Monate neu; Anfrage und Projekt holen ihren Kunden mit; eine Anfrage mit
+   Projekt kommt mit ihrem Projekt.
+9. An einem Kunden im Archiv entsteht nichts Neues (Anfrage anlegen oder ändern, Projekt anlegen, Wechsel eines Projekts zu ihm: 409; beim Übernehmen wie
+   unbekannt); kein Kontaktvermerk und keine Aktion an einem Eingang im Archiv (409).
+10. Archivieren über das „⋮“ der Akte bleibt bei jedem Büro (wie bisher) und ist dasselbe Archiv: Zeitpunkt und Konto, ohne Auftrag mit Anfrage und Eingang;
+    Entarchivieren ist Zurückholen (Kunde mit).
+11. Die Historie nennt je Einheit „archiviert“ bzw. „zurückgeholt“ unter der vorhandenen Art, „Archiv: aktiv ↔ im Archiv“, mit der Nummer -- ohne Inhalte.
+12. In „Projekt bearbeiten“ und im Objektformular bleibt ein gespeicherter Kunde im Archiv gewählt und gekennzeichnet; neu angeboten werden nur aktive. Die
+    Kundenakte zeigt ihre Objekte und Anfragen samt Archiv.
+13. Keine Mengenabfrage mit `NOT IN` über eine Spalte, die leer sein darf; ein Test mit NULL in `invoices.customer_id`, `contacts.customer_id`,
+    `maintenance_contracts.property_id` und `webanfragen.inquiry_id` (Hinweis des Betriebs).
+14. Die Migration hat keinen Bestand; `downgrade()` bricht ab, solange ein Eingang, eine Anfrage oder ein Kunde im Archiv ist.
+
+#### Tests und Prüfung 1.10.11
+
+Neu `tests/test_v782_archiv.py` (27 Tests: Monatsende; Anfrage und Kunde fällig; jüngerer Kontakt aus Vermerk und Besichtigung, künftige Besichtigung zählt
+nicht; Eingang der Webseite zählt; Angebot, Entwurf, Termin, Versand, offene Aufgabe, Vorlage; Auftrag auch storniert; Import, Adressbuch, Mustervorgang;
+NULL in fremden Spalten; Objekt an fremdem Vorgang; Eingänge samt Spam und ohne Eingangszeit; Rechte je Rolle; einzeln und nicht fällig; Kunde nimmt seine
+Vorgänge mit und fehlt in Listen, Suche, Suche der Monteurin und Objektdokumenten; gesammelt nur mit der Prüfsumme; Zurückholen zählt neu und holt den Kunden;
+nichts Neues im Archiv; von Hand über die Akte; Historie ohne Inhalte; Eingang im Archiv ohne Liste und Aktion; Migration unter SQLite und PostgreSQL; in node
+„Projekt bearbeiten“ und Objektformular mit einem Kunden im Archiv).
+
+Angepasste Erwartungen (Regel 28), nur Aufbau:
+- `tests/test_v557_kundenakte_seite.py::_antworten`, `tests/test_v450_auswahl_fremdschluessel.py` (Projektmappe, zwei Stellen), `tests/test_v554_kundenakte_funktionen.py`
+  (Belege Objekte und Anfragen) -- die Adressen der Kundenakte und von „Projekt bearbeiten“ tragen jetzt `archivierte=true`.
+- `tests/test_v447_auswahl_altwerte.py::KLASSEN` -- die drei Kundenlisten „vollstaendig“ mit neuem Grund (bis 1.10.10: „Kunden kennen kein Archiv“).
+- Die Parameter `archivierte` stehen zuletzt in der Signatur (`tests/test_v05_customer_and_quote_calc.py` ruft `list_customers(db)` direkt auf -- zuerst vorn
+  gebaut, im Teillauf rot); die Pfad-ID heißt `vorgang_id` (`tests/test_v761_ids_im_pfad.py`, zuerst `kennung`, im Teillauf rot); die Felder der Historie in
+  `FIELD_LABELS` (`tests/test_v436_fehlerrunde_vor_stufe_2.py`, im Teillauf rot).
+- Migrationsproben älterer Stände (Muster `tests/bestand_alt.py`): `tests/test_v380_nummern_eindeutig.py::_mit_nummer` legt Kunde, Anfrage und Projekt
+  als Core-Insert an, `tests/test_v381_zahlungen_migration.py` bucht die eine Zahlung auf dem Stand `3e9b7c41d2a8` als Core-Insert (Zahlung und Zuordnung
+  wie `book_payment()`) -- das ORM von heute liest und schreibt die Spalten des Archivs, die es dort nicht gibt (in der vollen Suite 4 rot, danach grün).
+- Im ersten vollen Lauf außerdem rot und im Code behoben: `AufbewahrungGesammeltIn.stand` als `Pflichttext` (`tests/test_v756_pflichttext.py`), `order_by`
+  an jeder Mengenabfrage in `_kunden()` ohne Spalte, die leer sein darf (`tests/test_v754_reihenfolge.py`), jede dieser Sortierungen auf der ID statt einer
+  Vereinigung (`tests/test_v755_kundenliste_und_id.py`, im zweiten vollen Lauf rot), feste Aktion je Aufruf von
+  `record_audit_entry()` (`tests/test_v732_lohndatei_vermerk_postgresql.py`).
+
+Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.11“ (33, alle rot).

@@ -41,6 +41,10 @@ BEREICHE = {
     ("webanfragen", "geprueft_von_user_id"): "Anfragen der Webseite",  # seit 1.10.4
     ("webanfragen", "erledigt_von_user_id"): "Anfragen der Webseite",
     ("kontaktvermerke", "created_by_user_id"): "Kontaktvermerke",  # seit 1.10.10
+    ("webanfragen", "archiviert_von_user_id"): "Archiv",  # seit 1.10.11
+    ("inquiries", "archiviert_von_user_id"): "Archiv",
+    ("customers", "archiviert_von_user_id"): "Archiv",
+    ("projects", "archiviert_von_user_id"): "Archiv",
 }
 
 

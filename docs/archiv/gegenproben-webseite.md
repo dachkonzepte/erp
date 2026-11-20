@@ -294,3 +294,43 @@ byte-gleich zurück. 8a zuerst mit einem Kommentar mitten im Ausdruck angesetzt 
 | Nr. 8 – jüngster Kontakt zuerst | aufsteigend sortiert | 1 rot |
 | Nr. 8 – nur als Text | `innerHTML` statt `textContent` | 1 rot |
 | Nr. 9 – Konto mit Vermerken | Bereich entfernt | 1 rot (Wächter der Fremdschlüssel auf Konten) |
+
+## W1c, 1.10.11: Archiv nach dem letzten Kontakt
+
+Probendateien im Scratchpad (`gp_1111.py`, `gp_1111b.py`, `gp_1111c.py` über `gegenprobe.py`), Lauf mit `tests/test_v782_archiv.py`; alle rot aus dem geprüften
+Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück. 1b zuerst mitten in einem mehrzeiligen Ausdruck angesetzt (ERROR), dann an der Konstante: rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – auch ein stornierter Auftrag ist ein Auftrag | nur nicht stornierte zählen | 1 rot |
+| Nr. 1 – Spam, Test, Doppelt nicht ins Archiv | `LOESCHEN_GRUENDE = ()` | 1 rot |
+| Nr. 2 – Entwurf zählt nicht | jedes Angebotsdatum | 1 rot |
+| Nr. 2 – künftige Besichtigung zählt nicht | jede Besichtigung | 1 rot |
+| Nr. 2 – Kontaktvermerk zählt | Vermerk der Anfrage weg | 1 rot |
+| Nr. 2 – Eingang der Webseite zählt | nur die Anlage | 1 rot |
+| Nr. 2 / 8 – Zurückholen zählt neu | Zurückholen weg | 1 rot |
+| Nr. 3 – Monatsende | höchstens der 28. | 2 rot |
+| Nr. 4 – offene Aufgabe sperrt | Sperre aus | 1 rot |
+| Nr. 4 – Vorlage sperrt | Sperre aus | 1 rot |
+| Nr. 5 – Import nie | Grund aus | 1 rot |
+| Nr. 5 / 13 – NULL sperrt nichts | wie `NOT IN` mit NULL | 1 rot |
+| Nr. 5 – fremder Vorgang am Objekt | Grund aus | 1 rot |
+| Nr. 6 – nur Admin und Büro – Finanzen | jedes Büro | 1 rot |
+| Nr. 6 – gesammelt nur mit Prüfsumme | Prüfung aus | 1 rot |
+| Nr. 6 – nicht Fälliges bleibt | ohne Prüfung „fällig“ | 1 rot |
+| Nr. 7 – Kundenliste | ohne Filter | 1 rot |
+| Nr. 7 – Büro-Suche Kunden | ohne Filter | 1 rot |
+| Nr. 7 – Suche der Monteurin (Objekte) | ohne Filter | 1 rot |
+| Nr. 7 – Fotokopien am Objekt | ohne Filter | 1 rot |
+| Nr. 7 – Eingang der Webseite | Ansicht ohne Filter | 1 rot |
+| Nr. 9 – keine Aktion am Eingang im Archiv | Bedingung weg | 1 rot |
+| Nr. 8 – Kunde kommt mit | Kunde bleibt im Archiv | 1 rot |
+| Nr. 9 – Anfrage am Kunden im Archiv | Prüfung aus | 1 rot |
+| Nr. 9 – Wechsel ins Archiv | Prüfung aus | 1 rot |
+| Nr. 9 – kein Kontaktvermerk im Archiv | Prüfung aus | 1 rot |
+| Nr. 10 – von Hand mit Anfrage | Anfrage bleibt | 1 rot |
+| Nr. 11 – ohne Inhalte | Titel in der Bezeichnung | 1 rot |
+| Nr. 12 – neu nur aktive (Akte) | jeder Kunde im Archiv angeboten | 1 rot |
+| Nr. 12 – gekennzeichnet (Akte) | ohne „(im Archiv)“ | 1 rot |
+| Nr. 12 – neu nur aktive (Objektformular) | jeder Kunde im Archiv angeboten | 1 rot |
+| Nr. 14 – downgrade bricht ab | Prüfung aus | 2 rot (SQLite, PostgreSQL) |

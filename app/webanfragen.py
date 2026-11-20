@@ -278,7 +278,8 @@ def stand(db: Session, jetzt: datetime | None = None) -> dict:
         nicht = json.loads(zeile.nicht_abgeholt) if zeile.nicht_abgeholt else []
     except ValueError:
         nicht = []
-    zaehlen = lambda *bedingung: db.scalar(select(func.count(WebAnfrage.id)).where(*bedingung))  # noqa: E731
+    # seit 1.10.11: was im Archiv ist, zählt nicht (die Meldungen an den Empfangsdienst schon -- sie hängen nicht am Archiv)
+    zaehlen = lambda *bedingung: db.scalar(select(func.count(WebAnfrage.id)).where(*bedingung, WebAnfrage.archiviert_am.is_(None)))  # noqa: E731
     return {
         "eingerichtet": eingerichtet(),
         "laeuft": zeile.lauf_seit is not None and zeile.lauf_seit >= jetzt - SPERRE_GILT,
@@ -292,7 +293,7 @@ def stand(db: Session, jetzt: datetime | None = None) -> dict:
         "pruefliste": zaehlen(IN_PRUEFLISTE),
         "spamverdacht": zaehlen(IN_PRUEFLISTE, WebAnfrage.spamverdacht.is_(True)),
         "pruefen": zaehlen(IN_PRUEFLISTE, WebAnfrage.pruefen_grund.is_not(None)),
-        "meldung_offen": zaehlen(MELDUNG_OFFEN),
+        "meldung_offen": db.scalar(select(func.count(WebAnfrage.id)).where(MELDUNG_OFFEN)),
     }
 
 
@@ -680,7 +681,8 @@ def eingang(db: Session, anzahl: int = EINGANG_MAX, ansicht: str = "eingang") ->
     """Die Liste (seit 1.10.1): die neuesten zuerst (Eingang, ohne Eingang am Ende), höchstens anzahl (bis EINGANG_MAX; die Startseite nimmt seit
     1.10.2 die fünf neuesten). Seit 1.10.4 je Ansicht: eingang (neu, nicht in der Prüfliste), pruefliste, erledigt (zuletzt erledigt zuerst)."""
     from sqlalchemy.orm import selectinload
-    abfrage = select(WebAnfrage).options(selectinload(WebAnfrage.dateien), selectinload(WebAnfrage.inquiry))
+    abfrage = select(WebAnfrage).options(selectinload(WebAnfrage.dateien), selectinload(WebAnfrage.inquiry)).where(
+        WebAnfrage.archiviert_am.is_(None))  # seit 1.10.11: im Archiv in keiner Ansicht
     if ansicht == "pruefliste":
         abfrage = abfrage.where(IN_PRUEFLISTE).order_by(WebAnfrage.eingang_am.desc().nulls_last(), WebAnfrage.id.desc())
     elif ansicht == "erledigt":
@@ -714,7 +716,8 @@ def _aendern(db: Session, webanfrage_id: int, bedingung: list, werte: dict) -> W
     zeile = db.get(WebAnfrage, webanfrage_id)
     if zeile is None:
         raise LookupError(webanfrage_id)
-    treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, *bedingung).values(**werte)).rowcount
+    treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, WebAnfrage.archiviert_am.is_(None), *bedingung)  # 1.10.11
+                         .values(**werte)).rowcount
     if treffer != 1:
         db.rollback()
         raise SchonErledigt()

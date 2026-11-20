@@ -119,7 +119,7 @@ def test_monteur_neue_buchung_ohne_vorgabe_ausserhalb():
 def _projekt(property_id, property_name):
     projekt = {"id": 1, "project_number": "P-1", "name": "Halle", "status": "anfrage", "category": None, "description": "",
                "customer_id": 1, "property_id": property_id, "property_name": property_name}
-    antworten = {"/api/properties?customer_id=1": [{"id": 3, "name": "Hauptadresse", "postal_code": "52531", "city": "Übach",
+    antworten = {"/api/properties?archivierte=true&customer_id=1": [{"id": 3, "name": "Hauptadresse", "postal_code": "52531", "city": "Übach",
                                                      "customer_id": 1}]}
     ablauf = (f"project = {json.dumps(projekt)}; customers = [{{id: 1, customer_number: 'K-1', name: 'Kunde'}}]; projectCategories = [];"
               "try { await openProjectEdit(); } catch (e) { if (!_gewaehlt('editProperty')) throw e; } return _feld('editProperty');")
@@ -140,7 +140,7 @@ def test_projektmappe_kein_objekt_bleibt():
 @nur_mit_node
 def test_projektmappe_hauptadresse_nur_beim_kundenwechsel():
     """Vergleichsfall: wechselt der Kunde im Dialog, schlägt die Liste dessen Hauptadresse vor (wie bisher)."""
-    antworten = {"/api/properties?customer_id=2": [{"id": 8, "name": "Hauptadresse", "postal_code": "1", "city": "X", "customer_id": 2}]}
+    antworten = {"/api/properties?archivierte=true&customer_id=2": [{"id": 8, "name": "Hauptadresse", "postal_code": "1", "city": "X", "customer_id": 2}]}
     ablauf = ("project = {property_name: null}; _element('editCustomer').value = '2'; await loadEditProperties();"
               "return _feld('editProperty');")
     assert _lauf("akte.html", "akteStarten().catch(", ablauf, antworten)["ergebnis"] == ["8", "Hauptadresse · 1 X"]

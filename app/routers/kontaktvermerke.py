@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..ids import Id
-from ..kontaktvermerke import BezugFehlt, vermerke, vermerken
+from ..kontaktvermerke import BezugFehlt, ImArchiv, vermerke, vermerken
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import KontaktvermerkIn, KontaktvermerkOut
@@ -29,6 +29,8 @@ def _vermerken(db: Session, bezug: str, bezug_id: int, payload: KontaktvermerkIn
         return vermerken(db, bezug, bezug_id, payload.kontakt_am, payload.weg, user.id)
     except BezugFehlt as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ImArchiv as e:  # seit 1.10.11
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.get("/api/inquiries/{inquiry_id}/kontakte", response_model=list[KontaktvermerkOut])

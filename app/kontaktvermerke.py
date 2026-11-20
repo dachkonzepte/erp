@@ -26,6 +26,10 @@ class BezugFehlt(LookupError):
     """Anfrage, Projekt oder Kunde gibt es nicht (404)."""
 
 
+class ImArchiv(ValueError):
+    """Seit 1.10.11: der Bezug ist im Archiv -- erst zurückholen (409)."""
+
+
 def tag_pruefen(kontakt_am: date) -> date:
     """Nicht in der Zukunft (Berlin), nicht vor dem 01.01.2000 -- sonst ValueError (422 im Eingabeschema)."""
     if kontakt_am > berlin_today():
@@ -60,6 +64,9 @@ def als_dict(v: Kontaktvermerk, konto: AppUser | None) -> dict:
 def vermerken(db: Session, bezug: str, bezug_id: int, kontakt_am: date, weg: str, user_id: int | None) -> list[dict]:
     """Legt einen Vermerk an (Tag geprüft, Weg aus WEGE) und gibt alle Vermerke des Bezugs zurück."""
     spalte = _bezug_pruefen(db, bezug, bezug_id)
+    from .aufbewahrung import im_archiv
+    if im_archiv(db, bezug, bezug_id):
+        raise ImArchiv(f"{BEZUEGE[bezug][2]} ist im Archiv – erst zurückholen, dann den Kontakt vermerken.")
     if weg not in WEGE:
         raise ValueError(weg)
     tag_pruefen(kontakt_am)

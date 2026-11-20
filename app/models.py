@@ -274,6 +274,10 @@ class Customer(Base):
     legacy_address_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     import_run_id: Mapped[int | None] = mapped_column(ForeignKey("import_runs.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Archiv (seit 1.10.11, Stufe W1c; app/aufbewahrung.py): leer = nicht im Archiv; zurueckgeholt_am -- ab da zählen die 6 Monate neu
+    archiviert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    archiviert_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    zurueckgeholt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     profile: Mapped["CustomerProfile | None"] = relationship(
         back_populates="customer", cascade="all, delete-orphan", uselist=False
@@ -479,6 +483,10 @@ class Inquiry(Base):
     lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Nummer der Webseite (seit 1.10.5, Stufe W1b): gesetzt nur beim Übernehmen einer Anfrage der Webseite (app/webanfrage_uebernahme.py)
     webseite_nummer: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True)
+    # Archiv (seit 1.10.11, Stufe W1c; app/aufbewahrung.py): leer = nicht im Archiv; zurueckgeholt_am -- ab da zählen die 6 Monate neu
+    archiviert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    archiviert_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    zurueckgeholt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -526,6 +534,10 @@ class WebAnfrage(Base):
     melden_soll: Mapped[str | None] = mapped_column(String(64), nullable=True)
     gemeldet_als: Mapped[str | None] = mapped_column(String(64), nullable=True)
     inquiry_id: Mapped[int | None] = mapped_column(ForeignKey("inquiries.id"), nullable=True, unique=True)  # seit 1.10.5: übernommen als
+    # Archiv (seit 1.10.11, Stufe W1c; app/aufbewahrung.py): leer = nicht im Archiv; zurueckgeholt_am -- ab da zählen die 6 Monate neu
+    archiviert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    archiviert_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    zurueckgeholt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     dateien: Mapped[list["WebAnfrageDatei"]] = relationship(back_populates="webanfrage", cascade="all, delete-orphan",
                                                              order_by="WebAnfrageDatei.id")
@@ -623,6 +635,10 @@ class Project(Base):
     # noch kein Auftrag aus dem Projekt entstanden ist -- siehe
     # delete_project() in projects.py für die Begründung.
     archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
+    # Seit 1.10.11 (Stufe W1c): wann und von wem archiviert (archived bleibt das Kennzeichen -- nicht gedoppelt), zurückgeholt wann
+    archiviert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    archiviert_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    zurueckgeholt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     customer: Mapped[Customer] = relationship(back_populates="projects")

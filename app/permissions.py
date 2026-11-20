@@ -223,11 +223,19 @@ def darf_antrag_zurueckziehen(user: AppUser | None, antrag) -> bool:
 # und bekommt keinen Knopf (wie bei „Zeiten“). Server (app/routers/invoices.py, payments.py, reminders.py, dunning_charges.py,
 # email_dispatches.py) und Oberfläche (Seitenrouten: Auftrag, Rechnung, Kundenakte, Mahnwesen) fragen nur diese Regel.
 GELD_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+# Seit 1.10.11 (Stufe W1c, Antwort F8): ins Archiv bestätigen (und in Stufe 2 löschen) Admin und Büro – Finanzen; lesen und zurückholen jedes Büro.
+AUFBEWAHRUNG_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+AUFBEWAHRUNG_NUR_LESEN = "Ins Archiv bestätigen Admin und Büro – Finanzen – du kannst die Liste lesen und zurückholen."
 GELD_NUR_LESEN = "Rechnungen, Zahlungen und Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen."
 # Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): auch die Einstellungen mit Geld -- dieselbe Regel, eigene Meldung.
 EINSTELLUNGEN_GELD_NUR_LESEN = ("Mahnstufen, Zahlungsbedingungen, Steuerschlüssel und Nummernkreise ändern Admin und Büro – Finanzen – "
                                 "du kannst sie lesen.")
 GELD_DOKUMENTE = frozenset({"rechnung", "mahnung"})  # Dokumentarten des Versandprotokolls, deren Versand zum Geld gehört
+
+
+def darf_aufbewahrung(user: AppUser | None) -> bool:
+    """Seit 1.10.11: wer ins Archiv bestätigt -- Admin und Büro – Finanzen; ohne Konto (Tests ohne Anmeldung) ohne Einschränkung."""
+    return user is None or has_role(user, *AUFBEWAHRUNG_ROLLEN)
 
 
 def darf_geld(user: AppUser | None) -> bool:
@@ -346,6 +354,7 @@ def require_min_role(min_role: str, *, message: str = _DEFAULT_MESSAGE):
 require_zeit_buchen = require_role(*ZEIT_BUCHEN_ROLLEN, message=ZEITEN_NUR_LESEN)
 require_lohndaten = require_role(*LOHNDATEN_ROLLEN, message=NUR_LOHNDATEN)
 require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.111, zu darf_geld() oben
+require_aufbewahrung = require_role(*AUFBEWAHRUNG_ROLLEN, message=AUFBEWAHRUNG_NUR_LESEN)  # seit 1.10.11, zu darf_aufbewahrung() oben
 # Seit 1.9.120: Mahnstufen, Zahlungsbedingungen, Steuerschlüssel, Nummernkreise speichern -- darf_geld(), bis 1.9.119 jedes Büro.
 require_geld_einstellung = require_role(*GELD_ROLLEN, message=EINSTELLUNGEN_GELD_NUR_LESEN)
 require_planungsgrundlagen = require_role(*PLANUNGSGRUNDLAGEN_ROLLEN, message=PLANUNGSGRUNDLAGEN_NUR_LESEN)  # seit 1.9.147, zu darf_planungsgrundlagen() oben

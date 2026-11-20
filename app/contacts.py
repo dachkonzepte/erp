@@ -161,11 +161,12 @@ def usage_counts(db: Session, contact_ids: list[int]) -> dict[int, int]:
 
 def source_info(contact: Contact) -> dict:
     """Herkunft eines Eintrags: Stammsatz, Hinweis ("aus Kundenstamm"), Link, und ob der Stammsatz archiviert
-    ist (beim Lieferanten "inaktiv"; Kunden kennen keinen Archivstatus)."""
+    ist (beim Lieferanten "inaktiv"; beim Kunden seit 1.10.11 das Archiv der Aufbewahrung)."""
     source = contact_source(contact)
     if source == "customer":
         return {"source": source, "source_label": SOURCES[source], "source_id": contact.customer_id,
-                "source_url": f"/customers/{contact.customer_id}", "source_archived": False}
+                "source_url": f"/customers/{contact.customer_id}",
+                "source_archived": contact.customer is not None and contact.customer.archiviert_am is not None}
     if source == "supplier":
         return {"source": source, "source_label": SOURCES[source], "source_id": contact.supplier_id,
                 "source_url": f"/master-data/suppliers/{contact.supplier_id}/edit",

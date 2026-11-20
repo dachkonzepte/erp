@@ -97,7 +97,7 @@ Regel in sichtbar_in_sql()), und zählt und begrenzt sie in SQL wie jede andere 
 from dataclasses import dataclass
 from typing import Callable
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .contacts import (
@@ -130,6 +130,12 @@ OFFICE_SEARCH_RESULT_LIMIT = 20
 OFFICE_ROLES = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG})
 
 
+def _projekt_nicht_im_archiv():
+    """Seit 1.10.11 (W1c): ein Projekt im Archiv fehlt in der Suche, solange es keinen Auftrag hat (die Aufbewahrung); ein archiviertes Projekt mit
+    Auftrag bleibt auffindbar (Aufräumen von Hand, wie bisher)."""
+    return or_(Project.archived.is_(False), exists().where(Order.project_id == Project.id))
+
+
 def _property_search_base_stmt(term: str):
     """Reiner WHERE-/JOIN-Aufbau, geteilt von search_properties() (Monteurs-Suche) und
     _search_properties_office() (Büro-Suche, Quelle "properties") -- EIN Filter, zwei Aufrufer,
@@ -145,7 +151,7 @@ def _property_search_base_stmt(term: str):
             passt(Property.postal_code, term),
             passt(Property.city, term),
             passt(Customer.name, term),
-        ))
+        ), Customer.archiviert_am.is_(None))  # seit 1.10.11: Objekte eines Kunden im Archiv fehlen (Büro und Monteurin)
     )
 
 
@@ -256,7 +262,7 @@ def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
     stmt = (
         select(Customer)
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-        .where(or_(passt(Customer.name, term), passt(CustomerProfile.customer_number, term)))
+        .where(or_(passt(Customer.name, term), passt(CustomerProfile.customer_number, term)), Customer.archiviert_am.is_(None))  # 1.10.11: ohne Archiv
     )
     return _count_and_fetch(db, stmt, (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
 
@@ -310,7 +316,7 @@ def _search_projects(db: Session, term: str, limit: int) -> tuple[int, list]:
             passt(Project.project_number, term),
             passt(Project.name, term),
             passt(Customer.name, term),
-        ))
+        ), _projekt_nicht_im_archiv())  # seit 1.10.11
     )
     return _count_and_fetch(db, stmt, Project.id.desc(), limit, options=(selectinload(Project.customer),))
 
@@ -326,6 +332,7 @@ def _search_quotes(db: Session, term: str, limit: int) -> tuple[int, list]:
         select(Quote)
         .join(Project, Quote.project_id == Project.id)
         .join(Customer, Project.customer_id == Customer.id)
+        .where(_projekt_nicht_im_archiv())  # seit 1.10.11: Angebote eines Projekts im Archiv (ohne Auftrag) fehlen
         .where(or_(
             passt(Quote.quote_number, term),
             passt(Quote.title, term),
@@ -415,7 +422,7 @@ def _search_inquiries(db: Session, term: str, limit: int) -> tuple[int, list]:
             passt(Inquiry.inquiry_number, term),
             passt(Inquiry.title, term),
             passt(Customer.name, term),
-        ))
+        ), Inquiry.archiviert_am.is_(None))  # seit 1.10.11: ohne Archiv
     )
     return _count_and_fetch(db, stmt, Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))
 

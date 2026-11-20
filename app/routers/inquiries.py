@@ -45,6 +45,8 @@ def _validate_inquiry_customer_property(db: Session, customer_id: int, property_
     customer = db.get(Customer, customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+    if customer.archiviert_am is not None:  # seit 1.10.11: eine aktive Anfrage nie an einem Kunden im Archiv (Anlegen und Ändern)
+        raise HTTPException(status_code=409, detail="Der Kunde ist im Archiv – erst unter „Aufbewahrung → Archiv“ zurückholen.")
     property_obj = None
     if property_id is not None:
         property_obj = db.get(Property, property_id)
@@ -66,7 +68,9 @@ def _project_list_out(project: Project) -> ProjectListOut:
 
 
 @router.get("/api/inquiries", response_model=list[InquiryOut])
-def list_inquiries(customer_id: Id | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_inquiries(customer_id: Id | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"),
+                   _role: AppUser = _role_dep, archivierte: bool = False):
+    """Seit 1.10.11 (W1c) ohne Anfragen im Archiv; archivierte=true auch sie (die Kundenakte zeigt sie gekennzeichnet)."""
     stmt = (
         select(Inquiry)
         .options(selectinload(Inquiry.customer), selectinload(Inquiry.property), selectinload(Inquiry.project), selectinload(Inquiry.webanfrage))
@@ -76,6 +80,8 @@ def list_inquiries(customer_id: Id | None = None, status: str | None = None, db:
         stmt = stmt.where(Inquiry.customer_id == customer_id)
     if status is not None:
         stmt = stmt.where(Inquiry.status == status)
+    if not archivierte:
+        stmt = stmt.where(Inquiry.archiviert_am.is_(None))
     return [InquiryOut.model_validate(inquiry_to_dict(x)) for x in db.scalars(stmt).all()]
 
 

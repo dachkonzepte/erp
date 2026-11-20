@@ -86,19 +86,17 @@ def _mit_nummer(db, key: str, nummer: str | None) -> int:
     echte Fremdschlüssel (PostgreSQL prüft sie). Gibt die ID des Datensatzes mit der Nummer zurück; nummer None = Entwurf
     (nur Rechnung und Mahnung)."""
     n = f"{next(_LAUF)}-{uuid.uuid4().hex[:6]}"
-    customer = Customer(name="Kunde", last_name="Kunde")
-    db.add(customer); db.flush()
+    # Seit 1.10.11 Kunde, Anfrage und Projekt als Core-Insert: das ORM schriebe die Spalten des Archivs, die es vor der Migration nicht gibt.
+    customer = SimpleNamespace(id=db.execute(insert(Customer.__table__).values(name="Kunde", last_name="Kunde")).inserted_primary_key[0])
     if key == "customer":
         row = CustomerProfile(customer_id=customer.id, customer_number=nummer)
         db.add(row); db.flush()
         return row.id
     if key == "inquiry":
-        row = Inquiry(inquiry_number=nummer, customer_id=customer.id, title="Anfrage")
-        db.add(row); db.flush()
-        return row.id
-    project = Project(project_number=nummer if key == "project" else f"X-P-{n}", name="P", customer_id=customer.id,
-                      pipeline_column_id=default_pipeline_column_id(db))
-    db.add(project); db.flush()
+        return db.execute(insert(Inquiry.__table__).values(inquiry_number=nummer, customer_id=customer.id, title="Anfrage")).inserted_primary_key[0]
+    project = SimpleNamespace(id=db.execute(insert(Project.__table__).values(
+        project_number=nummer if key == "project" else f"X-P-{n}", name="P", customer_id=customer.id,
+        pipeline_column_id=default_pipeline_column_id(db))).inserted_primary_key[0])
     if key == "project":
         return project.id
     quote = Quote(quote_number=nummer if key == "quote" else f"X-A-{n}", project_id=project.id, title="A")

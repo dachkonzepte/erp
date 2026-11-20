@@ -37,7 +37,7 @@ document.createTextNode = t => ({textContent: String(t)});
 
 
 def _antworten(client, kid):
-    urls = [f"/api/customers/{kid}", f"/api/properties?customer_id={kid}", f"/api/inquiries?customer_id={kid}",
+    urls = [f"/api/customers/{kid}", f"/api/properties?archivierte=true&customer_id={kid}", f"/api/inquiries?archivierte=true&customer_id={kid}",
             "/api/settings/option-groups/customer_categories", "/api/settings/option-groups/customer_salutations",
             "/api/payment-terms?include_archived=true", "/api/settings/option-groups/project_document_categories",
             f"/api/customers/{kid}/akte", f"/api/customers/{kid}/documents", f"/api/customers/{kid}/payments",
@@ -47,7 +47,7 @@ def _antworten(client, kid):
         r = client.get(u)
         assert r.status_code == 200, (u, r.text[:300])
         out[u] = r.json()
-    for p in out[f"/api/properties?customer_id={kid}"]:
+    for p in out[f"/api/properties?archivierte=true&customer_id={kid}"]:
         out[f"/api/roof-areas?property_id={p['id']}"] = client.get(f"/api/roof-areas?property_id={p['id']}").json()
     return out
 

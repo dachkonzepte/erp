@@ -405,7 +405,7 @@ aktion('dialog-zu',b=>el(b.dataset.dialog).close());
 // 'dokumente', 'zahlungen', 'verlauf' -- kein Bereich setzt den Stand eines anderen.
 async function load(){
   await Promise.all([lesen('kunde',async()=>{
-    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?archivierte=true&customer_id=${customerId}`),api(`/api/inquiries?archivierte=true&customer_id=${customerId}`),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
     const flaechen=new Map();
     await Promise.all(daten[1].map(async p=>{flaechen.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
     return [daten,flaechen];

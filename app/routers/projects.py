@@ -103,7 +103,7 @@ def archive_project_endpoint(project_id: Id, db: Session = Depends(get_db, scope
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
-    set_project_archived(db, project, True)
+    set_project_archived(db, project, True, user_id=_role.id)
     return _project_to_list_out(project)
 
 
@@ -112,7 +112,7 @@ def unarchive_project_endpoint(project_id: Id, db: Session = Depends(get_db, sco
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
-    set_project_archived(db, project, False)
+    set_project_archived(db, project, False, user_id=_role.id)
     return _project_to_list_out(project)
 
 
@@ -149,6 +149,8 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db, scope="
     customer = db.get(Customer, payload.customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+    if customer.archiviert_am is not None:  # seit 1.10.11: ein Kunde im Archiv bekommt keinen neuen Vorgang (erst zurückholen)
+        raise HTTPException(status_code=409, detail="Der Kunde ist im Archiv – erst unter „Aufbewahrung → Archiv“ zurückholen.")
     property_obj = None
     if payload.property_id is not None:
         property_obj = db.get(Property, payload.property_id)
@@ -184,6 +186,8 @@ def update_project(project_id: Id, payload: ProjectUpdate, db: Session = Depends
     customer = db.get(Customer, payload.customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+    if payload.customer_id != project.customer_id and customer.archiviert_am is not None:  # seit 1.10.11: kein Wechsel ins Archiv
+        raise HTTPException(status_code=409, detail="Der Kunde ist im Archiv – erst unter „Aufbewahrung → Archiv“ zurückholen.")
     prop = None
     # Seit 1.8.70 nur für einen neu gewählten Kunden oder ein neu gewähltes Objekt: ein Vorgang aus einem Schnellauftrag oder
     # Wartungsvertrag kann bewusst bestätigt am Objekt eines anderen Kunden hängen (app/zugehoerigkeit.py) -- unverändert

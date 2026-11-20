@@ -139,6 +139,8 @@ def _privat(obj) -> bool:
 FIELD_LABELS = {
     "anlass":"Anlass",  # seit 1.9.344: warum eine Aufgabe gelöscht wurde
     "kontakt_am":"Tag des Kontakts","weg":"Weg","inquiry_id":"Anfrage",  # seit 1.10.10: Kontaktvermerk
+    "archiviert_am":"Im Archiv seit","archiviert_von_user_id":"Ins Archiv gegeben von (Konto)","zurueckgeholt_am":"Aus dem Archiv zurückgeholt",  # 1.10.11
+    "archiv":"Archiv",  # seit 1.10.11: „archiviert“ / „zurückgeholt“ (app/aufbewahrung.py::_historie())
     # seit 1.9.299: Betriebsmittel und Prüffristen
     "asset_number":"Betriebsmittelnummer","asset_type":"Typ","product_url":"Produktlink","usage_notes":"Bedienungshinweise","acquisition_date":"Anschaffungsdatum",
     "acquisition_cost":"Anschaffungskosten","cost_notes":"Kosten-Notizen","selectable_in_reports":"Im Einsatzbericht auswählbar","asset_id":"Betriebsmittel",

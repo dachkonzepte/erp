@@ -25,11 +25,19 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/properties", response_model=list[PropertyOut])
-def list_properties(customer_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    stmt = select(Property).order_by(*nach_namen(Property.name), Property.id)
+def list_properties(customer_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
+                    archivierte: bool = False):
+    """Seit 1.10.11 (W1c) ohne die Objekte eines Kunden im Archiv (sie gehen mit ihm); archivierte=true auch sie, gekennzeichnet (kunde_im_archiv)."""
+    stmt = select(Property, Customer.archiviert_am).join(Customer, Customer.id == Property.customer_id).order_by(*nach_namen(Property.name), Property.id)
     if customer_id is not None:
         stmt = stmt.where(Property.customer_id == customer_id)
-    return db.scalars(stmt).all()
+    if not archivierte:
+        stmt = stmt.where(Customer.archiviert_am.is_(None))
+    out = []
+    for objekt, archiviert_am in db.execute(stmt).all():
+        objekt.kunde_im_archiv = archiviert_am is not None  # nur für die Antwort (PropertyOut), keine Spalte
+        out.append(objekt)
+    return out
 
 
 @router.get("/api/properties/{property_id}", response_model=PropertyOut)
