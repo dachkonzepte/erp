@@ -10,6 +10,8 @@ Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken 
 
 Dazu aufgeräumt (nicht in Git, `bildgrundlage/` ist ignoriert): neun alte Bildgrundlagen, zwei Vergleichsordner und 16 Ordner, die nur ihr ZIP wiederholten, gelöscht; die jüngste Bildgrundlage `d9d7d06`, der Befund `pruefung/` sowie Berichte und ZIPs der bestätigten Runden liegen jetzt außerhalb des Repos unter `C:\DACHKONZEPTE-ERP\Archiv\` (vorher und nachher je Datei mit SHA-256 abgeglichen). CLAUDE.md nennt die neue Ablage.
 
+Nachtrag (Antwort des Betriebs vom 20.11.2026): auch `bildgrundlage\lohn\` wird nicht mehr gesichert -- die Oktober-Muster darin sind die echten Oktoberdaten mit ersetzter Personalnummer (geprüft nur über Anzahlen). Beide Ordner werden nach dem ersten Lohnmonat (Januar 2027) gelöscht; Muster sind künftig nur erfunden (CLAUDE.md, „Testen“).
+
 ## 1.10.5 – Anfragen der Webseite: als Anfrage übernehmen
 
 Stufe W1b. Eine Anfrage im Eingang lässt sich jetzt als Anfrage übernehmen. Die Karte „Als Anfrage übernehmen“ schlägt vor, wer Auftraggeber wird -- nur aus den strukturierten Angaben: beim Eigentümer der Melder, bei einer Hausverwaltung oder Firma die Firma mit dem Melder als Ansprechpartner, meldet ein Mieter die Hausverwaltung aus dem Pflichtfeld (der Mieter wird Ansprechpartner vor Ort, sein Telefon und seine E-Mail kommen nie zum Kunden). Bestehende Kunden stehen mit ihren Gründen zur Wahl (E-Mail, Telefon, Name, PLZ), je Kunde seine Objekte mit „Adresse gleich“. Nichts ist vorgewählt: das Büro wählt Auftraggeber und Objekt und bestätigt; ein neuer Kunde braucht „Verbraucher ja/nein“.

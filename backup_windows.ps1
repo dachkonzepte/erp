@@ -13,7 +13,8 @@ Ausgeschlossen: .venv, __pycache__, .pytest_cache, .git (reproduzierbar bzw. irr
 fuer den Anwendungszustand) sowie Log-Dateien (kein Teil eines "funktionierenden
 Zustands", wuerden Backups nur unnoetig aufblasen).
 Seit 1.10.6 ausserdem bildgrundlage\lohn_echt\ (echte Personaldaten, nur auf diesem Rechner,
-nie in einer Sicherung); landet der Ordner trotzdem im Ziel, entfernt das Skript ihn dort und bricht mit Fehler ab.
+nie in einer Sicherung) und bildgrundlage\lohn\ (Muster, im Oktober aus echten Daten mit ersetzten
+Nummern); landet einer der Ordner trotzdem im Ziel, entfernt das Skript ihn dort und bricht mit Fehler ab.
 
 Wird laut CLAUDE.md nach jedem abgeschlossenen Update (jedem VERSION-Bump) ausgefuehrt.
 Automatische Bereinigung (seit 1.1.5): nach jedem Lauf bleiben nur die 3 juengsten
@@ -28,13 +29,14 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Version = (Get-Content (Join-Path $ProjectRoot "VERSION") -Raw).Trim()
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $Destination = Join-Path $DestinationRoot "v${Version}_$Timestamp"
-# Echte Personaldaten (seit 1.10.6) -- nie in eine Sicherung
-$LohnEcht = Join-Path $ProjectRoot "bildgrundlage\lohn_echt"
+# Echte bzw. aus echten abgeleitete Personaldaten (seit 1.10.6) -- nie in eine Sicherung
+$NieSichern = @("bildgrundlage\lohn_echt", "bildgrundlage\lohn")
+$NieSichernPfade = @($NieSichern | ForEach-Object { Join-Path $ProjectRoot $_ })
 
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 
 robocopy $ProjectRoot $Destination /E `
-    /XD ".venv" "__pycache__" ".pytest_cache" ".git" $LohnEcht `
+    /XD ".venv" "__pycache__" ".pytest_cache" ".git" @NieSichernPfade `
     /XF "*.pyc" "erp.log" "erp.log.*" "scratch_uvicorn_out.log" "scratch_uvicorn_err.log" `
     /NFL /NDL /NJH /NP | Out-Null
 
@@ -44,10 +46,16 @@ if ($RobocopyExitCode -ge 8) {
     exit 1
 }
 
-$KopieLohnEcht = Join-Path $Destination "bildgrundlage\lohn_echt"
-if (Test-Path $KopieLohnEcht) {
-    Remove-Item $KopieLohnEcht -Recurse -Force
-    Write-Error "Backup enthielt bildgrundlage\lohn_echt (echte Personaldaten) -- dort wieder entfernt, Lauf abgebrochen: $Destination"
+$Abbruch = $false
+foreach ($Teil in $NieSichern) {
+    $Kopie = Join-Path $Destination $Teil
+    if (Test-Path $Kopie) {
+        Remove-Item $Kopie -Recurse -Force
+        Write-Error "Backup enthielt $Teil (Personaldaten) -- dort wieder entfernt, Lauf abgebrochen: $Destination"
+        $Abbruch = $true
+    }
+}
+if ($Abbruch) {
     exit 1
 }
 

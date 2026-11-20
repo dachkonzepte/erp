@@ -510,8 +510,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
    `data/.erp_secret`) nach `C:\DACHKONZEPTE-ERP\Backup\v<VERSION>_<Zeitstempel>\` – ein neuer
    Ordner pro Lauf, nichts wird überschrieben. Ausgenommen sind nur `.venv`, `__pycache__`,
    `.pytest_cache` (reproduzierbar über `requirements.txt`) sowie Log-Dateien (kein Teil eines
-   funktionierenden Zustands), seit 1.10.6 auch `bildgrundlage\lohn_echt\` (echte Personaldaten; landet
-   der Ordner doch im Ziel, entfernt das Skript ihn dort und bricht ab). Reihenfolge bei jedem abgeschlossenen Update: zuerst `VERSION` +
+   funktionierenden Zustands), seit 1.10.6 auch `bildgrundlage\lohn_echt\` und `bildgrundlage\lohn\` (echte
+   bzw. aus echten abgeleitete Personaldaten; landet einer doch im Ziel, entfernt das Skript ihn dort und bricht ab). Reihenfolge bei jedem abgeschlossenen Update: zuerst `VERSION` +
    `CHANGELOG.md` (Regel 8), dann `.\backup_windows.ps1` ausführen und den Erfolg (Zielordner,
    Größe) kurz prüfen. **Automatische Bereinigung (seit 1.1.5):** das Skript behält nach jedem
    Lauf nur die 3 jüngsten Backup-Ordner, ältere werden am Ende desselben Laufs automatisch
@@ -2150,6 +2150,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 - **Keine echte Personalnummer in einer versionierten Datei** (seit 1.9.244): Beispiele in Tests und Doku sind erfunden (0009x, 0019x, 0029x --
   der Kreis des Lohnbüros bleibt). Der Wächter `tests/test_v644_keine_echten_personalnummern.py` liest die echten Nummern nur lokal aus
   `bildgrundlage/lohn_echt/` (sonst übersprungen) und nennt bei einem Treffer Datei und Zeile, nie die Nummer.
+- **Muster nur erfunden** (seit 1.10.6, Betreibervorgabe 20.11.2026): Testdaten und Muster -- auch unter `bildgrundlage/` -- werden erfunden, nie aus
+  echten Daten abgeleitet, auch nicht mit ersetzter Personalnummer. `bildgrundlage/lohn/` (die Oktoberdateien sind echte Daten mit ersetzten Nummern)
+  und `bildgrundlage/lohn_echt/` werden nicht gesichert und nach dem ersten Lohnmonat (Januar 2027) gelöscht.
 - **`pytest -q` als Standard-Aufruf** (Regel 15 oben) -- bei über 1800 Tests erzeugt die volle
   Ausgabe (inkl. `DeprecationWarning`-Sammlung) allein schon zehntausende Zeilen, ohne bei einem
   grünen Lauf zusätzliche Information zu liefern. `pytest.ini` blendet die
