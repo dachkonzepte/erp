@@ -391,6 +391,8 @@ ABSCHLIESSEND = {
     ("incoming_invoices.html", "markPaidNow"): "Eingangsrechnung als bezahlt markieren (Zahlung)",
     ("webanfrage.html", "webanfrageVerwerfen"): "Anfrage der Webseite verwerfen (gibt „verworfen“ an den Empfangsdienst)",  # seit 1.10.4 (Stufe W1b)
     ("webanfrage.html", "webanfrageUebernehmen"): "Anfrage der Webseite als Anfrage übernehmen (legt Kunde, Objekt und Anfrage an)",  # seit 1.10.5
+    ("aufbewahrung.html", "eingangLoeschen"): "verworfenen Eingang der Webseite endgültig löschen, samt Dateien",  # seit 1.10.13 (Stufe W1c)
+    ("aufbewahrung.html", "alleLoeschen"): "alle zum Löschen fälligen Eingänge endgültig löschen (Prüfsumme der Vorschau)",  # seit 1.10.13
 }
 
 # Adressen, die nach einer abschließenden Aktion klingen -- jede schreibende Anfrage, deren Adresse darauf passt, steht in

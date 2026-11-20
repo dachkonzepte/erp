@@ -27,7 +27,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from .berlin_time import berlin_now, berlin_today, to_berlin, utc_jetzt
@@ -35,10 +35,12 @@ from .kontaktvermerke import WEGE
 from .models import (
     CalendarEvent, Checklist, Contact, Customer, CustomerProfile, DispatchOutcome, EmailDispatch, Inquiry, Invoice, Kontaktvermerk, MaintenanceContract,
     MaintenanceContractItem, Order, Payment, Project, ProjectDocument, Property, PropertyDocument, Quote, QuoteDocumentMeta, Task, TaskColumn, WebAnfrage,
+    WebAnfrageDatei,
 )
 
 ARCHIV_NACH_MONATEN = 6  # Stufe 1 fest im Code; Stufe 2 macht daraus eine Einstellung
-LOESCHEN_GRUENDE = ("spam", "test", "doppelt")  # verworfen mit diesem Grund: nicht ins Archiv, 1.10.13 löscht sie
+LOESCHEN_GRUENDE = ("spam", "test", "doppelt")  # verworfen mit diesem Grund: nicht ins Archiv, sondern gelöscht (seit 1.10.13, loeschen())
+LOESCHEN_NACH_MONATEN = 6  # nach dem Eingang (Vorgabe W1c, Punkt 4); Stufe 2 macht daraus eine Einstellung
 ARTEN = ("eingang", "anfrage", "projekt", "kunde")
 ART_NAMEN = {"eingang": "Eingang der Webseite", "anfrage": "Anfrage", "projekt": "Projekt", "kunde": "Kunde"}
 
@@ -359,6 +361,64 @@ def stand_summe(stand: Stand) -> str:
     return hashlib.sha256(json.dumps(_schluessel(stand)).encode()).hexdigest()[:16]
 
 
+def zum_loeschen(db: Session, heute: date | None = None) -> list[dict]:
+    """Seit 1.10.13 (Vorgabe W1c, Punkt 4): Eingänge, die als Spam, Test oder Doppelt verworfen sind, 6 Monate nach dem Eingang (ohne Eingangszeit: nach
+    dem Abholen) -- nie übernommen und nie mit einem Objektdokument (NOT EXISTS; ein Dokument ohne Eingang zählt nicht). „Sonstiges“ geht ins Archiv."""
+    from .webanfragen import VERWERFEN_GRUENDE
+    heute = heute or berlin_today()
+    zeilen = db.execute(select(WebAnfrage.id, WebAnfrage.nummer, WebAnfrage.betreff, WebAnfrage.verworfen_grund, WebAnfrage.eingang_am,
+                               WebAnfrage.abgeholt_am, func.count(WebAnfrageDatei.id).label("dateien"))
+                        .outerjoin(WebAnfrageDatei, WebAnfrageDatei.webanfrage_id == WebAnfrage.id)
+                        .where(WebAnfrage.status == "verworfen", WebAnfrage.verworfen_grund.in_(LOESCHEN_GRUENDE), WebAnfrage.inquiry_id.is_(None),
+                               ~exists().where(PropertyDocument.webanfrage_id == WebAnfrage.id))
+                        .group_by(WebAnfrage.id, WebAnfrage.nummer, WebAnfrage.betreff, WebAnfrage.verworfen_grund, WebAnfrage.eingang_am,
+                                  WebAnfrage.abgeholt_am)
+                        .order_by(WebAnfrage.id)).all()
+    out = []
+    for z in zeilen:
+        eingang = _utc_tag(z.eingang_am or z.abgeholt_am)
+        ab = monate_spaeter(eingang, LOESCHEN_NACH_MONATEN)
+        if ab <= heute:
+            out.append({"art": "eingang", "id": z.id, "nummer": z.nummer, "titel": z.betreff or "", "grund": z.verworfen_grund,
+                        "grund_text": VERWERFEN_GRUENDE.get(z.verworfen_grund, z.verworfen_grund), "eingang": eingang, "faellig_ab": ab,
+                        "dateien": z.dateien})
+    return out
+
+
+def _summe(teile: list) -> str:
+    return hashlib.sha256(json.dumps(teile).encode()).hexdigest()[:16]
+
+
+def loeschen(db: Session, ids: list[int], user_id: int | None, *, stand: str | None = None) -> dict:
+    """Seit 1.10.13: bestätigt löschen -- den Eingang mit seinen Dateien (Zeilen, danach die Dateien im Datenordner), wenn er unter den Sperren noch zum
+    Löschen fällig ist; gesammelt (stand gesetzt) nur genau die Liste der Vorschau. Endgültig, kein Zurückholen. Die Historie behält die Zeilen von früher
+    (Nummer, Status) und bekommt „gelöscht“ mit Nummer und Grund -- ohne Inhalte."""
+    from .audit import record_audit_entry
+    from .webanfragen import ART_HISTORIE, datei_pfad
+    _sperren(db)
+    faellig = {z["id"]: z for z in zum_loeschen(db)}
+    if stand is not None:
+        if _summe(sorted(faellig)) != stand:
+            raise StandGeaendert("Die Liste hat sich geändert – bitte neu laden und noch einmal bestätigen.")
+        ids = sorted(faellig)
+    geloescht, uebersprungen, pfade = [], [], []
+    for wid in sorted(set(ids)):
+        z = faellig.get(wid)
+        if z is None:
+            uebersprungen.append({"art": "eingang", "id": wid, "grund": "nicht (mehr) zum Löschen fällig"})
+            continue
+        pfade += [datei_pfad(d) for d in db.scalars(select(WebAnfrageDatei).where(WebAnfrageDatei.webanfrage_id == wid).order_by(WebAnfrageDatei.id))]
+        db.execute(delete(WebAnfrageDatei).where(WebAnfrageDatei.webanfrage_id == wid))  # zuerst, was auf die Zeile zeigt (Regel 6)
+        db.execute(delete(WebAnfrage).where(WebAnfrage.id == wid))
+        record_audit_entry(db, action="gelöscht", entity_type=ART_HISTORIE, entity_id=wid, entity_label=z["nummer"], field_name="status",
+                           old_value=f"verworfen ({z['grund_text']})", new_value=None, actor_user_id=user_id)
+        geloescht.append({"art": "eingang", "id": wid, "nummer": z["nummer"]})
+    db.commit()
+    for pfad in pfade:
+        pfad.unlink(missing_ok=True)
+    return {"geloescht": geloescht, "uebersprungen": uebersprungen}
+
+
 def vorschau(db: Session) -> dict:
     """Was fällig ist (und was zwar die Zeit erreicht hat, aber gesperrt ist), gruppiert je Kunde; Eingänge ohne Übernahme für sich."""
     stand = berechnen(db)
@@ -377,11 +437,13 @@ def vorschau(db: Session) -> dict:
     eingaenge.sort(key=lambda v: (v["faellig_ab"] or date.max, v["id"]))
     zahl = len(_schluessel(stand))
     unbearbeitet = [v for v in stand.eingaenge if v.unbearbeitet and v.faellig(heute)]
+    loeschen_liste = zum_loeschen(db, heute)
     return {"heute": heute, "nach_monaten": ARCHIV_NACH_MONATEN, "eingaenge": eingaenge, "kunden": gruppen, "zahl": zahl,
             "unbearbeitet": len(unbearbeitet), "seit": min([v["faellig_ab"] for v in eingaenge if v["faellig"]]
                                                           + [x["faellig_ab"] for g in gruppen for x in g["vorgaenge"] if x["faellig"]]
                                                           + [g["faellig_ab"] for g in gruppen if g["faellig"]], default=None),
-            "stand": stand_summe(stand)}
+            "stand": stand_summe(stand), "loeschen": loeschen_liste, "zahl_loeschen": len(loeschen_liste),
+            "stand_loeschen": _summe(sorted(z["id"] for z in loeschen_liste))}
 
 
 def archiv(db: Session) -> dict:

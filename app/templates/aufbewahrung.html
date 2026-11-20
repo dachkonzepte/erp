@@ -121,8 +121,22 @@ function vorgangZeile(v){
 }
 const KOPF='<thead><tr><th>Art</th><th>Nummer</th><th>Titel</th><th>Letzter Kontakt</th><th>Fällig ab</th><th>Geht mit</th><th>Hinweise</th><th></th></tr></thead>';
 
+function loeschenZeichnen(v){
+  if(!v.loeschen||!v.loeschen.length)return '';
+  const zeilen=v.loeschen.map(z=>`<tr><td class="nw" data-titel="Nummer"><a href="/anfragen/webseite/${Number(z.id)}">${esc(z.nummer)}</a></td><td data-titel="Betreff">${esc(z.titel||'—')}</td>`
+    +`<td data-titel="Verworfen als">${esc(z.grund_text||'')}</td><td class="nw" data-titel="Eingang">${esc(tagText(z.eingang))}</td>`
+    +`<td class="nw" data-titel="Fällig ab">${esc(tagText(z.faellig_ab))}</td><td data-titel="Dateien">${Number(z.dateien)?Number(z.dateien):''}</td>`
+    +`<td data-titel="">${DARF?`<button type="button" class="secondary knopf-klein" data-klick="loeschen" data-id="${Number(z.id)}">Löschen</button>`:''}</td></tr>`).join('');
+  return `<section class="card"><div class="kopfzeile"><div><h2>Zum Löschen</h2><div class="muted small">Verworfen als Spam, Test oder Doppelt – 6 Monate nach dem Eingang`
+    +` endgültig löschen, samt Dateien. Die Änderungshistorie behält nur Nummer und Grund.</div></div>`
+    +`<div>${DARF?'<button type="button" class="secondary knopf-klein" id="alleLoeschenKnopf" data-klick="alle-loeschen">Alle löschen</button>':''}</div></div>`
+    +`<div class="rahmen"><table class="liste"><thead><tr><th>Nummer</th><th>Betreff</th><th>Verworfen als</th><th>Eingang</th><th>Fällig ab</th><th>Dateien</th><th></th></tr></thead>`
+    +`<tbody>${zeilen}</tbody></table></div></section>`;
+}
+
 function faelligZeichnen(){
   const v=vorschau, teile=[];
+  const loe=loeschenZeichnen(v);if(loe)teile.push(loe);  // seit 1.10.13
   if(v.eingaenge.length){
     teile.push(`<section class="card"><h2>Eingänge der Webseite ohne Übernahme</h2><div class="muted small" style="margin-bottom:8px">Ein unbearbeiteter Eingang geht nur mit deiner Bestätigung ins Archiv.</div>`
       +`<div class="rahmen"><table class="liste">${KOPF}<tbody>${v.eingaenge.map(vorgangZeile).join('')}</tbody></table></div></section>`);
@@ -144,9 +158,10 @@ function standZeichnen(){
   const v=vorschau, t=[];
   t.push(`<span><b>${Number(v.zahl)}</b> fällig fürs Archiv${v.seit?' seit '+esc(tagText(v.seit)):''}</span>`);
   if(v.unbearbeitet)t.push(`<span>davon <b>${Number(v.unbearbeitet)}</b> ${Number(v.unbearbeitet)===1?'unbearbeiteter Eingang':'unbearbeitete Eingänge'}</span>`);
+  if(v.zahl_loeschen)t.push(`<span><b>${Number(v.zahl_loeschen)}</b> zum Löschen</span>`);  // seit 1.10.13
   t.push(`<span class="muted">Ins Archiv ${Number(v.nach_monaten)} Monate nach dem letzten Kontakt</span>`);
   document.getElementById('standText').innerHTML=t.join('');
-  const z=document.getElementById('zahlFaellig');z.textContent=String(Number(v.zahl)||0);z.hidden=!Number(v.zahl);
+  const z=document.getElementById('zahlFaellig'),n=(Number(v.zahl)||0)+(Number(v.zahl_loeschen)||0);z.textContent=String(n);z.hidden=!n;
   const alle=document.getElementById('alleKnopf');if(alle)alle.hidden=!Number(v.zahl);
 }
 
@@ -200,6 +215,31 @@ aktion('alle-archivieren',async()=>{
     meldung(ergebnisText(e),!e.archiviert.length);
   }catch(err){meldung('Fehler: '+err.message,true);laden().catch(()=>{})}
 });
+/* Seit 1.10.13: Löschen ist endgültig -- Rückfrage, abschließend (wartet auf jedes laufende Speichern der Seite). */
+async function eingangLoeschen(id){
+  if(!confirm('Diesen verworfenen Eingang endgültig löschen, samt Dateien? Zurückholen geht danach nicht.'))return;
+  try{
+    const e=await abschliessen('aufbewahrung',()=>api(`/api/aufbewahrung/eingang/${Number(id)}/loeschen`,{method:'POST'}),{neuLaden:laden});
+    meldung(loeschText(e),!e.geloescht.length);
+  }catch(err){meldung('Fehler: '+err.message,true)}
+}
+async function alleLoeschen(){
+  if(!vorschau||!Number(vorschau.zahl_loeschen))return;
+  if(!confirm(`${Number(vorschau.zahl_loeschen)} verworfene Eingänge endgültig löschen, samt Dateien? Zurückholen geht danach nicht.`))return;
+  const body=JSON.stringify({stand:vorschau.stand_loeschen});
+  try{
+    const e=await abschliessen('aufbewahrung',()=>api('/api/aufbewahrung/loeschen',{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:laden});
+    meldung(loeschText(e),!e.geloescht.length);
+  }catch(err){meldung('Fehler: '+err.message,true);laden().catch(()=>{})}
+}
+function loeschText(e){
+  const t=[];
+  if(e.geloescht.length)t.push(e.geloescht.length===1?'1 Eingang gelöscht':`${e.geloescht.length} Eingänge gelöscht`);
+  for(const u of e.uebersprungen)t.push(`nicht gelöscht: ${u.grund}`);
+  return (t.join('; ')||'Nichts geändert')+'.';
+}
+aktion('loeschen',el=>eingangLoeschen(Number(el.dataset.id)));
+aktion('alle-loeschen',()=>alleLoeschen());
 aktion('zurueckholen',async el=>{
   const art=el.dataset.art,id=Number(el.dataset.id);
   if(!AB_ARTEN.includes(art)||!id)return;

@@ -1113,6 +1113,19 @@ class AufbewahrungKundeOut(BaseModel):
     vorgaenge: list[AufbewahrungVorgangOut] = Field(default_factory=list)
 
 
+class AufbewahrungLoeschenZeileOut(BaseModel):
+    """Seit 1.10.13: ein verworfener Eingang, der zum Löschen fällig ist (Spam, Test, Doppelt; 6 Monate nach Eingang)."""
+    art: str
+    id: int
+    nummer: str
+    titel: str = ""
+    grund: str | None = None
+    grund_text: str | None = None
+    eingang: date | None = None
+    faellig_ab: date | None = None
+    dateien: int = 0
+
+
 class AufbewahrungVorschauOut(BaseModel):
     heute: date
     nach_monaten: int
@@ -1122,6 +1135,9 @@ class AufbewahrungVorschauOut(BaseModel):
     unbearbeitet: int
     seit: date | None = None
     stand: str
+    loeschen: list[AufbewahrungLoeschenZeileOut] = Field(default_factory=list)  # seit 1.10.13
+    zahl_loeschen: int = 0
+    stand_loeschen: str = ""
 
 
 class AufbewahrungArchivOut(BaseModel):
@@ -1144,6 +1160,11 @@ class AufbewahrungEintragOut(BaseModel):
 
 class AufbewahrungErgebnisOut(BaseModel):
     archiviert: list[AufbewahrungEintragOut]
+    uebersprungen: list[AufbewahrungEintragOut]
+
+
+class AufbewahrungGeloeschtOut(BaseModel):
+    geloescht: list[AufbewahrungEintragOut]
     uebersprungen: list[AufbewahrungEintragOut]
 
 

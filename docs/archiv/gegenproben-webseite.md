@@ -357,3 +357,22 @@ Läufer sieben Fälle als „ERROR“: er zählte die mitgeschriebenen Protokoll
 | Nr. 5 – Eingang im Archiv ohne Aktion | Knöpfe bleiben | 1 rot |
 | Nr. 7 – keine „0“ am Reiter | Regel `[hidden]` weg (Klicktest) | rot: „ohne Zahl am Reiter“, 31/32 |
 | Nr. 6 – kein Eintrag in der Leiste | -- (eine Entscheidung ohne Prüfung im Code) | -- |
+
+## W1c, 1.10.13: verworfene Eingänge löschen
+
+Probendatei im Scratchpad (`gp_1113.py` über `gegenprobe.py`), Lauf mit `tests/test_v784_verworfene_loeschen.py` bzw. `tests/test_v399_abschliessen.py`; alle 11
+rot aus dem geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 / 3 – nur Spam, Test, Doppelt | auch „Sonstiges“ | 2 rot |
+| Nr. 1 – 6 Monate nach Eingang | 3 Monate | 2 rot |
+| Nr. 1 – nur Admin und Büro – Finanzen | jedes Büro | 1 rot |
+| Nr. 1 – gesammelt nur mit Prüfsumme | Prüfung aus | 1 rot |
+| Nr. 1 – nicht Fälliges bleibt | alles bis 2999 fällig | 1 rot |
+| Nr. 2 – nie mit Objektdokument | NOT EXISTS weg | 1 rot |
+| Nr. 2 – die Dateien gehen mit | Dateien bleiben liegen | 1 rot |
+| Nr. 4 – Historie ohne Inhalt | Betreff als neuer Wert | 1 rot |
+| Nr. 5 – Rückfrage | ohne Rückfrage | 1 rot |
+| Nr. 5 – abschließend | `speichern()` statt `abschliessen()` | 1 rot (Wächter `test_v399`) |
+| Nr. 6 / 1 – Knöpfe nur mit Recht | Knopf für jedes Büro | 1 rot |

@@ -5,7 +5,8 @@ Projekt (nicht fällig), ein Altkunde aus dem Adressimport, ein unbearbeiteter E
 
     Start         Kachel „Aufbewahrung“: Zahl der fälligen, „unbearbeiteter Eingang“, Weg zur Seite
     Büro–Auftrag  liest Fällig und Archiv, keine Knöpfe zum Archivieren, der Hinweis „Admin und Büro – Finanzen“
-    Admin         „Archivieren“ an der Anfrage, „Kunde … archivieren“, „Alle fälligen archivieren“ (Rückfrage) -- danach „Nichts fällig“
+    Admin         „Archivieren“ an der Anfrage, „Kunde … archivieren“, „Alle fälligen archivieren“ (Rückfrage), den Spam löschen (Rückfrage,
+                  seit 1.10.13) -- danach „Nichts fällig“
     Archiv        Kunde, Anfrage, Eingang mit „im Archiv seit“; Kundenakte zeigt „Im Archiv seit …“, „Zurückholen“ holt ihn zurück; der Eingang sagt
                   „Im Archiv seit …“ ohne Aktion
     412 px        Fällig und Archiv hell und dunkel ohne Überlauf, Bilder
@@ -52,10 +53,12 @@ def befuellen(db, k):
     projekt = Project(project_number="P-2026-0902", name="Neues Dach", customer_id=kunden["Otto Neu"].id, pipeline_column_id=default_pipeline_column_id(db))
     eingang = WebAnfrage(nummer="R-20260301-0900-0A1B", fassung="dk-anfrage/1", art="reparatur", art_name="Reparatur", umschlag="{}",
                          umschlag_sha256="0" * 64, status="neu", eingang_am=alt, abgeholt_am=alt, betreff="Musterweg 1 – Dachrinne")
-    db.add_all([anfrage, projekt, eingang])
+    spam = WebAnfrage(nummer="R-20260302-0900-0A2C", fassung="dk-anfrage/1", art="reparatur", art_name="Reparatur", umschlag="{}",  # seit 1.10.13
+                      umschlag_sha256="0" * 64, status="verworfen", verworfen_grund="spam", eingang_am=alt, abgeholt_am=alt, betreff="Gewinnspiel")
+    db.add_all([anfrage, projekt, eingang, spam])
     db.commit()
     return {"anna": k.cookies(anna), "bea": k.cookies(bea), "mona": k.cookies(mona), "erika": kunden["Erika Muster"].id, "anfrage": anfrage.id,
-            "eingang": eingang.id}
+            "eingang": eingang.id, "spam": spam.id}
 
 
 async def pruefen(tab, seed, p):
@@ -73,6 +76,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Büro – Auftrag: keine Knöpfe, Hinweis", await tab.js(
         "[document.querySelectorAll('[data-klick=\"archivieren\"]').length,!!document.getElementById('alleKnopf'),"
         "!!document.getElementById('nurLesen')]"), [0, False, True])
+    p.pruefe("Büro – Auftrag: „Zum Löschen“ mit dem Spam, ohne Knöpfe (seit 1.10.13)", await tab.js(
+        "[document.getElementById('inhalt').textContent.includes('Zum Löschen'),document.getElementById('inhalt').textContent.includes('Gewinnspiel'),"
+        "document.querySelectorAll('[data-klick=\"loeschen\"]').length,!!document.getElementById('alleLoeschenKnopf')]"), [True, True, 0, False])
     inhalt = await tab.js("document.getElementById('inhalt').textContent")
     p.pruefe("Fällig: Eingang unbearbeitet, Anfrage mit Herkunft, Import und junges Projekt fehlen",
              ["unbearbeitet" in inhalt, "Anfrage AN-2026-0901 angelegt" in inhalt, "Altkunde" in inhalt, "P-2026-0902" in inhalt],
@@ -83,7 +89,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Start geladen", await tab.oeffnen("/", "!!document.querySelector('[data-widget=\"aufbewahrung\"]')||document.body.textContent.includes('fällig fürs Archiv')"), True)
     await tab.warte_auf_ruhe()
     text = await tab.js("document.body.textContent")
-    p.pruefe("Start: Kachel mit Zahl und unbearbeitetem Eingang", ["3 fällig fürs Archiv" in text, "1 unbearbeiteter Eingang" in text], [True, True])
+    p.pruefe("Start: Kachel mit Zahl, zum Löschen und unbearbeitetem Eingang", ["3 fällig fürs Archiv" in text, "1 zum Löschen" in text,
+                                                                                 "1 unbearbeiteter Eingang" in text], [True, True, True])
 
     # Admin: einzeln, Kunde, gesammelt
     p.pruefe("Admin: Seite geladen", await tab.oeffnen("/aufbewahrung?n=2", BEREIT), True)
@@ -98,6 +105,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Kunde archiviert", await tab.js(STATUS), "1 ins Archiv gegeben.")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('alleKnopf').click()", "#inhalt")
     p.pruefe("Admin: gesammelt mit Rückfrage", [await tab.js("window.__rueckfragen.length"), await tab.js(STATUS)], [1, "1 ins Archiv gegeben."])
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=\"loeschen\"][data-id=\"{seed['spam']}\"]').click()", "#inhalt")
+    p.pruefe("Admin: Spam gelöscht, mit Rückfrage (seit 1.10.13)", [await tab.js("window.__rueckfragen.length"), await tab.js(STATUS)],
+             [2, "1 Eingang gelöscht."])
+    p.pruefe("Server: der Spam ist weg", await tab.js(f"fetch('/api/webanfragen/{seed['spam']}').then(r=>r.status)"), 404)
     p.pruefe("Admin: nichts mehr fällig", await tab.js("document.getElementById('inhalt').textContent.trim()"), "Nichts fällig fürs Archiv.")
     p.pruefe("Admin: ohne Fälliges keine Zahl am Reiter (sichtbar)", await tab.js(
         "getComputedStyle(document.getElementById('zahlFaellig')).display"), "none")

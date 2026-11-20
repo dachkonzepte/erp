@@ -9,12 +9,13 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..aufbewahrung import NichtGefunden, NichtImArchiv, StandGeaendert, archiv, archivieren, vorschau, zurueckholen
+from ..aufbewahrung import NichtGefunden, NichtImArchiv, StandGeaendert, archiv, archivieren, loeschen, vorschau, zurueckholen
 from ..database import get_db
 from ..ids import Id
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_aufbewahrung, require_min_role
-from ..schemas import AufbewahrungArchivOut, AufbewahrungErgebnisOut, AufbewahrungGesammeltIn, AufbewahrungVorschauOut, AufbewahrungZurueckOut
+from ..schemas import (AufbewahrungArchivOut, AufbewahrungErgebnisOut, AufbewahrungGeloeschtOut, AufbewahrungGesammeltIn, AufbewahrungVorschauOut,
+                       AufbewahrungZurueckOut)
 
 router = APIRouter()
 _lesen = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
@@ -42,6 +43,23 @@ def post_gesammelt(payload: AufbewahrungGesammeltIn, db: Session = Depends(get_d
     """Gesammelt bestätigt: genau die Liste der Vorschau (Prüfsumme „stand“) -- hat sie sich geändert, 409 und nichts archiviert."""
     try:
         return archivieren(db, [], user.id, stand=payload.stand)
+    except StandGeaendert as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.post("/api/aufbewahrung/eingang/{vorgang_id}/loeschen", response_model=AufbewahrungGeloeschtOut)
+def post_loeschen(vorgang_id: Id, db: Session = Depends(get_db, scope="function"), user: AppUser = Depends(require_aufbewahrung)):
+    """Seit 1.10.13: einen verworfenen Eingang (Spam, Test, Doppelt) löschen, wenn er unter den Sperren noch fällig ist -- sonst mit Grund übersprungen."""
+    return loeschen(db, [vorgang_id], user.id)
+
+
+@router.post("/api/aufbewahrung/loeschen", response_model=AufbewahrungGeloeschtOut)
+def post_loeschen_gesammelt(payload: AufbewahrungGesammeltIn, db: Session = Depends(get_db, scope="function"),
+                            user: AppUser = Depends(require_aufbewahrung)):
+    """Seit 1.10.13: alle zum Löschen fälligen -- nur mit der Prüfsumme der Vorschau (stand_loeschen), sonst 409 und nichts gelöscht."""
+    try:
+        return loeschen(db, [], user.id, stand=payload.stand)
     except StandGeaendert as e:
         db.rollback()
         raise HTTPException(status_code=409, detail=str(e))

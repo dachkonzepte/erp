@@ -795,3 +795,72 @@ alt ohne „Aufbewahrung“, neu dahinter „Aufbewahrung“ nach „Anfragen de
 `tests/test_v440_runde_du.py`) -- jetzt „Die Einträge fehlen danach …“.
 
 Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.12“ (11 über pytest, eine über den Klicktest, alle rot).
+
+### Umsetzung 1.10.13: verworfene Eingänge löschen
+
+- `app/aufbewahrung.py::zum_loeschen()`: Eingänge, die als Spam, Test oder Doppelt verworfen sind, 6 Monate nach dem Eingang (ohne Eingangszeit nach dem
+  Abholen; `LOESCHEN_NACH_MONATEN`) -- nie übernommen, nie mit einem Objektdokument (`NOT EXISTS`; ein Dokument ohne Eingang zählt nicht). „Sonstiges“
+  geht ins Archiv wie die übrigen (1.10.11). Die Vorschau nennt sie unter `loeschen` mit `zahl_loeschen` und eigener Prüfsumme `stand_loeschen`.
+- `loeschen()`: unter den Sperren neu gerechnet; je Eingang zuerst die Zeilen der Dateien, dann die Zeile (Regel 6), nach dem Commit die Dateien im
+  Datenordner; was nicht mehr fällig ist, bleibt mit Grund. Die Historie behält ihre Zeilen von früher (Nummer, Status) und bekommt „gelöscht“ mit der
+  Nummer und „verworfen (Grund)“ -- ohne Inhalte. Endgültig, kein Zurückholen. Der Empfangsdienst bekam schon „verworfen“ und löscht selbst nach 180 Tagen.
+- `POST /api/aufbewahrung/eingang/{vorgang_id}/loeschen` (einzeln) und `POST /api/aufbewahrung/loeschen` (gesammelt, nur mit `stand_loeschen`, sonst 409) --
+  Admin und Büro – Finanzen.
+- Seite „Aufbewahrung“: Karte „Zum Löschen“ oben in „Fällig“ (Nummer, Betreff, verworfen als, Eingang, fällig ab, Dateien), „Löschen“ und „Alle löschen“ nur
+  mit Recht, mit Rückfrage und als abschließende Aktion (`abschliessen()`, `ABSCHLIESSEND`); Stand und Kachel auf „Start“ nennen „n zum Löschen“.
+
+#### Festlegungen 1.10.13 (Bitte bestätigen)
+
+1. Gelöscht wird ein Eingang, der als Spam, Test oder Doppelt verworfen ist, 6 Monate nach dem Eingang (ohne Eingangszeit: nach dem Abholen) -- nur nach
+   Bestätigung durch Admin oder Büro – Finanzen, einzeln oder gesammelt (nur die Liste der Seite, Prüfsumme).
+2. Mit ihm gehen seine Dateien (Zeilen und Dateien im Datenordner); ein Eingang, auf den ein Objektdokument zeigt, oder ein übernommener bleibt.
+3. „Sonstiges“ wird nicht gelöscht, sondern geht ins Archiv wie die übrigen Eingänge.
+4. Die Historie behält ihre bisherigen Zeilen (Nummer und Status) und bekommt „gelöscht“ mit Nummer und Grund -- ohne Inhalte.
+5. Löschen ist endgültig: Rückfrage, abschließende Aktion, kein Zurückholen.
+6. Die Vorschau, der Stand der Seite und die Kachel auf „Start“ nennen, was zum Löschen fällig ist.
+
+#### Tests und Prüfung 1.10.13
+
+Neu `tests/test_v784_verworfene_loeschen.py` (9 Tests: was fällig ist -- Spam, Test, Doppelt, ohne Eingangszeit; nicht der junge, nicht „Sonstiges“, nicht der neue,
+nicht der mit Objektdokument, ein Dokument ohne Eingang stört nicht; einzeln samt Datei und Historie ohne Inhalt; nicht Fälliges bleibt; gesammelt nur mit der
+Prüfsumme; Büro – Auftrag und Monteurin 403; in node „Zum Löschen“ mit und ohne Knöpfe, Löschen mit Rückfrage und Prüfsumme). `scripts/klicktest_aufbewahrung.py`
+um den Spam erweitert (35 Prüfungen: Büro – Auftrag sieht „Zum Löschen“ ohne Knöpfe, die Kachel nennt „1 zum Löschen“, der Admin löscht mit Rückfrage, danach
+404). Angepasste Erwartungen: `tests/test_v399_abschliessen.py::ABSCHLIESSEND` um `eingangLoeschen` und `alleLoeschen` (Aufbau). Gegenproben:
+`gegenproben-webseite.md`, „W1c, 1.10.13“ (11, alle rot).
+
+### Stufe 2: Löschen bzw. Anonymisieren (festgehalten, nicht gebaut -- Vorgabe W1c, Punkt 6)
+
+Fällig frühestens 2030: die Datenschutzerklärung (Paket 2026-11-19a) sagt „löschen drei Jahre nach Ende des Jahres der Archivierung“ -- ein Vorgang, der 2026 ins
+Archiv kommt, frühestens am 01.01.2030. Gebaut erst nach dem Rechtsberater.
+
+- **Frist**: 3 Jahre nach Ende des Archivjahres, aber nie vor dem Ende einer gesetzlichen Aufbewahrungsfrist für einen Teil (Befund F12, Abschnitt 3): eine
+  Eingangsrechnung an einem Projekt ohne Auftrag ist Buchungsbeleg (8 Jahre ab Ende des Jahres); ein versendetes Angebot je nach Antwort des Rechtsberaters
+  (F3 a) keine Pflicht oder 6 Jahre ab Ende des Absendejahres. Gilt eine Frist nur für ein abgelegtes PDF, bleibt nur dieses mit seiner Protokollzeile.
+- **Was bleibt je Vorgang (F7)**: Art bzw. Quelle, PLZ (des Objekts, sonst des Kunden), Monat des Eingangs bzw. der Anlage, Ergebnis (verworfen mit Grund,
+  verloren, abgelehnt, kein Auftrag). **Keine Nummern** -- sie stehen in Mails im Postfach, die Zeile wäre sonst nur pseudonym. Die Angebotssumme nur als
+  **Größenklasse** (Klassen festzulegen, z. B. bis 5.000 €, bis 20.000 €, bis 50.000 €, darüber).
+- **Was geht**: Namen, Kontaktdaten, Adressen außer der PLZ, Texte, Umschlag, Dateien (Eingang, Fotokopien am Objekt, Projekt-, Kunden-, Objektdokumente),
+  Kalendertermine (mit Löschauftrag an Outlook), Aufgaben, Beteiligte (das Adressbuch bleibt, wenn es anderswo gebraucht wird), Kundenwissen, Kontaktvermerke.
+- **Änderungshistorie**: Bezeichnung, alte und neue Werte der betroffenen Zeilen leeren; je Zeile bleiben Art, Zeit, Aktion, Feldname.
+- **Versandprotokoll und Ablage (F4 grundsätzlich ja)**: Ausnahme von Regel 21 für Angebote ohne Auftrag nach Ablauf der Frist -- Empfänger, Betreff und PDF
+  weg, die Zeile bleibt mit Art, Zeitpunkt und Ergebnis; nur nach Bestätigung.
+- **Fristen als Einstellung**: Archiv nach dem letzten Kontakt (heute fest 6 Monate), Löschen verworfener Eingänge (heute fest 6 Monate), Löschen bzw.
+  Anonymisieren (3 Jahre nach Ende des Archivjahres), Frist versendeter Angebote -- befüllt erst nach dem Rechtsberater.
+- **Bau**: je Art ein Löschweg in fester Reihenfolge (Regel 6, wie E1–E10), ein Wächter, der jede Tabelle mit Bezug zu Kunde, Objekt, Anfrage oder Projekt
+  einordnet (geht mit, bleibt, sperrt); Vorschau, Bestätigung (Admin, Büro – Finanzen), Erinnerung auf „Start“ wie in Stufe 1.
+- **Betreiber**: Aufbewahrung der Server-Sicherungen auf dem NAS prüfen -- die Daten fallen mit der Aufbewahrung der Sicherungen heraus (Server 14 Tage);
+  das gehört in die Datenschutzerklärung.
+- **Rechtsberater (F3)**: (a) versendete Angebote und Anfragen ohne Auftrag -- Handelsbrief mit 6 Jahren oder keine Pflicht; (c) trägt eine pauschale Frist von
+  3 Jahren ohne konkreten Anlass; (d) reicht das Anonymisieren als Löschung (auch mit Sicherungen und Historie); (e) die Datenschutzerklärung nennt dann
+  Zweck und Rechtsgrundlage des Anonymisierens.
+
+### Punkt 7: Rohdaten des Adressimports (nur gemeldet, Vorschlag)
+
+`imported_addresses` hält je Zeile des Altsystem-Imports eine vollständige Kopie der Rohdaten (Name, Anschrift, Telefon, Fax, Mobil, zwei Mails, Nummern) --
+auf dem Server 345 Zeilen, 186 ohne Kunden. Gebraucht werden sie heute für (1) die Arbeitsliste der nicht zuordenbaren Zeilen (`list_unassigned()`: Kunde
+anlegen, als Objekt, verwerfen), (2) die Wiedererkennung beim erneuten Import derselben Datei (`_address_already_imported()` prüft auch bestätigte Rohzeilen
+nach der Adressnummer), (3) das Rückgängigmachen eines Importlaufs -- nur, solange nichts daran geändert ist. Die 186 ohne Kunden sind Lieferanten,
+Zeilen der Arbeitsliste (offen, als Objekt zugeordnet oder verworfen) oder abgelehnte; welche, zeigt ein Nur-Lese-Befehl (im Bericht). Vorschlag: (a) die
+offene Arbeitsliste abarbeiten; (b) danach in allen Rohzeilen die personenbezogenen Spalten leeren und nur Adressnummer, Art, Status, Erledigung und die
+Verweise behalten -- das reicht für die Wiedererkennung, das Rückgängigmachen eines alten Laufs entfällt; (c) ist kein Import aus dem Altsystem mehr geplant, die
+Rohzeilen ganz löschen. Entscheidung des Betriebs; gebaut als eigene kleine Version mit Vorschau und Bestätigung.

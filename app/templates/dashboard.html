@@ -248,9 +248,9 @@ async function renderAufbewahrungWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
   await lesen('aufbewahrung',()=>api('/api/aufbewahrung'),v=>{
-    const z=Number(v.zahl)||0;
-    container.innerHTML=z
-      ?`<div class="small"><a href="/aufbewahrung" style="color:var(--ds-link);font-weight:700">${z} fällig fürs Archiv</a>${v.seit?' seit '+esc(aufbewahrungTag(v.seit)):''}`
+    const z=Number(v.zahl)||0,loe=Number(v.zahl_loeschen)||0;  // seit 1.10.13 auch „zum Löschen“
+    container.innerHTML=(z||loe)
+      ?`<div class="small"><a href="/aufbewahrung" style="color:var(--ds-link);font-weight:700">${z} fällig fürs Archiv</a>${v.seit?' seit '+esc(aufbewahrungTag(v.seit)):''}${loe?` · ${loe} zum Löschen`:''}`
         +`${Number(v.unbearbeitet)?` · davon ${Number(v.unbearbeitet)} ${Number(v.unbearbeitet)===1?'unbearbeiteter Eingang':'unbearbeitete Eingänge'}`:''}</div>`
         +`<div class="muted small" style="margin-top:6px">Ins Archiv ${Number(v.nach_monaten)} Monate nach dem letzten Kontakt – bestätigen Admin und Büro – Finanzen.</div>`
       :'<div class="status ok">Nichts fällig fürs Archiv.</div><div class="small" style="margin-top:6px"><a href="/aufbewahrung#archiv" style="color:var(--ds-link)">Archiv ansehen</a></div>';
