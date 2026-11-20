@@ -257,14 +257,14 @@ def _menue_gruppen(datei):
 def test_menue_der_akte_in_drei_gruppen():
     status, projekt, wege = _menue_gruppen("akte.html")
     assert status == ["laeuft", "pausiert", "abgeschlossen", "stornoZuruecknehmen", "storniert"]
-    assert projekt == ["projekt-bearbeiten", "beteiligte-oeffnen", "projekt-kopieren", "als-muster", "wartungsvertrag", "archivieren",
-                       "projekt-loeschen"]
+    assert projekt == ["projekt-bearbeiten", "beteiligte-oeffnen", "kontakt-projekt", "projekt-kopieren", "als-muster", "wartungsvertrag",
+                       "archivieren", "projekt-loeschen"]  # kontakt-projekt seit 1.10.10
     assert wege == ["menueAbPdf", "ab-pdf", "menueAv", "menueBerichte"]
 
 
 def test_menue_der_kundenakte_in_zwei_gruppen_ohne_archivieren():
     kunde, wege = _menue_gruppen("customer.html")
-    assert kunde == ["stammdaten-bearbeiten", "objekt-neu", "eintrag-neu"] and wege == ["menueVersandprotokoll"]
+    assert kunde == ["stammdaten-bearbeiten", "objekt-neu", "eintrag-neu", "kontakt-kunde"] and wege == ["menueVersandprotokoll"]  # seit 1.10.10
     text = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
     assert "archivieren" not in text.split('{% elif teil == "menue" %}', 1)[1].split("{% endcall %}", 1)[0]  # Punkt 4: gibt es nicht
 

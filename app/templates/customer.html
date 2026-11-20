@@ -157,7 +157,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
   {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a>
   {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="newProjectLink" data-klick="neues-projekt">+ Projekt</button>
   {#- „⋮“ in zwei Gruppen mit Trennlinie (Punkt 5): Kunde · Wege. „Kunde archivieren“ gibt es nicht -- am Kunden gibt es heute kein Archivieren (Punkt 4) #}
-  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="stammdaten-bearbeiten">Stammdaten bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="objekt-neu">+ Objekt</button><button type="button" class="ds-menue-eintrag" data-klick="eintrag-neu">+ Eintrag in „Kontakte &amp; Kundenwissen“</button><a class="ds-menue-eintrag" id="newInquiryLink" href="/inquiries">Neue Anfrage</a><div class="ds-menue-trenner" role="separator"></div><a class="ds-menue-eintrag" id="menueVersandprotokoll" href="/versandprotokoll">Versandprotokoll des Kunden</a><a class="ds-menue-eintrag" href="/history">Ganze Änderungshistorie</a>{% endif %}
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="stammdaten-bearbeiten">Stammdaten bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="objekt-neu">+ Objekt</button><button type="button" class="ds-menue-eintrag" data-klick="eintrag-neu">+ Eintrag in „Kontakte &amp; Kundenwissen“</button><a class="ds-menue-eintrag" id="newInquiryLink" href="/inquiries">Neue Anfrage</a><button type="button" class="ds-menue-eintrag" data-klick="kontakt-kunde">Kontakt vermerken …</button><div class="ds-menue-trenner" role="separator"></div><a class="ds-menue-eintrag" id="menueVersandprotokoll" href="/versandprotokoll">Versandprotokoll des Kunden</a><a class="ds-menue-eintrag" href="/history">Ganze Änderungshistorie</a>{% endif %}
 {% endcall %}
 <div class="status" id="seitenStatus" role="status"></div>
 <nav class="reiter" aria-label="Bereiche der Kundenakte">
@@ -360,6 +360,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
+{% include "_kontaktvermerk.html" %}
 {% include "_auswahl.html" %}
 {% include "_seitenkopf.html" %}
 {% include "_zahlung_gruppen.html" %}
@@ -414,6 +415,7 @@ async function load(){
     render();
   }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden()]);
 }
+aktion('kontakt-kunde',()=>kontaktDialogOeffnen('kunde',customerId,customer?`${customer.customer_number||''} · ${customer.name}`.replace(/^ · /,''):''));  // seit 1.10.10
 async function akteLaden(){await lesen('akte',()=>api(`/api/customers/${customerId}/akte`),d=>{akte=d;akteZeichnen()})}
 // Nach einer Buchung: Zahlungen, Zahlen und Verlauf neu (jeder in seinem Bereich)
 function zahlungenNeu(){verlaufDaten=null;return Promise.all([loadPayments(),akteLaden(),verlaufLaden()])}

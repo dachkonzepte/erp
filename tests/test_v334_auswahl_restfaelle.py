@@ -80,7 +80,8 @@ function _gewaehlt(id) { const e = _element(id); return e.selectedIndex >= 0 ? e
 var document = {getElementById: _element, querySelector: () => _element('__query'), querySelectorAll: () => [],
   documentElement: _element('__html'), body: _element('__body'), addEventListener() {},
   createElement: (tag) => ({tagName: tag.toUpperCase(), attrs: {}, textContent: '', className: '',  // seit 1.9.10 (Pfad des Seitenkopfs)
-    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }})};
+    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+    replaceChildren(...kinder) { this.kinder = kinder; }})};  // replaceChildren seit 1.10.10 (Liste der Kontaktvermerke)
 var window = globalThis;
 window.matchMedia = () => ({matches: false, addEventListener() {}});
 window.addEventListener = window.addEventListener || (() => {});  // seit 1.9.12 (Projektmappe, Plantafel)
@@ -108,7 +109,8 @@ BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitu
              "_auftrag_text.html",  # seit 1.9.78 (wie ein Auftrag der Liste heißt: „Heute“, „Meine Zeiten“)
              "_verlauf.html",  # seit 1.9.115 (eine Darstellung der Änderung: /history und Verlauf der Projektmappe)
              "_auftragsstatus.html",  # seit 1.9.124 (Status des Auftrags: Kennzeichen, Übergänge, Rückfrage)
-             "_schlechtwetter.html")  # seit 1.9.170 (Ausfalltag Schlechtwetter: „Zeiten“, „Meine Zeiten“)
+             "_schlechtwetter.html",  # seit 1.9.170 (Ausfalltag Schlechtwetter: „Zeiten“, „Meine Zeiten“)
+             "_kontaktvermerk.html")  # seit 1.10.10 (Kontakt vermerken: Anfragen, Akte, Kundenakte)
 
 
 def eingebunden(vorlage: str) -> list[str]:

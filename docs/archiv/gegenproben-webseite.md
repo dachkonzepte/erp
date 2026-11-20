@@ -267,3 +267,30 @@ Lauf mit `tests/test_v780_objektdokument_webanfrage.py`; alle 6 rot aus dem gepr
 | Nr. 3 – nur mit „<Nummer>-“ im Dateinamen | Bedingung Dateiname weg | 2 rot |
 | Nr. 3 – Beschreibung genau, „%“ wörtlich | `LIKE :text || '%'` statt Gleichheit | 2 rot |
 | Nr. 4 – downgrade nimmt nur die Spalte | `DELETE` der verknüpften Dokumente im downgrade | 2 rot |
+
+## W1c, 1.10.10: Kontakt vermerken
+
+Probendateien im Scratchpad (`gp_1110.py`, `gp_1110b.py` über `gegenprobe.py`; `gp_1110k.py` über `gegenprobe_klick.py` mit dem Klicktest), Lauf mit
+`tests/test_v781_kontaktvermerke.py` bzw. `tests/test_v740_e1_bis_e5_und_konto.py`; alle rot aus dem geprüften Grund (je FAILED, kein ERROR), alle Dateien
+byte-gleich zurück. 8a zuerst mit einem Kommentar mitten im Ausdruck angesetzt -- Syntaxfehler (ERROR) statt Rot --, dann richtig gesetzt: rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Akte mit Menüeintrag | Eintrag entfernt | 1 rot |
+| Nr. 2 – jedes weitere Feld 422 | `extra="ignore"` | 1 rot |
+| Nr. 2 – Weg nur aus der Liste | `weg: str` | 1 rot |
+| Nr. 2 – keine Spalte für einen Inhalt | Spalte `notiz` im Modell | 1 rot |
+| Nr. 3 – Server: nicht in der Zukunft | Prüfung aus | 1 rot |
+| Nr. 3 – Server: nicht vor 2000 | Prüfung aus | 1 rot |
+| Nr. 3 – Dialog: Zukunft nicht gesendet | Prüfung im Dialog aus | 1 rot |
+| Nr. 3 – vorbelegt heute | Tag leer | 2 rot |
+| Nr. 3 – Weg nicht vorgewählt | `selectedIndex = 1` (Klicktest) | rot: „Weg leer“ 21/22 |
+| Nr. 4 – ab Büro – Auftrag | Rolle `field` zugelassen | 1 rot |
+| Nr. 4 – unbekannter Bezug 404 | Prüfung aus | 3 rot |
+| Nr. 5 – genau ein Bezug | CHECK `>= 0` | 1 rot |
+| Nr. 6 – geht mit dem Projekt | Vermerke nicht gelöscht (Fremdschlüssel) | 1 rot |
+| Nr. 7 – Akte nennt die Vermerke der Anfrage | `project_id` nur direkt | 1 rot |
+| Nr. 7 – Verlauf des Kunden | „Kontakt“ nicht in `TYPEN` | 1 rot |
+| Nr. 8 – jüngster Kontakt zuerst | aufsteigend sortiert | 1 rot |
+| Nr. 8 – nur als Text | `innerHTML` statt `textContent` | 1 rot |
+| Nr. 9 – Konto mit Vermerken | Bereich entfernt | 1 rot (Wächter der Fremdschlüssel auf Konten) |

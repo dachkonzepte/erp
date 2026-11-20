@@ -24,13 +24,14 @@ from sqlalchemy.orm import Session
 
 from . import akte_verlauf
 from .akte_verlauf import Gruppe
-from .models import AuditLog, CustomerDocument, CustomerExtraInfo, Inquiry, Payment, Property, RoofArea
+from .models import AuditLog, CustomerDocument, CustomerExtraInfo, Inquiry, Kontaktvermerk, Payment, Property, RoofArea
 from .suchmuster import ESCAPE, enthaelt
 
 ARTEN = ("aenderung", "versand", "zahlung")
 # Art im Änderungsprotokoll -> (Modell, Spalte mit dem Kunden)
 TYPEN = {"Kundenwissen": (CustomerExtraInfo, "customer_id"), "Kundendokument": (CustomerDocument, "customer_id"), "Objekt": (Property, "customer_id"),
-         "Anfrage": (Inquiry, "customer_id"), "Zahlungseingang": (Payment, "customer_id")}
+         "Anfrage": (Inquiry, "customer_id"), "Zahlungseingang": (Payment, "customer_id"),
+         "Kontakt": (Kontaktvermerk, "customer_id")}  # seit 1.10.10: Kontaktvermerke am Kunden (die einer Anfrage oder eines Projekts dort)
 
 
 def _aus_schnappschuss(db: Session, typ: str, spalte: str, werte) -> dict[str, dict]:

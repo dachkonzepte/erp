@@ -40,6 +40,7 @@ BEREICHE = {
     ("outlook_series_occurrences", "owner_user_id"): "Kalendertermine",
     ("webanfragen", "geprueft_von_user_id"): "Anfragen der Webseite",  # seit 1.10.4
     ("webanfragen", "erledigt_von_user_id"): "Anfragen der Webseite",
+    ("kontaktvermerke", "created_by_user_id"): "Kontaktvermerke",  # seit 1.10.10
 }
 
 

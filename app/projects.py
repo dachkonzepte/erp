@@ -10,7 +10,7 @@ from .berlin_time import berlin_today, to_berlin
 from .calculation import build_calculation, get_settings_for_catalog, get_service_for_calculation
 from .contract_basis import clause_is_reviewed, contract_basis_label, default_contract_basis_for_customer
 from .models import (
-    ContractBasisClause, Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
+    ContractBasisClause, Customer, Kontaktvermerk, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, TaxKey,
 )
@@ -1029,6 +1029,8 @@ def delete_project(db: Session, project: Project) -> None:
     from .project_participants import delete_participants_of_project, power_of_attorney_path
     unlink_calendar_events_for_project(db, project.id)
     participant_files = delete_participants_of_project(db, project.id)
+    # Seit 1.10.10: die Kontaktvermerke des Projekts gehen mit (Zusatztabelle ohne Beziehung, Regel 6) -- die der Anfrage bleiben an ihr.
+    db.execute(delete(Kontaktvermerk).where(Kontaktvermerk.project_id == project.id))
     directory = project_directory(project.id)
     for quote in project.quotes:
         # Seit 1.9.340 (E1 aus dem Befund SQLite/PostgreSQL): zuerst die Platzierungen der Positionen -- quote_item_layouts.section_id zeigt

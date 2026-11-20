@@ -299,8 +299,8 @@ async def pruefen(tab, seed, p):
     await _klick(tab, "#seitenkopfMenueKnopf")
     p.pruefe("„⋮“ des Kopfs: zwei Gruppen", await tab.js(
         "[...document.getElementById('seitenkopfMenue').children].filter(e=>!e.hidden).map(e=>e.classList.contains('ds-menue-trenner')?'—':e.textContent)"),
-        ["Stammdaten bearbeiten", "+ Objekt", "+ Eintrag in „Kontakte & Kundenwissen“", "Neue Anfrage", "—", "Versandprotokoll des Kunden",
-         "Ganze Änderungshistorie"])
+        ["Stammdaten bearbeiten", "+ Objekt", "+ Eintrag in „Kontakte & Kundenwissen“", "Neue Anfrage", "Kontakt vermerken …",  # seit 1.10.10
+         "—", "Versandprotokoll des Kunden", "Ganze Änderungshistorie"])
     await tab.bild_ganz("kopf_menue")
     await _klick(tab, "#seitenkopfMenueKnopf")
 

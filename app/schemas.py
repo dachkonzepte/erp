@@ -1052,6 +1052,28 @@ class WebAnfrageUebernommenOut(BaseModel):
     anfrage: WebAnfrageDetailOut
 
 
+class KontaktvermerkIn(BaseModel):
+    """Seit 1.10.10 (Stufe W1c): Kontakt vermerken -- nur Tag und Weg. Jedes weitere Feld 422 (kein Inhalt, auch nicht versehentlich)."""
+    model_config = ConfigDict(extra="forbid")
+    kontakt_am: date
+    weg: Literal["telefon", "email", "brief", "gespraech", "sonstiges"]
+
+    @field_validator("kontakt_am")
+    @classmethod
+    def _tag(cls, v: date) -> date:
+        from .kontaktvermerke import tag_pruefen
+        return tag_pruefen(v)
+
+
+class KontaktvermerkOut(BaseModel):
+    id: int
+    kontakt_am: date
+    weg: str
+    weg_text: str
+    created_at: datetime | None = None
+    von: str | None = None
+
+
 class WebAnfrageVerwerfenIn(BaseModel):
     """Seit 1.10.4: Verwerfen nur mit einem festen Grund (app/webanfragen.py::VERWERFEN_GRUENDE) -- nie freier Text."""
     grund: Literal["spam", "doppelt", "test", "sonstiges"]

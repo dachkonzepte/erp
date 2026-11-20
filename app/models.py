@@ -551,6 +551,27 @@ class WebAnfrageDatei(Base):
     webanfrage: Mapped[WebAnfrage] = relationship(back_populates="dateien")
 
 
+class Kontaktvermerk(Base):
+    """„Kontakt vermerken“ (seit 1.10.10, Stufe W1c; docs/archiv/webseite-und-kundenportal.md): ein Kontakt mit dem Kunden an genau einer Anfrage,
+    einem Projekt oder einem Kunden -- nur der Tag und der Weg (app/kontaktvermerke.py::WEGE), nie ein Inhalt: es gibt keine Spalte dafür. Zählt für die
+    Aufbewahrung wie ein sicherer Kontakt. Unveränderlich, kein Löschen; geht nur mit seinem Projekt (app/projects.py::delete_project())."""
+
+    __tablename__ = "kontaktvermerke"
+    __table_args__ = (
+        CheckConstraint("(CASE WHEN inquiry_id IS NULL THEN 0 ELSE 1 END) + (CASE WHEN project_id IS NULL THEN 0 ELSE 1 END)"
+                        " + (CASE WHEN customer_id IS NULL THEN 0 ELSE 1 END) = 1", name="ck_kontaktvermerk_ein_bezug"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inquiry_id: Mapped[int | None] = mapped_column(ForeignKey("inquiries.id"), nullable=True, index=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
+    kontakt_am: Mapped[date] = mapped_column(Date)
+    weg: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+
+
 class WebanfragenAbholung(Base):
     """Stand des Abholens (seit 1.10.0), eine Zeile (id=1, legt app/grunddaten.py beim Start an): die Belegung eines Laufs (lauf_kennung, lauf_seit --
     bedingtes UPDATE wie beim Outlook-Abgleich, zwei Läufe nie zugleich), der letzte Lauf und sein Ergebnis. Fehler nur als fester Text, nie mit

@@ -1627,7 +1627,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   mit `webseite_nummer`, Fotos ans Objekt; Meldung der Anfragenummer; seit 1.10.7 die Zeitpunkte der Bearbeitung über `utc_jetzt()`, die Sperre
   des Abholens auf der echten Uhr; seit 1.10.8 beim Übernehmen immer „Anderen bestehenden Kunden wählen“ -- die Kundensuche der Büro-Suche,
   `app/search.py::kunden_suchen()`, `GET /api/webanfragen/{id}/kunden`; W1c Archiv ab 1.10.9: die Fotokopien am Objekt tragen ihren Eingang
-  (`property_documents.webanfrage_id`)) --
+  (`property_documents.webanfrage_id`); seit 1.10.10 „Kontakt vermerken“ an Anfrage, Projekt und Kunde -- nur Tag und Weg, `app/kontaktvermerke.py`,
+  Dialog `_kontaktvermerk.html`) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

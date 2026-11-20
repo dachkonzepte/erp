@@ -1,0 +1,80 @@
+{# „Kontakt vermerken“ (seit 1.10.10, Stufe W1c): ein Dialog für Anfrage, Projekt und Kunde -- nur Tag und Weg, nie ein Inhalt. Die Seite öffnet ihn mit
+   kontaktDialogOeffnen('anfrage'|'projekt'|'kunde', id, titel); die Bausteine dafür bindet der Dialog selbst ein (mehrfach einbindbar).
+   Die Liste baut der Dialog über textContent (kein HTML aus Daten). docs/archiv/webseite-und-kundenportal.md, „Umsetzung 1.10.10“. #}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_aktionen.html" %}
+{% include "_berlin_date.html" %}
+<style>
+  #kontaktDialog{border:0;padding:0;width:min(520px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+  #kontaktDialog::backdrop{background:rgba(23,28,31,.45)}
+  #kontaktDialog .kv{padding:20px 22px 16px;display:flex;flex-direction:column;gap:12px}
+  #kontaktDialog .kv-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  #kontaktDialog .kv-kopf h3{margin:0;font-size:18px}
+  #kontaktDialog .kv-hinweis{margin:0;color:var(--ds-text-2);font-size:13px}
+  #kontaktDialog .kv-felder{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #kontaktDialog .kv-feld{display:flex;flex-direction:column;gap:4px}
+  #kontaktDialog .kv-feld label{font-size:13px;font-weight:600}
+  #kontaktDialog .kv-liste{list-style:none;margin:0;padding:0;border-top:1px solid var(--ds-linie);font-size:14px}
+  #kontaktDialog .kv-liste li{padding:7px 0;border-bottom:1px solid var(--ds-linie)}
+  #kontaktDialog .kv-liste .kv-von{color:var(--ds-text-2)}
+  #kontaktDialog .kv-knoepfe{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  @media(max-width:520px){ #kontaktDialog .kv-felder{grid-template-columns:1fr} }
+</style>
+<dialog id="kontaktDialog" aria-labelledby="kontaktTitel"><div class="kv">
+  <div class="kv-kopf"><div><h3 id="kontaktTitel">Kontakt vermerken</h3><div id="kontaktBezug" class="kv-hinweis"></div></div>
+    <button type="button" class="secondary" data-klick="kontakt-schliessen" aria-label="Schließen">✕</button></div>
+  <p class="kv-hinweis">Nur Tag und Weg, kein Inhalt. Ein Kontakt zählt für die Aufbewahrung: ins Archiv erst 6 Monate nach dem letzten Kontakt.</p>
+  <div class="kv-felder">
+    <div class="kv-feld"><label for="kontaktTag">Tag des Kontakts</label><input id="kontaktTag" type="date"></div>
+    <div class="kv-feld"><label for="kontaktWeg">Weg</label><select id="kontaktWeg"><option value="">Bitte wählen</option><option value="telefon">Telefon</option><option value="email">E-Mail</option><option value="brief">Brief</option><option value="gespraech">Gespräch</option><option value="sonstiges">Sonstiges</option></select></div>
+  </div>
+  <div id="kontaktStatus" class="status" role="status"></div>
+  <div class="kv-knoepfe"><button type="button" class="secondary" data-klick="kontakt-schliessen">Schließen</button><button type="button" id="kontaktSpeichern" data-klick="kontakt-vermerken">Kontakt vermerken</button></div>
+  <div class="kv-hinweis">Bisher vermerkt</div>
+  <ul id="kontaktListe" class="kv-liste"></ul>
+</div></dialog>
+<script>
+var kontaktBezug = null;
+const KONTAKT_WEGE = {anfrage: '/api/inquiries/', projekt: '/api/projects/', kunde: '/api/customers/'};
+function kontaktAdresse() { return KONTAKT_WEGE[kontaktBezug.art] + Number(kontaktBezug.id) + '/kontakte'; }
+function kontaktTagText(tag) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tag || '')); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(tag || ''); }
+function kontaktListe(liste) {
+  const zeilen = liste.map(v => {
+    const li = document.createElement('li'), was = document.createElement('span'), von = document.createElement('span');
+    was.textContent = `${kontaktTagText(v.kontakt_am)} · ${v.weg_text}`;
+    von.className = 'kv-von';
+    von.textContent = ` · vermerkt am ${berlinZeitpunkt(v.created_at)}${v.von ? ' von ' + v.von : ''}`;
+    li.replaceChildren(was, von);
+    return li;
+  });
+  if (!zeilen.length) { const li = document.createElement('li'); li.textContent = 'Noch kein Kontakt vermerkt.'; zeilen.push(li); }
+  document.getElementById('kontaktListe').replaceChildren(...zeilen);
+}
+function kontaktDialogOeffnen(art, id, titel) {
+  kontaktBezug = {art, id: Number(id)};
+  document.getElementById('kontaktBezug').textContent = titel || '';
+  const tag = document.getElementById('kontaktTag');
+  tag.max = berlinToday(); tag.value = berlinToday();
+  document.getElementById('kontaktWeg').selectedIndex = 0;
+  document.getElementById('kontaktStatus').textContent = '';
+  document.getElementById('kontaktListe').replaceChildren();
+  document.getElementById('kontaktDialog').showModal();
+  return lesen('kontakte', () => api(kontaktAdresse()), kontaktListe)
+    .catch(e => { document.getElementById('kontaktStatus').textContent = 'Fehler: ' + e.message; });
+}
+aktion('kontakt-schliessen', () => document.getElementById('kontaktDialog').close());
+aktion('kontakt-vermerken', async () => {
+  const s = document.getElementById('kontaktStatus'), tag = document.getElementById('kontaktTag').value, weg = document.getElementById('kontaktWeg').value;
+  if (!tag) { s.textContent = 'Bitte den Tag des Kontakts eintragen.'; return; }
+  if (tag > berlinToday()) { s.textContent = 'Der Kontakt darf nicht in der Zukunft liegen.'; return; }  // prüft auch der Server
+  if (tag < '2000-01-01') { s.textContent = 'Der Kontakt darf nicht vor dem 01.01.2000 liegen.'; return; }
+  if (!weg) { s.textContent = 'Bitte den Weg wählen.'; return; }
+  try {
+    const url = kontaktAdresse(), body = JSON.stringify({kontakt_am: tag, weg});
+    await speichern('kontakte', () => api(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body}), {anwenden: kontaktListe});
+    document.getElementById('kontaktWeg').selectedIndex = 0;
+    s.textContent = 'Vermerkt.';
+  } catch (e) { s.textContent = 'Fehler: ' + e.message; }
+});
+</script>

@@ -10,7 +10,7 @@ from .spaltenlaenge import laenge
 from .suchmuster import passt
 
 from .models import (
-    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
+    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Kontaktvermerk,
     Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, OperationalAssetInspection, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, Urlaubsanspruch, LohnStartwert, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
@@ -42,7 +42,7 @@ TYPE_LABELS = {
     GeneralSettings: "Unternehmenseinstellung", CalculationSettings: "Kalkulationsgrundlage",
     LaborRateSettings: "Verrechnungssatz-Grundlage", LaborRateOverheadSettings: "Gemeinkosten-Grundlage",
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
-    SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage",
+    SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage", Kontaktvermerk: "Kontakt",
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
@@ -106,6 +106,8 @@ AUDITED_TYPES = (
     OrderStatusChange,
     # Seit 1.9.127 (Stufe 5, R2, Punkt 4): Befunde aus Einsatzberichten -- der Verlauf der Akte nennt sie („Befund … erfasst“).
     Finding,
+    # Seit 1.10.10 (Stufe W1c): Kontaktvermerke -- nur Tag und Weg, ein Inhalt steht nirgends.
+    Kontaktvermerk,
 )
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
@@ -136,6 +138,7 @@ def _privat(obj) -> bool:
 
 FIELD_LABELS = {
     "anlass":"Anlass",  # seit 1.9.344: warum eine Aufgabe gelöscht wurde
+    "kontakt_am":"Tag des Kontakts","weg":"Weg","inquiry_id":"Anfrage",  # seit 1.10.10: Kontaktvermerk
     # seit 1.9.299: Betriebsmittel und Prüffristen
     "asset_number":"Betriebsmittelnummer","asset_type":"Typ","product_url":"Produktlink","usage_notes":"Bedienungshinweise","acquisition_date":"Anschaffungsdatum",
     "acquisition_cost":"Anschaffungskosten","cost_notes":"Kosten-Notizen","selectable_in_reports":"Im Einsatzbericht auswählbar","asset_id":"Betriebsmittel",
@@ -704,6 +707,9 @@ def _normalize(session, obj):
     pid = None
     if isinstance(obj, Project): pid = obj.id
     elif isinstance(obj, Inquiry): pid = obj.project_id
+    elif isinstance(obj, Kontaktvermerk):  # seit 1.10.10: am Projekt oder an dessen Anfrage -> in den Verlauf der Akte
+        anfrage = session.get(Inquiry, obj.inquiry_id) if obj.inquiry_id else None
+        pid = obj.project_id or (anfrage.project_id if anfrage else None)
     elif isinstance(obj, ProjectDocument): pid = obj.project_id
     elif isinstance(obj, Quote): pid = obj.project_id
     elif isinstance(obj, QuoteItem): pid = _project_for_quote_item(session, obj)
@@ -745,6 +751,9 @@ def _entity_label(obj):
     if obj is None: return None
     if isinstance(obj, Customer): return f"{obj.customer_number or ''} {obj.name}".strip()
     if isinstance(obj, Property): return obj.name
+    if isinstance(obj, Kontaktvermerk):  # seit 1.10.10: Weg und Tag, nie ein Inhalt
+        from .kontaktvermerke import WEGE
+        return f"{WEGE.get(obj.weg, obj.weg)} am {obj.kontakt_am.strftime('%d.%m.%Y') if obj.kontakt_am else ''}".strip()
     if isinstance(obj, CustomerExtraInfo) and obj.label: return obj.label  # seit 1.9.137: im Verlauf des Kunden nach seiner Bezeichnung
     if isinstance(obj, Project): return f"{obj.project_number} · {obj.name}"
     if isinstance(obj, (ProjectDocument, CustomerDocument)): return obj.original_filename  # Kundendokument seit 1.9.140

@@ -98,7 +98,7 @@
       </div>
       <div class="field"><label>Anfrage / Notizen</label><textarea id="editDescription" rows="4"></textarea></div>
       <div id="lostArea" class="field lost hidden"><label>Grund verloren *</label><textarea id="editLostReason" rows="2" placeholder="z. B. Preis, kein Auftrag, Kunde nicht erreichbar …"></textarea></div>
-      <div class="toolbar"><button onclick="saveInquiry()">Änderungen speichern</button><button id="convertButton" onclick="convertInquiry()">Projekt + Angebot erzeugen</button><button id="openProjectButton" class="secondary hidden" onclick="openLinkedProject()">Projekt öffnen</button><span id="editStatusMsg" class="status-msg"></span></div>
+      <div class="toolbar"><button onclick="saveInquiry()">Änderungen speichern</button><button id="convertButton" onclick="convertInquiry()">Projekt + Angebot erzeugen</button><button type="button" class="secondary" data-klick="kontakt-anfrage">Kontakt vermerken …</button><button id="openProjectButton" class="secondary hidden" onclick="openLinkedProject()">Projekt öffnen</button><span id="editStatusMsg" class="status-msg"></span></div>
       <div id="convertHint" class="warning" style="margin-top:10px">„Projekt + Angebot erzeugen“ erstellt aus dieser Anfrage ein reguläres Projekt und ein leeres Angebot. Danach kalkulierst du wie bisher im LV-Editor.</div>
     </div>
   </section>
@@ -108,6 +108,8 @@
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
+{% include "_aktionen.html" %}
+{% include "_kontaktvermerk.html" %}
 {% include "_seitenkopf.html" %}
 {% include "_auswahl.html" %}
 {% include "_zahl.html" %}{# seit 1.9.17: _auswahl.html formatiert Steuersätze über zahlText() #}
@@ -148,6 +150,7 @@ async function saveInquiry(){const s=el('editStatusMsg');try{const payload=inqui
 async function convertInquiry(){if(!currentInquiry||currentInquiry.project_id)return;if(!confirm('Projekt und erstes Angebot aus dieser Anfrage erzeugen?'))return;const s=el('editStatusMsg');try{const url=`/api/inquiries/${currentInquiry.id}/convert`,body=JSON.stringify({project_name:currentInquiry.title,quote_title:'Angebot Dacharbeiten',create_quote:true,vat_rate:defaultVat});const result=await speichern('anfragen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadAll});s.textContent=`${result.project.project_number} und ${result.quote?.quote_number||'Projekt'} erzeugt.`;// seit 1.8.132 direkt ins neue Angebot (ohne Angebot in die Projektmappe) -- vorher blieb die Seite stehen
 location.href=result.quote?'/quotes/'+Number(result.quote.id)+'/edit':'/projects/'+Number(result.project.id)}catch(e){s.textContent='Fehler: '+e.message}}
 // seit 1.8.132 direkt in die Projektmappe -- bis dahin /projects?project_id=…, die Projektliste wertet den Parameter nicht aus
+aktion('kontakt-anfrage',()=>{if(currentInquiry)kontaktDialogOeffnen('anfrage',currentInquiry.id,`${currentInquiry.inquiry_number} · ${currentInquiry.title}`)});  // seit 1.10.10
 function openLinkedProject(){if(currentInquiry?.project_id)location.href='/projects/'+Number(currentInquiry.project_id)}
 async function init(){
   // Seit 1.8.97 über lesen() (_speichern.html): Umsatzsteuer-Vorgabe fürs Umwandeln (eigener Bereich, kein Speichern ersetzt sie).

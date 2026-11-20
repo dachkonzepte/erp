@@ -598,3 +598,61 @@ Runden: 1.10.9 Fremdschlüssel Objektdokument → Eingang (Punkt 5), 1.10.10 Kon
 Neu `tests/test_v780_objektdokument_webanfrage.py` (4 Tests: Übernehmen setzt den Eingang an jeder Fotokopie; ein Upload mit demselben Text trägt keinen;
 Migration auf einem Bestand mit neun Dokumenten -- zwei verknüpft, sieben aus je einem Grund leer, ein zweiter Lauf ändert nichts, downgrade lässt alles
 stehen -- unter SQLite und PostgreSQL). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.9“ (6, alle rot).
+
+### Umsetzung 1.10.10: Kontakt vermerken
+
+- Tabelle `kontaktvermerke` (`app/models.py::Kontaktvermerk`, Migration `2d8b6f4a9c13`): genau ein Bezug -- Anfrage, Projekt oder Kunde (CHECK
+  `ck_kontaktvermerk_ein_bezug`) --, Tag (`kontakt_am`) und Weg (`weg`: telefon, email, brief, gespraech, sonstiges; `app/kontaktvermerke.py::WEGE`),
+  Zeitpunkt (`utc_jetzt()`) und Konto aus der Anmeldung. Keine Spalte für einen Inhalt; das Eingabeschema `KontaktvermerkIn` lehnt jedes weitere Feld ab
+  (`extra="forbid"`, 422). `downgrade()` bricht ab, solange ein Vermerk besteht.
+- `GET`/`POST /api/inquiries/{id}/kontakte`, `/api/projects/{id}/kontakte`, `/api/customers/{id}/kontakte` (`app/routers/kontaktvermerke.py`, ab Büro –
+  Auftrag): die Liste des Bezugs, der jüngste Kontakt zuerst; `POST` gibt die neue Liste zurück. Tag nicht in der Zukunft (Berlin), nicht vor dem 01.01.2000
+  (`tag_pruefen()`, im Schema; der Dialog prüft dasselbe vor dem Senden); unbekannter Bezug 404.
+- Ein Dialog für alle drei Seiten (`app/templates/_kontaktvermerk.html`, `kontaktDialogOeffnen(art, id, titel)`, bindet seine Bausteine selbst ein):
+  Anfragen (Knopf im Editor), Akte („⋮ → Kontakt vermerken …“ nach „Beteiligte“), Kundenakte („⋮ → Kontakt vermerken …“ nach „Neue Anfrage“). Tag vorbelegt
+  heute, Weg nicht vorgewählt; die Liste „Bisher vermerkt“ mit „vermerkt am … von …“ über `textContent` (kein HTML aus Daten).
+- Historie: der Vermerk ist protokolliert (Art „Kontakt“, Bezeichnung „<Weg> am <Tag>“, nie ein Inhalt); am Projekt und an der Anfrage eines Projekts im
+  Verlauf der Akte, am Kunden im Verlauf des Kunden (`app/kunde_verlauf.py::TYPEN`).
+- Ein Vermerk bleibt, wie er ist (kein Ändern, kein Löschen); er geht nur mit seinem Projekt, wenn ein Projekt ohne Auftrag gelöscht wird
+  (`delete_project()`, zuerst die Vermerke -- Regel 6); die Vermerke einer Anfrage bleiben an ihr. Ein Konto mit Vermerken lässt sich nicht löschen
+  (`app/konto_loeschen.py::BEREICHE`, „Kontaktvermerke“).
+- Für die Aufbewahrung zählt ein Vermerk ab 1.10.11 (`app/aufbewahrung.py`); in 1.10.10 wird er nur gespeichert und gezeigt.
+
+#### Festlegungen 1.10.10 (Bitte bestätigen)
+
+1. „Kontakt vermerken“ gibt es an der Anfrage (Knopf im Editor), am Projekt (⋮ der Akte) und am Kunden (⋮ der Kundenakte) -- ein gemeinsamer Dialog.
+2. Ein Vermerk hat nur Tag und Weg (Telefon, E-Mail, Brief, Gespräch, Sonstiges); es gibt keine Spalte für einen Inhalt, jedes weitere Feld lehnt der Server ab.
+3. Der Tag liegt nicht in der Zukunft (Berlin) und nicht vor dem 01.01.2000 -- Dialog und Server prüfen dasselbe; vorbelegt ist heute, der Weg ist nicht
+   vorgewählt.
+4. Lesen und Vermerken ab Büro – Auftrag (wie die Anfragen); die Monteurin an keinem Weg; ein unbekannter Bezug 404.
+5. Jeder Vermerk hat genau einen Bezug (Prüfung in der Datenbank).
+6. Ein Vermerk bleibt (kein Ändern, kein Löschen); er geht nur mit seinem Projekt, wenn ein Projekt ohne Auftrag gelöscht wird; die Vermerke einer Anfrage
+   bleiben an ihr.
+7. Die Historie nennt „<Weg> am <Tag>“ mit dem Konto, nie einen Inhalt; der Verlauf der Akte zeigt die Vermerke des Projekts und seiner Anfrage, der Verlauf
+   des Kunden die des Kunden.
+8. Die Liste im Dialog zeigt den jüngsten Kontakt zuerst, mit „vermerkt am … von …“, nur als Text.
+9. Ein Konto mit Vermerken lässt sich nicht löschen (Bereich „Kontaktvermerke“, wie die übrigen Bereiche: deaktivieren).
+
+#### Tests und Prüfung 1.10.10
+
+Neu `tests/test_v781_kontaktvermerke.py` (25 Tests: je Bezug vermerken und lesen, Reihenfolge, Konto; Tag und Weg mit sechs Fällen 422, heute und
+01.01.2000 gehen; unbekannter Bezug 404 auch über int4; Monteurin 403; genau ein Bezug in der Datenbank; keine Spalte für einen Inhalt; Historie mit Weg,
+Tag und Projekt; Verlauf des Kunden; Projekt löschen nimmt seine Vermerke mit, die der Anfrage bleiben; in node: Dialog in den drei Seiten, Liste als Text,
+gesendet werden nur Tag und Weg, Zukunft und vor 2000 nicht gesendet). Neuer Klicktest `scripts/klicktest_kontakt_vermerken.py` (22 Prüfungen: Anfragen,
+Akte, Kundenakte bei 412 px hell und dunkel, Server, Monteurin 403; Bilder `kontakt_akte_1440_hell`, `kontakt_kundenakte_412_hell|dunkel`).
+
+Angepasste Erwartungen (Regel 28):
+- `tests/test_v557_kundenakte_seite.py::test_menue_der_akte_in_drei_gruppen` -- alt: Projektgruppe ohne „kontakt-projekt“; neu: „kontakt-projekt“ nach
+  „beteiligte-oeffnen“.
+- `tests/test_v557_kundenakte_seite.py::test_menue_der_kundenakte_in_zwei_gruppen_ohne_archivieren` -- alt: Kundengruppe ohne „kontakt-kunde“; neu: mit
+  „kontakt-kunde“ am Ende.
+- Aufbau: neue Einträge in `FUNKTIONEN` (`tests/test_v549_akte_seite.py`, `tests/test_v554_kundenakte_funktionen.py`), in `PROJEKT_FREMDSCHLUESSEL`
+  (`tests/test_v746_aufgabe_und_projekt_loeschen.py`: „kontaktvermerke.project_id geht mit“), `_kontaktvermerk.html` in `BAUSTEINE` und `replaceChildren`
+  an erzeugten Elementen der Attrappe (`tests/test_v334_auswahl_restfaelle.py`).
+- `scripts/klicktest_kundenakte.py`, „„⋮“ des Kopfs: zwei Gruppen“ -- alt: Stammdaten bearbeiten, + Objekt, + Eintrag, Neue Anfrage · Versandprotokoll,
+  Änderungshistorie; neu: „Kontakt vermerken …“ nach „Neue Anfrage“ (im Lauf vor dem Commit rot, 59/60, danach 60/60).
+
+Klicktests der geänderten Seiten (Akte, Kundenakte, Anfragen) vor dem Commit: 41, davon 40 wie erwartet und `klicktest_kundenakte` 59/60 (die Erwartung
+oben), danach 60/60.
+
+Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.10“ (17 über pytest, eine über den Klicktest, alle rot).

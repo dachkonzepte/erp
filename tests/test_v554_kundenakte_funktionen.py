@@ -44,6 +44,9 @@ FUNKTIONEN = [
     ("„⋮“ in zwei Gruppen: Stammdaten bearbeiten, + Objekt, + Eintrag, Neue Anfrage · Versandprotokoll des Kunden, Ganze Änderungshistorie",
      "Knopf", [], "Au", "kopf",
      ['class="ds-menue-trenner"', "'/versandprotokoll?kunde='+customerId", 'href="/history"', 'id="newInquiryLink"']),
+    ("„⋮“: Kontakt vermerken (seit 1.10.10, W1c) -- Tag und Weg, Liste der Vermerke", "Dialog",
+     [("GET", "/api/customers/{customer_id}/kontakte"), ("POST", "/api/customers/{customer_id}/kontakte")], "Au", "kopf",
+     ['data-klick="kontakt-kunde"', 'id="kontaktDialog"', "kunde: '/api/customers/'"]),
     # Übersicht
     ("Laufende Projekte mit Phase und Zahlen, „Abgeschlossen: …“, „Alle … Projekte“", "Anzeige", [AKTE], "Au", "uebersicht",
      ['id="uProjekteListe"', 'id="uAbgeschlossen"', 'id="uAlleProjekte"']),

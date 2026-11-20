@@ -73,6 +73,8 @@ FUNKTIONEN = [
     ("Projektmappe", "Menü: Wartungsvertrag erstellen", "kopf",
      ['id="maintenanceContractMenuItem"', 'id="maintenanceContractModal"', "/api/maintenance-contracts/from-project/"]),
     ("Projektmappe", "Menü: Archivieren / Entarchivieren", "kopf", ['id="archiveMenuItem"', "'unarchive':'archive'"]),
+    ("Projektmappe", "Menü: Kontakt vermerken (seit 1.10.10, W1c)", "kopf",
+     ['data-klick="kontakt-projekt"', 'id="kontaktDialog"', "projekt: '/api/projects/'"]),
     ("Projektmappe", "Menü: Löschen (nur ohne Auftrag)", "kopf", ['id="deleteMenuItem"', "(project.order_count||0)>0"]),
     ("Projektmappe", "Kennzahlen Projektwert, Abgerechnet, Noch offen, Soll-/Ist-Stunden", "uebersicht",
      ['id="uAbrechnung"', 'id="uStunden"', 'id="auftraegeSumme"', "/zahlen`"]),

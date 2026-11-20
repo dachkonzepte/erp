@@ -101,6 +101,7 @@ PROJEKT_FREMDSCHLUESSEL = {
     ("project_documents", "project_id"): "geht mit (Kaskade)",
     ("quotes", "project_id"): "geht mit (Kaskade, Zusatztabellen vorher)",
     ("project_participants", "project_id"): "geht mit (delete_participants_of_project)",
+    ("kontaktvermerke", "project_id"): "geht mit (delete_project, seit 1.10.10)",
     ("inquiries", "project_id"): "gelöst (Beziehung source_inquiry)",
     ("calendar_events", "project_id"): "gelöst (unlink_calendar_events_for_project)",
     ("orders", "project_id"): "sperrt (400, nur archivieren)",
