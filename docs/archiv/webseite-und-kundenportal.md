@@ -58,6 +58,7 @@ Empfangsdienstes (webseite-2026-11-18a, anfrage-2026-11-18a); sie liegen nicht i
     - Maßgeblich ist **„kein Auftrag“**, nicht „kein Projekt“ (Datenschutzerklärung: „Kommt kein Auftrag zustande …“). Das betrifft auch Projekte und
       versendete Angebote ohne Auftrag. Vor W1c dazu ein kurzer Befund mit Vorschlag, einschließlich der gesetzlichen Aufbewahrungspflichten.
     - Fällige Archivierungen und Löschungen erinnern auf „Start“, bis das Büro bestätigt.
+    - Die Fotos, die eine Übernahme als Kopie ans Objekt legt (1.10.5), fallen unter dieselbe Frist wie ihre Anfrage (Antwort F2 aus W1b, 20.11.2026).
 - **F13 Absender der Portal-Mails:** das Absenderpostfach des ERP (wie Angebot und Rechnung); Mails mit Link oder Code nicht unter „Gesendete Elemente“.
 - **F14 IP-Adresse und Browser:** genau einmal gespeichert -- bei der Annahme, unveränderlich in der Annahme. Sonst nie; Bremsen nur gehasht.
 - **F15 Unterschrift:** Name eintragen und mit Finger oder Maus zeichnen (Zeichenfläche des ERP); ohne Zeichnung keine Annahme.
@@ -96,7 +97,7 @@ Empfangsdienstes (webseite-2026-11-18a, anfrage-2026-11-18a); sie liegen nicht i
 - Migration `2394d984cea8` (drei neue Tabellen; `downgrade()` bricht ab, solange der Eingang nicht leer ist).
 - Kein Modul-Umschalter: ohne Schlüssel holt das ERP nichts ab („Schnittstelle nicht eingerichtet“), sonst ändert sich nichts.
 
-#### Festlegungen 1.10.0 (Bitte bestätigen)
+#### Festlegungen 1.10.0 (bestätigt am 20.11.2026)
 
 1. Abgeholt wird nur über die ERP-Schnittstelle des Empfangsdienstes, an eine Adresse auf diesem Server (http, 127.0.0.1, localhost oder ::1, ohne
    Benutzer, Pfad, Abfrage; Vorgabe `http://127.0.0.1:8095`), ohne Proxy und ohne Umleitung; sonst „Adresse der Schnittstelle nicht auf diesem Server“.
@@ -165,7 +166,7 @@ Aufbau geändert (Regel 28): `tests/test_v364_feste_werte_spaltenlaenge.py` kenn
   Büro ab Büro – Auftrag. Antwortschemas `WebAnfrageOut`, `WebAnfrageDetailOut`, `WebanfragenStandOut`, `WebanfragenAbholErgebnisOut`.
 - Bildgrundlage: beide Seiten in `AUFNAHMEN` (Büro), eine Musteranfrage ohne Dateien im Seed.
 
-#### Festlegungen 1.10.1 (Bitte bestätigen)
+#### Festlegungen 1.10.1 (bestätigt am 20.11.2026)
 
 1. Der Eingang ist eine eigene Seite „Anfragen der Webseite“ unter „Anfragen“ (Bereich der Leiste „Anfragen“, kein eigener Eintrag); der Weg dorthin ist ein
    neutraler Knopf im Kopf von „Anfragen“, eine Anfrage hat ihre eigene Seite.
@@ -204,7 +205,7 @@ Vorgabe: „Neue Einträge fallen dem Büro auf ‚Heute‘ auf (Ort schlägst d
 beginnt auf „Start“ (Dashboard mit Widgets). Deshalb ein Standard-Widget „Anfragen der Webseite“ dort, direkt unter „Meine Aufgaben“ (`app/dashboard.py`,
 `DEFAULT_WIDGETS`, `dashboard.html::renderWebanfragenWidget()`), Daten aus `GET /api/webanfragen/stand` und `GET /api/webanfragen?anzahl=5`.
 
-#### Festlegungen 1.10.2 (Bitte bestätigen)
+#### Festlegungen 1.10.2 (bestätigt am 20.11.2026)
 
 1. Neue Anfragen der Webseite fallen dem Büro auf der Startseite „Start“ auf (nicht auf „Heute“, das ist die Seite der Monteurin): Standard-Widget „Anfragen der
    Webseite“ direkt unter „Meine Aufgaben“ (sort_order 12). Wie seit 1.8.18 erreicht ein neues Standard-Widget auch gespeicherte Layouts; wer es entfernt,
@@ -284,7 +285,7 @@ Unix-Zeit. Das ERP liest den Eingang seit 1.10.0 aus `zeit` (naives UTC) und zei
 - Attrappe (`scripts/empfangsdienst_attrappe.py`) wie der echte Dienst: Nummer und Eingang in Berlin, Liste mit allen Kopfdaten nach Minute und Nummer, je Art
   die echten Felder, Vermerk `{zeit, erp_id}`; `meldungen` hält jedes „übernommen“ in Reihenfolge (für W1b).
 
-#### Festlegungen 1.10.3 (Bitte bestätigen)
+#### Festlegungen 1.10.3 (bestätigt am 20.11.2026)
 
 1. Die Adresse des Objekts kommt nur aus den strukturierten Angaben: Reparatur und Wartung aus `daten.objekt` (dk-reparatur/1), Dach und PV aus
    `daten.strasse/plz/ort`; Kantservice hat keine. Nie aus Betreff, Nachricht oder dem abgeleiteten `kontakt.ort`.
@@ -346,7 +347,7 @@ Gegenproben: `gegenproben-webseite.md`, „W1b, 1.10.3“ (31, alle rot).
   `app/konto_loeschen.py::BEREICHE` („Anfragen der Webseite“).
 - Statuskennzeichen „webanfrage“ (Neu, Prüfliste, Verworfen) in `_statuskennzeichen.html`.
 
-#### Festlegungen 1.10.4 (Bitte bestätigen)
+#### Festlegungen 1.10.4 (bestätigt am 20.11.2026)
 
 1. In die Prüfliste kommt eine Anfrage mit Spamverdacht oder einem Grund zum Prüfen (Festlegung 1.10.0 Nr. 7), solange sie neu ist und das Büro sie nicht
    in den Eingang gegeben hat; der Eingang und das Widget auf „Start“ zeigen sie nicht, „Start“ nennt die Zahl in der Prüfliste mit Weg dorthin.
@@ -406,7 +407,7 @@ Gegenproben: `gegenproben-webseite.md`, „W1b, 1.10.4“ (27, alle rot).
 - Seite der Anfrage: Karte „Als Anfrage übernehmen“ (nur bei einer neuen Anfrage im Eingang) -- Auftraggeber und Objekt als Auswahl ohne Vorauswahl, die
   Felder des neuen Kunden und Objekts aus dem Vorschlag, „Als Anfrage übernehmen“ abschließend; danach die neue Anfrage (`/inquiries?inquiry=<ID>`).
 
-#### Festlegungen 1.10.5 (Bitte bestätigen)
+#### Festlegungen 1.10.5 (bestätigt am 20.11.2026)
 
 1. Der Vorschlag kommt nur aus den strukturierten Angaben, nie aus Betreff oder Nachricht (die beiden nur als Vorschlag für Betreff und Beschreibung der
    Anfrage): Eigentümer -> der Melder wird Kunde (Verbraucher ja, die Adresse des Objekts als Vorschlag für seine Anschrift); Hausverwaltung bzw. Firma ->
@@ -450,3 +451,33 @@ Angepasste Erwartungen (Regel 28):
   (`tests/test_v373_zugehoerigkeit_struktur.py`); Testwert `kunde_id` in `QUERY_WERTE` (`tests/test_v326_monteur_datengrenze.py`).
 
 Gegenproben: `gegenproben-webseite.md`, „W1b, 1.10.5“ (27 über pytest und eine über den Klicktest, alle rot).
+
+### Nachrunde W1b (ab 1.10.7)
+
+Antworten des Betriebs (20.11.2026): Festlegungen 1.10.0–1.10.2 (W1a) und 1.10.3-1 bis 1.10.5-11 (W1b) bestätigt, W1b bis auf eine Lücke. Fragen aus W1b:
+F1 ja (Verbraucher-Vorgaben beim neuen Kunden so lassen), F2 ja (Fotos als Kopie ans Objekt, das PDF bleibt am Eingang; **die Fotokopien am Objekt fallen in
+W1c unter dieselbe Frist wie ihre Anfrage**), F3 ja (Kantservice vorerst „ohne Objekt“), F4 ja (als Nächstes der Befund zu F12, dann W1c). Dazu aus dem
+Bericht des Aufräumens (1.10.6): der rote Klicktest als 1.10.7 (unten). Nachrunde 1.10.8: beim Übernehmen immer „Anderen bestehenden Kunden wählen“.
+W1b wird zusammen mit 1.10.6 bis 1.10.8 eingespielt.
+
+### Umsetzung 1.10.7: Zeitpunkte der Bearbeitung über utc_jetzt()
+
+Anlass: im Endlauf des Aufräumens (b114a03, 20.11.2026) war `klicktest_webanfragen` rot (68/70): „verworfen am“ und „aus der Prüfliste gegeben am“ standen
+mit `datetime.utcnow()` -- der echten Uhr -- in der Datenbank, die Uhr der Instanz stand im Klicktest auf dem 19.11.2026. Am Tag des Baus fiel beides
+zusammen (Endlauf W1b 155/155), ab dem 20.11. nicht mehr. Seit 1.10.7 setzen `app/webanfragen.py` und `app/webanfrage_uebernahme.py` die Zeitpunkte der
+Bearbeitung über `app/berlin_time.py::utc_jetzt()` (Vorbild 1.9.367): abgeholt (`abgeholt_am` beim Ablegen statt der Spaltenvorgabe), gemeldet, letzter
+Lauf (mit und ohne Verbindung), letzter Erfolg, geprüft, verworfen, übernommen. Die Sperre des Abholens (`lauf_seit`, `stand()["laeuft"]`) bleibt auf der
+echten Uhr. Im Betrieb ändert sich nichts (dieselbe Zeit, ohne Mikrosekunden); der Klicktest blieb unverändert und ist wieder 70/70.
+
+#### Festlegungen 1.10.7 (Bitte bestätigen)
+
+1. Abgeholt, gemeldet, letzter Lauf, letzter Erfolg, geprüft, verworfen und übernommen kommen aus `utc_jetzt()` -- dieselbe Uhr wie `berlin_now()`, im Betrieb
+   gleich `datetime.utcnow()`, unter einer festen Uhr (Tests, Klicktests) stimmig zum Rest der Seite.
+2. Die Sperre des Abholens bleibt auf der echten Uhr: sie gilt über Prozesse und läuft nach `SPERRE_GILT` ab -- unter einer stehenden Uhr liefe sie nie ab.
+3. `klicktest_webanfragen` bleibt unverändert: seine Erwartung „am 19.11.2026“ ist jetzt richtig, weil die Seite der Uhr der Instanz folgt.
+
+#### Tests und Prüfung 1.10.7
+
+Neu `tests/test_v778_webanfragen_zeitpunkte.py` (4 Tests unter einer festen Uhr am 03.03.2025: Abholen und Melden, letzter Lauf ohne Verbindung, Verwerfen,
+In den Eingang und Übernehmen samt Nachmelden, die Sperre auf der echten Uhr). `klicktest_webanfragen` vor 1.10.7 68/70 (Endlauf b114a03), danach 70/70
+ohne Änderung. Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „Nachrunde W1b, 1.10.7“ (9, alle rot).

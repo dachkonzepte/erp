@@ -209,3 +209,21 @@ alle Dateien byte-gleich zurück. Dazu Nr. 10 über den Klicktest.
 | Nr. 10 – Erledigt nennt die Anfragenummer | Kennzeichen weg (`1105_10`) | 1 rot |
 | Nr. 10 – danach die neue Anfrage | Weiterleitung weg (über `klicktest_webanfragen.py`) | rot: wartet vergeblich auf `/inquiries`, 2 Prüfungen rot |
 | Nr. 11 – nur das Büro | Monteurin zugelassen (`1105_11`) | 1 rot |
+
+## Nachrunde W1b, 1.10.7: Zeitpunkte über utc_jetzt()
+
+Probendatei im Scratchpad (`proben_1107.py`), Lauf mit `tests/test_v778_webanfragen_zeitpunkte.py`; alle 9 rot aus dem geprüften Grund (je FAILED, kein ERROR,
+der Tag der echten Uhr statt 03.03.2025 bzw. umgekehrt), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – abgeholt | Spaltenvorgabe statt `utc_jetzt()` (`1107_1`) | 1 rot |
+| Nr. 1 – gemeldet | `datetime.utcnow()` (`1107_2`) | 2 rot |
+| Nr. 1 – letzter Lauf | `datetime.utcnow()` (`1107_3`) | 1 rot |
+| Nr. 1 – letzter Erfolg | `datetime.utcnow()` (`1107_4`) | 1 rot |
+| Nr. 1 – letzter Lauf ohne Verbindung | Zeit der Sperre (`1107_5`) | 1 rot |
+| Nr. 1 – verworfen | `datetime.utcnow()` (`1107_6`) | 1 rot |
+| Nr. 1 – geprüft | `datetime.utcnow()` (`1107_7`) | 1 rot |
+| Nr. 1 – übernommen | `datetime.utcnow()` (`1107_8`) | 1 rot |
+| Nr. 2 – Sperre auf der echten Uhr | Sperre über `utc_jetzt()` (`1107_9`) | 1 rot |
+| Nr. 3 – Klicktest unverändert | -- (vor 1.10.7 rot 68/70 im Endlauf b114a03, danach 70/70: das ist die Gegenprobe in umgekehrter Richtung) | -- |

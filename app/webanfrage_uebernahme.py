@@ -23,13 +23,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import datetime
 
 from sqlalchemy import func, not_, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from .audit import record_audit_entry
+from .berlin_time import utc_jetzt
 from .crm import kunde_anlegen
 from .document_categories import resolve_category_id
 from .models import Customer, Inquiry, Property, WebAnfrage
@@ -220,7 +220,7 @@ def uebernehmen(db: Session, webanfrage_id: int, e, user_id: int | None) -> Inqu
     geschrieben = []
     try:
         treffer = db.execute(sa_update(WebAnfrage).where(WebAnfrage.id == webanfrage_id, WebAnfrage.status == STATUS_NEU, not_(IN_PRUEFLISTE))
-                             .values(status=STATUS_UEBERNOMMEN, erledigt_am=datetime.utcnow(), erledigt_von_user_id=user_id)).rowcount
+                             .values(status=STATUS_UEBERNOMMEN, erledigt_am=utc_jetzt(), erledigt_von_user_id=user_id)).rowcount
         if treffer != 1:
             raise SchonErledigt()
         if (e.kunde_id is None) == (e.kunde_neu is None):

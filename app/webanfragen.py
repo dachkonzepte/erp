@@ -48,6 +48,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .audit import record_audit_entry
+from .berlin_time import utc_jetzt
 from .dateiauslieferung import typ_aus_inhalt
 from .grunddaten import einzelzeile
 from .models import WebAnfrage, WebAnfrageDatei, WebanfragenAbholung
@@ -444,7 +445,7 @@ def _melden(db: Session, v: Verbindung, zeile: WebAnfrage, erg: Ergebnis, zeitli
     except _Unlesbar:
         gut = False
     if gut:
-        zeile.gemeldet_am = datetime.utcnow()
+        zeile.gemeldet_am = utc_jetzt()
         zeile.gemeldet_als = erp_id
         db.commit()
         erg.gemeldet += 1
@@ -545,7 +546,7 @@ def _eine_holen(db: Session, v: Verbindung, nummer: str, erg: Ergebnis) -> WebAn
             eingang_am=eingang_am, betreff=betreff, kontakt_name=name, spamverdacht=umschlag.get("spamverdacht") is True,
             **_adresse_spalten(art if art in ARTEN else None, umschlag),
             pruefen_grund="; ".join(gruende) or None, umschlag=daten.decode("utf-8"), umschlag_sha256=hashlib.sha256(daten).hexdigest(),
-            status=STATUS_NEU, dateien=[WebAnfrageDatei(**d) for d in dateien],
+            status=STATUS_NEU, abgeholt_am=utc_jetzt(), dateien=[WebAnfrageDatei(**d) for d in dateien],
         )
         db.add(zeile)
         db.commit()
@@ -605,11 +606,14 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
     """Ein Lauf: Liste seitenweise, je neue Anfrage holen und ablegen, jede gelistete Anfrage, die schon im Eingang ist, (wieder) als übernommen melden.
     hoechstens: neue Anfragen je Lauf; frist_sekunden: danach keine neue mehr (der Knopf, damit die Seite nicht wartet)."""
     erg = Ergebnis()
+    # Seit 1.10.7: die Sperre läuft auf der echten Uhr (sie gilt über Prozesse und läuft nach SPERRE_GILT ab), die Zeitpunkte der Bearbeitung --
+    # abgeholt, gemeldet, letzter Lauf, geprüft, verworfen, übernommen -- über utc_jetzt(): dieselbe Uhr wie berlin_now(), im Betrieb gleich
+    # datetime.utcnow(), unter einer festen Uhr (Tests, Klicktests) stimmig zum Rest der Seite.
     jetzt = datetime.utcnow()
     v, grund = verbindung()
     if v is None:
         erg.fehler = grund
-        db.execute(sa_update(WebanfragenAbholung).where(WebanfragenAbholung.id == 1).values(letzter_lauf_am=jetzt, letzter_fehler=grund))
+        db.execute(sa_update(WebanfragenAbholung).where(WebanfragenAbholung.id == 1).values(letzter_lauf_am=utc_jetzt(), letzter_fehler=grund))
         db.commit()
         return erg
     kennung = _sperre_nehmen(db, jetzt)
@@ -656,9 +660,9 @@ def abholen(db: Session, *, hoechstens: int = NEU_JE_LAUF, frist_sekunden: float
     finally:
         db.rollback()
         _sperre_freigeben(db, kennung, {
-            "letzter_lauf_am": datetime.utcnow(), "letzter_fehler": erg.fehler, "letzte_neu": erg.neu,
+            "letzter_lauf_am": utc_jetzt(), "letzter_fehler": erg.fehler, "letzte_neu": erg.neu,
             "nicht_abgeholt": json.dumps(erg.nicht_abgeholt[:50], ensure_ascii=False) if erg.nicht_abgeholt else None,
-            **({"letzter_erfolg_am": datetime.utcnow()} if erg.fehler is None else {}),
+            **({"letzter_erfolg_am": utc_jetzt()} if erg.fehler is None else {}),
         })
     if erg.fehler:
         logger.warning("Anfragen der Webseite: %s (%s neu, %s gemeldet).", erg.fehler, erg.neu, erg.gemeldet)
@@ -728,7 +732,7 @@ def verwerfen(db: Session, webanfrage_id: int, grund: str, user_id: int | None) 
     if grund not in VERWERFEN_GRUENDE:
         raise ValueError(grund)
     zeile = _aendern(db, webanfrage_id, [WebAnfrage.status == STATUS_NEU],
-                     {"status": STATUS_VERWORFEN, "erledigt_am": datetime.utcnow(), "erledigt_von_user_id": user_id, "verworfen_grund": grund,
+                     {"status": STATUS_VERWORFEN, "erledigt_am": utc_jetzt(), "erledigt_von_user_id": user_id, "verworfen_grund": grund,
                       "melden_soll": ERP_ID_VERWORFEN})
     record_audit_entry(db, action="verworfen", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer, field_name="status",
                        old_value=STATUS_NEU, new_value=f"{STATUS_VERWORFEN} ({VERWERFEN_GRUENDE[grund]})")
@@ -737,7 +741,7 @@ def verwerfen(db: Session, webanfrage_id: int, grund: str, user_id: int | None) 
 
 def in_den_eingang(db: Session, webanfrage_id: int, user_id: int | None) -> WebAnfrage:
     """Aus der Prüfliste in den Eingang („kein Spam“ bzw. „geprüft“) -- nur, solange sie in der Prüfliste steht."""
-    zeile = _aendern(db, webanfrage_id, [IN_PRUEFLISTE], {"geprueft_am": datetime.utcnow(), "geprueft_von_user_id": user_id})
+    zeile = _aendern(db, webanfrage_id, [IN_PRUEFLISTE], {"geprueft_am": utc_jetzt(), "geprueft_von_user_id": user_id})
     record_audit_entry(db, action="aus der Prüfliste", entity_type=ART_HISTORIE, entity_id=webanfrage_id, entity_label=zeile.nummer,
                        field_name="status", old_value="Prüfliste", new_value="Eingang")
     return _fertig(db, zeile)

@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.7 – Anfragen der Webseite: Zeitpunkte über die Uhr der Anwendung
+
+Nachrunde W1b. „Verworfen am“, „aus der Prüfliste gegeben am“, „übernommen“, „abgeholt“, „gemeldet“ und der letzte Lauf kommen jetzt aus `app/berlin_time.py::utc_jetzt()` -- derselben Uhr wie `berlin_now()`. Im Betrieb ist das dieselbe Zeit wie bisher; unter einer festen Uhr (Tests, Klicktests) passen die Zeitpunkte jetzt zum Rest der Seite. Anlass: `klicktest_webanfragen` war seit dem 20.11.2026 rot, weil seine stehende Uhr auf dem 19.11. stand, „verworfen am“ aber die echte Uhr nahm -- am Tag des Baus fiel beides zusammen. Die Sperre des Abholens bleibt auf der echten Uhr. Neu `tests/test_v778_webanfragen_zeitpunkte.py`.
+
 ## 1.10.6 – Sicherung ohne echte Lohndaten, Ablage der Berichte
 
 `backup_windows.ps1` sichert `bildgrundlage\lohn_echt\` nicht mehr: der Ordner hält echte Oktoberdaten aus Time 4 und dem ERP (Quelle des Wächters gegen echte Personalnummern), die nur auf diesem Rechner liegen sollen -- bisher lagen sie in jeder der drei Sicherungen noch einmal. Landet der Ordner trotzdem im Ziel, entfernt das Skript ihn dort und bricht mit Fehler ab.
