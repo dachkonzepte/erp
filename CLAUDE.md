@@ -1625,7 +1625,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   seit 1.10.5 „als Anfrage übernehmen“ (`app/webanfrage_uebernahme.py`): Vorschlag nur aus den strukturierten Angaben, beim Mieter die Hausverwaltung als
   Auftraggeber, nichts vorgewählt, eine Transaktion mit Kunde über `app/crm.py::kunde_anlegen()` (einzige Stelle, auch POST /api/customers), Objekt, Anfrage
   mit `webseite_nummer`, Fotos ans Objekt; Meldung der Anfragenummer; seit 1.10.7 die Zeitpunkte der Bearbeitung über `utc_jetzt()`, die Sperre
-  des Abholens auf der echten Uhr) --
+  des Abholens auf der echten Uhr; seit 1.10.8 beim Übernehmen immer „Anderen bestehenden Kunden wählen“ -- die Kundensuche der Büro-Suche,
+  `app/search.py::kunden_suchen()`, `GET /api/webanfragen/{id}/kunden`) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

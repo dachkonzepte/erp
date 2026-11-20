@@ -9,7 +9,9 @@ Vorschlag (vorschlag()): nur aus den strukturierten Feldern (app/webanfrage_anga
     Kantservice, Dach, PV  der Kontakt wird Kunde; Dach und PV mit der Adresse des Konfigurators, PV mit „privat/gewerbe“ als Verbraucher ja/nein
 
 dazu bestehende Kunden mit ihren Gründen (E-Mail, Telefon, Name; PLZ nur zusätzlich), je Kunde seine Objekte mit „Adresse gleich“. Angelegt wird nichts,
-bevor das Büro Auftraggeber und Objekt gewählt hat (keine Vorauswahl).
+bevor das Büro Auftraggeber und Objekt gewählt hat (keine Vorauswahl). Seit 1.10.8 dazu „Anderen bestehenden Kunden wählen“ (kunden_suche()): dieselbe
+Kundensuche wie die Büro-Suche, für jede Rolle (auch beim Mieter) -- findet der Vorschlag den Kunden nicht (neue E-Mail, neue Nummer, Name anders
+geschrieben), bleibt sonst nur „Neuer Kunde“, eine Dublette.
 
 Übernehmen (uebernehmen()): eine Transaktion -- zuerst die Anfrage der Webseite (bedingtes UPDATE: nie zweimal, nicht aus der Prüfliste), dann Kunde und
 Objekt (neu oder gewählt; ein Objekt nur des Kunden), die Anfrage (Quelle „Website“, Nummer der Webseite), die Fotos ans Objekt (Kategorie „Bilder /
@@ -34,6 +36,7 @@ from .crm import kunde_anlegen
 from .document_categories import resolve_category_id
 from .models import Customer, Inquiry, Property, WebAnfrage
 from .property_documents import create_property_document, document_path
+from .search import kunden_suchen
 from .settings import issue_number
 from .suchmuster import passt
 from .telefonbuch import schluessel, telefonbuch
@@ -43,6 +46,7 @@ from .webanfragen import ART_HISTORIE, ERP_ID, IN_PRUEFLISTE, STATUS_NEU, STATUS
 QUELLE = "Website"  # wie die Auswahl „Herkunft“ der Seite „Anfragen“
 KATEGORIE_FOTOS = "Bilder / Fotos"
 VORSCHLAEGE_MAX = 10
+SUCHE_MAX = 20  # seit 1.10.8: Treffer der Kundensuche je Anfrage
 OBJEKTE_MAX = 200
 _TELEFON = re.compile(r"\A\+?[0-9 ()/.\-]{5,40}\Z")
 _EMAIL = re.compile(r"\A[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}\Z")
@@ -142,10 +146,21 @@ def _kunden(db: Session, a: dict) -> list[dict]:
         gruende = treffer[k.id]
         if plz and (k.postal_code == plz or any(p.postal_code == plz for p in k.properties)):
             gruende.append("PLZ gleich")
-        out.append({"id": k.id, "name": k.name, "kundennummer": k.customer_number,
-                    "adresse": adresse_text({"strasse": k.street, "plz": k.postal_code, "ort": k.city}), "gruende": gruende})
+        out.append(_kunde_zeile(k, gruende))
     out.sort(key=lambda x: (-len(x["gruende"]), schluessel(x["name"]), x["id"]))
     return out[:VORSCHLAEGE_MAX]
+
+
+def _kunde_zeile(k: Customer, gruende: list[str]) -> dict:
+    return {"id": k.id, "name": k.name, "kundennummer": k.customer_number,
+            "adresse": adresse_text({"strasse": k.street, "plz": k.postal_code, "ort": k.city}), "gruende": gruende}
+
+
+def kunden_suche(db: Session, text: str) -> dict:
+    """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- dieselbe Kundensuche wie die Büro-Suche (app/search.py::kunden_suchen()), in der Form der
+    Vorschläge (ohne Gründe); schreibt nichts. anzahl = alle Treffer, kunden = die ersten SUCHE_MAX."""
+    anzahl, kunden = kunden_suchen(db, text, SUCHE_MAX)
+    return {"kunden": [_kunde_zeile(k, []) for k in kunden], "anzahl": anzahl}
 
 
 def vorschlag(db: Session, zeile: WebAnfrage) -> dict:

@@ -227,3 +227,29 @@ der Tag der echten Uhr statt 03.03.2025 bzw. umgekehrt), alle Dateien byte-gleic
 | Nr. 1 – übernommen | `datetime.utcnow()` (`1107_8`) | 1 rot |
 | Nr. 2 – Sperre auf der echten Uhr | Sperre über `utc_jetzt()` (`1107_9`) | 1 rot |
 | Nr. 3 – Klicktest unverändert | -- (vor 1.10.7 rot 68/70 im Endlauf b114a03, danach 70/70: das ist die Gegenprobe in umgekehrter Richtung) | -- |
+
+## Nachrunde W1b, 1.10.8: Anderen bestehenden Kunden wählen
+
+Probendatei im Scratchpad (`proben_1108.py`), Lauf mit `tests/test_v779_webanfragen_anderer_kunde.py`; alle 16 rot aus dem geprüften Grund (je FAILED, kein
+ERROR), alle Dateien byte-gleich zurück (`1108_6` zuerst als Entfernen angesetzt -- rot über eine Ausnahme beim Suchen statt über die Reihenfolge --, dann als
+Verschieben neu: rot über die Reihenfolge). Dazu Nr. 4 über den Klicktest.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 2 – passt() wie im Telefonbuch | Suche mit `contains()` auf dem Namen (`1108_1`) | 3 rot |
+| Nr. 2 – Reihenfolge der Kundenliste | nach ID (`1108_1b`) | 1 rot |
+| Nr. 3 – ab zwei Zeichen | ab einem Zeichen (`1108_2`) | 1 rot |
+| Nr. 3 – höchstens 20 | 30 (`1108_3`) | 1 rot |
+| Nr. 3 – die Zahl aller | Zahl der gezeigten (`1108_3b`) | 1 rot |
+| Nr. 6 – unbekannte Anfrage 404 | ohne Prüfung (`1108_4`) | 1 rot |
+| Nr. 6 – Suche über 100 Zeichen 422 | ohne Grenze (`1108_4b`) | 1 rot |
+| Nr. 6 – ab Büro – Auftrag | ohne Rollenprüfung (`1108_4c`) | 1 rot |
+| Nr. 6 – Objekt nur des gewählten Kunden | Prüfung weg (`1108_5`) | 1 rot |
+| Nr. 1 – zwischen Vorschlägen und „Neuer Kunde“ | „Neuer Kunde“ vor der Suche (`1108_6`) | 1 rot |
+| Nr. 1 – immer sichtbar | Suche `hidden` (`1108_6b`) | 1 rot |
+| Nr. 4 – eine Wahl wie ein Vorschlag | ohne `data-aenderung` (`1108_7`) | 1 rot |
+| Nr. 4 – nichts vorgewählt | jeder Treffer `checked` (`1108_7b`) | 1 rot |
+| Nr. 4 – jeder Wert über esc() | Name ohne `esc()` (`1108_7c`) | 1 rot |
+| Nr. 5 – Auswahl aufgehoben | ohne Aufheben (`1108_8`) | 1 rot |
+| Nr. 3 – Hinweis mit der Zahl aller | nur die gezeigten (`1108_9`) | 1 rot |
+| Nr. 4 – danach seine Objekte | ohne `data-aenderung` (über `klicktest_webanfragen.py`) | rot: wartet vergeblich auf die Objekte, 5 Prüfungen rot |

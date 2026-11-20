@@ -55,6 +55,12 @@
   .ueb-felder fieldset legend{font-size:12px;font-weight:650;color:var(--muted);padding:0;margin-right:8px;float:left}
   .ueb-zeile{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:8px;color:var(--ink)}
   .ueb-fuss{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:14px}
+  /* seit 1.10.8: Anderen bestehenden Kunden wählen */
+  .ueb-suche{margin:10px 0 8px;padding:10px 12px;border:1px dashed var(--line);border-radius:var(--ds-ecke-karte)}
+  .ueb-suche>label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:650;color:var(--ink)}
+  .ueb-suche>label input{max-width:420px}
+  .ueb-suche .ueb-wahl{margin-top:8px}
+  .ueb-suche .ueb-wahl:empty{display:none}
   @media(max-width:850px){.ueb-felder{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:850px){.raster{grid-template-columns:minmax(0,1fr)}.zeile{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:650px){main{padding:12px}.fotos img{width:150px;height:112px}}
@@ -95,6 +101,13 @@
     <div class="muted small" id="uebAuftraggeberText"></div>
     <h3>Auftraggeber</h3>
     <div class="ueb-wahl" id="uebKunden"></div>
+    {# seit 1.10.8: immer sichtbar, auch beim Mieter -- dieselbe Kundensuche wie die Suche oben (passt(), Telefonbuch) #}
+    <div class="ueb-suche" id="uebSuche">
+      <label for="uebSucheText">Anderen bestehenden Kunden wählen<input id="uebSucheText" maxlength="100" autocomplete="off" placeholder="Name oder Kundennummer" data-eingabe="uebKundeSuchen"></label>
+      <div class="muted small" id="uebSucheHinweis" role="status">Name oder Kundennummer, ab zwei Zeichen – dieselbe Suche wie oben.</div>
+      <div class="ueb-wahl" id="uebSucheTreffer"></div>
+    </div>
+    <div class="ueb-wahl" id="uebKundeNeuWahl"></div>
     <div class="ueb-felder" id="uebKundeNeu" hidden>
       <label for="uebVorname">Vorname<input id="uebVorname" maxlength="120"></label>
       <label for="uebNachname">Nachname bzw. Firma *<input id="uebNachname" maxlength="255"></label>
@@ -294,7 +307,7 @@ aktion('inDenEingang',async()=>{
 });
 /* Seit 1.10.5: Als Anfrage übernehmen. Die Vorschläge kommen vom Server (nur strukturierte Angaben); nichts ist vorgewählt -- erst mit Auftraggeber und
    Objekt geht der Knopf. Übernehmen ist abschließend (abschliessen()), danach zur neuen Anfrage. */
-let uebVorschlag=null,uebKunde=null,uebObjekt=null,uebObjektListe=[],uebKundeGefuellt=false,uebObjektGefuellt=false;
+let uebVorschlag=null,uebKunde=null,uebObjekt=null,uebObjektListe=[],uebKundeGefuellt=false,uebObjektGefuellt=false,uebKundeAusSuche=false;
 async function uebernahmeLaden(d){
   const karte=document.getElementById('uebernahmeKarte');
   karte.hidden=!(d.status==='neu'&&!d.in_pruefliste);
@@ -307,7 +320,9 @@ function uebZeichnen(){
   const v=uebVorschlag;
   document.getElementById('uebAuftraggeberText').textContent=v.auftraggeber;
   document.getElementById('uebKunden').innerHTML=(v.kunden||[]).map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-aenderung="uebKundeWahl"><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')} · ${esc((k.gruende||[]).join(', '))}</small></span></label>`).join('')
-    +'<label><input type="radio" name="uebKunde" value="neu" data-aenderung="uebKundeWahl"><span><b>Neuer Kunde</b> aus den Angaben<br><small>Die Felder unten kommen aus dem Formular – vor dem Übernehmen prüfen.</small></span></label>';
+    ||'<div class="muted small">Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.</div>';
+  // seit 1.10.8: „Neuer Kunde“ nach der Suche -- erst suchen, dann neu anlegen (keine Dublette)
+  document.getElementById('uebKundeNeuWahl').innerHTML='<label><input type="radio" name="uebKunde" value="neu" data-aenderung="uebKundeWahl"><span><b>Neuer Kunde</b> aus den Angaben<br><small>Die Felder unten kommen aus dem Formular – vor dem Übernehmen prüfen.</small></span></label>';
   const a=v.anfrage||{};
   uebFeld('uebTitel',a.titel);uebFeld('uebBeschreibung',a.beschreibung);uebFeld('uebAnsprech',a.ansprechpartner);
 }
@@ -320,8 +335,28 @@ function uebObjekteZeichnen(){
     +'<label><input type="radio" name="uebObjekt" value="keins" data-aenderung="uebObjektWahl"><span><b>Ohne Objekt</b></span></label>';
   uebObjekt=null;document.getElementById('uebObjektNeu').hidden=true;document.getElementById('uebVorOrtZeile').hidden=true;
 }
+/* Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- GET …/kunden (dieselbe Suche wie die Büro-Suche); ein Treffer wird gewählt wie ein Vorschlag (gleiche
+   Radiogruppe, danach seine Objekte). Sucht das Büro weiter und der gewählte Treffer ist nicht mehr dabei, ist die Auswahl aufgehoben. */
+function uebObjekteLeeren(){
+  uebObjekt=null;uebObjektListe=[];document.getElementById('uebObjekte').innerHTML='<div class="muted small">Erst den Auftraggeber wählen.</div>';
+  document.getElementById('uebObjektNeu').hidden=true;document.getElementById('uebVorOrtZeile').hidden=true;
+}
+function uebTrefferZeichnen(r){
+  const treffer=r?(r.kunden||[]):[];
+  if(uebKundeAusSuche&&!treffer.some(k=>String(k.id)===uebKunde)){uebKunde=null;uebKundeAusSuche=false;uebObjekteLeeren()}
+  const gewaehlt=uebKundeAusSuche?uebKunde:null;
+  document.getElementById('uebSucheTreffer').innerHTML=treffer.map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-quelle="suche" data-aenderung="uebKundeWahl"${String(k.id)===gewaehlt?' checked':''}><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')}</small></span></label>`).join('');
+  const anzahl=r?Number(r.anzahl)||0:0;
+  document.getElementById('uebSucheHinweis').textContent=!r?'Name oder Kundennummer, ab zwei Zeichen – dieselbe Suche wie oben.'
+    :!treffer.length?'Kein Kunde gefunden.':anzahl>treffer.length?`${anzahl} Treffer, hier die ersten ${treffer.length} – bitte genauer suchen.`:`${treffer.length} Treffer.`;
+}
+aktion('uebKundeSuchen',async el=>{
+  const text=el.value.trim(),url=`/api/webanfragen/${ID}/kunden?suche=${encodeURIComponent(text)}`;
+  await lesen('kundensuche',()=>text.length>=2?api(url):Promise.resolve(null),uebTrefferZeichnen)
+    .catch(err=>{const h=document.getElementById('uebSucheHinweis');h.textContent='Suche fehlgeschlagen: '+err.message});
+},'input');
 aktion('uebKundeWahl',async el=>{
-  uebKunde=el.value;document.getElementById('uebStatus').textContent='';
+  uebKunde=el.value;uebKundeAusSuche=el.dataset.quelle==='suche';document.getElementById('uebStatus').textContent='';
   const neu=uebKunde==='neu',v=uebVorschlag;
   document.getElementById('uebKundeNeu').hidden=!neu;
   if(neu&&!uebKundeGefuellt){

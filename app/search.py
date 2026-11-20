@@ -261,6 +261,16 @@ def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
     return _count_and_fetch(db, stmt, (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
 
 
+def kunden_suchen(db: Session, text: str, limit: int) -> tuple[int, list]:
+    """Seit 1.10.8: dieselbe Kundensuche wie die Büro-Suche -- passt() auf Name und Kundennummer (wie im Telefonbuch: ohne Groß- und Kleinschreibung,
+    Umlaute beim Grundbuchstaben), Reihenfolge wie die Kundenliste, zu kurz (< MIN_QUERY_LENGTH) keine Treffer. Für „Anderen bestehenden Kunden wählen“
+    beim Übernehmen einer Anfrage der Webseite (app/webanfrage_uebernahme.py::kunden_suche()). Gibt (Anzahl aller Treffer, die ersten limit) zurück."""
+    term = (text or "").strip()
+    if len(term) < MIN_QUERY_LENGTH:
+        return 0, []
+    return _search_customers(db, term, limit)
+
+
 def _customer_row(c: Customer) -> dict:
     return {"id": c.id, "title": c.name, "subtitle": c.city, "url": f"/customers/{c.id}"}
 

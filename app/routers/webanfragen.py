@@ -4,6 +4,7 @@ Eingang lesen (Liste, eine Anfrage, ihre Dateien), Stand des Abholens und „Jet
 steht in app/webanfragen.py; hier nur Rollen und Antworten. Der Umschlag geht unverändert an die Seite (Fremddaten: die Seite setzt jeden Wert über esc()).
 Seit 1.10.4 (Stufe W1b): Ansichten Eingang, Prüfliste, Erledigt; Verwerfen, In den Eingang, Zurückholen -- danach die Meldung an den Empfangsdienst,
 wenn gerade kein Lauf abholt (sonst meldet der Lauf).
+Seit 1.10.8: GET …/kunden?suche= -- „Anderen bestehenden Kunden wählen“ beim Übernehmen (dieselbe Kundensuche wie die Büro-Suche).
 """
 
 import json
@@ -19,9 +20,9 @@ from ..ids import Id
 from ..models import AppUser, WebAnfrage, WebAnfrageDatei
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..crm import KundennameZuLang
-from ..schemas import (WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageObjektOut, WebAnfrageOut, WebAnfrageUebernehmenIn,
-                       WebAnfrageUebernommenOut, WebAnfrageVerwerfenIn, WebAnfrageVorschlagOut)
-from ..webanfrage_uebernahme import AuswahlFehlt, ObjektFremd, objekte, uebernehmen, vorschlag
+from ..schemas import (WebanfragenAbholErgebnisOut, WebanfragenStandOut, WebAnfrageDetailOut, WebAnfrageKundenSucheOut, WebAnfrageObjektOut, WebAnfrageOut,
+                       WebAnfrageUebernehmenIn, WebAnfrageUebernommenOut, WebAnfrageVerwerfenIn, WebAnfrageVorschlagOut)
+from ..webanfrage_uebernahme import AuswahlFehlt, ObjektFremd, kunden_suche, objekte, uebernehmen, vorschlag
 from ..webanfrage_angaben import abschnitte, nachricht_wiederholt
 from ..webanfragen import (EINGANG_MAX, KNOPF_FRIST, KNOPF_HOECHSTENS, VERWERFEN_GRUENDE, SchonErledigt, abholen, datei_pfad, eingang, in_den_eingang,
                            nachmelden, stand, verwerfen, zeile_zu_dict, zurueckholen)
@@ -110,6 +111,15 @@ def post_in_den_eingang(webanfrage_id: Id, db: Session = Depends(get_db, scope="
 def get_vorschlag(webanfrage_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.10.5: Vorschläge zum Übernehmen -- schreibt nichts."""
     return vorschlag(db, _zeile(db, webanfrage_id))
+
+
+@router.get("/api/webanfragen/{webanfrage_id}/kunden", response_model=WebAnfrageKundenSucheOut)
+def get_kunden_suche(webanfrage_id: Id, suche: str = Query(default="", max_length=100), db: Session = Depends(get_db, scope="function"),
+                     _role: AppUser = _role_dep):
+    """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- dieselbe Kundensuche wie die Büro-Suche (passt(), Telefonbuch), ab zwei Zeichen; schreibt
+    nichts. Eine unbekannte Anfrage 404."""
+    _zeile(db, webanfrage_id)
+    return kunden_suche(db, suche)
 
 
 @router.get("/api/webanfragen/{webanfrage_id}/objekte", response_model=list[WebAnfrageObjektOut])

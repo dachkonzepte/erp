@@ -64,6 +64,7 @@ KARTEN_OHNE_NAMEN = {
     "dh-form": "Formular im Versandverlauf",
     "finding-form": "Formular „Mangel“ im Einsatzbericht",
     "sign-box": "Kasten zur Unterschrift am Auftrag",
+    "ueb-suche": "Kasten „Anderen bestehenden Kunden wählen“ in der Karte „Als Anfrage übernehmen“ (seit 1.10.8)",
     "notice-to": "Empfänger einer Anzeige in der Checkliste",
     "preview": "Vorschau eines Werts in den Einstellungen",
     "formula": "Rechenweg (Einstellungen, Plantafel)",

@@ -481,3 +481,52 @@ echten Uhr. Im Betrieb ändert sich nichts (dieselbe Zeit, ohne Mikrosekunden); 
 Neu `tests/test_v778_webanfragen_zeitpunkte.py` (4 Tests unter einer festen Uhr am 03.03.2025: Abholen und Melden, letzter Lauf ohne Verbindung, Verwerfen,
 In den Eingang und Übernehmen samt Nachmelden, die Sperre auf der echten Uhr). `klicktest_webanfragen` vor 1.10.7 68/70 (Endlauf b114a03), danach 70/70
 ohne Änderung. Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „Nachrunde W1b, 1.10.7“ (9, alle rot).
+
+### Umsetzung 1.10.8: Anderen bestehenden Kunden wählen
+
+Vorgabe des Betriebs (20.11.2026): beim Übernehmen konnte das Büro nur einen vorgeschlagenen oder einen neuen Kunden wählen. Findet der Vorschlag den
+bestehenden Kunden nicht (neue E-Mail, neue Telefonnummer, Name anders geschrieben), blieb nur „Neuer Kunde“ -- eine Dublette. Dazu immer sichtbar „Anderen
+bestehenden Kunden wählen“ mit Suche, danach seine Objekte wie beim Vorschlag; auch im Mieter-Fall; gleiche Prüfungen (422/404).
+
+- Die Vorgabe nannte „Suche wie bei ‚Neue Anfrage‘ (Telefonbuch, passt())“. „Neue Anfrage“ (`inquiries.html`) hat keine Suche, nur eine Auswahlliste aller
+  Kunden in der Reihenfolge der Kundenliste; mit `passt()` sucht die Büro-Suche. Gebaut ist deshalb deren Kundensuche: `app/search.py::kunden_suchen()`
+  (dieselbe Funktion `_search_customers()` wie die Büro-Suche: `passt()` auf Name und Kundennummer, Reihenfolge `nach_namen(Nachname, Vorname)`, ab
+  `MIN_QUERY_LENGTH` = 2 Zeichen).
+- `app/webanfrage_uebernahme.py::kunden_suche()` gibt die Treffer in der Form der Vorschläge (`_kunde_zeile()`, ohne Gründe), höchstens `SUCHE_MAX` = 20, dazu
+  die Zahl aller; `GET /api/webanfragen/{id}/kunden?suche=` (ab Büro – Auftrag, `WebAnfrageKundenSucheOut`, schreibt nichts, unbekannte Anfrage 404, Suche
+  über 100 Zeichen 422). Übernehmen prüft unverändert (Objekt nur des gewählten Kunden 422, unbekannter Kunde oder unbekanntes Objekt 404).
+- Seite: unter „Auftraggeber“ die Vorschläge (ohne Vorschlag der Hinweis „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen
+  anlegen.“), dann „Anderen bestehenden Kunden wählen“ mit Suchfeld (`uebSuche`), dann erst „Neuer Kunde“ (`uebKundeNeuWahl`). Jedes Tippen liest über
+  `lesen('kundensuche', …)` (ältere Antworten verworfen); ein Treffer ist eine Wahl in derselben Radiogruppe wie ein Vorschlag (`data-quelle="suche"`), danach
+  seine Objekte über `…/objekte?kunde_id=`.
+
+#### Festlegungen 1.10.8 (Bitte bestätigen)
+
+1. „Anderen bestehenden Kunden wählen“ steht immer auf der Karte, für jede Rolle der Anfrage (auch beim Mieter), zwischen den Vorschlägen und „Neuer Kunde“ --
+   erst suchen, dann neu anlegen. Ohne Vorschlag steht dort „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.“
+2. Die Suche ist die Kundensuche der Büro-Suche (`app/search.py::kunden_suchen()`): `passt()` auf Name und Kundennummer, wie im Telefonbuch, in der
+   Reihenfolge der Kundenliste. Nicht nach Telefon, E-Mail oder Adresse (das kann der Vorschlag; die Suche ist für den Namen, den das Büro kennt).
+3. Ab zwei Zeichen; höchstens 20 Treffer, dazu die Zahl aller („N Treffer, hier die ersten 20 – bitte genauer suchen.“); jedes Tippen liest neu, ohne Verzögerung
+   (der Baustein verwirft ältere Antworten).
+4. Ein Treffer ist eine Wahl wie ein Vorschlag (dieselbe Radiogruppe, ohne Gründe), danach seine Objekte wie beim Vorschlag (mit „Adresse gleich“ und dem
+   Angebot „Ansprechpartner vor Ort eintragen“); nichts vorgewählt, jeder Wert über `esc()`.
+5. Sucht das Büro weiter und der gewählte Treffer ist nicht mehr unter den Treffern, ist die Auswahl aufgehoben (Objekte wieder „Erst den Auftraggeber wählen.“).
+6. `GET /api/webanfragen/{id}/kunden?suche=` ab Büro – Auftrag, schreibt nichts; unbekannte Anfrage 404, Suche über 100 Zeichen 422; Übernehmen mit den
+   Prüfungen von 1.10.5 (Objekt nur des gewählten Kunden 422, unbekannter Kunde 404, nichts angelegt).
+
+#### Tests und Prüfung 1.10.8
+
+Neu `tests/test_v779_webanfragen_anderer_kunde.py` (9 Tests: Suche wie die Büro-Suche -- „grundler“ findet „Gründler“, dieselben Treffer in derselben
+Reihenfolge wie `search_office()`, Kundennummer, ab zwei Zeichen, „%“ wörtlich, 422/404, schreibt nichts; höchstens 20 mit der Zahl aller; Mieter übernimmt den
+gefundenen Kunden mit seinem Objekt, keine Dublette, Telefon und E-Mail des Mieters nicht beim Kunden; Prüfungen 422/404 ohne Anlegen; Monteurin 403; in node
+Reihenfolge der Karte, Treffer wie ein Vorschlag, nichts vorgewählt, esc(), Auswahl aufgehoben, Hinweise). Klicktest `scripts/klicktest_webanfragen.py` um den
+Mieter mit anders geschriebener Hausverwaltung erweitert (78 Prüfungen; neue Musteranfrage `R-20261119-0913-0A7B`, im Seed die „Hausverwaltung Gründler GmbH“
+mit Mietshaus; neues Bild `webanfragen_anderer_kunde_1440_hell`).
+
+Angepasste Erwartungen (Regel 28):
+- `tests/test_v777_webanfragen_uebernehmen.py::test_seite_nichts_vorgewaehlt_und_ueber_esc` -- Aufbau: „Neuer Kunde“ (`value="neu"`) alt in `uebKunden`, neu in
+  `uebKundeNeuWahl` (nach der Suche); die Prüfung selbst ist gleich.
+- Aufbau: `ueb-suche` in `KARTEN_OHNE_NAMEN` (`tests/test_v460_ecken_der_karten.py`, Kasten in einer Karte, Ecke `var(--ds-ecke-karte)`) -- zuerst mit 8 px
+  gebaut, der Wächter schlug im Lauf vor dem Commit an.
+
+Gegenproben: `gegenproben-webseite.md`, „Nachrunde W1b, 1.10.8“ (16 über pytest und eine über den Klicktest, alle rot).

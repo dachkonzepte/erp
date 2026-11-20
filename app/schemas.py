@@ -1021,6 +1021,21 @@ class WebAnfrageVorschlagOut(BaseModel):
     uebernehmen_moeglich: bool = False
 
 
+class WebAnfrageKundeOut(BaseModel):
+    """Seit 1.10.8: ein bestehender Kunde zum Übernehmen -- aus dem Vorschlag (mit Gründen) oder aus der Suche (ohne)."""
+    id: int
+    name: str
+    kundennummer: str | None = None
+    adresse: str | None = None
+    gruende: list[str] = Field(default_factory=list)
+
+
+class WebAnfrageKundenSucheOut(BaseModel):
+    """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- die ersten Treffer und die Zahl aller Treffer."""
+    kunden: list[WebAnfrageKundeOut] = Field(default_factory=list)
+    anzahl: int = 0
+
+
 class WebAnfrageObjektOut(BaseModel):
     id: int
     name: str

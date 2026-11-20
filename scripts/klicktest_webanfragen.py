@@ -12,8 +12,12 @@ Musterdaten.
                     „verworfen“ an die Attrappe), Erledigt, zurück in den Eingang (wieder Prüfliste, Meldung eingang-<ID>), „Kein Spam – in den Eingang“
     Seit 1.10.5     die Reparatur als Anfrage übernehmen: nichts vorgewählt (ohne Auswahl abgelehnt), neuer Kunde und neues Objekt aus den Angaben,
                     danach die Anfrage mit Nummer der Webseite und den Dateien; die Attrappe bekommt die Anfragenummer; Erledigt nennt sie
+    Seit 1.10.8     ein Mieter meldet, die Hausverwaltung steht anders geschrieben im Kundenstamm: kein Vorschlag; „Anderen bestehenden Kunden
+                    wählen“ steht zwischen Vorschlägen und „Neuer Kunde“, getippt „grundler“ findet „Gründler“ (Telefonbuch), gewählt wie ein
+                    Vorschlag, seine Objekte („Adresse gleich“ zuerst), Ansprechpartner vor Ort angeboten; übernommen beim gefundenen Kunden,
+                    kein neuer Kunde
     Bilder          Eingang und Anfrage bei 1440 px hell und dunkel, bei 412 px hell (nichts läuft über); seit 1.10.4 Prüfliste und Bearbeitung;
-                    seit 1.10.5 Übernehmen und die Anfrage danach
+                    seit 1.10.5 Übernehmen und die Anfrage danach; seit 1.10.8 der gefundene Kunde
     Monteurin       der Eingang ist gesperrt, die Schnittstelle des ERP antwortet 403
 
 AUFRUF (aus dem Projektordner):
@@ -36,6 +40,7 @@ from empfangsdienst_attrappe import Attrappe, muster  # noqa: E402
 ATTRAPPE = Attrappe()
 BOESE = '<img src=x onerror="window.__boese=1">'
 R, K, W = "R-20261119-0910-0A1B", "K-20261119-0911-0C2D", "W-20261119-0912-0E3F"
+M = "R-20261119-0913-0A7B"  # seit 1.10.8: Mieter, die Hausverwaltung anders geschrieben als im Kundenstamm
 
 
 def befuellen(db, k):
@@ -43,6 +48,12 @@ def befuellen(db, k):
     buero = AppUser(username="berta", display_name="Berta Büro", role="buero_auftrag", password_hash=k.passwort())
     monteur = AppUser(username="mo", display_name="Mo Monteur", role="field", password_hash=k.passwort())
     db.add_all([buero, monteur])
+    db.commit()
+    # seit 1.10.8: die Hausverwaltung im Kundenstamm (anders geschrieben als im Formular) mit ihrem Mietshaus an der Adresse der Meldung
+    from app.crm import kunde_anlegen
+    from app.models import Property
+    hv = kunde_anlegen(db, {"last_name": "Hausverwaltung Gründler GmbH"})
+    db.add(Property(customer_id=hv.id, name="Mietshaus Musterweg 1", street="Musterweg 1", postal_code="00000", city="Musterstadt"))
     db.commit()
     return {"cookies": {"buero": k.cookies(buero), "mo": k.cookies(monteur)}}
 
@@ -259,6 +270,46 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("Erledigt: übernommen mit Nummer", await tab.js(
         f"{ZEILEN}.find(z=>z.children[1].textContent==={R!r}).querySelector('.kennzeichen.erledigt').textContent==='übernommen: '+{a.uebernommen.get(R, '')!r}"), True)
+
+    # --- seit 1.10.8: Mieter, die Hausverwaltung anders geschrieben -- „Anderen bestehenden Kunden wählen“ ---
+    a.dazu(muster(M, "reparatur", rolle="mieter", name="Mia Mieter", hausverwaltung="HV Gruendler", telefon="0000 333", email="mia@example.invalid"))
+    await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)
+    p.pruefe("Mieter: abgeholt", await _abholen(tab), ["1 Anfrage neu abgeholt.", "status ok"])
+    await tab.js(f"{ZEILEN}.find(z=>z.children[1].textContent==={M!r}).querySelector('a').click()")
+    await tab.warten(f"location.pathname.startsWith('/anfragen/webseite/')&&{ANFRAGE_BEREIT}&&!uebernahmeKarte.hidden"
+                     "&&!!document.querySelector('#uebKundeNeuWahl input[value=neu]')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Andere: kein Vorschlag, Suche sichtbar vor „Neuer Kunde“", await tab.js(
+        "[uebKunden.querySelectorAll('input').length,getComputedStyle(uebSuche).display!=='none',"
+        "!!(uebSuche.compareDocumentPosition(uebKundeNeuWahl)&Node.DOCUMENT_POSITION_FOLLOWING)]"), [0, True, True])
+    await tab.js("uebSucheText.focus()")
+    await tab.cmd("Input.insertText", text="grundler")
+    await tab.warten("uebSucheTreffer.querySelectorAll('input').length===1")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Andere: „grundler“ findet „Gründler“, nichts gewählt", await tab.js(
+        "[uebSucheTreffer.textContent.includes('Hausverwaltung Gründler GmbH'),uebSucheHinweis.textContent,"
+        "document.querySelectorAll('#uebernahmeKarte input[type=radio]:checked').length]"), [True, "1 Treffer.", 0])
+    await tab.js("(e=>{e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}))})(uebSucheTreffer.querySelector('input'))")
+    await tab.warten("uebObjekte.querySelectorAll('input[name=uebObjekt]').length>=3")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Andere: seine Objekte, „Adresse gleich“ zuerst", await tab.js(
+        "(l=>[l[0].closest('label').textContent.includes('Mietshaus Musterweg 1'),l[0].closest('label').textContent.includes('Adresse gleich')])"
+        "(uebObjekte.querySelectorAll('input[name=uebObjekt]'))"), [True, True])
+    await tab.js("(e=>{e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}))})(uebObjekte.querySelector('input[name=uebObjekt]'))")
+    p.pruefe("Andere: Ansprechpartner vor Ort angeboten", await tab.js("[!uebVorOrtZeile.hidden,uebVorOrtText.textContent.includes('Mia Mieter')]"),
+             [True, True])
+    await tab.js("uebVorOrt.click()")
+    await tab.bild_ganz("webanfragen_anderer_kunde_1440_hell")
+    kunden_vorher = await tab.js("fetch('/api/customers').then(r=>r.json()).then(l=>l.length)")
+    await tab.js("uebernehmenKnopf.click()")
+    await tab.warten("location.pathname==='/inquiries'&&!document.getElementById('editorCard').classList.contains('hidden')")
+    await tab.warten("!!document.querySelector('#webanfrageHinweis a')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Andere: Anfrage beim gefundenen Kunden", await tab.js(
+        "[editCustomer.selectedOptions[0].textContent.includes('Hausverwaltung Gründler GmbH'),document.querySelector('#webanfrageHinweis a').textContent]"),
+        [True, M])
+    p.pruefe("Andere: kein neuer Kunde", await tab.js("fetch('/api/customers').then(r=>r.json()).then(l=>l.length)"), kunden_vorher)
+    p.pruefe("Andere: JS-Fehler", tab.fehler, [])
 
     # --- noch einmal abholen, dann ohne Empfangsdienst ---
     await tab.oeffnen("/anfragen/webseite", EINGANG_BEREIT)

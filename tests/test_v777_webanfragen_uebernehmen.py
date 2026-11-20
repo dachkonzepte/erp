@@ -280,7 +280,8 @@ VORSCHLAG = {"rolle": "mieter", "auftraggeber": BOESE, "kunden": [{"id": 4, "nam
 @nur_mit_node
 def test_seite_nichts_vorgewaehlt_und_ueber_esc():
     ablauf = (f"uebVorschlag={json.dumps(VORSCHLAG)};uebZeichnen();"
-              "return [_element('uebKunden').innerHTML, _element('uebAuftraggeberText').textContent, _element('uebTitel').value];")
+              "return [_element('uebKunden').innerHTML + _element('uebKundeNeuWahl').innerHTML, _element('uebAuftraggeberText').textContent,"
+              " _element('uebTitel').value];")  # seit 1.10.8 steht „Neuer Kunde“ in uebKundeNeuWahl, nach der Suche
     kunden, text_, titel = im_browser(seite("webanfrage.html", "\nlesen('anfrage',") + WIRKSAM, ablauf)["ergebnis"]
     assert "checked" not in kunden and "<img" not in kunden and "&lt;img" in kunden and 'value="4"' in kunden and 'value="neu"' in kunden
     assert text_ == BOESE and titel == "T"
