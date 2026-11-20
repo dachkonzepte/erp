@@ -1920,8 +1920,10 @@ Optionen.
 1. Die Vorprobe bucht über die Funktionen des echten Nachtragswegs (wie `POST /api/time-entries`), nicht über die Schnittstelle selbst; P wird nicht
    gebucht, AT nicht übernommen.
 2. Sie läuft nur gegen eine Wegwerf-SQLite im Temp-Ordner (Regel 16), nie gegen die echte Datenbank; die erzeugte Datei bleibt nur mit `--ausgabe`.
-3. Für September und Oktober 2026: `--azubis 91010,91012`, `--teilzeit 91006=0,3,3,3,0` (Di–Do 3,00 h, wie im L1b-Befund aus U und K der Muster
-   abgeleitet); 91008 und 91016 als zwei Personen (je Monat nur eine).
+3. Für September und Oktober 2026: die Azubis über `--azubis`, eine Teilzeitkraft über `--teilzeit` (feste Stunden an einzelnen Wochentagen), wie im
+   L1b-Befund aus den Mustern abgeleitet; zwei Nummern, die je Monat nur einmal vorkommen, als zwei Personen. Seit dem 20.11.2026 ohne die Nummern und
+   Stunden der Muster (die Oktober-Muster sind echte Daten mit ersetzter Personalnummer) -- erfundenes Beispiel: `--azubis 00091,00092`,
+   `--teilzeit 00093=0,4,4,4,0`.
 
 ### Tests und Prüfung 1.9.228
 
