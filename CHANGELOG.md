@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.6 – Sicherung ohne echte Lohndaten, Ablage der Berichte
+
+`backup_windows.ps1` sichert `bildgrundlage\lohn_echt\` nicht mehr: der Ordner hält echte Oktoberdaten aus Time 4 und dem ERP (Quelle des Wächters gegen echte Personalnummern), die nur auf diesem Rechner liegen sollen -- bisher lagen sie in jeder der drei Sicherungen noch einmal. Landet der Ordner trotzdem im Ziel, entfernt das Skript ihn dort und bricht mit Fehler ab.
+
+Dazu aufgeräumt (nicht in Git, `bildgrundlage/` ist ignoriert): neun alte Bildgrundlagen, zwei Vergleichsordner und 16 Ordner, die nur ihr ZIP wiederholten, gelöscht; die jüngste Bildgrundlage `d9d7d06`, der Befund `pruefung/` sowie Berichte und ZIPs der bestätigten Runden liegen jetzt außerhalb des Repos unter `C:\DACHKONZEPTE-ERP\Archiv\` (vorher und nachher je Datei mit SHA-256 abgeglichen). CLAUDE.md nennt die neue Ablage.
+
 ## 1.10.5 – Anfragen der Webseite: als Anfrage übernehmen
 
 Stufe W1b. Eine Anfrage im Eingang lässt sich jetzt als Anfrage übernehmen. Die Karte „Als Anfrage übernehmen“ schlägt vor, wer Auftraggeber wird -- nur aus den strukturierten Angaben: beim Eigentümer der Melder, bei einer Hausverwaltung oder Firma die Firma mit dem Melder als Ansprechpartner, meldet ein Mieter die Hausverwaltung aus dem Pflichtfeld (der Mieter wird Ansprechpartner vor Ort, sein Telefon und seine E-Mail kommen nie zum Kunden). Bestehende Kunden stehen mit ihren Gründen zur Wahl (E-Mail, Telefon, Name, PLZ), je Kunde seine Objekte mit „Adresse gleich“. Nichts ist vorgewählt: das Büro wählt Auftraggeber und Objekt und bestätigt; ein neuer Kunde braucht „Verbraucher ja/nein“.

@@ -510,7 +510,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
    `data/.erp_secret`) nach `C:\DACHKONZEPTE-ERP\Backup\v<VERSION>_<Zeitstempel>\` – ein neuer
    Ordner pro Lauf, nichts wird überschrieben. Ausgenommen sind nur `.venv`, `__pycache__`,
    `.pytest_cache` (reproduzierbar über `requirements.txt`) sowie Log-Dateien (kein Teil eines
-   funktionierenden Zustands). Reihenfolge bei jedem abgeschlossenen Update: zuerst `VERSION` +
+   funktionierenden Zustands), seit 1.10.6 auch `bildgrundlage\lohn_echt\` (echte Personaldaten; landet
+   der Ordner doch im Ziel, entfernt das Skript ihn dort und bricht ab). Reihenfolge bei jedem abgeschlossenen Update: zuerst `VERSION` +
    `CHANGELOG.md` (Regel 8), dann `.\backup_windows.ps1` ausführen und den Erfolg (Zielordner,
    Größe) kurz prüfen. **Automatische Bereinigung (seit 1.1.5):** das Skript behält nach jedem
    Lauf nur die 3 jüngsten Backup-Ordner, ältere werden am Ende desselben Laufs automatisch
@@ -2396,6 +2397,7 @@ Dateiversion). Verglichen werden volle Läufe
 zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Projektstatus vorab. Eine neue Seite kommt in
 `AUFNAHMEN` (`tests/test_v431_bildgrundlage.py` prüft Abdeckung, Vorlage je Rolle und Monteur-Seiten); neue Testdaten ändern alle Bilder
 -- dann zuerst eine neue Grundlage vom Stand vor dem Umbau. Grenzen: `docs/archiv/testablauf-und-klicktests.md`, „Bildgrundlage“.
+**Ablage seit 1.10.6 (Aufräumen 20.11.2026):** Berichte und Bilder-ZIPs bestätigter Runden liegen in `C:\DACHKONZEPTE-ERP\Archiv\berichte\`, frühere Bildgrundlagen (`d9d7d06`) und der Befund `pruefung\` in `C:\DACHKONZEPTE-ERP\Archiv\bildgrundlagen\` (außerhalb von Repo und Sicherung, Inventar mit SHA-256 daneben); in `bildgrundlage/` bleiben nur Entwürfe, `lohn/`, `lohn_echt/` und offene Runden -- nach der Bestätigung einer Runde wandern Bericht und ZIP ins Archiv, Bilder nur als ZIP, kein Ordner daneben; ältere Verweise auf `bildgrundlage/…` bleiben als Geschichte stehen.
 
 ## Arbeitsweise, die sich bewährt hat
 
