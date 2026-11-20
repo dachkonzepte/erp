@@ -747,3 +747,51 @@ Angepasste Erwartungen (Regel 28), nur Aufbau:
   `record_audit_entry()` (`tests/test_v732_lohndatei_vermerk_postgresql.py`).
 
 Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.11“ (33, alle rot).
+
+### Umsetzung 1.10.12: Seite „Aufbewahrung“ und Erinnerung auf „Start“
+
+- Seite `/aufbewahrung` (`app/templates/aufbewahrung.html`, umgezogen; Büro ab Büro – Auftrag, die Monteurin 403): Reiter „Fällig“ und „Archiv“. „Fällig“:
+  Stand („n fällig fürs Archiv seit …, davon m unbearbeitete Eingänge“), Eingänge der Webseite ohne Übernahme für sich, je Kunde eine Karte (Name, Nummer,
+  Ort, letzter Kontakt mit Herkunft, „Kunde geht mit“ mit Knopf bzw. „Kunde bleibt: Grund“) mit seinen Vorgängen (Art, Nummer mit Weg, Titel, letzter
+  Kontakt und Herkunft, fällig ab, was mitgeht, Sperren, „unbearbeitet“, „Archivieren“ nur an Fälligem). „Alle fälligen archivieren“ mit Rückfrage schickt
+  nur die Prüfsumme der Vorschau. „Archiv“: Kunden und Vorgänge mit „im Archiv seit“ und „Zurückholen“. Knöpfe zum Archivieren nur für Admin und
+  Büro – Finanzen (`darf_aufbewahrung()`, sonst der Hinweis); jeder Text über `esc()`, die Art nur aus der festen Liste.
+- „Start“: Kachel „Aufbewahrung“ direkt unter „Anfragen der Webseite“ (`DEFAULT_WIDGETS`, Rang 13): Zahl der fälligen mit Weg zur Seite, seit wann, davon
+  unbearbeitete Eingänge; ohne Fälliges „Nichts fällig fürs Archiv.“ mit Weg ins Archiv. Sie erinnert, bis das Büro bestätigt (F12).
+- Kundenakte: „Im Archiv seit … – der Kunde fehlt in Listen, Suche und Auswahlen.“ mit „Zurückholen“ (jedes Büro); Anfragen im Archiv gekennzeichnet.
+  Eingang der Webseite: „Im Archiv seit … – zurückholen unter „Aufbewahrung → Archiv“.“, keine Aktion und kein Übernehmen.
+- Kein eigener Eintrag in der Leiste: der Weg führt über die Kachel auf „Start“ (dort auch „Archiv ansehen“).
+- Nebenbefund behoben: auf „Anfragen der Webseite“ stand die Zahl am Reiter auch bei 0 („0“ am Reiter Eingang bzw. Prüfliste) -- `display:inline-flex`
+  der Klasse überstimmte `hidden` (seit 1.10.4). Jetzt `.reiter-zahl[hidden]{display:none}`, auf beiden Seiten; der Klicktest misst die Sichtbarkeit.
+
+#### Festlegungen 1.10.12 (Bitte bestätigen)
+
+1. Die Seite „Aufbewahrung“ liest jedes Büro; archivieren (einzeln und „Alle fälligen archivieren“) nur Admin und Büro – Finanzen, die anderen sehen den
+   Hinweis; zurückholen jedes Büro; die Monteurin bekommt die Seite nicht.
+2. „Fällig“ zeigt je Vorgang den letzten Kontakt mit Herkunft, fällig ab, was mitgeht (Angebote, Dateien, Fotos am Objekt), Sperren und „unbearbeitet“;
+   „Archivieren“ steht nur an Fälligem, „Kunde … archivieren“ nur, wenn der Kunde mitgeht; sonst steht der Grund, warum er bleibt.
+3. „Alle fälligen archivieren“ fragt zurück und gilt nur für die Liste, die die Seite zeigt (Prüfsumme; hat sie sich geändert, 409 und nichts archiviert).
+4. Die Kachel „Aufbewahrung“ steht auf „Start“ direkt unter „Anfragen der Webseite“, für jedes Büro; sie nennt die Zahl, seit wann und die unbearbeiteten
+   Eingänge, ohne Fälliges den Weg ins Archiv.
+5. Kundenakte und Eingang der Webseite sagen „im Archiv seit …“; die Kundenakte holt zurück, der Eingang zeigt im Archiv keine Aktion.
+6. Kein eigener Eintrag in der Leiste -- der Weg ist die Kachel auf „Start“.
+7. Eine Zahl am Reiter steht nur, wenn sie über 0 ist (Aufbewahrung und Anfragen der Webseite).
+
+#### Tests und Prüfung 1.10.12
+
+Neu `tests/test_v783_aufbewahrung_seite.py` (13 Tests: Seite je Rolle mit und ohne Knöpfe, Monteurin 403; in node „Fällig“ über `esc()`, Knöpfe nur mit Recht und nur an
+Fälligem, Stand; Archiv mit „Zurückholen“; Aktionen nur mit fester Art, gesammelt nur mit Prüfsumme; Kachel im Rang und mit und ohne Fälliges; Kundenakte mit
+Hinweis und Zurückholen; Eingang im Archiv ohne Aktion). Neuer Klicktest `scripts/klicktest_aufbewahrung.py` (32 Prüfungen: Büro – Auftrag liest ohne
+Knöpfe, Kachel auf „Start“, Admin archiviert einzeln, den Kunden und gesammelt mit Rückfrage, ohne Zahl am Reiter, der Eingang der Webseite zählt das Archiv
+nicht, Archiv mit Zurückholen, Eingang und Kundenakte im Archiv, 412 px hell und dunkel ohne Überlauf, Monteurin 403; Bilder
+`aufbewahrung_faellig_1440_hell`, `aufbewahrung_archiv_1440_hell`, `aufbewahrung_{faellig,archiv}_412_{hell,dunkel}`).
+
+Angepasste Erwartungen (Regel 28), nur Aufbau: `tests/test_v441_rahmen_baustein.py` (`aufbewahrung.html` in `UMGEZOGEN`, Seiten mit Leiste 45 -> 46 an zwei Stellen),
+`tests/test_v431_bildgrundlage.py` (Bilder 314 -> 318, die bisherigen 252 -> 256; neue Aufnahme in `scripts/bildgrundlage.py`), `tests/test_v554_kundenakte_funktionen.py`
+(neue Funktion „im Archiv“ mit Zurückholen); in der vollen Suite rot, dann nachgezogen: die Standard-Kacheln mit „aufbewahrung“ an dritter Stelle
+(`tests/test_v197_dashboard.py`, zwei Tests, alt: my_tasks, webanfragen, open_office_tasks, kpis, active_projects; `tests/test_v322_unassigned_tasks.py`,
+ebenso; `scripts/klicktest_aufgaben_ohne_zustaendigkeit.py`, „Dashboard: Widget-Titel“, im Lauf der Klicktests vor dem Commit 23/24, danach grün --
+alt ohne „Aufbewahrung“, neu dahinter „Aufbewahrung“ nach „Anfragen der Webseite“). Im Teillauf rot und behoben: ein Satz der Rückfrage las sich als Sie-Anrede („Sie fehlen danach …“,
+`tests/test_v440_runde_du.py`) -- jetzt „Die Einträge fehlen danach …“.
+
+Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.12“ (11 über pytest, eine über den Klicktest, alle rot).

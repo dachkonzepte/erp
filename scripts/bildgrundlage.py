@@ -143,6 +143,7 @@ AUFNAHMEN = (
     A("bericht", "service_report.html", "/service-reports/{bericht}", (BUERO, MONTEUR)),  # seit 1.9.67 der Bericht in fünf Schritten
     A("anfragen_webseite", "webanfragen.html", "/anfragen/webseite", (BUERO,)),  # seit 1.10.1 (Stufe W1a): Eingang der Anfragen der Webseite
     A("anfrage_webseite", "webanfrage.html", "/anfragen/webseite/{webanfrage}", (BUERO,)),
+    A("aufbewahrung", "aufbewahrung.html", "/aufbewahrung", (BUERO,)),  # seit 1.10.12 (Stufe W1c): Vorschau und Archiv
 )
 AUFNAHME = {a.name: a for a in AUFNAHMEN}
 

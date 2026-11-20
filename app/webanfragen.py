@@ -769,6 +769,7 @@ def zeile_zu_dict(zeile: WebAnfrage) -> dict:
         "gemeldet_am": zeile.gemeldet_am, "dateien": len(zeile.dateien),
         # seit 1.10.4
         "zustand": zustand(zeile), "in_pruefliste": in_pruefliste(zeile), "erledigt_am": zeile.erledigt_am, "verworfen_grund": zeile.verworfen_grund,
+        "archiviert_am": zeile.archiviert_am,  # seit 1.10.12 (W1c)
         "verworfen_grund_text": VERWERFEN_GRUENDE.get(zeile.verworfen_grund or ""), "gemeldet_als": zeile.gemeldet_als,
         "melden_soll": erp_id_der_zeile(zeile), "meldung_offen": meldung_offen(zeile),
         # seit 1.10.5

@@ -24,7 +24,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Order
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, EINSTELLUNGEN_GELD_NUR_LESEN, PLANUNGSGRUNDLAGEN_NUR_LESEN, LOHNREGELN_NUR_LESEN, darf_geld, darf_lohnregeln, darf_personalnummer_freigeben, darf_planungsgrundlagen, darf_lohndaten, darf_storno_zuruecknehmen, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, darf_aufbewahrung, EINSTELLUNGEN_GELD_NUR_LESEN, PLANUNGSGRUNDLAGEN_NUR_LESEN, LOHNREGELN_NUR_LESEN, darf_geld, darf_lohnregeln, darf_personalnummer_freigeben, darf_planungsgrundlagen, darf_lohndaten, darf_storno_zuruecknehmen, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -709,6 +709,12 @@ def inquiries_page(request: Request, _role: AppUser = _role_dep):
 @router.get("/anfragen/webseite", response_class=HTMLResponse)
 def webanfragen_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="webanfragen.html", context={})
+
+
+# Seit 1.10.12 (Stufe W1c): Aufbewahrung -- Vorschau und Archiv, Büro ab buero_auftrag; bestätigen nur Admin und Büro – Finanzen (der Server prüft).
+@router.get("/aufbewahrung", response_class=HTMLResponse)
+def aufbewahrung_page(request: Request, user: AppUser = _role_dep):
+    return templates.TemplateResponse(request=request, name="aufbewahrung.html", context={"aufbewahrung": darf_aufbewahrung(user)})
 
 
 @router.get("/anfragen/webseite/{webanfrage_id}", response_class=HTMLResponse)

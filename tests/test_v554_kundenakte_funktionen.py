@@ -44,6 +44,8 @@ FUNKTIONEN = [
     ("„⋮“ in zwei Gruppen: Stammdaten bearbeiten, + Objekt, + Eintrag, Neue Anfrage · Versandprotokoll des Kunden, Ganze Änderungshistorie",
      "Knopf", [], "Au", "kopf",
      ['class="ds-menue-trenner"', "'/versandprotokoll?kunde='+customerId", 'href="/history"', 'id="newInquiryLink"']),
+    ("Kopf: Hinweis „im Archiv seit …“ mit „Zurückholen“ (seit 1.10.12, W1c)", "Knopf",
+     [("POST", "/api/aufbewahrung/{art}/{vorgang_id}/zurueckholen")], "Au", "kopf", ['id="archivHinweis"', 'data-klick="kunde-zurueckholen"']),
     ("„⋮“: Kontakt vermerken (seit 1.10.10, W1c) -- Tag und Weg, Liste der Vermerke", "Dialog",
      [("GET", "/api/customers/{customer_id}/kontakte"), ("POST", "/api/customers/{customer_id}/kontakte")], "Au", "kopf",
      ['data-klick="kontakt-kunde"', 'id="kontaktDialog"', "kunde: '/api/customers/'"]),

@@ -1631,7 +1631,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Dialog `_kontaktvermerk.html`; seit 1.10.11 das Archiv nach dem letzten Kontakt -- `app/aufbewahrung.py` (Einheiten, letzter Kontakt mit Herkunft,
   fällig + 6 Monate, Kunde nur ohne Bindung und nie aus dem Import), bestätigen nur Admin und Büro – Finanzen (`darf_aufbewahrung()`), zurückholen jedes
   Büro; im Archiv raus aus Listen (`archivierte=true` nur für Seiten mit gespeichertem Wert), Suche und Eingang; keine Mengenabfrage mit `NOT IN` über eine
-  Spalte, die leer sein darf) --
+  Spalte, die leer sein darf; seit 1.10.12 Seite `/aufbewahrung` (Fällig, Archiv) und Kachel „Aufbewahrung“ auf „Start“, kein Eintrag in der Leiste) --
   `docs/archiv/webseite-und-kundenportal.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

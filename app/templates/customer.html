@@ -156,10 +156,12 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {% call(teil) seitenkopf("Kundenakte wird geladen …", untertitel="", kennung="", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
   {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a>
   {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="newProjectLink" data-klick="neues-projekt">+ Projekt</button>
-  {#- „⋮“ in zwei Gruppen mit Trennlinie (Punkt 5): Kunde · Wege. „Kunde archivieren“ gibt es nicht -- am Kunden gibt es heute kein Archivieren (Punkt 4) #}
+  {#- „⋮“ in zwei Gruppen mit Trennlinie (Punkt 5): Kunde · Wege. Ins Archiv kommt ein Kunde nur über die Seite „Aufbewahrung“ (seit 1.10.11, W1c), nicht über das „⋮“ #}
   {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="stammdaten-bearbeiten">Stammdaten bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="objekt-neu">+ Objekt</button><button type="button" class="ds-menue-eintrag" data-klick="eintrag-neu">+ Eintrag in „Kontakte &amp; Kundenwissen“</button><a class="ds-menue-eintrag" id="newInquiryLink" href="/inquiries">Neue Anfrage</a><button type="button" class="ds-menue-eintrag" data-klick="kontakt-kunde">Kontakt vermerken …</button><div class="ds-menue-trenner" role="separator"></div><a class="ds-menue-eintrag" id="menueVersandprotokoll" href="/versandprotokoll">Versandprotokoll des Kunden</a><a class="ds-menue-eintrag" href="/history">Ganze Änderungshistorie</a>{% endif %}
 {% endcall %}
 <div class="status" id="seitenStatus" role="status"></div>
+{#- seit 1.10.12 (W1c): ein Kunde im Archiv -- fehlt in Listen und Suche; zurückholen darf jedes Büro #}
+<div class="notice warning" id="archivHinweis" hidden>Im Archiv seit <span id="archivSeit"></span> – der Kunde fehlt in Listen, Suche und Auswahlen. <button type="button" class="secondary" data-klick="kunde-zurueckholen">Zurückholen</button></div>
 <nav class="reiter" aria-label="Bereiche der Kundenakte">
   <a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>
   <a href="#projekte" data-reiter="projekte">Projekte<span class="cnt" id="zahlProjekte" hidden></span></a>
@@ -415,6 +417,7 @@ async function load(){
     render();
   }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden()]);
 }
+aktion('kunde-zurueckholen',async()=>{const art='kunde';try{await speichern('kunde',()=>api(`/api/aufbewahrung/${art}/${customerId}/zurueckholen`,{method:'POST'}),{neuLaden:load});seitenStatus('Zurückgeholt – die 6 Monate zählen ab heute neu.')}catch(e){seitenStatus('Fehler: '+e.message)}});  // seit 1.10.12
 aktion('kontakt-kunde',()=>kontaktDialogOeffnen('kunde',customerId,customer?`${customer.customer_number||''} · ${customer.name}`.replace(/^ · /,''):''));  // seit 1.10.10
 async function akteLaden(){await lesen('akte',()=>api(`/api/customers/${customerId}/akte`),d=>{akte=d;akteZeichnen()})}
 // Nach einer Buchung: Zahlungen, Zahlen und Verlauf neu (jeder in seinem Bereich)
@@ -422,6 +425,7 @@ function zahlungenNeu(){verlaufDaten=null;return Promise.all([loadPayments(),akt
 // Das Neuzeichnen fasst die Dialoge nicht an: die Felder füllt erst das Öffnen (Eingaben bleiben, Punkt 2)
 function render(){
   kopfZeichnen();stammdatenZeichnen();renderExtras();renderProperties();renderInquiries();renderDocCategories();
+  el('archivHinweis').hidden=!customer.archiviert_am;el('archivSeit').textContent=berlinZeitpunkt(customer.archiviert_am,'datum');  // seit 1.10.12
   zahlSetzen('zahlObjekte',properties.length);zahlSetzen('zahlAnfragen',inquiries.length);zahlSetzen('zahlKontakte',(customer.extra_infos||[]).length);
 }
 function akteZeichnen(){
@@ -716,7 +720,7 @@ aktion('dachflaeche-anlegen',()=>createRoofArea());
 
 // --- Anfragen -------------------------------------------------------------------------------------------------------------------------
 function inquiryStatus(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
-function renderInquiries(){el('inquiries').innerHTML=inquiries.length?inquiries.map(i=>`<div class="li" style="align-items:center"><div class="li-text"><span class="li-titel">${esc(i.inquiry_number)} · ${esc(i.title)}</span><span class="mut sml">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}${i.follow_up_at?' · Wiedervorlage '+esc(new Date(i.follow_up_at).toLocaleString('de-DE')):''}</span></div><a class="sml" style="font-weight:600" href="/inquiries">Pipeline öffnen</a></div>`).join(''):'<div class="empty">Noch keine Anfrage vorhanden.</div>'}
+function renderInquiries(){el('inquiries').innerHTML=inquiries.length?inquiries.map(i=>`<div class="li" style="align-items:center"><div class="li-text"><span class="li-titel">${esc(i.inquiry_number)} · ${esc(i.title)}</span><span class="mut sml">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}${i.follow_up_at?' · Wiedervorlage '+esc(new Date(i.follow_up_at).toLocaleString('de-DE')):''}</span></div>${i.archiviert_am?'<span class="sml mut">im Archiv</span>':'<a class="sml" style="font-weight:600" href="/inquiries">Pipeline öffnen</a>'}</div>`).join(''):'<div class="empty">Noch keine Anfrage vorhanden.</div>'}
 
 // --- Dokumente ------------------------------------------------------------------------------------------------------------------------
 function docIcon(d){if(d.is_image)return `<img loading="lazy" src="/api/customer-documents/${d.id}/view" alt="">`;if(d.content_type==='application/pdf')return 'PDF';if((d.content_type||'').includes('spreadsheet')||(d.original_filename||'').match(/\.xlsx?$/i))return 'XLS';if((d.content_type||'').includes('word')||(d.original_filename||'').match(/\.docx?$/i))return 'DOC';return '📄'}

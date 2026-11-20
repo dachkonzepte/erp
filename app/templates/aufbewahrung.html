@@ -1,0 +1,214 @@
+{% set bereich = "anfragen" -%}
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Aufbewahrung</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{% include "_ds_kopf.html" %}
+<style>
+  :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink)}
+  :root[data-theme="dark"]{color-scheme:dark}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg)}
+  main{max-width:1600px;margin:0;padding:22px}
+  .card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px;border-radius:var(--ds-ecke-karte)}
+  .card h2{margin:0 0 4px;font-size:16px;color:var(--ink)}
+  .muted{color:var(--muted)}.small{font-size:12.5px}
+  .status{font-size:13px;font-weight:600;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
+  .stand{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px;margin-bottom:8px}
+  .stand b{color:var(--ink)}
+  .rahmen{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-size:12px;color:var(--muted);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink)}
+  tr:last-child td{border-bottom:0}
+  td a,.kopfzeile a{color:var(--ds-link);font-weight:650;text-decoration:none}td a:hover,.kopfzeile a:hover{text-decoration:underline}
+  .nw{white-space:nowrap}
+  .kennzeichen{display:inline-block;padding:2px 8px;font-size:11.5px;font-weight:700;margin:0 4px 3px 0;border-radius:999px;background:var(--soft);color:var(--muted)}
+  .kennzeichen.sperre{background:var(--warning-soft);color:var(--warning)}
+  .kennzeichen.offen{background:var(--ds-signal);color:var(--ds-auf-signal)}
+  .leer{color:var(--muted);font-size:13px;padding:8px 2px}
+  .kopfzeile{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:flex-start;margin-bottom:8px}
+  .knopf-klein{min-height:34px;padding:0 12px;font-size:13px}
+  .reiter{display:flex;gap:28px;border-bottom:1px solid var(--ds-linie);overflow-x:auto;margin:0 0 12px}
+  .reiter a{height:44px;padding:0 4px;display:inline-flex;align-items:center;gap:8px;color:var(--ds-text-2);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap}
+  .reiter a:hover{color:var(--ds-text)}
+  .reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
+  .reiter-zahl{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-signal);color:var(--ds-auf-signal);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+  .reiter-zahl[hidden]{display:none}  /* sonst überstimmt display:inline-flex das hidden -- „0“ stünde am Reiter */
+  @media(max-width:650px){main{padding:12px}
+    .liste thead{display:none}
+    .liste,.liste tbody,.liste tr,.liste td{display:block;width:100%}
+    .liste tr{padding:10px 0;border-bottom:1px solid var(--line)}
+    .liste td{border:0;padding:2px 0;white-space:normal}
+    .liste td::before{content:attr(data-titel);display:inline-block;min-width:96px;color:var(--muted);font-size:12px;font-weight:700}
+    .liste td:empty{display:none}}
+</style>
+</head>
+<body class="ds-seite">
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Aufbewahrung", untertitel="Vorgänge ohne Auftrag: ins Archiv 6 Monate nach dem letzten Kontakt", mit_aktion=true) %}
+    {% if teil == "aktion" %}{% if aufbewahrung %}<button type="button" class="ds-knopf ds-knopf-aktion" id="alleKnopf" data-klick="alle-archivieren" hidden>Alle fälligen archivieren</button>{% endif %}{% endif %}
+  {% endcall %}
+
+  <section class="card">
+    <nav class="reiter" aria-label="Ansichten der Aufbewahrung">
+      <a href="#faellig" data-ansicht="faellig" aria-current="page">Fällig<span class="reiter-zahl" id="zahlFaellig" hidden></span></a>
+      <a href="#archiv" data-ansicht="archiv">Archiv</a>
+    </nav>
+    <div id="standText" class="stand"></div>
+    {% if not aufbewahrung %}<div class="muted small" id="nurLesen">Ins Archiv bestätigen Admin und Büro – Finanzen – du kannst die Liste lesen und zurückholen.</div>{% endif %}
+    <div id="aktionStatus" class="status" role="status"></div>
+  </section>
+  <div id="inhalt"><section class="card"><div class="leer">Lädt …</div></section></div>
+</main>
+</div>
+</div>
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
+<script>
+/* Seit 1.10.12 (Stufe W1c, docs/archiv/webseite-und-kundenportal.md): Vorschau und Archiv der Aufbewahrung (app/aufbewahrung.py). Jede Zahl und jedes
+   Datum kommt vom Server; die Seite rechnet nichts nach. Titel und Namen gehen nur über esc() ins HTML. Bestätigen dürfen Admin und Büro – Finanzen (der
+   Server prüft es), zurückholen jedes Büro. */
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status));return r.json()}
+const DARF={{ 'true' if aufbewahrung else 'false' }};
+const AB_ARTEN=['eingang','anfrage','projekt','kunde'];
+const AB_ART_NAMEN={eingang:'Eingang der Webseite',anfrage:'Anfrage',projekt:'Projekt',kunde:'Kunde'};
+const AB_ANSICHTEN=['faellig','archiv'];
+let ansicht=AB_ANSICHTEN.includes(location.hash.slice(1))?location.hash.slice(1):'faellig';
+let vorschau=null, archivDaten=null;
+
+function tagText(t){const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(t||''));return m?`${m[3]}.${m[2]}.${m[1]}`:''}
+function kontaktHtml(k){return k?`<span class="nw">${esc(tagText(k.tag))}</span><br><span class="muted small">${esc(k.herkunft)}</span>`:'—'}
+function zielLink(v){
+  const n=esc(v.nummer||'—');
+  if(v.art==='eingang')return `<a href="/anfragen/webseite/${Number(v.id)}">${n}</a>`;
+  if(v.art==='projekt')return `<a href="/projects/${Number(v.id)}">${n}</a>`;
+  if(v.art==='kunde')return `<a href="/customers/${Number(v.id)}">${n}</a>`;
+  return n;  // eine Anfrage hat keine eigene Seite -- sie steht in der Kundenakte
+}
+function mitText(m){
+  const t=[];
+  if(m&&m.angebote)t.push(m.angebote===1?'1 Angebot':`${Number(m.angebote)} Angebote`);
+  if(m&&m.dateien)t.push(m.dateien===1?'1 Datei':`${Number(m.dateien)} Dateien`);
+  if(m&&m.fotos)t.push(m.fotos===1?'1 Foto am Objekt':`${Number(m.fotos)} Fotos am Objekt`);
+  return t.join(' · ');
+}
+function hinweiseHtml(v){
+  const k=[];
+  if(v.unbearbeitet)k.push('<span class="kennzeichen offen">unbearbeitet</span>');
+  for(const s of v.sperren||[])k.push(`<span class="kennzeichen sperre">gesperrt: ${esc(s)}</span>`);
+  return k.join('');
+}
+function archivKnopf(art,id,text){
+  return DARF?`<button type="button" class="secondary knopf-klein" data-klick="archivieren" data-art="${esc(art)}" data-id="${Number(id)}">${esc(text||'Archivieren')}</button>`:'';
+}
+function vorgangZeile(v){
+  return `<tr><td data-titel="Art">${esc(AB_ART_NAMEN[v.art]||v.art)}</td><td class="nw" data-titel="Nummer">${zielLink(v)}</td><td data-titel="Titel">${esc(v.titel||'—')}</td>`
+    +`<td data-titel="Letzter Kontakt">${kontaktHtml(v.letzter_kontakt)}</td><td class="nw" data-titel="Fällig ab">${esc(tagText(v.faellig_ab))}</td>`
+    +`<td data-titel="Geht mit">${esc(mitText(v.mit))}</td><td data-titel="Hinweise">${hinweiseHtml(v)}</td>`
+    +`<td data-titel="">${v.faellig?archivKnopf(v.art,v.id):''}</td></tr>`;
+}
+const KOPF='<thead><tr><th>Art</th><th>Nummer</th><th>Titel</th><th>Letzter Kontakt</th><th>Fällig ab</th><th>Geht mit</th><th>Hinweise</th><th></th></tr></thead>';
+
+function faelligZeichnen(){
+  const v=vorschau, teile=[];
+  if(v.eingaenge.length){
+    teile.push(`<section class="card"><h2>Eingänge der Webseite ohne Übernahme</h2><div class="muted small" style="margin-bottom:8px">Ein unbearbeiteter Eingang geht nur mit deiner Bestätigung ins Archiv.</div>`
+      +`<div class="rahmen"><table class="liste">${KOPF}<tbody>${v.eingaenge.map(vorgangZeile).join('')}</tbody></table></div></section>`);
+  }
+  for(const g of v.kunden){
+    const kunde=g.faellig
+      ?`<span class="kennzeichen offen">Kunde geht mit</span>${archivKnopf('kunde',g.id,g.vorgaenge.filter(x=>x.faellig).length?`Kunde mit ${g.vorgaenge.filter(x=>x.faellig).length} ${g.vorgaenge.filter(x=>x.faellig).length===1?'Vorgang':'Vorgängen'} archivieren`:'Kunde archivieren')}`
+      :`<span class="muted small">Kunde bleibt${g.gruende.length?': '+esc(g.gruende.join(', ')):(g.faellig_ab?' (letzter Kontakt '+esc(tagText(g.letzter_kontakt&&g.letzter_kontakt.tag))+')':'')}</span>`;
+    teile.push(`<section class="card"><div class="kopfzeile"><div><h2><a href="/customers/${Number(g.id)}">${esc(g.name)}</a></h2>`
+      +`<div class="muted small">${esc([g.kundennummer,g.ort].filter(Boolean).join(' · '))}${g.letzter_kontakt?' · letzter Kontakt '+esc(tagText(g.letzter_kontakt.tag))+' ('+esc(g.letzter_kontakt.herkunft)+')':''}</div></div>`
+      +`<div>${kunde}</div></div>`
+      +(g.vorgaenge.length?`<div class="rahmen"><table class="liste">${KOPF}<tbody>${g.vorgaenge.map(vorgangZeile).join('')}</tbody></table></div>`:'<div class="leer">Keine Vorgänge – nur der Kunde.</div>')
+      +'</section>');
+  }
+  document.getElementById('inhalt').innerHTML=teile.length?teile.join(''):'<section class="card"><div class="leer">Nichts fällig fürs Archiv.</div></section>';
+}
+
+function standZeichnen(){
+  const v=vorschau, t=[];
+  t.push(`<span><b>${Number(v.zahl)}</b> fällig fürs Archiv${v.seit?' seit '+esc(tagText(v.seit)):''}</span>`);
+  if(v.unbearbeitet)t.push(`<span>davon <b>${Number(v.unbearbeitet)}</b> ${Number(v.unbearbeitet)===1?'unbearbeiteter Eingang':'unbearbeitete Eingänge'}</span>`);
+  t.push(`<span class="muted">Ins Archiv ${Number(v.nach_monaten)} Monate nach dem letzten Kontakt</span>`);
+  document.getElementById('standText').innerHTML=t.join('');
+  const z=document.getElementById('zahlFaellig');z.textContent=String(Number(v.zahl)||0);z.hidden=!Number(v.zahl);
+  const alle=document.getElementById('alleKnopf');if(alle)alle.hidden=!Number(v.zahl);
+}
+
+function archivZeichnen(){
+  const a=archivDaten;
+  const zeilen=[...a.kunden.map(k=>({...k,art:'kunde',nummer:k.kundennummer||k.name,titel:k.name})),...a.vorgaenge];
+  if(!zeilen.length){document.getElementById('inhalt').innerHTML='<section class="card"><div class="leer">Nichts im Archiv.</div></section>';return}
+  document.getElementById('inhalt').innerHTML=`<section class="card"><h2>Im Archiv</h2><div class="rahmen"><table class="liste"><thead><tr><th>Art</th><th>Nummer</th><th>Titel</th><th>Im Archiv seit</th><th>Letzter Kontakt</th><th></th></tr></thead><tbody>${
+    zeilen.map(v=>`<tr><td data-titel="Art">${esc(AB_ART_NAMEN[v.art]||v.art)}</td><td class="nw" data-titel="Nummer">${zielLink(v)}</td><td data-titel="Titel">${esc(v.titel||'—')}</td>`
+      +`<td class="nw" data-titel="Im Archiv seit">${v.archiviert_am?esc(berlinZeitpunkt(v.archiviert_am,'datum')):'—'}</td><td data-titel="Letzter Kontakt">${kontaktHtml(v.letzter_kontakt)}</td>`
+      +`<td data-titel=""><button type="button" class="secondary knopf-klein" data-klick="zurueckholen" data-art="${esc(v.art)}" data-id="${Number(v.id)}">Zurückholen</button></td></tr>`).join('')
+  }</tbody></table></div></section>`;
+}
+
+function reiterZeichnen(){
+  document.querySelectorAll('.reiter a').forEach(a=>{if(a.dataset.ansicht===ansicht)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+}
+
+async function laden(){
+  reiterZeichnen();
+  if(ansicht==='archiv'){
+    await lesen('aufbewahrung',()=>Promise.all([api('/api/aufbewahrung'),api('/api/aufbewahrung/archiv')]),([v,a])=>{vorschau=v;archivDaten=a;standZeichnen();archivZeichnen()});
+  }else{
+    await lesen('aufbewahrung',()=>api('/api/aufbewahrung'),v=>{vorschau=v;standZeichnen();faelligZeichnen()});
+  }
+}
+window.addEventListener('hashchange',()=>{const neu=location.hash.slice(1);if(AB_ANSICHTEN.includes(neu)&&neu!==ansicht){ansicht=neu;laden().catch(()=>{})}});
+
+function ergebnisText(e){
+  const t=[];
+  if(e.archiviert.length)t.push(e.archiviert.length===1?'1 ins Archiv gegeben':`${e.archiviert.length} ins Archiv gegeben`);
+  for(const u of e.uebersprungen)t.push(`${AB_ART_NAMEN[u.art]||u.art} nicht archiviert: ${u.grund}`);
+  return (t.join('; ')||'Nichts geändert')+'.';
+}
+function meldung(text,fehler){const s=document.getElementById('aktionStatus');s.className=fehler?'status err':'status ok';s.textContent=text}
+
+aktion('archivieren',async el=>{
+  const art=el.dataset.art,id=Number(el.dataset.id);
+  if(!AB_ARTEN.includes(art)||!id)return;
+  try{
+    const e=await speichern('aufbewahrung',()=>api(`/api/aufbewahrung/${art}/${id}/archivieren`,{method:'POST'}),{neuLaden:laden});
+    meldung(ergebnisText(e),!e.archiviert.length);
+  }catch(err){meldung('Fehler: '+err.message,true)}
+});
+aktion('alle-archivieren',async()=>{
+  if(!vorschau||!Number(vorschau.zahl))return;
+  if(!confirm(`${Number(vorschau.zahl)} fällige Einträge ins Archiv geben? Die Einträge fehlen danach in Listen und Suche; zurückholen geht jederzeit.`))return;
+  const body=JSON.stringify({stand:vorschau.stand});
+  try{
+    const e=await speichern('aufbewahrung',()=>api('/api/aufbewahrung/archivieren',{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:laden});
+    meldung(ergebnisText(e),!e.archiviert.length);
+  }catch(err){meldung('Fehler: '+err.message,true);laden().catch(()=>{})}
+});
+aktion('zurueckholen',async el=>{
+  const art=el.dataset.art,id=Number(el.dataset.id);
+  if(!AB_ARTEN.includes(art)||!id)return;
+  try{
+    const e=await speichern('aufbewahrung',()=>api(`/api/aufbewahrung/${art}/${id}/zurueckholen`,{method:'POST'}),{neuLaden:laden});
+    meldung(`${AB_ART_NAMEN[art]} zurückgeholt${e.kunde_mit?' (mit dem Kunden)':''} – die 6 Monate zählen ab heute neu.`,false);
+  }catch(err){meldung('Fehler: '+err.message,true)}
+});
+
+laden().catch(err=>{document.getElementById('standText').innerHTML=`<span class="status err">Fehler: ${esc(err.message)}</span>`});
+</script>
+</body></html>

@@ -334,3 +334,26 @@ Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück. 1b zuerst mitte
 | Nr. 12 – gekennzeichnet (Akte) | ohne „(im Archiv)“ | 1 rot |
 | Nr. 12 – neu nur aktive (Objektformular) | jeder Kunde im Archiv angeboten | 1 rot |
 | Nr. 14 – downgrade bricht ab | Prüfung aus | 2 rot (SQLite, PostgreSQL) |
+
+## W1c, 1.10.12: Seite „Aufbewahrung“ und Erinnerung auf „Start“
+
+Probendateien im Scratchpad (`gp_1112.py`, `gp_1112b.py` über `gegenprobe.py`, die letzte über `gegenprobe_klick.py`), Lauf mit
+`tests/test_v783_aufbewahrung_seite.py` bzw. dem Klicktest; alle rot aus dem geprüften Grund, alle Dateien byte-gleich zurück. Im ersten Lauf meldete der
+Läufer sieben Fälle als „ERROR“: er zählte die mitgeschriebenen Protokollzeilen „ERROR app.seitendaten …“ der roten Seitentests als Fehler -- Filter auf
+„ERROR tests…“ korrigiert, der zweite Lauf (`gp_1112b.py`) alle FAILED.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Alle“ nur mit Recht | Knopf für jedes Büro | 1 rot |
+| Nr. 1 – Knöpfe an den Zeilen nur mit Recht | `DARF` übergangen | 1 rot |
+| Nr. 1 – Monteurin bekommt die Seite nicht | Rolle `field` zugelassen | 1 rot |
+| Nr. 2 – jeder Text über esc() | Titel ohne esc() | 2 rot |
+| Nr. 2 – Knopf nur an Fälligem | Knopf auch am Gesperrten | 1 rot |
+| Nr. 3 – nur die Liste der Seite | Körper ohne Prüfsumme | 1 rot |
+| Nr. 3 / 2 – Art nur aus der festen Liste | Prüfung der Art weg | 1 rot |
+| Nr. 4 – Kachel unter den Anfragen | Rang 40 | 1 rot |
+| Nr. 4 – ohne Fälliges der Weg ins Archiv | Link weg | 1 rot |
+| Nr. 5 – Kundenakte sagt „im Archiv“ | Hinweis immer verborgen | 1 rot |
+| Nr. 5 – Eingang im Archiv ohne Aktion | Knöpfe bleiben | 1 rot |
+| Nr. 7 – keine „0“ am Reiter | Regel `[hidden]` weg (Klicktest) | rot: „ohne Zahl am Reiter“, 31/32 |
+| Nr. 6 – kein Eintrag in der Leiste | -- (eine Entscheidung ohne Prüfung im Code) | -- |

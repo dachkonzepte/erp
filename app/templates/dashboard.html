@@ -82,7 +82,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText
 
 /* seit 1.9.125: der Projektstatus kommt abgeleitet mit Namen vom Server (status_label, app/akte.py) -- „aktiv“ = ein Auftrag läuft oder ist pausiert */
 const PROJEKT_AKTIV=['auftrag','ausfuehrung','abnahme','schlussrechnung'],PROJEKT_ERLEDIGT=['abgeschlossen','storniert'];
-const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'webanfragen',sort_order:12,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
+const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'webanfragen',sort_order:12,visible:true},{widget_key:'aufbewahrung',sort_order:13,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
 
 let authStatus=null,layout=[],employees=[],selectedTaskEmployeeId='';
 
@@ -241,6 +241,22 @@ async function renderWebanfragenWidget(container){
   });
 }
 
+/* Seit 1.10.12 (Stufe W1c): was fürs Archiv fällig ist -- Zahl, seit wann, davon unbearbeitete Eingänge; Weg zur Seite „Aufbewahrung“. Die Kachel
+   erinnert, bis das Büro bestätigt (Vorgabe F12); alle Zahlen vom Server (GET /api/aufbewahrung). */
+function aufbewahrungTag(t){const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(t||''));return m?`${m[3]}.${m[2]}.${m[1]}`:''}
+async function renderAufbewahrungWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
+  await lesen('aufbewahrung',()=>api('/api/aufbewahrung'),v=>{
+    const z=Number(v.zahl)||0;
+    container.innerHTML=z
+      ?`<div class="small"><a href="/aufbewahrung" style="color:var(--ds-link);font-weight:700">${z} fällig fürs Archiv</a>${v.seit?' seit '+esc(aufbewahrungTag(v.seit)):''}`
+        +`${Number(v.unbearbeitet)?` · davon ${Number(v.unbearbeitet)} ${Number(v.unbearbeitet)===1?'unbearbeiteter Eingang':'unbearbeitete Eingänge'}`:''}</div>`
+        +`<div class="muted small" style="margin-top:6px">Ins Archiv ${Number(v.nach_monaten)} Monate nach dem letzten Kontakt – bestätigen Admin und Büro – Finanzen.</div>`
+      :'<div class="status ok">Nichts fällig fürs Archiv.</div><div class="small" style="margin-top:6px"><a href="/aufbewahrung#archiv" style="color:var(--ds-link)">Archiv ansehen</a></div>';
+  });
+}
+
 async function renderOpenOfficeTasksWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
@@ -284,6 +300,7 @@ const WIDGETS={
   critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
   open_office_tasks:{label:'Ohne Zuständigkeit',render:renderOpenOfficeTasksWidget},
   webanfragen:{label:'Anfragen der Webseite',render:renderWebanfragenWidget},  // seit 1.10.2
+  aufbewahrung:{label:'Aufbewahrung',render:renderAufbewahrungWidget},  // seit 1.10.12
 };
 
 function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}

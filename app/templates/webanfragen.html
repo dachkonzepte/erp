@@ -38,6 +38,7 @@
   .reiter a:hover{color:var(--ds-text)}
   .reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
   .reiter-zahl{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-signal);color:var(--ds-auf-signal);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+  .reiter-zahl[hidden]{display:none}  /* seit 1.10.12: bis dahin überstimmte display:inline-flex das hidden -- „0“ stand am Reiter */
   .kennzeichen.erledigt{background:var(--ds-flaeche-2,var(--soft));color:var(--ds-text-2,var(--muted))}
   @media(max-width:650px){main{padding:12px}
     /* schmal: jede Anfrage als Block, jede Angabe mit ihrer Überschrift (data-titel) */

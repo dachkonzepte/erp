@@ -13,9 +13,11 @@ from .models import UserDashboardWidget
 
 # open_office_tasks ("Ohne Zuständigkeit") seit 1.8.18 Standard, vorher nur per "+ Widget".
 # webanfragen seit 1.10.2 (Stufe W1a): neue Anfragen der Webseite fallen dem Büro auf der Startseite auf, direkt unter „Meine Aufgaben“.
+# aufbewahrung seit 1.10.12 (Stufe W1c): was fürs Archiv fällig ist (auch unbearbeitete Eingänge), bis das Büro bestätigt.
 DEFAULT_WIDGETS = [
     {"widget_key": "my_tasks", "sort_order": 10, "visible": True},
     {"widget_key": "webanfragen", "sort_order": 12, "visible": True},
+    {"widget_key": "aufbewahrung", "sort_order": 13, "visible": True},  # seit 1.10.12 (W1c): Erinnerung, bis das Büro bestätigt
     {"widget_key": "open_office_tasks", "sort_order": 15, "visible": True},
     {"widget_key": "kpis", "sort_order": 20, "visible": True},
     {"widget_key": "active_projects", "sort_order": 30, "visible": True},

@@ -193,7 +193,7 @@ def vorschlag(db: Session, zeile: WebAnfrage) -> dict:
         "anfrage": {"titel": (zeile.betreff or zeile.art_name or zeile.nummer)[:255],
                     "beschreibung": f"Anfrage der Webseite {zeile.nummer}" + (f"\n\n{beschreibung}" if beschreibung else ""),
                     "ansprechpartner": a["name"] if a["rolle"] == "verwaltung" else None},
-        "uebernehmen_moeglich": zeile.status == STATUS_NEU and not _in_pruefliste(zeile),
+        "uebernehmen_moeglich": zeile.status == STATUS_NEU and not _in_pruefliste(zeile) and zeile.archiviert_am is None,  # 1.10.12: nicht im Archiv
     }
 
 

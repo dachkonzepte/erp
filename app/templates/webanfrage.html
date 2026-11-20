@@ -275,6 +275,10 @@ function bearbeitungZeichnen(d){
   zeigen('inDenEingangKnopf',d.status==='neu'&&d.in_pruefliste);
   zeigen('verwerfenOeffnenKnopf',d.status==='neu');
   zeigen('zurueckholenKnopf',d.status==='verworfen');
+  if(d.archiviert_am){  // seit 1.10.12 (W1c): im Archiv keine Aktion -- erst zurückholen
+    stand.textContent=`Im Archiv seit ${berlinZeitpunkt(d.archiviert_am,'datum')} – zurückholen unter „Aufbewahrung → Archiv“. `+stand.textContent;
+    ['inDenEingangKnopf','verwerfenOeffnenKnopf','zurueckholenKnopf'].forEach(id=>zeigen(id,false));
+  }
   if(d.status!=='neu')document.getElementById('verwerfenPanel').hidden=true;
   const g=document.getElementById('verwerfenGrund');
   g.innerHTML='<option value="">Bitte wählen</option>'+Object.entries(d.verwerfen_gruende||{}).map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('');

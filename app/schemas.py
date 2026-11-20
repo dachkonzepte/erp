@@ -943,6 +943,7 @@ class WebAnfrageOut(BaseModel):
     in_pruefliste: bool = False
     erledigt_am: datetime | None = None
     verworfen_grund: str | None = None
+    archiviert_am: datetime | None = None  # seit 1.10.12 (W1c)
     verworfen_grund_text: str | None = None
     gemeldet_als: str | None = None
     melden_soll: str | None = None

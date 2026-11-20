@@ -78,6 +78,7 @@ UMGEZOGEN |= {"customer.html"}
 UMGEZOGEN |= {"planning.html"}
 # seit 1.10.1 (Stufe W1a) Eingang und Anfrage der Webseite -- neu im Rahmen gebaut: Seitenkopf mit Pfad über das Makro
 UMGEZOGEN |= {"webanfragen.html", "webanfrage.html"}
+UMGEZOGEN |= {"aufbewahrung.html"}  # seit 1.10.12 (Stufe W1c), umgezogen gebaut
 # Seit 1.9.29 (Abschluss Stufe 2): was nicht umgezogen ist, steht hier mit der Stufe, die es umzieht, und dem Grund -- jede Seite steht
 # in genau einer der beiden Listen (test_jede_seite_umgezogen_oder_aufgeschoben). Eine neue Seite kommt umgezogen dazu oder mit Stufe
 # und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.
@@ -465,7 +466,7 @@ def bereich_verstoesse(name: str, wurzel: Path = TEMPLATES) -> list[str]:
 
 def test_jede_seite_mit_leiste_nennt_ihren_bereich():
     mit_leiste = [name for name in vj.seiten() if vj.bindet_ein(name, "_sidebar.html")]
-    assert len(mit_leiste) == 45  # seit 1.10.1 Eingang und Anfrage der Webseite, seit 1.9.129 Projektmappe und Auftrag als eine Seite (Akte), seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(mit_leiste) == 46  # seit 1.10.12 die Aufbewahrung, seit 1.10.1 Eingang und Anfrage der Webseite, seit 1.9.129 Projektmappe und Auftrag als eine Seite (Akte), seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
     assert [f for name in mit_leiste for f in bereich_verstoesse(name)] == []
 
 
@@ -522,7 +523,7 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
         aktiv = re.findall(r'<a class="app-sidebar-link[^"]*\bactive\b[^"]*" data-bereich="([a-z]+)"[^>]*aria-current="page"', nav)
         assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
         geprueft.add(a.vorlage)
-    assert len(geprueft) == 45  # seit 1.10.1 Eingang und Anfrage der Webseite, seit 1.9.129 Projektmappe und Auftrag als eine Seite (Akte), seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(geprueft) == 46  # seit 1.10.12 die Aufbewahrung, seit 1.10.1 Eingang und Anfrage der Webseite, seit 1.9.129 Projektmappe und Auftrag als eine Seite (Akte), seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
 
 
 def test_grundregeln_mit_gewicht_null():

@@ -111,7 +111,8 @@ def test_default_widget_layout_is_not_persisted_until_saved():
     user = AppUser(username="u1", display_name="U1", role="user", active=True, password_hash=hash_password("Passwort123"))
     db.add(user); db.commit()
     layout = get_widget_layout(db, user.id)
-    assert [w["widget_key"] for w in layout] == ["my_tasks", "webanfragen", "open_office_tasks", "kpis", "active_projects"]  # webanfragen seit 1.10.2
+    assert [w["widget_key"] for w in layout] == ["my_tasks", "webanfragen", "aufbewahrung", "open_office_tasks", "kpis",
+                                                 "active_projects"]  # webanfragen seit 1.10.2, aufbewahrung seit 1.10.12
     assert all(w["visible"] for w in layout)
     assert len(db.scalars(select(UserDashboardWidget)).all()) == 0
 
@@ -127,17 +128,17 @@ def test_save_widget_layout_persists_and_isolates_between_users():
         {"widget_key": "my_tasks", "sort_order": 20, "visible": False},
     ])
     # Seit 1.8.18 hängt get_widget_layout() Standard-Widgets an, zu denen das gespeicherte Layout
-    # keine Zeile hat (webanfragen 12 seit 1.10.2, open_office_tasks 15, active_projects 30) -- gespeichert sind nur die zwei.
-    assert [w["widget_key"] for w in saved] == ["kpis", "webanfragen", "open_office_tasks", "my_tasks", "active_projects"]
+    # keine Zeile hat (webanfragen 12 seit 1.10.2, aufbewahrung 13 seit 1.10.12, open_office_tasks 15, active_projects 30) -- gespeichert sind nur die zwei.
+    assert [w["widget_key"] for w in saved] == ["kpis", "webanfragen", "aufbewahrung", "open_office_tasks", "my_tasks", "active_projects"]
     assert next(w for w in saved if w["widget_key"] == "my_tasks")["visible"] is False
     assert len(db.scalars(select(UserDashboardWidget).where(UserDashboardWidget.user_id == u1.id)).all()) == 2
 
     reloaded = get_widget_layout(db, u1.id)
-    assert [w["widget_key"] for w in reloaded] == ["kpis", "webanfragen", "open_office_tasks", "my_tasks", "active_projects"]
+    assert [w["widget_key"] for w in reloaded] == ["kpis", "webanfragen", "aufbewahrung", "open_office_tasks", "my_tasks", "active_projects"]
 
     # anderer Benutzer bleibt unberuehrt, bekommt weiterhin den Standard
     untouched = get_widget_layout(db, u2.id)
-    assert [w["widget_key"] for w in untouched] == ["my_tasks", "webanfragen", "open_office_tasks", "kpis", "active_projects"]
+    assert [w["widget_key"] for w in untouched] == ["my_tasks", "webanfragen", "aufbewahrung", "open_office_tasks", "kpis", "active_projects"]
 
 
 def test_dashboard_is_new_start_page_and_service_catalog_moved():
