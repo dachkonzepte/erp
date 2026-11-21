@@ -2,11 +2,11 @@
 
     Tabelle          seit 1.9.189: bei 1440 px rollt die Tabelle waagrecht; nach rechts gerollt steht die Spalte Mitarbeiter (Kopf und Zeilen)
                      am linken Rand, obenauf, mit den Namen -- Bild
-    Admin            Ada (1440): Mia „früher: 91008 freigeben“; 91030 trägt heute Kai (an der Sperre vorbei, wie aus einem alten Bestand) --
+    Admin            Ada (1440): Mia „früher: 00093 freigeben“; 91030 trägt heute Kai (an der Sperre vorbei, wie aus einem alten Bestand) --
                      seit 1.9.191 Pia „früher: 91030 (trägt heute Kai Monteur)“ ohne Knopf (bis 1.9.190 „freigeben“, der Dialog meldete
-                     dann den Fehler des Servers), derselbe POST 409, nichts geändert; 91008 -> Dialog
-                     „Personalnummer 91008 freigeben“ mit Warnung (gehörte Mia Monteurin, DATEV, Tippfehler, Änderungshistorie) -- Bild;
-                     „Freigeben“ -> Dialog zu, „Personalnummer 91008 freigegeben.“, Mia ohne „früher“; Tom bekommt 91008 („Gespeichert.“);
+                     dann den Fehler des Servers), derselbe POST 409, nichts geändert; 00093 -> Dialog
+                     „Personalnummer 00093 freigeben“ mit Warnung (gehörte Mia Monteurin, DATEV, Tippfehler, Änderungshistorie) -- Bild;
+                     „Freigeben“ -> Dialog zu, „Personalnummer 00093 freigegeben.“, Mia ohne „früher“; Tom bekommt 00093 („Gespeichert.“);
                      Änderungshistorie mit „Personalnummer freigegeben“, alt „gesperrt, gehörte Mia Monteurin“, neu „frei“ -- Bild; keine JS-Fehler
                      Seit 1.9.218 (L1a Stufe 7, Punkt 1): eigene Liste „Eingelesene Personalnummern ohne Person“ mit 00011 und 00012 -- Bild;
                      00011 „freigeben“ -> dieselbe Warnung, vorn „steht in der eingelesenen Liste vergebener Nummern“ -- Bild; freigegeben,
@@ -57,10 +57,10 @@ def befuellen(db, k):
                                   employee_group="gewerblich", active=True)
         db.add(leute[vorname])
     db.flush()
-    db.add_all([EmployeePayrollSettings(employee_id=leute["Mia"].id, datev_personnel_number="91016", payroll_export_enabled=True),
+    db.add_all([EmployeePayrollSettings(employee_id=leute["Mia"].id, datev_personnel_number="00097", payroll_export_enabled=True),
                 EmployeePayrollSettings(employee_id=leute["Kai"].id, datev_personnel_number="91030", payroll_export_enabled=True),
-                PersonalnummerVergabe(nummer="91008", employee_id=leute["Mia"].id),
-                PersonalnummerVergabe(nummer="91016", employee_id=leute["Mia"].id),
+                PersonalnummerVergabe(nummer="00093", employee_id=leute["Mia"].id),
+                PersonalnummerVergabe(nummer="00097", employee_id=leute["Mia"].id),
                 PersonalnummerVergabe(nummer="91030", employee_id=leute["Pia"].id),
                 # seit 1.9.218: eingelesen, ohne Person (erfundene Nummern)
                 PersonalnummerVergabe(nummer="00011", employee_id=None, vergeben_am=datetime(2026, 11, 5, 9, 0)),
@@ -95,7 +95,7 @@ async def pruefen(tab, seed, p):
     await tab.js(f"{ROLLEN}.scrollLeft=0")
     p.pruefe("Ada: frühere Nummern mit „freigeben“", await tab.js(
         f"[{FRUEHER.format(id=seed['Mia'])}.innerText.trim(),{FRUEHER.format(id=seed['Pia'])}.innerText.trim()]"),
-        ["früher: 91008 freigeben", "früher: 91030 (trägt heute Kai Monteur)"])
+        ["früher: 00093 freigeben", "früher: 91030 (trägt heute Kai Monteur)"])
 
     # seit 1.9.191 (L1a Stufe 2, Punkt 6): an 91030 (trägt Kai) kein Knopf -- der Server lehnt weiter ab, nichts geändert
     p.pruefe("Ada: an 91030 kein „freigeben“, dafür wer sie trägt", await tab.js(
@@ -109,26 +109,27 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ada: Pia weiter „früher: 91030“", await tab.js(FRUEHER.format(id=seed["Pia"]) + ".innerText.trim()"),
              "früher: 91030 (trägt heute Kai Monteur)")
 
-    await tab.js(KNOPF.format(n="91008") + ".scrollIntoView({block:'center'});" + KNOPF.format(n="91008") + ".click()")
-    p.pruefe("Ada: Warnung zu 91008", await tab.js("document.getElementById('pnrFreigabeWarnung').textContent"),
-             "Die Personalnummer 91008 gehörte Mia Monteurin und ist für alle anderen gesperrt. Gibst du sie frei, kann jede andere Person sie "
+    await tab.js(KNOPF.format(n="00093") + ".scrollIntoView({block:'center'});" + KNOPF.format(n="00093") + ".click()")
+    p.pruefe("Ada: Warnung zu 00093", await tab.js("document.getElementById('pnrFreigabeWarnung').textContent"),
+             "Die Personalnummer 00093 gehörte Mia Monteurin und ist für alle anderen gesperrt. Gibst du sie frei, kann jede andere Person sie "
              "bekommen. Stand sie schon in einer Lohnabrechnung, führt DATEV danach zwei Personen unter derselben Nummer – gib sie nur frei, "
              "wenn sie nie abgerechnet wurde (z. B. nach einem Tippfehler). Die Freigabe steht in der Änderungshistorie.")
     await tab.bild("freigeben_dialog")
-    p.pruefe("Ada: 91008 freigegeben", await _freigeben(tab), "Personalnummer 91008 freigegeben.")
+    p.pruefe("Ada: 00093 freigegeben", await _freigeben(tab), "Personalnummer 00093 freigegeben.")
     p.pruefe("Ada: Dialog zu, Mia ohne „früher“", await tab.js(
         f"[document.getElementById('pnrFreigabeDialog').open,!!{FRUEHER.format(id=seed['Mia'])}]"), [False, False])
 
-    await tab.js(f"document.getElementById('pnr-{seed['Tom']}').value='91008';document.getElementById('payrollStatus').textContent=''")
+    await tab.js(f"document.getElementById('pnr-{seed['Tom']}').value='00093';document.getElementById('payrollStatus').textContent=''")
     await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohn-speichern][data-mitarbeiter=\"{seed['Tom']}\"]').click()",
                                            "#payrollRows")
-    p.pruefe("Ada: Tom bekommt 91008", await tab.js(
+    p.pruefe("Ada: Tom bekommt 00093", await tab.js(
         f"[document.getElementById('payrollStatus').textContent,document.getElementById('pnr-{seed['Tom']}').value]"),
-        ["Gespeichert. Die Personalnummer 91008 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.", "91008"])
-    # seit 1.9.212 mit dem Kreis (bis 1.9.211 „Gespeichert.“), seit 1.9.219 „außerhalb“ (1.9.212–1.9.218 „… liegt im Kreis Azubis (ab 00200).“)
+        ["Gespeichert. Die Personalnummer 00093 liegt im Kreis sv-pflichtig Beschäftigte (00000–00099).", "00093"])
+    # seit 1.9.212 mit dem Kreis (bis 1.9.211 „Gespeichert.“), seit 1.9.219 „außerhalb“ (1.9.212–1.9.218 „… liegt im Kreis Azubis (ab 00200).“);
+    # seit 1.10.13 (F2) die erfundene Nummer 00093 statt 91008 aus dem Muster -- „außerhalb“ prüft tests/test_v623_nummernkreis_ausserhalb.py
     p.pruefe("Ada: Änderungshistorie", await tab.js(
         "fetch('/api/audit-logs?entity_type=Personalnummer').then(r=>r.json()).then(l=>l.map(x=>[x.action,x.entity_id,x.old_value,x.new_value,"
-        "x.actor_name]))"), [["Personalnummer freigegeben", "91008", "gesperrt, gehörte Mia Monteurin", "frei", "Ada Admin"]])
+        "x.actor_name]))"), [["Personalnummer freigegeben", "00093", "gesperrt, gehörte Mia Monteurin", "frei", "Ada Admin"]])
     await tab.js("document.getElementById('payrollRows').scrollIntoView({block:'start'})")
     await tab.bild("freigeben_danach")
 

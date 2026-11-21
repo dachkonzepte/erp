@@ -77,22 +77,22 @@ def test_halber_urlaubstag_an_einem_kalendertag_ohne_sollzeit(welt):
 # --- 1.9.181 ---------------------------------------------------------------------------------------------------------------------------------
 
 def _wechsel(w):
-    """Mia 91008 -> 91016: 91008 ist ihr gemerkt (wie tests/test_v595_personalnummer_freigeben.py)."""
-    assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
-    assert _put(w, w["mia"], datev_personnel_number="91016").status_code == 200
+    """Mia 00093 -> 00097: 00093 ist ihr gemerkt (wie tests/test_v595_personalnummer_freigeben.py)."""
+    assert _put(w, w["mia"], datev_personnel_number="00093").status_code == 200
+    assert _put(w, w["mia"], datev_personnel_number="00097").status_code == 200
 
 
 def test_ohne_gleichsetzung_traegt_eine_mitarbeiternummer_keine_personalnummer(welt):
     """Seit 1.9.200 (Gegenprobe zu Festlegung 1.9.181 Nr. 1): „niemand trägt sie“ heißt keine Lohnstammdaten mit der Nummer und NUR bei
-    „DATEV-Nr. = ERP-Nr.“ keine Mitarbeiternummer -- ohne Gleichsetzung hält Toms Mitarbeiternummer 91008 die Nummer nicht, freigeben geht."""
+    „DATEV-Nr. = ERP-Nr.“ keine Mitarbeiternummer -- ohne Gleichsetzung hält Toms Mitarbeiternummer 00093 die Nummer nicht, freigeben geht."""
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
     _wechsel(welt)
     assert not db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number
-    tom.employee_number = "91008"
+    tom.employee_number = "00093"
     db.commit()
-    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91008"})
+    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "00093"})
     assert r.status_code == 200, r.text
-    assert _gemerkt(welt) == [("91016", mia.id)]
+    assert _gemerkt(welt) == [("00097", mia.id)]
 
 
 def test_die_freigabe_nennt_wer_und_wann(welt):
@@ -105,11 +105,11 @@ def test_die_freigabe_nennt_wer_und_wann(welt):
     db.commit()
     marken = set_audit_context(konto)
     try:
-        personalnummer_freigeben(db, "91008")
+        personalnummer_freigeben(db, "00093")
     finally:
         reset_audit_context(marken)
     eintrag = db.scalars(select(AuditLog).where(AuditLog.action == "Personalnummer freigegeben")).one()
-    assert (eintrag.actor_user_id, eintrag.actor_name, eintrag.entity_id) == (konto.id, "Admin Anna", "91008")
+    assert (eintrag.actor_user_id, eintrag.actor_name, eintrag.entity_id) == (konto.id, "Admin Anna", "00093")
     assert eintrag.occurred_at is not None
 
 

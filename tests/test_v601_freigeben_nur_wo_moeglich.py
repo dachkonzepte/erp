@@ -24,20 +24,20 @@ def _zeilen(w):
 
 
 def test_liste_nennt_wer_eine_fruehere_nummer_traegt(welt):
-    """Mia 91008 -> 91016; Tom bekommt 91008 an der Sperre vorbei (wie aus einem alten Bestand): Mias „früher: 91008“ nennt Tom, die Freigabe
+    """Mia 00093 -> 00097; Tom bekommt 00093 an der Sperre vorbei (wie aus einem alten Bestand): Mias „früher: 00093“ nennt Tom, die Freigabe
     lehnt ab. Tom gibt sie wieder ab -- niemand trägt sie, die Freigabe geht."""
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
-    assert _put(welt, mia, datev_personnel_number="91008").status_code == 200
-    assert _put(welt, mia, datev_personnel_number="91016").status_code == 200
-    assert _zeilen(welt)["Mia Monteurin"] == (["91008"], {})
-    db.add(EmployeePayrollSettings(employee_id=tom.id, datev_personnel_number="91008", payroll_export_enabled=True))
+    assert _put(welt, mia, datev_personnel_number="00093").status_code == 200
+    assert _put(welt, mia, datev_personnel_number="00097").status_code == 200
+    assert _zeilen(welt)["Mia Monteurin"] == (["00093"], {})
+    db.add(EmployeePayrollSettings(employee_id=tom.id, datev_personnel_number="00093", payroll_export_enabled=True))
     db.commit()
-    assert _zeilen(welt)["Mia Monteurin"] == (["91008"], {"91008": "Tom Monteur"})
-    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 409  # dieselbe Regel
+    assert _zeilen(welt)["Mia Monteurin"] == (["00093"], {"00093": "Tom Monteur"})
+    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "00093"}).status_code == 409  # dieselbe Regel
     db.query(EmployeePayrollSettings).filter_by(employee_id=tom.id).one().datev_personnel_number = None
     db.commit()
-    assert _zeilen(welt)["Mia Monteurin"] == (["91008"], {})
-    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 200
+    assert _zeilen(welt)["Mia Monteurin"] == (["00093"], {})
+    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "00093"}).status_code == 200
 
 
 def test_eine_mitarbeiternummer_traegt_nichts(welt):
@@ -73,14 +73,14 @@ def _fruehere(p: dict, freigeben: bool) -> list[str]:
     return node_ausfuehren(js)
 
 
-PIA = {"employee_name": "Pia Monteurin", "fruehere_personalnummern": ["91008", "91030"], "fruehere_traeger": {"91030": "Kai <Monteur>"}}
+PIA = {"employee_name": "Pia Monteurin", "fruehere_personalnummern": ["00093", "91030"], "fruehere_traeger": {"91030": "Kai <Monteur>"}}
 
 
 def test_seite_knopf_nur_ohne_traeger():
     assert _fruehere(PIA, True) == [
-        '91008 <button class="secondary" data-klick="pnr-freigeben" data-nummer="91008" data-name="Pia Monteurin">freigeben</button>',
+        '00093 <button class="secondary" data-klick="pnr-freigeben" data-nummer="00093" data-name="Pia Monteurin">freigeben</button>',
         '91030 <span data-traegt="91030">(trägt heute Kai &lt;Monteur&gt;)</span>']
 
 
 def test_seite_ohne_recht_zum_freigeben_nennt_den_traeger_auch():
-    assert _fruehere(PIA, False) == ["91008", '91030 <span data-traegt="91030">(trägt heute Kai &lt;Monteur&gt;)</span>']
+    assert _fruehere(PIA, False) == ["00093", '91030 <span data-traegt="91030">(trägt heute Kai &lt;Monteur&gt;)</span>']

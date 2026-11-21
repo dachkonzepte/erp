@@ -41,7 +41,7 @@ PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
 # prüft nicht gegen ein Merkmal der Person (Minijob gibt es als Merkmal nicht; Azubi seit 1.9.224, EmployeePayrollSettings.azubi, wirkt nur in der
 # Lohndatei).
 # Seit 1.9.219 (L1a Stufe 7, Punkt 2): die Azubis reichen bis 00299 -- genutzt sind die Kreise je Hundert wie die beiden ersten; darüber sagt der
-# Hinweis, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (bis 1.9.218 hieß auch 91008 „Kreis Azubis“). Die Grenze steht fest
+# Hinweis, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (bis 1.9.218 hieß auch eine Nummer wie 00350 „Kreis Azubis“). Die Grenze steht fest
 # hier, nicht aus den vergebenen Nummern abgeleitet: eine aus den Daten abgeleitete Grenze zöge jede Fehleingabe mit (berichtigt 1.9.229 -- die
 # bis dahin genannte Begründung „die Sperrliste trägt die Nummern aus Time 4 (91…)“ war nicht belegt, die 91… sind erfundene Musternummern).
 NUMMERNKREISE = ((0, 99, "sv-pflichtig Beschäftigte", "00000–00099"), (100, 199, "Minijobber", "00100–00199"), (200, 299, "Azubis", "ab 00200"))

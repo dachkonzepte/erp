@@ -16,40 +16,40 @@ FREIGEBEN = "/api/time-backoffice/personalnummern/freigeben"
 
 
 def _wechsel(w):
-    """Mia 91008 -> 91016: 91008 ist ihr gemerkt und gehört heute niemandem."""
-    assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
-    assert _put(w, w["mia"], datev_personnel_number="91016").status_code == 200
+    """Mia 00093 -> 00097: 00093 ist ihr gemerkt und gehört heute niemandem."""
+    assert _put(w, w["mia"], datev_personnel_number="00093").status_code == 200
+    assert _put(w, w["mia"], datev_personnel_number="00097").status_code == 200
 
 
 def test_admin_gibt_eine_fruehere_nummer_frei(welt):
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
     _wechsel(welt)
-    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91008"})
+    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "00093"})
     assert r.status_code == 200, r.text
     assert {z["employee_name"]: z["fruehere_personalnummern"] for z in r.json()} == {"Mia Monteurin": [], "Tom Monteur": []}
-    assert _gemerkt(welt) == [("91016", mia.id)]
-    assert _put(welt, tom, datev_personnel_number="91008").status_code == 200  # jetzt frei
+    assert _gemerkt(welt) == [("00097", mia.id)]
+    assert _put(welt, tom, datev_personnel_number="00093").status_code == 200  # jetzt frei
     eintrag = db.scalars(select(AuditLog).where(AuditLog.action == "Personalnummer freigegeben")).one()
     assert (eintrag.entity_type, eintrag.entity_id, eintrag.entity_label, eintrag.field_label, eintrag.old_value, eintrag.new_value) == (
-        "Personalnummer", "91008", "Personalnummer 91008", "Personalnummer", "gesperrt, gehörte Mia Monteurin", "frei")
+        "Personalnummer", "00093", "Personalnummer 00093", "Personalnummer", "gesperrt, gehörte Mia Monteurin", "frei")
 
 
 def test_nur_der_admin(welt):
     _wechsel(welt)
     for rolle in ("buero_finanzen", "buero_auftrag", "field"):
-        r = _client(welt, rolle).post(FREIGEBEN, json={"nummer": "91008"})
+        r = _client(welt, rolle).post(FREIGEBEN, json={"nummer": "00093"})
         assert r.status_code == 403, rolle
-    assert ("91008", welt["mia"].id) in _gemerkt(welt)
+    assert ("00093", welt["mia"].id) in _gemerkt(welt)
     assert welt["db"].scalar(select(AuditLog.id).where(AuditLog.action == "Personalnummer freigegeben")) is None
 
 
 def test_eine_getragene_nummer_bleibt(welt):
-    """Mias heutige Nummer 91016 trägt sie selbst -- 409, nichts geändert."""
+    """Mias heutige Nummer 00097 trägt sie selbst -- 409, nichts geändert."""
     _wechsel(welt)
-    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91016"})
+    r = _client(welt, "admin").post(FREIGEBEN, json={"nummer": "00097"})
     assert (r.status_code, r.json()["detail"]) == (
-        409, "Die Personalnummer 91016 trägt heute Mia Monteurin – freigeben geht nur, solange sie niemand trägt.")
-    assert ("91016", welt["mia"].id) in _gemerkt(welt)
+        409, "Die Personalnummer 00097 trägt heute Mia Monteurin – freigeben geht nur, solange sie niemand trägt.")
+    assert ("00097", welt["mia"].id) in _gemerkt(welt)
 
 
 def test_eine_mitarbeiternummer_haelt_keine_personalnummer(welt):

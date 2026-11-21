@@ -140,7 +140,7 @@ tieferer Nachweis).
   rot jeweils mit AssertionError am Text.
 - `166_4a` macht neben dem Zieltest alle Buchungstests am 09.11.2026 rot (der Tag liegt vor dem eingesetzten Stichtag) – erwartet.
 - `168_3b`: `test_nummernwechsel_sperrt_die_alte_nummer` scheitert mit KeyError im Test (die 422 hat kein Feld `fruehere_personalnummern`) –
-  FAILED aus dem geprüften Grund (Mia bekommt 91008 nicht wieder).
+  FAILED aus dem geprüften Grund (Mia bekommt ihre frühere Nummer nicht wieder).
 
 ## 1.9.198: Festlegungen 1.9.170–1.9.173
 
@@ -630,11 +630,11 @@ feste Tage über `uhr_festhalten(tag=…)` bzw. `fester_tag`). Keine bestehende 
 5. **1.9.191 Nr. 1 („lesend Büro – Auftrag“)** – grün blieb: der Server lässt den Träger für Büro – Auftrag weg; test_v601 las als Büro – Finanzen.
    Neu: `test_191_1_jede_rolle_der_liste_sieht_den_traeger` (Admin, Büro – Finanzen, Büro – Auftrag gleich). Wiederholung: 1 rot.
 6. **1.9.191 Nr. 2 („eigener Name“)** – grün blieb: der eigene Name wird aus `fruehere_traeger` gefiltert (dann stünde „freigeben“, die Freigabe
-   lehnt aber ab). Neu: `test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst` (Mia 91008, dann „DATEV-Nr. = ERP-Nr.“:
+   lehnt aber ab). Neu: `test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst` (Mia 00093, dann „DATEV-Nr. = ERP-Nr.“:
    Liste nennt Mia, Freigabe 409). Wiederholung: 1 rot.
 7. **1.9.191 Nr. 2 („dieselbe Regel“, ohne Gleichsetzung)** – grün blieb: die Mitarbeiternummer zählt auch ohne Gleichsetzung als Träger (die
    Freigabe ginge, die Liste nennte trotzdem einen Träger). Neu: `test_191_2_ohne_gleichsetzung_zaehlt_die_mitarbeiternummer_nicht` (Tom mit
-   Mitarbeiternummer 91008: niemand genannt, Freigabe 200). Wiederholung: 1 rot.
+   Mitarbeiternummer 00093: niemand genannt, Freigabe 200). Wiederholung: 1 rot.
 
 ### Bemerkungen
 
@@ -835,8 +835,8 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.218 Nr. 4b** – leer mit dem Satz | ohne Satz (1.9.218) | vorher grün; mit test_v622 1 rot: test_liste_gezeichnet_leer_und_mit_traeger |
 | **1.9.219 Nr. 1a** – genutzt bis 00299, darüber „außerhalb“ | Azubis wieder bis 99999 (1.9.219) | vorher grün; mit test_v623 6 rot; klicktest_sollzeit rot: „Fin: Hinweis zum Nummernkreis nach dem Speichern“ ‚… liegt im Kreis Azubis (ab 00200).‘ |
 | **1.9.219 Nr. 1b** – der Text „außerhalb der vom Lohnbüro genannten Bereiche“ | kein Hinweis über 00299 (1.9.219) | vorher grün; mit test_v623 5 rot |
-| **1.9.219 Nr. 1c** – weiter keine Sperre | über 00299 abgelehnt (1.9.219) | vorher 3 rot (test_v593 speichert 91008/91016); mit test_v623 4 rot, darunter test_ausserhalb_ist_keine_sperre |
-| 1.9.219 Nr. 2 – die Grenze fest im Code, nicht aus den vergebenen Nummern | keine -- `nummernkreis()` bekommt keine Datenbank, eine Abhängigkeit von der Sperrliste ließe sich nur mit einem Umbau herstellen; `test_grenze_haengt_nicht_an_den_vergebenen_nummern` hält das Verhalten fest (Sperrliste bis 91030, 91008 außerhalb) | – |
+| **1.9.219 Nr. 1c** – weiter keine Sperre | über 00299 abgelehnt (1.9.219) | vorher 3 rot (test_v593 speicherte damals zwei Nummern über 00299); mit test_v623 4 rot, darunter test_ausserhalb_ist_keine_sperre |
+| 1.9.219 Nr. 2 – die Grenze fest im Code, nicht aus den vergebenen Nummern | keine -- `nummernkreis()` bekommt keine Datenbank, eine Abhängigkeit von der Sperrliste ließe sich nur mit einem Umbau herstellen; `test_grenze_haengt_nicht_an_den_vergebenen_nummern` hält das Verhalten fest (Sperrliste bis 91030, eine Nummer über 00299 außerhalb) | – |
 | **1.9.219 Nr. 3** – Prüfskript zählt „außerhalb“ | ohne „außerhalb“ (1.9.219) | vorher 1 rot: test_v617::test_pruefskript_format_und_kreise; mit test_v623 2 rot |
 | 1.9.219 Nr. 4 (= 1.9.212 Nr. 2 neu) | wie Nr. 1a | – |
 | **1.9.219** (Seite) – der Hilfetext nennt die Grenze | Satz ohne die Grenze (1.9.219) | vorher grün; mit test_v623 1 rot: test_seite_nennt_die_grenze (nur Anzeige, als Text geprüft) |

@@ -83,11 +83,11 @@ def test_dieselbe_warnung_ohne_namen():
     skript = ("var EL={};var document={getElementById(id){return EL[id]||(EL[id]={textContent:'',showModal(){}})}};var pnrNummer=null,pnrStatus='';"
               + _funktion(text, "pnrFreigabeOeffnen")
               + "\nvar aus=[];pnrFreigabeOeffnen('00205','');aus.push(EL.pnrFreigabeWarnung.textContent,pnrStatus);"
-              + "pnrFreigabeOeffnen('91008','Mia Monteurin');aus.push(EL.pnrFreigabeWarnung.textContent,pnrStatus);"
+              + "pnrFreigabeOeffnen('00093','Mia Monteurin');aus.push(EL.pnrFreigabeWarnung.textContent,pnrStatus);"
               + "process.stdout.write(JSON.stringify(aus));")
     eingelesen, status_e, person, status_p = node_ausfuehren(skript)
     assert eingelesen.startswith("Die Personalnummer 00205 steht in der eingelesenen Liste vergebener Nummern und ist für alle gesperrt. Gibst du sie frei")
-    assert person.startswith("Die Personalnummer 91008 gehörte Mia Monteurin und ist für alle anderen gesperrt. Gibst du sie frei")
+    assert person.startswith("Die Personalnummer 00093 gehörte Mia Monteurin und ist für alle anderen gesperrt. Gibst du sie frei")
     assert eingelesen.split(". Gibst du sie frei", 1)[1] == person.split(". Gibst du sie frei", 1)[1]
     assert (status_e, status_p) == ("eingeleseneStatus", "payrollStatus")
 

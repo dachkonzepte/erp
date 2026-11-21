@@ -257,7 +257,7 @@ def main(argv=None) -> int:
     parser.add_argument("erp", type=Path)
     parser.add_argument("time4", type=Path)
     parser.add_argument("--azubis", default="", help="Personalnummern der Azubis, mit Komma (Time 4 gab sie nur mit U und K aus)")
-    parser.add_argument("--gleich", action="append", default=[], help="Nummer in Time 4 = Nummer im ERP (Nummernwechsel), z. B. 91008=91016")
+    parser.add_argument("--gleich", action="append", default=[], help="Nummer in Time 4 = Nummer im ERP (Nummernwechsel), z. B. 00093=00097")
     parser.add_argument("--pausen", default="6:30,9:45", help="Pausenregeln Schwelle:Minuten (Vorgabe 6:30,9:45 wie § 4 ArbZG)")
     args = parser.parse_args(argv)
     try:

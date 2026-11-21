@@ -144,34 +144,34 @@ def _zeile(w, name, rolle="buero_finanzen"):
 
 
 def test_191_1_jede_rolle_der_liste_sieht_den_traeger(nummern):
-    """Mia 91008 -> 91016, Tom trägt 91008 (an der Sperre vorbei): Admin, Büro – Finanzen und lesend Büro – Auftrag sehen Tom als Träger."""
+    """Mia 00093 -> 00097, Tom trägt 00093 (an der Sperre vorbei): Admin, Büro – Finanzen und lesend Büro – Auftrag sehen Tom als Träger."""
     w = nummern
-    assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
-    assert _put(w, w["mia"], datev_personnel_number="91016").status_code == 200
-    w["db"].add(EmployeePayrollSettings(employee_id=w["tom"].id, datev_personnel_number="91008", payroll_export_enabled=True))
+    assert _put(w, w["mia"], datev_personnel_number="00093").status_code == 200
+    assert _put(w, w["mia"], datev_personnel_number="00097").status_code == 200
+    w["db"].add(EmployeePayrollSettings(employee_id=w["tom"].id, datev_personnel_number="00093", payroll_export_enabled=True))
     w["db"].commit()
     assert {rolle: _zeile(w, "Mia Monteurin", rolle) for rolle in ("admin", "buero_finanzen", "buero_auftrag")} == {
-        rolle: (["91008"], {"91008": "Tom Monteur"}) for rolle in ("admin", "buero_finanzen", "buero_auftrag")}
+        rolle: (["00093"], {"00093": "Tom Monteur"}) for rolle in ("admin", "buero_finanzen", "buero_auftrag")}
 
 
 def test_191_2_alte_gleichsetzung_aendert_die_heutige_nummer_nicht(nummern):
     """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229
-    test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst: mit dem Schalter war M-1 ihre Nummer, 91008 „früher“). Auch mit
-    der alten Spalte auf „an“ bleibt 91008 ihre heutige Nummer -- keine „frühere“, die Freigabe lehnt ab (409, sie trägt sie)."""
+    test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst: mit dem Schalter war M-1 ihre Nummer, 00093 „früher“). Auch mit
+    der alten Spalte auf „an“ bleibt 00093 ihre heutige Nummer -- keine „frühere“, die Freigabe lehnt ab (409, sie trägt sie)."""
     w = nummern
-    assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
+    assert _put(w, w["mia"], datev_personnel_number="00093").status_code == 200
     w["db"].get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     assert _zeile(w, "Mia Monteurin") == ([], {})
-    assert _client(w, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 409
+    assert _client(w, "admin").post(FREIGEBEN, json={"nummer": "00093"}).status_code == 409
 
 
 def test_191_2_ohne_gleichsetzung_zaehlt_die_mitarbeiternummer_nicht(nummern):
-    """Ohne „DATEV-Nr. = ERP-Nr.“: Tom hat die Mitarbeiternummer 91008, Mias frühere DATEV-Nummer -- er trägt sie nicht (dieselbe Regel wie die
+    """Ohne „DATEV-Nr. = ERP-Nr.“: Tom hat die Mitarbeiternummer 00093, Mias frühere DATEV-Nummer -- er trägt sie nicht (dieselbe Regel wie die
     Freigabe: niemand genannt, die Freigabe geht)."""
     w = nummern
-    assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
-    assert _put(w, w["mia"], datev_personnel_number="91016").status_code == 200
-    w["tom"].employee_number = "91008"
+    assert _put(w, w["mia"], datev_personnel_number="00093").status_code == 200
+    assert _put(w, w["mia"], datev_personnel_number="00097").status_code == 200
+    w["tom"].employee_number = "00093"
     w["db"].commit()
-    assert _zeile(w, "Mia Monteurin") == (["91008"], {})
-    assert _client(w, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 200
+    assert _zeile(w, "Mia Monteurin") == (["00093"], {})
+    assert _client(w, "admin").post(FREIGEBEN, json={"nummer": "00093"}).status_code == 200

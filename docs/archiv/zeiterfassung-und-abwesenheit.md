@@ -723,7 +723,7 @@ Zur Entscheidung vorgelegt (E1–E10 im Bericht): Lesart der Pause, Stichtag, we
 - Schlechtwetter eintragen: Kolonnenführer und Vorarbeiter für jeden gewerblichen Mitarbeiter, dazu Admin und Büro – Finanzen, gilt sofort. Jeder Mitarbeiter für sich selbst als Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt.
 - Halbe Tage: Urlaub auch als halber Tag (Stunden = halbe Sollzeit, zählt 0,5 Tag). Der 24.12. und der 31.12. an Wochentagen sind je 0,5 Tag Urlaub; was mit der anderen Hälfte ist, klärt Tobias noch. Keine Betriebsruhe.
 
-Neue Muster (Nachtrag 02.11.2026, `bildgrundlage/lohn/LIESMICH.txt`, für L1b): 12/2025 bis 10/2026 und Einzelbuchungen 09 und 10/2026. Time 4 zieht als Pause die Überschneidung mit festen Pausen des Zeitmodells ab (12:00–12:30, 16:30–16:45), ohne Zeitmodell keine. Azubis standen nur mit U und K im Export (Einstellung in Time 4). Der Wechsel der Sollzeit liegt zwischen Fr 24.04. und Mo 27.04.2026 (KW 17/18), wie angenommen. 31.12.2025 stand als ganzer Urlaubstag mit 7,50 h in Time 4, 24.12.2025 als Arbeitstag -- abweichend von der Vorgabe für L1a (je 0,5 Tag), im Bericht L1a genannt. Eine Person kann die DATEV-Nummer wechseln (91008 -> 91016 ab 10/2026).
+Neue Muster (Nachtrag 02.11.2026, `bildgrundlage/lohn/LIESMICH.txt`, für L1b): 12/2025 bis 10/2026 und Einzelbuchungen 09 und 10/2026. Time 4 zieht als Pause die Überschneidung mit festen Pausen des Zeitmodells ab (12:00–12:30, 16:30–16:45), ohne Zeitmodell keine. Azubis standen nur mit U und K im Export (Einstellung in Time 4). Der Wechsel der Sollzeit liegt zwischen Fr 24.04. und Mo 27.04.2026 (KW 17/18), wie angenommen. 31.12.2025 stand als ganzer Urlaubstag mit 7,50 h in Time 4, 24.12.2025 als Arbeitstag -- abweichend von der Vorgabe für L1a (je 0,5 Tag), im Bericht L1a genannt. Eine Person kann die DATEV-Nummer wechseln (z. B. 00093 -> 00097, erfunden).
 
 ## Lohn L1a: was beim Buchen wirkt (ab 1.9.166)
 
@@ -798,7 +798,7 @@ Migration `c5a9e3f71d28`: `pruefen()` (Dubletten auf den getrimmten Nummern) vor
 
 1. Neu gefasst mit 1.9.212 (Antwort des Lohnbüros, Vorgabe Tobias 05.11.2026): eine Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (00001, 00101, 00204); beim Speichern wird nichts aufgefüllt, „101“ bekommt die Meldung. Die Kreise 00000–00099 sv-pflichtig Beschäftigte, 00100–00199 Minijobber, ab 00200 Azubis sind ein Hinweis, keine Sperre. Bis 1.9.211 hieß es: „Eine Personalnummer hat 1 bis 5 Ziffern ohne führende Null (die Muster haben 4 und 5 Stellen). Falls DATEV längere Nummern nimmt, ist das eine Zeile im Code -- zu klären mit LB2.“
 2. Bei „DATEV-Nr. = ERP-Nr.“ gilt das Format für die ERP-Nummer, aber nur, solange von der Person etwas in die Datei geht; mit „nichts“ bleibt sie speicherbar (Eintritt, Sollzeit).
-3. Neu gefasst mit 1.9.177 (Vorgabe Tobias 03.11.2026): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach Austritt und nach einem Nummernwechsel (LIESMICH 8: 91008 -> 91016 bekommt die Person die neue Nummer, die alte bleibt ihr gemerkt); nur dieselbe Person bekommt sie wieder (seit 1.9.181 gibt der Admin eine gemerkte Nummer frei, solange sie niemand trägt -- Festlegung 1.9.177 Nr. 3; vermerkt mit 1.9.197). Bis 1.9.176 hieß es: „die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.“
+3. Neu gefasst mit 1.9.177 (Vorgabe Tobias 03.11.2026): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach Austritt und nach einem Nummernwechsel (z. B. 00093 -> 00097, erfunden: die Person bekommt die neue Nummer, die alte bleibt ihr gemerkt); nur dieselbe Person bekommt sie wieder (seit 1.9.181 gibt der Admin eine gemerkte Nummer frei, solange sie niemand trägt -- Festlegung 1.9.177 Nr. 3; vermerkt mit 1.9.197). Bis 1.9.176 hieß es: „die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.“
 4. Der Umfang „nur Abwesenheiten“ wirkt im heutigen Export wie „nichts“ (er kennt noch keine Abwesenheiten); mit L1b stehen dann U, K und die übrigen zugeordneten Abwesenheiten in der Datei.
 5. Die Migration bricht bei einer Dublette ab, statt eine Nummer zu leeren: welche Person die Nummer behält, entscheidet das Büro.
 
@@ -993,14 +993,14 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll (Silvester ist jetzt
 
 1. Gemerkt wird jede Nummer, die beim Speichern der Lohnstammdaten eingetragen wird; bei „DATEV-Nr. = ERP-Nr.“ auch die Mitarbeiternummer beim Anlegen und Ändern im Mitarbeiterformular (die bisherige und die neue). Das Einschalten der Gleichsetzung selbst merkt nichts.
 2. Die Sperre gilt nur gegenüber anderen Personen: dieselbe Person bekommt eine frühere Nummer wieder.
-3. Neu gefasst mit 1.9.181 (Vorgabe Tobias 03.11.2026): auch ein Tippfehler bleibt gemerkt (wer 91061 statt 91016 einträgt und danach korrigiert, sperrt 91061 für alle anderen) -- aber der Admin kann eine gemerkte Nummer wieder freigeben, solange sie niemand trägt, mit Warnung im Dialog und Eintrag in der Änderungshistorie; Büro – Finanzen darf das nicht. Notiz für L1b, noch nicht gebaut: sobald L1b Exporte ablegt, bleibt eine Nummer, die in einem abgelegten Export stand, dauerhaft gesperrt und lässt sich nicht mehr freigeben. Bis 1.9.180 hieß es: „Einen Weg, eine Nummer wieder freizugeben, gibt es nicht.“
+3. Neu gefasst mit 1.9.181 (Vorgabe Tobias 03.11.2026): auch ein Tippfehler bleibt gemerkt (wer 00079 statt 00097 einträgt und danach korrigiert, sperrt 00079 für alle anderen) -- aber der Admin kann eine gemerkte Nummer wieder freigeben, solange sie niemand trägt, mit Warnung im Dialog und Eintrag in der Änderungshistorie; Büro – Finanzen darf das nicht. Notiz für L1b, noch nicht gebaut: sobald L1b Exporte ablegt, bleibt eine Nummer, die in einem abgelegten Export stand, dauerhaft gesperrt und lässt sich nicht mehr freigeben. Bis 1.9.180 hieß es: „Einen Weg, eine Nummer wieder freizugeben, gibt es nicht.“
 4. Die Liste der Personalnummern zeigt je Person „früher: …“; die Meldung nennt, wem die Nummer gehörte (die Seite ist nur Admin und Büro – Finanzen zum Ändern offen, die Namen stehen dort ohnehin).
 5. Die Migration übernimmt die heutigen DATEV-Nummern und, bei Gleichsetzung, die Mitarbeiternummern; frühere Nummern kennt der Bestand nicht.
 6. `scripts/pruefe_zeitregeln.py` zählt die gemerkten Nummern; trägt eine aktive Person die gemerkte Nummer einer anderen (nur an der Sperre vorbei möglich), ist das ein Befund (Rückgabe 1).
 
 ### Tests und Prüfung 1.9.177
 
-Neu: `tests/test_v593_personalnummer_gesperrt.py` (8 Tests) -- Nummernwechsel 91008 -> 91016 (Tom bekommt 91008 nicht, Mia wieder), nach Austritt und geleerter Nummer gesperrt, „früher“ in der Liste, eine Nummer einmal in der Datenbank, Gleichsetzung über das Mitarbeiterformular (Ändern und Anlegen 409, die eigene frühere Nummer geht), ohne Gleichsetzung nichts gemerkt, Prüfskript, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Sperre übergangen -> 3 rot; beim Speichern nicht gemerkt -> 3 rot; die bisherige Mitarbeiternummer nicht gemerkt -> 1 rot. Angepasste Erwartungen: keine.
+Neu: `tests/test_v593_personalnummer_gesperrt.py` (8 Tests; Nummern seit 1.10.13 erfunden) -- Nummernwechsel 00093 -> 00097 (Tom bekommt 00093 nicht, Mia wieder), nach Austritt und geleerter Nummer gesperrt, „früher“ in der Liste, eine Nummer einmal in der Datenbank, Gleichsetzung über das Mitarbeiterformular (Ändern und Anlegen 409, die eigene frühere Nummer geht), ohne Gleichsetzung nichts gemerkt, Prüfskript, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Sperre übergangen -> 3 rot; beim Speichern nicht gemerkt -> 3 rot; die bisherige Mitarbeiternummer nicht gemerkt -> 1 rot. Angepasste Erwartungen: keine.
 
 ### Umsetzung 1.9.178: Schlechtwetter an einem betriebsfreien Tag (Punkt 5)
 
@@ -1028,7 +1028,7 @@ Vorgabe Tobias (03.11.2026), je Punkt eine Version, vorab zwei Prüfungen ohne C
 
 ### Prüfung A: die Migrationen des Nachtrags auf einem Bestand
 
-Nachgeholt (im Bericht des Nachtrags fehlte der Abschnitt; die Suite enthielt je Migration eine kleine Probe in `tests/test_v591`, `v592`, `v593`, aber ohne Abgleich mit den Modellen). `fcbfd2cea2da`, `2474667579d8` und `1e425fe7faa6` je unter SQLite und PostgreSQL (Schema `pgtest_migprobe_*` der Spielwiese), `1e425fe7faa6` mit und ohne „DATEV-Nr. = ERP-Nr.“ -- acht Läufe, alle wie erwartet. Je Lauf: Bestand mit dem Code des Stands davor (Arbeitskopie `62183a9`, `c0245dd` bzw. `8b09efd`: Grunddaten wie beim Start, sechs Personen mit Mitarbeiter- und DATEV-Nummern -- darunter „ 91008 “ mit Leerzeichen, eine leere, eine ausgetretene Person, deren Mitarbeiternummer 91008 die DATEV-Nummer einer anderen ist --, Urlaub und Krankheit über 24.12. und 31.12., ein halber Tag, ein offener Antrag, eine eigene Sollzeit, ab 1.9.175 ein eigener Kalendertag, ab 1.9.176 eine Antwort zu Silvester), hoch auf die Migration (Bestand unverändert, nur die neue Tabelle bzw. Spalte; bei `1e425fe7faa6` die gemerkten Nummern wie erwartet: DATEV-Nummern ohne Leerzeichen, leere nicht, bei Gleichsetzung die Mitarbeiternummern, 91008 bleibt bei der Person mit dieser DATEV-Nummer), Start des Stands der Migration (legt Heiligabend bzw. Silvester samt Zuordnung an), runter (Tabellen, Spalten, Indizes und alle Zeilen wie der Bestand -- bis auf die Zeilen des Änderungsprotokolls, die der Start geschrieben hat; sie bleiben als Verlauf), Start des Stands davor auf dem zurückgesetzten Bestand, wieder hoch auf head, Start von heute, `alembic compare_metadata` gegen die Modelle: kein Unterschied.
+Nachgeholt (im Bericht des Nachtrags fehlte der Abschnitt; die Suite enthielt je Migration eine kleine Probe in `tests/test_v591`, `v592`, `v593`, aber ohne Abgleich mit den Modellen). `fcbfd2cea2da`, `2474667579d8` und `1e425fe7faa6` je unter SQLite und PostgreSQL (Schema `pgtest_migprobe_*` der Spielwiese), `1e425fe7faa6` mit und ohne „DATEV-Nr. = ERP-Nr.“ -- acht Läufe, alle wie erwartet. Je Lauf: Bestand mit dem Code des Stands davor (Arbeitskopie `62183a9`, `c0245dd` bzw. `8b09efd`: Grunddaten wie beim Start, sechs Personen mit Mitarbeiter- und DATEV-Nummern -- darunter eine mit Leerzeichen, eine leere, eine ausgetretene Person, deren Mitarbeiternummer die DATEV-Nummer einer anderen ist --, Urlaub und Krankheit über 24.12. und 31.12., ein halber Tag, ein offener Antrag, eine eigene Sollzeit, ab 1.9.175 ein eigener Kalendertag, ab 1.9.176 eine Antwort zu Silvester), hoch auf die Migration (Bestand unverändert, nur die neue Tabelle bzw. Spalte; bei `1e425fe7faa6` die gemerkten Nummern wie erwartet: DATEV-Nummern ohne Leerzeichen, leere nicht, bei Gleichsetzung die Mitarbeiternummern, die doppelte Nummer bleibt bei der Person mit dieser DATEV-Nummer), Start des Stands der Migration (legt Heiligabend bzw. Silvester samt Zuordnung an), runter (Tabellen, Spalten, Indizes und alle Zeilen wie der Bestand -- bis auf die Zeilen des Änderungsprotokolls, die der Start geschrieben hat; sie bleiben als Verlauf), Start des Stands davor auf dem zurückgesetzten Bestand, wieder hoch auf head, Start von heute, `alembic compare_metadata` gegen die Modelle: kein Unterschied.
 
 ### Prüfung B: Heiligabend mit 6,50 h im Bild
 
@@ -1439,7 +1439,7 @@ Angepasste Erwartungen (Regel 28) zu 1.9.212:
 - `klicktest_sollzeit` „Fin: Personalnummer „9100A“ abgelehnt“: altes Soll „Fehler: Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null (z. B. 91001).“, neues Soll „Fehler: Die DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (z. B. 00101).“
 - `klicktest_zeiten` „Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert“: nur Aufbau, Oles Nummer „1003“ -> „01003“ (Soll 200 bleibt).
 - `test_v387::test_lohnstammdaten_entstehen_erst_beim_speichern`: nur Aufbau, gespeicherte Nummer „77“ -> „00077“ (gefunden im ersten Lauf der Kette: 422 statt 200).
-- `klicktest_personalnummer_freigeben` „Ada: Tom bekommt 91008“: altes Soll [„Gespeichert.“, 91008], neues Soll [„Gespeichert. Die Personalnummer 91008 liegt im Kreis Azubis (ab 00200).“, 91008] (gefunden im zweiten Lauf der Kette).
+- `klicktest_personalnummer_freigeben` „Ada: Tom bekommt <Nummer>“ (bis 1.10.13 eine Nummer über 00299 aus dem Muster): altes Soll [„Gespeichert.“, Nummer], neues Soll [„Gespeichert. Die Personalnummer <Nummer> liegt im Kreis Azubis (ab 00200).“, Nummer] (gefunden im zweiten Lauf der Kette).
 
 ### Umsetzung 1.9.213: vergebene Personalnummern einlesen (Punkt 2)
 
@@ -1564,7 +1564,7 @@ Für L1b zu entscheiden (nicht gebaut): entweder die Monatszeile ganz entfernen 
 
 ## Lohn L1a, Stufe 7 (ab 1.9.218)
 
-Vorgabe Tobias (05.11.2026), kleine Nacharbeiten vor dem Einspielen, je Punkt eine Version, jede neue Festlegung mit eigener Gegenprobe: 1 Festlegung 1.9.213 Nr. 6 neu -- eingelesene Nummern ohne Person in einer eigenen, kurzen Liste unter „Zeitregeln und DATEV“, nur für den Admin, je Zeile „freigeben“ mit derselben Warnung, Büro – Finanzen sieht sie nicht; 2 der Hinweis zum Nummernkreis sagt oberhalb der tatsächlich genutzten Kreise, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (91008 bekam „Kreis Azubis (ab 00200)“); 3 die Monatszeile bleibt -- das Häkchen ist gesperrt, solange ein Kennzeichen steht, mit Hinweis; 4 ins Archiv „Testablauf“: die Messung mit verzögerten Antworten (1.9.207) findet nur Stellen, an denen sich alter und neuer Stand unterscheiden -- als Grenze der Methode; 5 ein Bild des ausgelieferten Zustands der Zuordnung, ohne Änderungen aus einem Klicktest, mit Silvester UU und Berufsschule FE.
+Vorgabe Tobias (05.11.2026), kleine Nacharbeiten vor dem Einspielen, je Punkt eine Version, jede neue Festlegung mit eigener Gegenprobe: 1 Festlegung 1.9.213 Nr. 6 neu -- eingelesene Nummern ohne Person in einer eigenen, kurzen Liste unter „Zeitregeln und DATEV“, nur für den Admin, je Zeile „freigeben“ mit derselben Warnung, Büro – Finanzen sieht sie nicht; 2 der Hinweis zum Nummernkreis sagt oberhalb der tatsächlich genutzten Kreise, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (eine Nummer über 00299 bekam „Kreis Azubis (ab 00200)“); 3 die Monatszeile bleibt -- das Häkchen ist gesperrt, solange ein Kennzeichen steht, mit Hinweis; 4 ins Archiv „Testablauf“: die Messung mit verzögerten Antworten (1.9.207) findet nur Stellen, an denen sich alter und neuer Stand unterscheiden -- als Grenze der Methode; 5 ein Bild des ausgelieferten Zustands der Zuordnung, ohne Änderungen aus einem Klicktest, mit Silvester UU und Berufsschule FE.
 
 ### Umsetzung 1.9.218: Liste der eingelesenen Nummern (Punkt 1)
 
@@ -1587,7 +1587,7 @@ Neu: `tests/test_v622_eingelesene_liste.py` (9 Tests, Nummern erfunden) -- nur N
 
 ### Festlegungen 1.9.219 (bestätigt am 05.11.2026; Nr. 2 mit berichtigter Begründung, 1.9.229)
 
-1. Genutzt sind die Kreise bis 00299 -- je Hundert wie die beiden ersten (Azubis 00200–00299); darüber nennt der Hinweis die Nummer „außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen“, auch 91008. Weiter keine Sperre; im Kreis Azubis bleibt der Text „(ab 00200)“ wie vom Lohnbüro genannt.
+1. Genutzt sind die Kreise bis 00299 -- je Hundert wie die beiden ersten (Azubis 00200–00299); darüber nennt der Hinweis die Nummer „außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen“, auch eine Nummer wie 00350. Weiter keine Sperre; im Kreis Azubis bleibt der Text „(ab 00200)“ wie vom Lohnbüro genannt.
 2. Die Grenze steht fest im Code (`NUMMERNKREISE`, eine Zeile), nicht aus den vergebenen Nummern abgeleitet: eine aus den Daten abgeleitete Grenze
    zöge jede Fehleingabe mit (berichtigt 1.9.229, Vorgabe Tobias; bis dahin stand hier „die Sperrliste trägt die Nummern aus Time 4 (91…)“ -- die
    91… sind erfundene Musternummern, auf dem Server steht keine davon). Kommen mehr als 100 Azubis, ist die Grenze dort anzuheben.
@@ -1596,13 +1596,13 @@ Neu: `tests/test_v622_eingelesene_liste.py` (9 Tests, Nummern erfunden) -- nur N
 
 ### Tests und Prüfung 1.9.219
 
-Neu: `tests/test_v623_nummernkreis_ausserhalb.py` (9 Tests) -- die Grenze (00204, 00299 Azubis; 00300, 91008, 99999 außerhalb); außerhalb keine Sperre; die Grenze hängt nicht an der Sperrliste (91016, 91030 gemerkt); Prüfskript zählt „außerhalb“ ohne Befund; der Hilfetext. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“.
+Neu: `tests/test_v623_nummernkreis_ausserhalb.py` (9 Tests) -- die Grenze (00204, 00299 Azubis; 00300, 00350, 99999 außerhalb -- bis 1.10.13 statt 00350 eine Nummer aus dem Muster); außerhalb keine Sperre; die Grenze hängt nicht an der Sperrliste (00360, 91030 gemerkt); Prüfskript zählt „außerhalb“ ohne Befund; der Hilfetext. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“.
 
 Angepasste Erwartungen (Regel 28) zu 1.9.219:
-- `test_v617::test_fuenf_ziffern_mit_hinweis_zum_kreis[91001-…]`: altes Soll „liegt im Kreis Azubis (ab 00200)“ für 91001; der Fall ist jetzt 00299 (Azubis), 91001/91008 prüft `test_v623` als „außerhalb“.
+- `test_v617::test_fuenf_ziffern_mit_hinweis_zum_kreis[91001-…]`: altes Soll „liegt im Kreis Azubis (ab 00200)“ für 91001; der Fall ist jetzt 00299 (Azubis), Nummern über 00299 prüft `test_v623` als „außerhalb“.
 - `test_v617::test_pruefskript_format_und_kreise`: altes Soll „Personalnummern je Kreis: sv-pflichtig Beschäftigte 1, Minijobber 1, Azubis 1“, neues Soll dazu „, außerhalb 0“.
 - `klicktest_sollzeit` „Fin: Hinweis zum Nummernkreis nach dem Speichern“: altes Soll „Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).“, neues Soll „Gespeichert. Die Personalnummer 91001 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“
-- `klicktest_personalnummer_freigeben` „Ada: Tom bekommt 91008“: ebenso für 91008.
+- `klicktest_personalnummer_freigeben` „Ada: Tom bekommt <Nummer>“: ebenso („außerhalb“; seit 1.10.13 die erfundene 00093, „Kreis sv-pflichtig Beschäftigte“).
 
 ### Umsetzung 1.9.220: Häkchen der Monatszeile gesperrt (Punkt 3)
 
@@ -2040,7 +2040,7 @@ Angepasste Erwartungen (Regel 28):
 - `test_v606::test_einschalten_der_gleichsetzung_merkt_nichts` -> `test_den_schalter_gibt_es_nicht_mehr`; alt einschalten 200, Antwort „an“; neu der
   Schlüssel fehlt in Stand und Antwort, die Spalte bleibt aus, nichts gemerkt.
 - `test_v608::test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst` ->
-  `test_191_2_alte_gleichsetzung_aendert_die_heutige_nummer_nicht`; alt (["91008"], {"91008": "Mia Monteurin"}); neu ([], {}); 409 bleibt.
+  `test_191_2_alte_gleichsetzung_aendert_die_heutige_nummer_nicht`; alt (["00093"], {"00093": "Mia Monteurin"}); neu ([], {}); 409 bleibt.
 - `test_v617::test_gleichsetzung_braucht_fuenf_ziffern` -> `test_alte_gleichsetzung_prueft_keine_mitarbeiternummer`; alt 422 bzw. 200 mit Hinweis; neu 200.
 - `test_v519::test_monat_tabelle_mit_personalnummer`: alt „Mia Monteurin 1001 20 …“, neu „Mia Monteurin 1001 nicht 5 Ziffern 20 …“.
 - `test_v326`: Eintrag `("/api/time-tracking/settings", "$.datev_personnel_equals_erp_number")` aus `ERLAUBT_JE_ROUTE` gestrichen (das Feld gibt es nicht mehr).

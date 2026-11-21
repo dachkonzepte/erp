@@ -101,7 +101,7 @@ def test_azubi_nur_im_erp(tmp_path, capsys):
 
 
 def test_nummernwechsel(tmp_path, capsys):
-    rc, out = lauf(tmp_path, capsys, ["91016;7;1;1000;8,00;;;;;;"], ["91008;7;1;1000;8,00;;;;;;"], "--gleich", "91008=91016")
+    rc, out = lauf(tmp_path, capsys, ["00097;7;1;1000;8,00;;;;;;"], ["00093;7;1;1000;8,00;;;;;;"], "--gleich", "00093=00097")
     assert rc == 0 and "Nummernwechsel" in out
 
 
