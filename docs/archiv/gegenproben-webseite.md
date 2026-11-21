@@ -457,3 +457,15 @@ Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
 | Nr. 4 – Lese-Ansicht nur im Archiv | auch für eine aktive Anfrage | 1 rot |
 | Nr. 4 – nur Text | Titel als HTML | 1 rot |
 | Nr. 4 – Zurückholen aus der Lese-Ansicht | ohne POST | 1 rot |
+
+## Antworten zum Bericht F1/F2/F4, 1.10.19: der Satz über der Gruppe „im Archiv“
+
+Probendatei im Scratchpad (`gp_1119.py` über `gegenprobe.py`), Lauf mit `tests/test_v790_satz_kunde_im_archiv.py`; alle 4 rot aus dem geprüften Grund, alle Dateien
+byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – einer im Archiv | alter Satz | 1 rot |
+| Nr. 1 – mehrere im Archiv | alter Satz | 1 rot |
+| Nr. 2 – keiner: bisheriger Satz | neuer Satz auch ohne Archiv | 1 rot |
+| Nr. 2 – mit aktivem Vorschlag kein Satz | Satz auch neben den Vorschlägen | 1 rot |

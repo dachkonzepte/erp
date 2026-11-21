@@ -345,10 +345,16 @@ function uebArchivHtml(liste,quelle,mehr){
   return `<h4>im Archiv</h4>`+liste.map(k=>`<div class="ueb-archiv-zeile"><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')}${(k.gruende||[]).length?' · '+esc(k.gruende.join(', ')):''} · im Archiv seit ${esc(berlinZeitpunkt(k.archiviert_am,'datum'))}</small></span>`
     +`<button type="button" class="ds-knopf" data-klick="uebArchivZurueckholen" data-id="${Number(k.id)}" data-quelle="${esc(quelle)}">Zurückholen und wählen</button></div>`).join('')+(mehr?`<div class="muted small">${esc(mehr)}</div>`:'');
 }
+// seit 1.10.19: passt kein aktiver, aber einer im Archiv, sagt der Satz das (bis 1.10.18 „Kein bestehender Kunde passt …“ über der Gruppe „im Archiv“)
+function uebKeinerText(archiv){
+  if(archiv.length===1)return 'Kein aktiver Kunde passt – aber einer im Archiv:';
+  if(archiv.length>1)return `Kein aktiver Kunde passt – aber ${archiv.length} im Archiv:`;
+  return 'Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.';
+}
 function uebVorschlagKundenZeichnen(){
   const v=uebVorschlag,gewaehlt=uebKundeAusSuche?null:uebKunde;
   document.getElementById('uebKunden').innerHTML=(v.kunden||[]).map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-aenderung="uebKundeWahl"${String(k.id)===gewaehlt?' checked':''}><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')} · ${esc((k.gruende||[]).join(', '))}</small></span></label>`).join('')
-    ||'<div class="muted small">Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.</div>';
+    ||'<div class="muted small">'+esc(uebKeinerText(v.kunden_archiv||[]))+'</div>';
   document.getElementById('uebKundenArchiv').innerHTML=uebArchivHtml(v.kunden_archiv||[],'vorschlag','');
 }
 function uebObjekteZeichnen(){

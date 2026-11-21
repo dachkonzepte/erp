@@ -1052,3 +1052,20 @@ schreibt nichts; die Seiten haben den Hinweis; in node die Lese-Ansicht der Anfr
 aus der Lese-Ansicht). Angepasste Erwartungen: `tests/test_v786_suche_im_archiv.py::test_ergebnisseite_ohne_link_mit_zurueckholen` -> `…_ansehen_und_zurueckholen`
 (bis 1.10.17 kein Link im Archiv, jetzt genau „ansehen“ je Treffer; Hinweistext), `klicktest_archiv_wiederfinden` „Suche: … ohne Link“ -> „je „ansehen“ und
 „Zurückholen und öffnen““ und „Hinweis zum Archiv“ (neuer Text). Gegenproben: `gegenproben-webseite.md`, „1.10.18“ (9, alle rot).
+
+### Umsetzung 1.10.19: der Satz über der Gruppe „im Archiv“
+
+Beim Übernehmen stand „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.“, auch wenn direkt darunter ein Kunde im Archiv mit
+„E-Mail gleich, Name gleich“ passte (Hinweis des Betriebs, 21.11.2026). Jetzt entscheidet `uebKeinerText()` in `webanfrage.html`: passt kein aktiver Kunde,
+aber einer im Archiv, heißt es „Kein aktiver Kunde passt – aber einer im Archiv:“ (bei mehreren „– aber n im Archiv:“); passt keiner, bleibt der bisherige Satz;
+passt ein aktiver, steht kein Satz.
+
+#### Festlegungen 1.10.19 (Bitte bestätigen)
+
+1. Passt kein aktiver Kunde, aber einer bzw. mehrere im Archiv: „Kein aktiver Kunde passt – aber einer im Archiv:“ bzw. „– aber n im Archiv:“.
+2. Passt keiner, bleibt „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.“; passt ein aktiver, steht kein Satz.
+
+#### Tests und Prüfung 1.10.19
+
+Neu `tests/test_v790_satz_kunde_im_archiv.py` (4 Tests in node: einer, zwei, keiner im Archiv; mit aktivem Vorschlag kein Satz). `klicktest_archiv_wiederfinden.py`
+prüft den Satz beim Übernehmen (49 Prüfungen). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „1.10.19“ (4, alle rot).

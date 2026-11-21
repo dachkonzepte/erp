@@ -114,6 +114,8 @@ async def _uebernehmen(tab, seed, p):
     wid = await tab.js(f"fetch('/api/webanfragen').then(r=>r.json()).then(l=>l.find(x=>x.nummer==='{NR}').id)")
     p.pruefe("Übernehmen geladen", await tab.oeffnen(f"/anfragen/webseite/{wid}", f"!{UEB}.hidden&&!!uebVorschlag"), True)
     await tab.warte_auf_ruhe()
+    p.pruefe("Vorschlag: der Satz nennt den Kunden im Archiv (seit 1.10.19)", await tab.js("document.getElementById('uebKunden').textContent"),
+             "Kein aktiver Kunde passt – aber einer im Archiv:")
     p.pruefe("Vorschlag: Wilma nur unter „im Archiv“, ohne Auswahlknopf", await tab.js(
         "[document.querySelectorAll('#uebKunden input[type=radio]').length,"
         "[...document.querySelectorAll('#uebKundenArchiv .ueb-archiv-zeile')].map(z=>[z.querySelector('b').textContent,!!z.querySelector('input'),"
