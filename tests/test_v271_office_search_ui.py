@@ -69,7 +69,7 @@ def test_search_results_page_type_filter_keys_match_the_registry():
     assert match, "TYPE_LABELS-Array nicht gefunden"
     keys = re.findall(r"\['([a-z_]+)','", match.group(1))
     assert set(keys) == EXPECTED_OFFICE_SEARCH_KEYS
-    assert len(keys) == len(OFFICE_SEARCH_SOURCES) == 19
+    assert len(keys) == len(OFFICE_SEARCH_SOURCES) == 20  # seit 1.10.15 mit „archiv“
     # Reihenfolge muss ebenfalls übereinstimmen -- eine abweichende Reihenfolge waere zwar
     # funktional harmlos (Filter wirken unabhaengig von der Anzeigereihenfolge), aber ein
     # stilles Auseinanderlaufen der beiden Listen ist genau das, was dieser Test verhindern soll.

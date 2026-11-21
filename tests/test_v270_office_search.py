@@ -17,7 +17,7 @@
    Lohn-/Einkaufsfeld, unabhängig von der Rolle -- strukturell garantiert, da jede Zeile
    ausschließlich {id, title, subtitle, url} trägt (OfficeSearchHitOut kappt zusätzlich)."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -35,8 +35,8 @@ from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert 
 EXPECTED_OFFICE_SEARCH_KEYS = frozenset({
     "customers", "properties", "roof_areas", "projects", "quotes", "orders", "invoices",
     "reminders", "inquiries", "tasks", "employees", "service_reports", "findings",
-    "maintenance_contracts", "services", "materials", "suppliers", "contacts", "operational_assets",
-})  # contacts seit 1.8.37 (Adressbuch)
+    "maintenance_contracts", "services", "materials", "suppliers", "contacts", "operational_assets", "archiv",
+})  # contacts seit 1.8.37 (Adressbuch), archiv seit 1.10.15 (Gruppe „im Archiv“)
 
 _FORBIDDEN_KEY_SUBSTRINGS = (
     "price", "preis", "purchase", "einkauf", "wage", "lohn", "gehalt", "cost", "kosten",
@@ -56,7 +56,7 @@ def _offending_keys(rows: list[dict]) -> list[str]:
 def test_registry_declares_exactly_the_expected_keys():
     actual = {s.key for s in OFFICE_SEARCH_SOURCES}
     assert actual == EXPECTED_OFFICE_SEARCH_KEYS
-    assert len(OFFICE_SEARCH_SOURCES) == 19
+    assert len(OFFICE_SEARCH_SOURCES) == 20  # seit 1.10.15 mit „archiv“
 
 
 def test_registry_allowed_roles_never_empty_and_never_include_field():
@@ -165,6 +165,8 @@ def _build_full_dataset(db, marker: str):
     db.add(Employee(first_name="Max", last_name=f"{marker}mann", hourly_wage=Decimal("999.99")))
 
     db.add(MaintenanceContract(customer_id=customer.id, title=f"{marker} Wartungsvertrag", next_due_date=date.today()))
+    # seit 1.10.15: ein Kunde im Archiv -- die Quelle „archiv“ (Gruppe „im Archiv“) hat damit einen Treffer
+    db.add(Customer(name=f"{marker} Archiv", last_name=f"{marker} Archiv", city="Teststadt", archiviert_am=datetime(2026, 11, 20, 9, 0)))
 
     report = ServiceReport(order_id=order.id, report_type="wartung", description=f"{marker} Bericht")
     db.add(report); db.flush()
@@ -203,7 +205,9 @@ def test_admin_finds_a_hit_in_every_single_group_and_no_row_ever_carries_extra_f
         assert group["total"] >= 1
         assert group["hits"], group["key"]
         for hit in group["hits"]:
-            assert set(hit.keys()) == {"id", "title", "subtitle", "url"}, f"{group['key']}: {hit}"
+            # seit 1.10.15 trägt nur die Gruppe „im Archiv“ dazu, was „Zurückholen und öffnen“ zurückholt
+            mehr = {"zurueckholen_art", "zurueckholen_id"} if group["key"] == "archiv" else set()
+            assert set(hit.keys()) == {"id", "title", "subtitle", "url"} | mehr, f"{group['key']}: {hit}"
     all_hits = [hit for g in groups for hit in g["hits"]]
     assert not _offending_keys(all_hits)
     assert not _offending_keys(groups)  # group-Dicts selbst tragen ebenfalls keine verbotenen Schlüssel
@@ -267,7 +271,9 @@ def test_office_search_router_office_and_admin_get_200_with_invoices_group(route
         assert not _offending_keys(all_hits)
         for group in body:
             for hit in group["hits"]:
-                assert set(hit.keys()) == {"id", "title", "subtitle", "url"}
+                # seit 1.10.15 trägt das Antwortschema zurueckholen_art/_id -- gesetzt nur in der Gruppe „im Archiv“
+                assert set(hit.keys()) == {"id", "title", "subtitle", "url", "zurueckholen_art", "zurueckholen_id"}
+                assert (hit["zurueckholen_art"] is None) == (group["key"] != "archiv")
 
 
 def test_office_search_router_limit_is_clamped_between_one_and_hundred(router_test_client, threaded_db_session):

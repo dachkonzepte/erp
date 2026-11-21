@@ -97,9 +97,10 @@ Regel in sichtbar_in_sql()), und zählt und begrenzt sie in SQL wie jede andere 
 from dataclasses import dataclass
 from typing import Callable
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, not_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import to_berlin
 from .contacts import (
     contact_display_name, contact_load_options, contact_search_filter, contact_sort_columns, contact_values,
     source_info, with_sources,
@@ -136,7 +137,17 @@ def _projekt_nicht_im_archiv():
     return or_(Project.archived.is_(False), exists().where(Order.project_id == Project.id))
 
 
-def _property_search_base_stmt(term: str):
+def _projekt_archiv(im_archiv: bool):
+    """Seit 1.10.15: der Filter der normalen Quellen bzw. sein Gegenteil für die Gruppe „im Archiv“ -- nie zwei Schreibweisen derselben Regel."""
+    return not_(_projekt_nicht_im_archiv()) if im_archiv else _projekt_nicht_im_archiv()
+
+
+def _archiv_filter(spalte, im_archiv: bool):
+    """Seit 1.10.15: archiviert_am leer (normale Quelle) bzw. gesetzt (Gruppe „im Archiv“)."""
+    return spalte.is_not(None) if im_archiv else spalte.is_(None)
+
+
+def _property_search_base_stmt(term: str, im_archiv: bool = False):
     """Reiner WHERE-/JOIN-Aufbau, geteilt von search_properties() (Monteurs-Suche) und
     _search_properties_office() (Büro-Suche, Quelle "properties") -- EIN Filter, zwei Aufrufer,
     kann nicht auseinanderlaufen (Muster: die Lehre aus build_customer_and_meta_block(), siehe
@@ -151,7 +162,8 @@ def _property_search_base_stmt(term: str):
             passt(Property.postal_code, term),
             passt(Property.city, term),
             passt(Customer.name, term),
-        ), Customer.archiviert_am.is_(None))  # seit 1.10.11: Objekte eines Kunden im Archiv fehlen (Büro und Monteurin)
+        ), _archiv_filter(Customer.archiviert_am, im_archiv))  # seit 1.10.11: Objekte eines Kunden im Archiv fehlen (Büro und Monteurin);
+        # seit 1.10.15 mit im_archiv=True nur sie (Gruppe „im Archiv“ der Büro-Suche -- die Monteurin nie)
     )
 
 
@@ -258,13 +270,17 @@ def _count_and_fetch(db: Session, stmt, order_by, limit: int, *, options: tuple 
 
 # --- Kunden ---
 
-def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
-    stmt = (
+def _kunden_stmt(term: str, im_archiv: bool = False):
+    return (
         select(Customer)
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-        .where(or_(passt(Customer.name, term), passt(CustomerProfile.customer_number, term)), Customer.archiviert_am.is_(None))  # 1.10.11: ohne Archiv
+        .where(or_(passt(Customer.name, term), passt(CustomerProfile.customer_number, term)),
+               _archiv_filter(Customer.archiviert_am, im_archiv))  # 1.10.11: ohne Archiv; 1.10.15: im_archiv=True nur das Archiv
     )
-    return _count_and_fetch(db, stmt, (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
+
+
+def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
+    return _count_and_fetch(db, _kunden_stmt(term), (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)  # wie die Kundenliste (1.9.355)
 
 
 def kunden_suchen(db: Session, text: str, limit: int) -> tuple[int, list]:
@@ -308,17 +324,20 @@ def _roof_area_row(r: RoofArea) -> dict:
 
 # --- Projekte ---
 
-def _search_projects(db: Session, term: str, limit: int) -> tuple[int, list]:
-    stmt = (
+def _projekte_stmt(term: str, im_archiv: bool = False):
+    return (
         select(Project)
         .join(Customer, Project.customer_id == Customer.id)
         .where(or_(
             passt(Project.project_number, term),
             passt(Project.name, term),
             passt(Customer.name, term),
-        ), _projekt_nicht_im_archiv())  # seit 1.10.11
+        ), _projekt_archiv(im_archiv))  # seit 1.10.11; im_archiv seit 1.10.15
     )
-    return _count_and_fetch(db, stmt, Project.id.desc(), limit, options=(selectinload(Project.customer),))
+
+
+def _search_projects(db: Session, term: str, limit: int) -> tuple[int, list]:
+    return _count_and_fetch(db, _projekte_stmt(term), Project.id.desc(), limit, options=(selectinload(Project.customer),))
 
 
 def _project_row(p: Project) -> dict:
@@ -327,20 +346,23 @@ def _project_row(p: Project) -> dict:
 
 # --- Angebote ---
 
-def _search_quotes(db: Session, term: str, limit: int) -> tuple[int, list]:
-    stmt = (
+def _angebote_stmt(term: str, im_archiv: bool = False):
+    return (
         select(Quote)
         .join(Project, Quote.project_id == Project.id)
         .join(Customer, Project.customer_id == Customer.id)
-        .where(_projekt_nicht_im_archiv())  # seit 1.10.11: Angebote eines Projekts im Archiv (ohne Auftrag) fehlen
+        .where(_projekt_archiv(im_archiv))  # seit 1.10.11: Angebote eines Projekts im Archiv (ohne Auftrag) fehlen; im_archiv seit 1.10.15
         .where(or_(
             passt(Quote.quote_number, term),
             passt(Quote.title, term),
             passt(Customer.name, term),
         ))
     )
+
+
+def _search_quotes(db: Session, term: str, limit: int) -> tuple[int, list]:
     return _count_and_fetch(
-        db, stmt, Quote.id.desc(), limit,
+        db, _angebote_stmt(term), Quote.id.desc(), limit,
         options=(selectinload(Quote.project).selectinload(Project.customer),),
     )
 
@@ -414,17 +436,20 @@ def _reminder_row(r: Reminder) -> dict:
 
 # --- Anfragen ---
 
-def _search_inquiries(db: Session, term: str, limit: int) -> tuple[int, list]:
-    stmt = (
+def _anfragen_stmt(term: str, im_archiv: bool = False):
+    return (
         select(Inquiry)
         .join(Customer, Inquiry.customer_id == Customer.id)
         .where(or_(
             passt(Inquiry.inquiry_number, term),
             passt(Inquiry.title, term),
             passt(Customer.name, term),
-        ), Inquiry.archiviert_am.is_(None))  # seit 1.10.11: ohne Archiv
+        ), _archiv_filter(Inquiry.archiviert_am, im_archiv))  # seit 1.10.11: ohne Archiv; im_archiv seit 1.10.15
     )
-    return _count_and_fetch(db, stmt, Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))
+
+
+def _search_inquiries(db: Session, term: str, limit: int) -> tuple[int, list]:
+    return _count_and_fetch(db, _anfragen_stmt(term), Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))
 
 
 def _inquiry_row(i: Inquiry) -> dict:
@@ -662,6 +687,54 @@ def _contact_row(c: Contact) -> dict:
     return {"id": c.id, "title": contact_display_name(c), "subtitle": sub or None, "url": f"/master-data/contacts/{c.id}/edit"}
 
 
+# --- im Archiv (seit 1.10.15, Antwort F4 vom 21.11.2026): Kunden, Objekte (eines Kunden im Archiv), Anfragen, Projekte ohne Auftrag und deren Angebote
+# im Archiv -- dieselben Suchen wie oben mit dem umgekehrten Archivfilter, in dieser Reihenfolge, zusammen höchstens `limit`. Jeder Treffer nennt, was
+# „Zurückholen und öffnen“ zurückholt (zurueckholen_art/_id, wie POST /api/aufbewahrung/{art}/{id}/zurueckholen): ein Objekt seinen Kunden, ein
+# Angebot sein Projekt. Gewählt wird nur darüber -- die Seite verlinkt diese Treffer nicht. Die Suche der Monteurin kennt die Quelle nicht. ---
+
+ARCHIV_ARTEN = {"kunde": "Kunde", "objekt": "Objekt", "anfrage": "Anfrage", "projekt": "Projekt", "angebot": "Angebot"}
+
+
+def _search_archiv(db: Session, term: str, limit: int) -> tuple[int, list]:
+    teile = [
+        ("kunde", _count_and_fetch(db, _kunden_stmt(term, True), (*nach_namen(Customer.last_name, Customer.first_name), Customer.id), limit)),
+        ("objekt", _count_and_fetch(db, _property_search_base_stmt(term, True), (*nach_namen(Property.name), Property.id), limit,
+                                    options=(selectinload(Property.customer),))),
+        ("anfrage", _count_and_fetch(db, _anfragen_stmt(term, True), Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))),
+        ("projekt", _count_and_fetch(db, _projekte_stmt(term, True), Project.id.desc(), limit, options=(selectinload(Project.customer),))),
+        ("angebot", _count_and_fetch(db, _angebote_stmt(term, True), Quote.id.desc(), limit,
+                                     options=(selectinload(Quote.project).selectinload(Project.customer),))),
+    ]
+    gesamt = sum(anzahl for _, (anzahl, _) in teile)
+    zeilen = [(art, x) for art, (_, treffer) in teile for x in treffer]
+    return gesamt, zeilen[:limit]
+
+
+def archiv_seit(wert) -> str:
+    """„im Archiv seit TT.MM.JJJJ“ (Tag in Berlin); ohne Zeitpunkt (vor 1.10.11 von Hand archiviert) nur „im Archiv“."""
+    return f"im Archiv seit {to_berlin(wert):%d.%m.%Y}" if wert else "im Archiv"
+
+
+def _archiv_row(eintrag) -> dict:
+    art, x = eintrag
+    if art == "kunde":
+        teile, titel, url, ziel = (x.customer_number, x.city, archiv_seit(x.archiviert_am)), x.name, f"/customers/{x.id}", ("kunde", x.id)
+    elif art == "objekt":
+        teile = (x.customer.name, x.city, "Kunde " + archiv_seit(x.customer.archiviert_am))
+        titel, url, ziel = x.name, f"/properties/{x.id}", ("kunde", x.customer_id)
+    elif art == "anfrage":
+        teile = (x.customer.name, archiv_seit(x.archiviert_am))
+        titel, url, ziel = f"{x.inquiry_number} · {x.title}", f"/inquiries?inquiry={x.id}", ("anfrage", x.id)
+    elif art == "projekt":
+        teile = (x.customer.name, archiv_seit(x.archiviert_am))
+        titel, url, ziel = f"{x.project_number} · {x.name}", f"/projects/{x.id}", ("projekt", x.id)
+    else:
+        teile = (x.project.customer.name, "Projekt " + archiv_seit(x.project.archiviert_am))
+        titel, url, ziel = f"{x.quote_number} · {x.title}", f"/quotes/{x.id}/edit", ("projekt", x.project_id)
+    return {"id": x.id, "title": titel, "subtitle": " · ".join(t for t in (ARCHIV_ARTEN[art], *teile) if t), "url": url,
+            "zurueckholen_art": ziel[0], "zurueckholen_id": ziel[1]}
+
+
 # --- Die Registry selbst -- siehe tests/test_v270_office_search.py für die erzwungene
 # Vollständigkeitsprüfung (EXPECTED_OFFICE_SEARCH_KEYS), gebaut ZUSAMMEN mit dieser Liste, nicht
 # danach (ausdrückliche Vorgabe, siehe CLAUDE.md "Büro-Suche"). ---
@@ -689,6 +762,7 @@ OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
         "operational_assets", "Betriebsmittel", OFFICE_ROLES, _search_operational_assets, _operational_asset_row,
         module_key="betriebsmittel",
     ),
+    SearchSource("archiv", "im Archiv", OFFICE_ROLES, _search_archiv, _archiv_row),  # seit 1.10.15 (Antwort F4), immer zuletzt
 )
 
 

@@ -389,3 +389,25 @@ geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
 | Nr. 1 – die Monteurin sieht ihn nicht | -- (die Monteurin hat seit 1.8.164 keine Leiste; `test_monteurin_ohne_eintrag_und_ohne_seite` hält es fest) | -- |
 | Nr. 2 – die Seite markiert „Aufbewahrung“ | `bereich = "anfragen"` | 3 rot |
 | Nr. 3 – die Kachel bleibt | Kachel aus den Vorgaben entfernt | 1 rot |
+
+## Antworten zum Bericht W1c, 1.10.15: Büro-Suche mit der Gruppe „im Archiv“
+
+Probendateien im Scratchpad (`gp_1115.py`, `gp_1115b.py` über `gegenprobe.py`), Lauf mit `tests/test_v786_suche_im_archiv.py`; alle 12 rot aus dem geprüften Grund (je
+FAILED, kein ERROR), alle Dateien byte-gleich zurück. Nr. 2 (Objekt bzw. Angebot holt sich selbst statt Kunde bzw. Projekt zurück) blieb im ersten Lauf grün: in den
+Testdaten hatten Objekt und Kunde, Angebot und Projekt zufällig dieselbe ID. Test nachgezogen (vorweg ein anderer Kunde mit zwei Objekten und einem Projekt, die IDs
+verschieden, im Test geprüft), dieselben Gegenproben noch einmal: rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – alle fünf Arten | ohne Objekte im Archiv | 4 rot |
+| Nr. 1 – übrige Gruppen ohne Archiv | Archivfilter der Kunden aus | 2 rot |
+| Nr. 1 – zuletzt | Quelle „archiv“ zuerst | 1 rot |
+| Nr. 1 – zusammen höchstens so viele wie eine Gruppe | nicht gekürzt | 1 rot |
+| Nr. 2 – Objekt holt seinen Kunden zurück | Objekt holt sich selbst | erst grün, nach dem Nachziehen 2 rot |
+| Nr. 2 – Angebot holt sein Projekt zurück | Angebot holt sich selbst | erst grün, nach dem Nachziehen 1 rot |
+| Nr. 2 – kein Link | Treffer mit Link | 1 rot |
+| Nr. 2 – erst zurückholen, dann öffnen | öffnen ohne POST | 1 rot |
+| Nr. 3 – Tag in Berlin | Tag aus UTC | 1 rot |
+| Nr. 4 – Kopfzeile ohne Treffer aus dem Archiv | Archiv als Treffer | 1 rot |
+| Nr. 5 – Suche der Monteurin ohne Archiv | Vorgabe im_archiv=True | 1 rot |
+| Nr. 5 – Kalender (Typenfilter) ohne Archiv | „archiv“ trotz Typenfilter | 1 rot |

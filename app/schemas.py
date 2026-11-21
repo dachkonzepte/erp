@@ -585,6 +585,9 @@ class OfficeSearchHitOut(BaseModel):
     title: str
     subtitle: str | None
     url: str
+    # seit 1.10.15 nur in der Gruppe „im Archiv“: was „Zurückholen und öffnen“ zurückholt (POST /api/aufbewahrung/{art}/{id}/zurueckholen)
+    zurueckholen_art: str | None = None
+    zurueckholen_id: int | None = None
 
 
 class OfficeSearchGroupOut(BaseModel):

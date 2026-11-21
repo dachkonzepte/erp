@@ -913,3 +913,43 @@ Module): Luft unter dem letzten Eintrag bei 1280 × 800 1,1 px für Admin und B�
 `tests/test_v253_sidebar_layout.py::test_vier_gruppen_in_reihenfolge` (Verwaltung: stammdaten, einstellungen -> stammdaten, aufbewahrung, einstellungen),
 `tests/test_v417_neue_ordnung.py::SEITENLEISTE` und `scripts/klicktest_neue_ordnung.py::SEITENLEISTE_BUERO` (ebenso), `tests/test_v441_rahmen_baustein.py::BEREICHE`
 (um „aufbewahrung“). Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.14“ (4, alle rot).
+
+### Umsetzung 1.10.15: Büro-Suche mit der Gruppe „im Archiv“
+
+- `app/search.py`: die Abfragen der Quellen Kunden, Objekte, Anfragen, Projekte und Angebote stehen je einmal (`_kunden_stmt()`, `_property_search_base_stmt()`,
+  `_anfragen_stmt()`, `_projekte_stmt()`, `_angebote_stmt()`) mit dem Archivfilter als Parameter (`_archiv_filter()`, `_projekt_archiv()` -- das Gegenteil von
+  `_projekt_nicht_im_archiv()`, nie eine zweite Schreibweise). Die normalen Quellen nehmen sie ohne Archiv wie bisher, die neue Quelle `archiv` („im Archiv“,
+  zuletzt in der Registry) mit: Kunden im Archiv, Objekte eines Kunden im Archiv, Anfragen im Archiv, Projekte ohne Auftrag im Archiv und deren Angebote --
+  in dieser Reihenfolge, je wie ihre Quelle sortiert, zusammen höchstens `limit`, die Zahl über alle (`_search_archiv()`).
+- Jeder Treffer: Art vorn im Untertitel, „im Archiv seit TT.MM.JJJJ“ (Tag in Berlin; ohne Zeitpunkt -- vor 1.10.11 von Hand archiviert -- nur „im Archiv“), beim
+  Objekt „Kunde im Archiv seit …“, beim Angebot „Projekt im Archiv seit …“; dazu `zurueckholen_art`/`zurueckholen_id` (`OfficeSearchHitOut`): ein Objekt holt
+  seinen Kunden zurück, ein Angebot sein Projekt, eine Anfrage mit Projekt ihr Projekt (wie `app/aufbewahrung.py::zurueckholen()`).
+- Ergebnisseite (`search_results.html`): Filter „im Archiv“; die Gruppe hat einen Hinweis und keine Links -- je Treffer „Zurückholen und öffnen“
+  (`POST /api/aufbewahrung/{art}/{id}/zurueckholen`, jedes Büro, über `speichern()`; danach die Seite des Treffers). Kopfzeile (`_topbar.html`): keine Treffer aus
+  dem Archiv, stattdessen eine Zeile „n Treffer im Archiv“, die die Suche mit Filter „im Archiv“ öffnet.
+- Ohne Archiv bleiben: die Suche der Monteurin (`search_properties_for_field()`), die Verknüpfung im Kalender (`types=projects,quotes`), „Beteiligten hinzufügen“
+  (`office_source("customers")`) und alle Listen.
+
+#### Festlegungen 1.10.15 (Bitte bestätigen)
+
+1. Die Büro-Suche zeigt Kunden, Objekte eines Kunden im Archiv, Anfragen, Projekte ohne Auftrag und deren Angebote im Archiv in einer eigenen Gruppe
+   „im Archiv“, immer zuletzt, zusammen höchstens so viele wie eine Gruppe; die übrigen Gruppen bleiben ohne Archiv. Eingänge der Webseite sucht die
+   Büro-Suche nicht (wie bisher).
+2. Ein Treffer im Archiv ist kein Link; geöffnet wird er nur über „Zurückholen und öffnen“ -- jedes Büro, danach zählen die 6 Monate neu. Ein Objekt holt
+   seinen Kunden zurück, ein Angebot sein Projekt; die übrigen Vorgänge des Kunden bleiben im Archiv.
+3. Der Treffer nennt die Art und „im Archiv seit TT.MM.JJJJ“ (Tag in Berlin).
+4. Die Kopfzeile zeigt keine Treffer aus dem Archiv, nur eine Zeile „n Treffer im Archiv“ in die Suche (Filter „im Archiv“).
+5. Ohne Archiv bleiben die Suche der Monteurin, die Verknüpfung im Kalender, „Beteiligten hinzufügen“ und die Listen.
+
+#### Tests und Prüfung 1.10.15
+
+Neu `tests/test_v786_suche_im_archiv.py` (12 Tests: Gruppe zuletzt mit allen fünf Arten und dem, was zurückgeholt wird; übrige Gruppen ohne Archiv; „im Archiv
+seit“ als Tag in Berlin (23:30 UTC -> nächster Tag); ohne Zeitpunkt nur „im Archiv“; ein archiviertes Projekt mit Auftrag bleibt unter „Projekte“; Grenze über
+alle Arten, Zahl über alle; Typenfilter (Kalender), Suche der Monteurin und „Beteiligten hinzufügen“ ohne Archiv; über die Schnittstelle zurückholen -- danach der
+Kunde unter „Kunden“, seine Vorgänge weiter im Archiv; Monteurin 403; in node die Ergebnisseite ohne Link mit „Zurückholen und öffnen“ und der Ablauf
+zurückholen -> öffnen; die Kopfzeile mit einer Zeile ins Archiv). Neu `scripts/klicktest_archiv_wiederfinden.py` (20 Prüfungen: Kopfzeile, Suche mit Filter, ohne
+Link, 412 px hell und dunkel ohne Überlauf, Zurückholen und öffnen am Objekt, Kundenakte ohne Hinweis, danach die Gruppen; Monteurin 403; Bilder). Angepasste
+Erwartungen: `tests/test_v270_office_search.py` (EXPECTED_OFFICE_SEARCH_KEYS um „archiv“, 19 -> 20 Quellen; die Testdaten um einen Kunden im Archiv, damit jede
+Gruppe einen Treffer hat; Schlüssel je Treffer: id, title, subtitle, url -- in der Gruppe „im Archiv“ dazu zurueckholen_art/_id, über die Schnittstelle an jedem
+Treffer, gesetzt nur dort), `tests/test_v271_office_search_ui.py` (19 -> 20). Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.15“ (12, alle rot; zwei
+zunächst grün, Test nachgezogen).

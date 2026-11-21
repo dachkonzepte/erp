@@ -83,19 +83,22 @@
   var searchResults=document.getElementById('appTopbarSearchResults');
   if(searchInput && searchResults){
     var escHtml=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
-    var renderSuggestions=function(groups){
-      var rows=[];
+    var renderSuggestions=function(groups,q){
+      var rows=[],archiv=null;
       groups.forEach(function(g){
+        if(g.key==='archiv'){archiv=g;return}  // seit 1.10.15: nicht als Treffer, sondern eine Zeile in die Suche (dort „Zurückholen und öffnen“)
         g.hits.slice(0,4).forEach(function(h){
           rows.push('<a class="app-topbar-search-hit" href="'+escHtml(sichererLink(h.url))+'"><div class="grp">'+escHtml(g.label)+'</div><div class="ttl">'+escHtml(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+escHtml(h.subtitle)+'</div>':'')+'</a>');
         });
       });
+      rows=rows.slice(0,archiv?9:10);
+      if(archiv)rows.push('<a class="app-topbar-search-hit" href="/suche?q='+escHtml(encodeURIComponent(q))+'&amp;types=archiv"><div class="grp">im Archiv</div><div class="ttl">'+escHtml(archiv.total)+' Treffer im Archiv</div><div class="sub">in der Suche zurückholen und öffnen</div></a>');
       if(!rows.length){
         searchResults.innerHTML='<div class="app-topbar-search-note">Keine Treffer.</div>';
         searchResults.hidden=false;
         return;
       }
-      searchResults.innerHTML=rows.slice(0,10).join('');
+      searchResults.innerHTML=rows.join('');
       searchResults.hidden=false;
     };
     var runTopbarSearch=function(){
@@ -105,7 +108,7 @@
         if(!r.ok)return [];
         return r.json();
       }).then(function(groups){
-        renderSuggestions(groups||[]);
+        renderSuggestions(groups||[],q);
       }).catch(function(){
         searchResults.hidden=true;
       });
