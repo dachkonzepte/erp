@@ -376,3 +376,16 @@ rot aus dem geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich z
 | Nr. 5 – Rückfrage | ohne Rückfrage | 1 rot |
 | Nr. 5 – abschließend | `speichern()` statt `abschliessen()` | 1 rot (Wächter `test_v399`) |
 | Nr. 6 / 1 – Knöpfe nur mit Recht | Knopf für jedes Büro | 1 rot |
+
+## Antworten zum Bericht W1c, 1.10.14: „Aufbewahrung“ in der Leiste
+
+Probendatei im Scratchpad (`gp_1114.py` über `gegenprobe.py`), Lauf mit `tests/test_v785_aufbewahrung_leiste.py` (Nr. 1a auch `test_v417`); alle 4 rot aus dem
+geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – für jedes Büro | Eintrag nur mit `sb_finanzen` | 3 rot (Büro – Auftrag) |
+| Nr. 1 – zwischen Stammdaten und Einstellungen | Eintrag hinter „Einstellungen“ | 3 rot |
+| Nr. 1 – die Monteurin sieht ihn nicht | -- (die Monteurin hat seit 1.8.164 keine Leiste; `test_monteurin_ohne_eintrag_und_ohne_seite` hält es fest) | -- |
+| Nr. 2 – die Seite markiert „Aufbewahrung“ | `bereich = "anfragen"` | 3 rot |
+| Nr. 3 – die Kachel bleibt | Kachel aus den Vorgaben entfernt | 1 rot |

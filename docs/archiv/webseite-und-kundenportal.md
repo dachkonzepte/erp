@@ -585,7 +585,7 @@ Runden: 1.10.9 Fremdschlüssel Objektdokument → Eingang (Punkt 5), 1.10.10 Kon
   `substr`/`length`/`||` wie unter SQLite so unter PostgreSQL, kein `LIKE` mit der Nummer). `downgrade()` nimmt nur die Spalte weg. Auf dem Server sind
   heute 0 Eingänge übernommen -- der Bestand bleibt leer.
 
-#### Festlegungen 1.10.9 (Bitte bestätigen)
+#### Festlegungen 1.10.9 (bestätigt am 21.11.2026)
 
 1. Jede Fotokopie, die das Übernehmen ans Objekt legt, trägt ihren Eingang als Fremdschlüssel; Beschreibung und Dateiname bleiben wie bisher.
 2. Ein von Hand hochgeladenes Objektdokument trägt nie einen Eingang -- auch nicht mit derselben Beschreibung.
@@ -618,7 +618,7 @@ stehen -- unter SQLite und PostgreSQL). Angepasste Erwartungen: keine. Gegenprob
   (`app/konto_loeschen.py::BEREICHE`, „Kontaktvermerke“).
 - Für die Aufbewahrung zählt ein Vermerk ab 1.10.11 (`app/aufbewahrung.py`); in 1.10.10 wird er nur gespeichert und gezeigt.
 
-#### Festlegungen 1.10.10 (Bitte bestätigen)
+#### Festlegungen 1.10.10 (bestätigt am 21.11.2026)
 
 1. „Kontakt vermerken“ gibt es an der Anfrage (Knopf im Editor), am Projekt (⋮ der Akte) und am Kunden (⋮ der Kundenakte) -- ein gemeinsamer Dialog.
 2. Ein Vermerk hat nur Tag und Weg (Telefon, E-Mail, Brief, Gespräch, Sonstiges); es gibt keine Spalte für einen Inhalt, jedes weitere Feld lehnt der Server ab.
@@ -692,7 +692,7 @@ Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.10“ (17 über pytest, ein
   gewählt („(im Archiv)“), neu angeboten werden nur aktive. Die Kundenakte lädt ihre Objekte und Anfragen samt Archiv. Die Seite „Aufbewahrung“ und die
   Erinnerung auf „Start“ kommen mit 1.10.12.
 
-#### Festlegungen 1.10.11 (Bitte bestätigen)
+#### Festlegungen 1.10.11 (bestätigt am 21.11.2026)
 
 1. Einheiten: Eingang ohne Übernahme (neu oder verworfen mit „Sonstiges“), Anfrage ohne Projekt mit ihrem Eingang, Projekt ohne Auftrag (keine Zeile in
    `orders`, auch keine stornierte; kein Mustervorgang) mit Anfrage und Eingang. Am Projekt gilt das vorhandene „archiviert“, dazu Zeitpunkt und Konto.
@@ -764,7 +764,7 @@ Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.11“ (33, alle rot).
 - Nebenbefund behoben: auf „Anfragen der Webseite“ stand die Zahl am Reiter auch bei 0 („0“ am Reiter Eingang bzw. Prüfliste) -- `display:inline-flex`
   der Klasse überstimmte `hidden` (seit 1.10.4). Jetzt `.reiter-zahl[hidden]{display:none}`, auf beiden Seiten; der Klicktest misst die Sichtbarkeit.
 
-#### Festlegungen 1.10.12 (Bitte bestätigen)
+#### Festlegungen 1.10.12 (bestätigt am 21.11.2026)
 
 1. Die Seite „Aufbewahrung“ liest jedes Büro; archivieren (einzeln und „Alle fälligen archivieren“) nur Admin und Büro – Finanzen, die anderen sehen den
    Hinweis; zurückholen jedes Büro; die Monteurin bekommt die Seite nicht.
@@ -774,7 +774,8 @@ Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.11“ (33, alle rot).
 4. Die Kachel „Aufbewahrung“ steht auf „Start“ direkt unter „Anfragen der Webseite“, für jedes Büro; sie nennt die Zahl, seit wann und die unbearbeiteten
    Eingänge, ohne Fälliges den Weg ins Archiv.
 5. Kundenakte und Eingang der Webseite sagen „im Archiv seit …“; die Kundenakte holt zurück, der Eingang zeigt im Archiv keine Aktion.
-6. Kein eigener Eintrag in der Leiste -- der Weg ist die Kachel auf „Start“.
+6. Kein eigener Eintrag in der Leiste -- der Weg ist die Kachel auf „Start“. (Seit 1.10.14 überholt, Antwort F1 vom 21.11.2026: „Aufbewahrung“ steht in
+   der Leiste unter Verwaltung.)
 7. Eine Zahl am Reiter steht nur, wenn sie über 0 ist (Aufbewahrung und Anfragen der Webseite).
 
 #### Tests und Prüfung 1.10.12
@@ -809,7 +810,7 @@ Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.12“ (11 über pytest, ein
 - Seite „Aufbewahrung“: Karte „Zum Löschen“ oben in „Fällig“ (Nummer, Betreff, verworfen als, Eingang, fällig ab, Dateien), „Löschen“ und „Alle löschen“ nur
   mit Recht, mit Rückfrage und als abschließende Aktion (`abschliessen()`, `ABSCHLIESSEND`); Stand und Kachel auf „Start“ nennen „n zum Löschen“.
 
-#### Festlegungen 1.10.13 (Bitte bestätigen)
+#### Festlegungen 1.10.13 (bestätigt am 21.11.2026)
 
 1. Gelöscht wird ein Eingang, der als Spam, Test oder Doppelt verworfen ist, 6 Monate nach dem Eingang (ohne Eingangszeit: nach dem Abholen) -- nur nach
    Bestätigung durch Admin oder Büro – Finanzen, einzeln oder gesammelt (nur die Liste der Seite, Prüfsumme).
@@ -850,6 +851,10 @@ Archiv kommt, frühestens am 01.01.2030. Gebaut erst nach dem Rechtsberater.
   einordnet (geht mit, bleibt, sperrt); Vorschau, Bestätigung (Admin, Büro – Finanzen), Erinnerung auf „Start“ wie in Stufe 1.
 - **Betreiber**: Aufbewahrung der Server-Sicherungen auf dem NAS prüfen -- die Daten fallen mit der Aufbewahrung der Sicherungen heraus (Server 14 Tage);
   das gehört in die Datenschutzerklärung.
+- **Ansprechpartner vor Ort aus einer Anfrage (Antwort F5 vom 21.11.2026)**: geht eine Anfrage eines Mieters ins Löschen bzw. Anonymisieren, während ihr
+  Objekt mit der Hausverwaltung bleibt, leert Stufe 2 Name und Telefon des Ansprechpartners vor Ort am Objekt -- nur, wenn sie aus dieser Anfrage stammen
+  (beim Übernehmen gesetzt) und seither unverändert sind; sonst bleibt der Ansprechpartner. Dafür muss das Übernehmen festhalten, was es gesetzt hat (heute
+  nicht gespeichert -- Teil des Baus von Stufe 2).
 - **Rechtsberater (F3)**: (a) versendete Angebote und Anfragen ohne Auftrag -- Handelsbrief mit 6 Jahren oder keine Pflicht; (c) trägt eine pauschale Frist von
   3 Jahren ohne konkreten Anlass; (d) reicht das Anonymisieren als Löschung (auch mit Sicherungen und Historie); (e) die Datenschutzerklärung nennt dann
   Zweck und Rechtsgrundlage des Anonymisierens.
@@ -863,4 +868,48 @@ nach der Adressnummer), (3) das Rückgängigmachen eines Importlaufs -- nur, sol
 Zeilen der Arbeitsliste (offen, als Objekt zugeordnet oder verworfen) oder abgelehnte; welche, zeigt ein Nur-Lese-Befehl (im Bericht). Vorschlag: (a) die
 offene Arbeitsliste abarbeiten; (b) danach in allen Rohzeilen die personenbezogenen Spalten leeren und nur Adressnummer, Art, Status, Erledigung und die
 Verweise behalten -- das reicht für die Wiedererkennung, das Rückgängigmachen eines alten Laufs entfällt; (c) ist kein Import aus dem Altsystem mehr geplant, die
-Rohzeilen ganz löschen. Entscheidung des Betriebs; gebaut als eigene kleine Version mit Vorschau und Bestätigung.
+Rohzeilen ganz löschen. Entscheidung des Betriebs; gebaut als eigene kleine Version mit Vorschau und Bestätigung. Stand 21.11.2026: die Antwort auf F3
+(kommt noch ein Import aus dem Altsystem?) steht aus -- nichts gebaut.
+
+### Antworten des Betriebs zum Bericht W1c (21.11.2026)
+
+Festlegungen 1.10.9-1 bis 1.10.13-6 bestätigt. Geprüft auf Nachfrage: „Kontakt vermerken“ startet mit leerem Weg („Bitte wählen“, Festlegung 1.10.10 Nr. 3;
+`klicktest_kontakt_vermerken.py` prüft das beim Öffnen) -- im Bild der Akte stand „Telefon“, weil der Klicktest direkt davor einen Tag in der Zukunft mit
+„Telefon“ versucht hatte (abgelehnt, die Eingabe bleibt zum Korrigieren stehen). Seit 1.10.14 legt der Klicktest zusätzlich ein Bild des frisch geöffneten
+Dialogs ab.
+
+- **F1** ja: „Aufbewahrung“ in die Leiste unter Verwaltung, nur für die Rollen, die die Seite lesen (die Kachel auf „Start“ lässt sich entfernen) -- 1.10.14.
+- **F2** ja, ein Commit: das Paar aus den Mustern ist erfunden (00093 -> 00097, über 00299 00350/00360) -- Commit „1.10.13 (Muster)“ vor 1.10.14.
+- **F3** offen (Punkt 7: kommt noch ein Import aus dem Altsystem?) -- die Antwort im Bericht war nicht ausgefüllt.
+- **F4** ja, weiter gefasst: Archiv heißt „aus dem Alltag raus“, nicht „unauffindbar“ (die Datenschutzerklärung verspricht, eine Anfrage wieder aufzunehmen,
+  wenn sich jemand erneut meldet). Büro-Suche, Kundenauswahl bei „Neue Anfrage“ und Übernehmen (Vorschlag und „Anderen bestehenden Kunden wählen“) zeigen
+  Kunden und Vorgänge im Archiv in einer eigenen Gruppe „im Archiv“; gewählt wird nur über „zurückholen und wählen“. Listen und die Suche der Monteurin
+  bleiben ohne Archiv -- 1.10.15 bis 1.10.17.
+- **F5** ja für Stufe 2, nur wenn der Ansprechpartner aus dieser Anfrage stammt und seither unverändert ist (unter „Stufe 2“ festgehalten).
+- **F6** so lassen: kein „Kunde archivieren“ im „⋮“ der Kundenakte, ins Archiv nur über „Aufbewahrung“.
+
+### Umsetzung 1.10.14: „Aufbewahrung“ in der Leiste
+
+- `_sidebar.html`: Eintrag „Aufbewahrung“ in der Gruppe Verwaltung zwischen Stammdaten und Einstellungen, für jedes Büro (`sb_buero` -- dieselben Rollen wie
+  die Seite, `require_min_role(buero_auftrag)`); die Monteurin hat keine Leiste.
+- `aufbewahrung.html` nennt `bereich = "aufbewahrung"` (bis 1.10.13 „anfragen“) -- die Seite markiert ihren eigenen Eintrag.
+- Die Kachel auf „Start“ bleibt.
+- Leiste bei 1280 × 800 weiter ohne Bildlauf (`klicktest_rahmen.py`, Admin mit allen Modulen: der letzte Eintrag passt mit etwa 1 px) -- ein weiterer Eintrag
+  in der Leiste bräuchte eine Entscheidung (kleinere Zeilen, Gruppe einklappen oder Bildlauf zulassen).
+
+#### Festlegungen 1.10.14 (Bitte bestätigen)
+
+1. „Aufbewahrung“ steht in der Leiste unter Verwaltung zwischen Stammdaten und Einstellungen, für Admin, Büro – Finanzen und Büro – Auftrag; die Monteurin
+   sieht ihn nicht.
+2. Auf der Seite „Aufbewahrung“ ist „Aufbewahrung“ markiert, nicht mehr „Anfragen“.
+3. Die Kachel auf „Start“ bleibt daneben.
+
+#### Tests und Prüfung 1.10.14
+
+Neu `tests/test_v785_aufbewahrung_leiste.py` (8 Tests: je Büro-Rolle der Eintrag unter Verwaltung zwischen Stammdaten und Einstellungen, nicht aktiv, die Seite
+öffnet; die Monteurin ohne Eintrag und ohne Seite; die Seite markiert ihren Eintrag; die Kachel auf „Start“ bleibt). Gemessen (Instanz der Bildgrundlage, alle
+Module): Luft unter dem letzten Eintrag bei 1280 × 800 1,1 px für Admin und Büro – Finanzen, 73 px für Büro – Auftrag; bei 1440 × 900 101 bzw. 173 px.
+`klicktest_kontakt_vermerken.py` legt zusätzlich das Bild des frisch geöffneten Dialogs ab („kontakt_dialog_frisch_1440_hell“). Angepasste Erwartungen (Aufbau):
+`tests/test_v253_sidebar_layout.py::test_vier_gruppen_in_reihenfolge` (Verwaltung: stammdaten, einstellungen -> stammdaten, aufbewahrung, einstellungen),
+`tests/test_v417_neue_ordnung.py::SEITENLEISTE` und `scripts/klicktest_neue_ordnung.py::SEITENLEISTE_BUERO` (ebenso), `tests/test_v441_rahmen_baustein.py::BEREICHE`
+(um „aufbewahrung“). Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.14“ (4, alle rot).

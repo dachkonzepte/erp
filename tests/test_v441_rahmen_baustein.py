@@ -28,7 +28,7 @@ DS_BASIS = STATIC_DIR / "ds" / "ds-basis.css"
 
 # Die Bereiche der Seitenleiste (seit 1.8.162 je ein Eintrag) und "keiner" (Suche, Konto) -- eine Seite mit Seitenleiste nennt einen davon
 BEREICHE = {"start", "aufgaben", "kalender", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde", "finanzen",
-            "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiten", "stammdaten", "einstellungen", "keiner"}
+            "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiten", "stammdaten", "aufbewahrung", "einstellungen", "keiner"}  # aufbewahrung seit 1.10.14
 # seit 1.9.98 „zeiten“ statt „zeiterfassung“ und „backoffice“ (ein Eintrag „Zeiten“ in der Leiste)
 # Seiten, die auf das Design-System umgezogen sind (<body class="… ds-seite …">) -- wird mit jedem Umzug länger
 UMGEZOGEN: set[str] = {"inspection_templates.html"}  # seit 1.9.3 (Pilot)

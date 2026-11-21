@@ -74,6 +74,7 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('kontaktBezug').textContent,document.getElementById('kontaktTag').value===berlinToday(),"
         "document.getElementById('kontaktTag').max===berlinToday(),document.getElementById('kontaktWeg').value]"),
         ["AN-2026-0901 · Undichtes Vordach", True, True, ""])
+    await tab.bild("kontakt_dialog_frisch_1440_hell")  # seit 1.10.14: Weg leer („Bitte wählen“), Tag heute
     p.pruefe("Anfrage: ohne Weg nichts gesendet", await _vermerken(tab, "berlinToday()", ""), "Bitte den Weg wählen.")
     p.pruefe("Anfrage: mit Telefon vermerkt", await _vermerken(tab, "berlinToday()", "telefon"), "Vermerkt.")
     zeilen = await tab.js(LISTE)

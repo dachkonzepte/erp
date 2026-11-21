@@ -24,7 +24,7 @@ SEITENLEISTE = [
     ("Übersicht", ["Start", "Aufgaben", "Kalender"]),
     ("Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]),
     ("Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiten"]),  # seit 1.9.98 ein Eintrag „Zeiten“
-    ("Verwaltung", ["Stammdaten", "Einstellungen"]),
+    ("Verwaltung", ["Stammdaten", "Aufbewahrung", "Einstellungen"]),  # Aufbewahrung seit 1.10.14
 ]
 
 # Bereiche, die nur ein Administrator speichern darf, mit den Anfängen ihrer Schreibwege.

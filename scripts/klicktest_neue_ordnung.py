@@ -42,7 +42,7 @@ SEITENLEISTE_BUERO = [
     ["Übersicht", ["Start", "Aufgaben", "Kalender"]],
     ["Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]],
     ["Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiten"]],  # bis 1.9.97 Zeiterfassung, Backoffice
-    ["Verwaltung", ["Stammdaten", "Einstellungen"]],
+    ["Verwaltung", ["Stammdaten", "Aufbewahrung", "Einstellungen"]],  # Aufbewahrung seit 1.10.14
 ]  # seit 1.8.162 vier Gruppen (bis dahin dazu Personal, Stammdaten und System)
 
 

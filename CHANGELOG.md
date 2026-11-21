@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.14 – „Aufbewahrung“ in der Leiste
+
+Antwort des Betriebs auf den Bericht W1c (21.11.2026, F1): die Seite „Aufbewahrung“ war nur über die Kachel auf „Start“ erreichbar -- wer die Kachel abwählt, fand sie nicht mehr. Jetzt steht sie in der Leiste unter Verwaltung zwischen Stammdaten und Einstellungen, für jedes Büro (dieselben Rollen, die die Seite lesen); die Seite markiert ihren eigenen Eintrag statt „Anfragen“. Die Kachel bleibt. Die Leiste passt bei 1280 × 800 weiter ohne Bildlauf, mit etwa einem Pixel Luft -- ein weiterer Eintrag bräuchte eine Entscheidung.
+
+Dazu im Archiv: die Festlegungen 1.10.9 bis 1.10.13 sind bestätigt, F5 (Ansprechpartner vor Ort aus einer Anfrage) steht unter Stufe 2, F3 (noch ein Import aus dem Altsystem?) ist offen. Vorab ein eigener Commit „1.10.13 (Muster)“: das Paar 91008 -> 91016 aus den Mustern ist in Tests, Klicktest, Skript und Doku durch erfundene Nummern ersetzt (F2).
+
 ## 1.10.13 – Verworfene Eingänge löschen; Stufe 2 festgehalten
 
 Fünfte Runde von W1c. Ein Eingang der Webseite, der als Spam, Test oder Doppelt verworfen ist, wird 6 Monate nach dem Eingang zum Löschen fällig -- nicht still, sondern auf der Seite „Aufbewahrung“ unter „Zum Löschen“, und gelöscht wird erst, wenn Admin oder Büro – Finanzen bestätigen (einzeln oder alle, mit Rückfrage). Mit ihm gehen seine Dateien; die Änderungshistorie behält Nummer und Grund, ohne Inhalte. „Sonstiges“ geht ins Archiv wie die übrigen. Im Archiv festgehalten (nicht gebaut): Stufe 2 -- Löschen bzw. Anonymisieren nach dem Rechtsberater, frühestens 2030 -- und ein Vorschlag zu den Rohdaten des Adressimports. `tests/test_v784_verworfene_loeschen.py`, Klicktest `klicktest_aufbewahrung.py` erweitert.

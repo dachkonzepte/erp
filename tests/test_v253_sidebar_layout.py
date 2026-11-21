@@ -164,7 +164,7 @@ def test_vier_gruppen_in_reihenfolge():
         "Übersicht", "start", "aufgaben", "kalender",
         "Aufträge", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde",
         "Kaufmännisch", "finanzen", "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiten",  # seit 1.9.98 statt Zeiterfassung, Backoffice
-        "Verwaltung", "stammdaten", "einstellungen"]
+        "Verwaltung", "stammdaten", "aufbewahrung", "einstellungen"]  # aufbewahrung seit 1.10.14
     befunde = nav[nav.rindex("<a ", 0, nav.index('data-bereich="befunde"')):nav.index('data-bereich="befunde"')]
     assert "app-sidebar-sub" in befunde
 
