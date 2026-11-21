@@ -45,6 +45,8 @@ def get_property(property_id: Id, db: Session = Depends(get_db, scope="function"
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
+    # seit 1.10.18: die Seite des Objekts sagt, wenn sein Kunde im Archiv ist (nur für die Antwort, keine Spalte)
+    property_obj.kunde_im_archiv = db.scalar(select(Customer.archiviert_am).where(Customer.id == property_obj.customer_id)) is not None
     return property_obj
 
 

@@ -3,7 +3,7 @@ from decimal import Decimal
 import re
 import shutil
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today, to_berlin
@@ -606,6 +606,14 @@ def renumber_quote_items(quote: Quote) -> None:
             item.gaeb_oz = str(idx)
 
 
+def _projekt_im_archiv(db, projekt: Project) -> bool:
+    """Seit 1.10.18: das Projekt ist im Archiv der Aufbewahrung -- archiviert und ohne Auftrag (wie app/search.py::_projekt_nicht_im_archiv())."""
+    if db is None or not projekt.archived:
+        return False
+    from .models import Order
+    return not db.scalar(select(exists().where(Order.project_id == projekt.id)))
+
+
 def quote_to_dict(quote: Quote) -> dict:
     db = object_session(quote)
     meta = None; sections = []; layouts = {}
@@ -663,6 +671,7 @@ def quote_to_dict(quote: Quote) -> dict:
         "id": quote.id, "quote_number": quote.quote_number, "project_id": quote.project_id,
         "project_number": quote.project.project_number, "project_name": quote.project.name,
         "project_is_template": bool(quote.project.is_template),  # seit 1.9.117: der Editor bietet dann kein „Beauftragen“
+        "projekt_im_archiv": _projekt_im_archiv(db, quote.project),  # seit 1.10.18: Hinweis im Editor (nur lesen)
         "customer_id": quote.project.customer_id, "customer_name": quote.project.customer.name,
         "property_name": quote.project.property.name if quote.project.property else None,
         "title": quote.title, "status": quote.status, "vat_rate": Decimal(quote.vat_rate),

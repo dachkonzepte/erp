@@ -1460,6 +1460,10 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   `%TEMP%` aufräumt. Auf demselben Stand die vier 4 von 4, danach alle Klicktests noch einmal (siehe Bericht). Stand: Umgebung, kein Fund im Code;
   fällt es wieder auf, legt `cdp_klicktest` den Ordner vor jedem Bild an.
 - Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
+- **`klicktest_plantafel_konflikte`** -- 21.11.2026, Klicktests vor dem Commit von 1.10.18 (Hauptarbeitskopie, alle zu viert): 47 von 58 -- nach „Abbrechen:
+  zurück im Dialog“ wurde das zweite `saveNew()` („Trotzdem planen“) in 15 s nicht fertig, ohne offene Anfrage im Netzprotokoll; die übrigen zehn Abweichungen
+  folgten daraus (die Tafel blieb einen Einsatz zurück). Einzeln auf demselben Stand 58 von 58; die Version änderte an Plantafel und Planung nichts (Suche,
+  Akte, Objekt, Angebot, Anfragen). Stand: Wackler.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 

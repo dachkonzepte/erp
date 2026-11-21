@@ -1,11 +1,15 @@
-"""Klicktest: das Archiv wiederfinden (1.10.15, seit 1.10.16 auch „Neue Anfrage“, seit 1.10.17 Übernehmen; Antwort F4 vom 21.11.2026) -- nur Musterdaten.
+"""Klicktest: das Archiv wiederfinden (1.10.15, seit 1.10.16 auch „Neue Anfrage“, seit 1.10.17 Übernehmen, seit 1.10.18 „ansehen“; Antworten F4 und F7
+vom 21.11.2026) -- nur Musterdaten.
 
 Testdaten: Bea Büro – Auftrag, Mona Monteurin. Zacharias Archiv (im Archiv) mit Hauptadresse, einer Anfrage und einem Projekt ohne Auftrag samt Angebot im
 Archiv; Zora Aktiv mit Hauptadresse; seit 1.10.16 Xaver Archiv und Yvonne Archiv (im Archiv) mit Hauptadresse; seit 1.10.17 Wilma Archiv (E-Mail wie die Anfrage
 der Webseite) und Viktor Archiv im Archiv, dazu eine Anfrage der Webseite von Wilma (Attrappe des Empfangsdienstes in diesem Prozess).
 
     Kopfzeile     „Zacharias“: keine Treffer aus dem Archiv, eine Zeile „5 Treffer im Archiv“ -> Suche mit Filter „im Archiv“
-    Suche         Gruppe „im Archiv“ (Kunde, Objekt, Anfrage, Projekt, Angebot) ohne Links, je „Zurückholen und öffnen“; die Gruppe „Kunden“ ohne Zacharias;
+    Suche         Gruppe „im Archiv“ (Kunde, Objekt, Anfrage, Projekt, Angebot), je „ansehen“ (seit 1.10.18, bis dahin kein Link) und „Zurückholen und öffnen“;
+                  die Gruppe „Kunden“ ohne Zacharias;
+    Ansehen       (seit 1.10.18) je Art „ansehen“: Kundenakte, Objekt, Akte und Angebot mit Hinweis „im Archiv“, die Anfrage als Lese-Ansicht; danach ist nichts
+                  zurückgeholt (die Suche nennt weiter 5 im Archiv); am Ende „Zurückholen“ aus der Lese-Ansicht der Anfrage -> im Editor
                   „Zurückholen und öffnen“ am Objekt -> Seite des Objekts, der Kunde ist zurück (Kundenakte ohne Hinweis), die Vorgänge bleiben im Archiv
     412 px        Suche hell und dunkel ohne Überlauf, Bilder
     Neue Anfrage  (seit 1.10.16) Kundenauswahl mit der Gruppe „im Archiv“, „Bearbeiten“ ohne; Xaver gewählt -> Auswahl springt zurück, Hinweis mit
@@ -64,13 +68,38 @@ def befuellen(db, k):
                       created_at=alt, archived=True, archiviert_am=im_archiv)
     db.add_all([anfrage, projekt])
     db.flush()
-    db.add(Quote(project_id=projekt.id, quote_number="A-2026-0903", title="Neues Dach", status="versendet"))
+    angebot = Quote(project_id=projekt.id, quote_number="A-2026-0903", title="Neues Dach", status="versendet")
+    db.add(angebot)
     db.commit()
     objekt = db.query(Property).filter(Property.customer_id == z.id).one()
     xaver = db.query(Property).filter(Property.customer_id == kunden["Xaver"].id).one()
     return {"bea": k.cookies(bea), "mona": k.cookies(mona), "zacharias": z.id, "objekt": objekt.id, "anfrage": anfrage.id, "projekt": projekt.id,
             "xaver": kunden["Xaver"].id, "xaver_objekt": xaver.id, "yvonne": kunden["Yvonne"].id, "wilma": kunden["Wilma"].id,
-            "viktor": kunden["Viktor"].id}
+            "viktor": kunden["Viktor"].id, "angebot": angebot.id}
+
+
+async def _ansehen(tab, seed, p):
+    """Seit 1.10.18 (F7): je Art „ansehen“ aus der Suche -- die Seite sagt „im Archiv“, zurückgeholt wird nichts."""
+    ziele = {"Kunde": (f"/customers/{seed['zacharias']}", "typeof customer!=='undefined'&&!!customer", "!document.getElementById('archivHinweis').hidden"),
+             "Objekt": (f"/properties/{seed['objekt']}", "typeof property!=='undefined'&&!!property", "!document.getElementById('archivHinweis').hidden"),
+             "Anfrage": ("/inquiries", "!document.getElementById('archivAnsicht').hidden",
+                         "document.getElementById('archivTitel').textContent==='AN-2026-0901 · Undichtes Vordach'"),
+             "Projekt": (f"/projects/{seed['projekt']}", "typeof project!=='undefined'&&!!project", "!document.getElementById('archivHinweis').hidden"),
+             "Angebot": (f"/quotes/{seed['angebot']}/edit", "typeof quote!=='undefined'&&!!quote", "!document.getElementById('archivHinweis').hidden")}
+    for art, (pfad, bereit, hinweis) in ziele.items():
+        await tab.oeffnen(f"/suche?q=Zacharias&types=archiv&a={art}", f"!!{ARCHIV}")
+        await tab.warte_auf_ruhe()
+        await tab.js(f"[...{ARCHIV}.querySelectorAll('.result-archiv')].find(z=>z.querySelector('.sub').textContent.startsWith({json.dumps(art)}))"
+                     ".querySelector('a.ansehen').click()")
+        await tab.warten(f"location.pathname==={json.dumps(pfad)}&&({bereit})", 15)
+        await tab.warte_auf_ruhe()
+        p.pruefe(f"ansehen {art}: Seite mit Hinweis „im Archiv“", await tab.js(f"[location.pathname,{hinweis}]"), [pfad, True])
+        if art == "Anfrage":
+            await tab.bild("ansehen_anfrage_im_archiv_1440_hell")
+        if art == "Projekt":
+            await tab.bild("ansehen_akte_im_archiv_1440_hell")
+    p.pruefe("nach dem Ansehen: nichts zurückgeholt", await tab.js(
+        "fetch('/api/search?q=Zacharias&types=archiv').then(r=>r.json()).then(g=>g.map(x=>x.total))"), [5])
 
 
 UEB = "document.getElementById('uebernahmeKarte')"
@@ -201,10 +230,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Suche: Filter „im Archiv“ aktiv", await tab.js(
         "[...document.querySelectorAll('#typeFilters button.active')].map(b=>b.textContent)"), ["im Archiv"])
     treffer = await tab.js(f"[...{ARCHIV}.querySelectorAll('.result-archiv')].map(z=>[z.querySelector('.sub').textContent.split(' · ')[0],"
-                           "z.querySelector('button').textContent,!!z.querySelector('a')])")
-    p.pruefe("Suche: Kunde, Objekt, Anfrage, Projekt, Angebot -- ohne Link, je „Zurückholen und öffnen“", treffer,
-             [[a, "Zurückholen und öffnen", False] for a in ("Kunde", "Objekt", "Anfrage", "Projekt", "Angebot")])
-    p.pruefe("Suche: Hinweis zum Archiv", await tab.js(f"{ARCHIV}.textContent.includes('Öffnen nur über „Zurückholen und öffnen“')"), True)
+                           "z.querySelector('button').textContent,[...z.querySelectorAll('a')].map(a=>a.textContent)])")
+    p.pruefe("Suche: Kunde, Objekt, Anfrage, Projekt, Angebot -- je „ansehen“ und „Zurückholen und öffnen“", treffer,
+             [[a, "Zurückholen und öffnen", ["ansehen"]] for a in ("Kunde", "Objekt", "Anfrage", "Projekt", "Angebot")])  # „ansehen“ seit 1.10.18
+    p.pruefe("Suche: Hinweis zum Archiv", await tab.js(f"{ARCHIV}.textContent.includes('„ansehen“ öffnet nur zum Lesen – die 6 Monate laufen dabei nicht neu')"),
+             True)
     await tab.bild("suche_im_archiv_1440_hell")
 
     p.pruefe("Suche ohne Filter: Zacharias nicht unter „Kunden“", await tab.oeffnen("/suche?q=Zacharias", f"!!{ARCHIV}"), True)
@@ -221,6 +251,8 @@ async def pruefen(tab, seed, p):
         await tab.bild(f"suche_im_archiv_412_{name}")
     await tab.fenster(1440, 1000)
     await tab.js("localStorage.setItem('erp_theme','light')")
+
+    await _ansehen(tab, seed, p)  # seit 1.10.18
 
     # Zurückholen und öffnen (am Objekt -> der Kunde kommt zurück)
     p.pruefe("Suche neu geladen", await tab.oeffnen("/suche?q=Zacharias&types=archiv&n=2", f"!!{ARCHIV}"), True)
@@ -241,6 +273,15 @@ async def pruefen(tab, seed, p):
         [["Kunden", "Objekte", "im Archiv"], ["Anfrage", "Projekt", "Angebot"]])
     await _neue_anfrage(tab, seed, p)  # seit 1.10.16
     await _uebernehmen(tab, seed, p)  # seit 1.10.17
+    # seit 1.10.18: „Zurückholen“ aus der Lese-Ansicht der Anfrage -> danach im Editor
+    p.pruefe("Lese-Ansicht der Anfrage", await tab.oeffnen(f"/inquiries?inquiry={seed['anfrage']}", "!document.getElementById('archivAnsicht').hidden"), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("document.querySelector('[data-klick=anfrage-zurueckholen]').click()")
+    await tab.warten("!document.getElementById('editorCard').classList.contains('hidden')", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Lese-Ansicht: zurückgeholt, im Editor", await tab.js(
+        "[document.getElementById('archivAnsicht').hidden,currentInquiry&&currentInquiry.id,document.getElementById('editStatusMsg').textContent]"),
+        [True, seed["anfrage"], "Zurückgeholt – die 6 Monate zählen ab heute neu."])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
     # Monteurin

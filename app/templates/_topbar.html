@@ -92,7 +92,7 @@
         });
       });
       rows=rows.slice(0,archiv?9:10);
-      if(archiv)rows.push('<a class="app-topbar-search-hit" href="/suche?q='+escHtml(encodeURIComponent(q))+'&amp;types=archiv"><div class="grp">im Archiv</div><div class="ttl">'+escHtml(archiv.total)+' Treffer im Archiv</div><div class="sub">in der Suche zurückholen und öffnen</div></a>');
+      if(archiv)rows.push('<a class="app-topbar-search-hit" href="/suche?q='+escHtml(encodeURIComponent(q))+'&amp;types=archiv"><div class="grp">im Archiv</div><div class="ttl">'+escHtml(archiv.total)+' Treffer im Archiv</div><div class="sub">in der Suche ansehen oder zurückholen</div></a>');
       if(!rows.length){
         searchResults.innerHTML='<div class="app-topbar-search-note">Keine Treffer.</div>';
         searchResults.hidden=false;

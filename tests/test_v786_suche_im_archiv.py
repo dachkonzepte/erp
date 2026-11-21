@@ -151,14 +151,16 @@ def _lauf(html, ablauf, antworten=None):
 
 
 @nur_mit_node
-def test_ergebnisseite_ohne_link_mit_zurueckholen(threaded_db_session, router_test_client):
+def test_ergebnisseite_ansehen_und_zurueckholen(threaded_db_session, router_test_client):
+    """Seit 1.10.18 (F7): je Treffer im Archiv „ansehen“ (Link, nur lesen) und „Zurückholen und öffnen“ -- bis 1.10.17 ohne Link."""
     html = _ergebnisseite(threaded_db_session, router_test_client)
     ablauf = f"query = 'Zacharias'; groups = {json.dumps([KUNDEN, TREFFER])}; renderGroups(); return _element('resultGroups').innerHTML;"
     inhalt = _lauf(html, ablauf)["ergebnis"]
     archiv = inhalt[inhalt.index('id="archiv"'):]
-    assert 'href="/properties/4"' not in archiv and 'href="/inquiries' not in archiv and 'href="/customers/1"' in inhalt
+    assert archiv.count('<a ') == 2 and '<a class="ansehen" href="/properties/4">ansehen</a>' in archiv  # seit 1.10.18 nur „ansehen“ als Link
+    assert '<a class="ansehen" href="/inquiries?inquiry=3">ansehen</a>' in archiv and 'href="/customers/1"' in inhalt
     assert archiv.count('data-klick="archiv-zurueckholen"') == 2 and 'data-art="kunde" data-id="9" data-ziel="/properties/4"' in archiv
-    assert "<img" not in archiv and "&lt;img" in archiv and "Öffnen nur über „Zurückholen und öffnen“" in archiv
+    assert "<img" not in archiv and "&lt;img" in archiv and "„ansehen“ öffnet nur zum Lesen – die 6 Monate laufen dabei nicht neu" in archiv
     assert "['archiv','im Archiv']" in html  # Filter
 
 

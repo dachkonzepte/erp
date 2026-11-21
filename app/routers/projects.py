@@ -291,6 +291,7 @@ def get_project_detail(project_id: Id, db: Session = Depends(get_db, scope="func
         pipeline_column_id=project.pipeline_column_id,
         quote_count=len(project.quotes), order_count=len(project.orders), document_count=len(project.documents), description=project.description,
         category=project.profile.category if project.profile else None, is_template=project.is_template,
+        archiviert_am=project.archiviert_am,  # seit 1.10.18
     )
 
 

@@ -350,7 +350,7 @@ class PropertyOut(_felder_ohne_pruefung(PropertyCreate, "_PropertyCreateFelder")
     id: int
     # Read-only -- wird nie über das normale Objektformular gesetzt, siehe Property.is_primary_address.
     is_primary_address: bool = False
-    kunde_im_archiv: bool = False  # seit 1.10.11: nur GET /api/properties?archivierte=true setzt es (der Kunde ist im Archiv)
+    kunde_im_archiv: bool = False  # seit 1.10.11: GET /api/properties?archivierte=true setzt es (der Kunde ist im Archiv), seit 1.10.18 auch GET …/{id}
 
 
 class PropertyAccessOut(BaseModel):
@@ -456,6 +456,7 @@ class ProjectPipelineColumnMove(BaseModel):
 
 
 class ProjectDetailOut(ProjectListOut):
+    archiviert_am: datetime | None = None  # seit 1.10.18: im Archiv seit (Hinweis in der Akte, nur ohne Auftrag)
     description: str | None = None
     customer_number: str | None = None
     customer_phone: str | None = None
@@ -822,6 +823,7 @@ class QuoteOut(BaseModel):
     project_number: str
     project_name: str
     project_is_template: bool = False  # seit 1.9.117: Angebot eines Mustervorgangs -- nicht beauftragbar
+    projekt_im_archiv: bool = False  # seit 1.10.18: das Projekt (ohne Auftrag) ist im Archiv -- Hinweis im Editor
     customer_id: int
     customer_name: str
     property_name: str | None

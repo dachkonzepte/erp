@@ -440,3 +440,20 @@ ERROR), alle Dateien byte-gleich zurück.
 | Nr. 3 – erst zurückholen | Neulesen ohne POST | 1 rot |
 | Nr. 3 – danach gewählt | zurückgeholt, nicht gewählt | 1 rot |
 | Nr. 4 – Übernehmen nimmt keinen Kunden im Archiv | Prüfung aus | 1 rot |
+
+## Antworten zum Bericht F1/F2/F4, 1.10.18: Treffer im Archiv ansehen
+
+Probendatei im Scratchpad (`gp_1118.py` über `gegenprobe.py`), Lauf mit `tests/test_v789_ansehen_im_archiv.py` bzw. `test_v786`; alle 9 rot aus dem geprüften
+Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „ansehen“ je Treffer | Link weg | 1 rot |
+| Nr. 2 – ansehen schreibt nichts | GET des Objekts setzt zurueckgeholt_am | 1 rot |
+| Nr. 3 – Objekt mit Hinweis | kunde_im_archiv nicht gesetzt | 1 rot |
+| Nr. 3 – Akte mit „im Archiv seit“ | archiviert_am fehlt | 1 rot |
+| Nr. 3 / 5 – Angebot nur ohne Auftrag | Projekt mit Auftrag gilt als Archiv | 1 rot |
+| Nr. 3 / 5 – Akte nur ohne Auftrag | Hinweis auch mit Auftrag | 1 rot |
+| Nr. 4 – Lese-Ansicht nur im Archiv | auch für eine aktive Anfrage | 1 rot |
+| Nr. 4 – nur Text | Titel als HTML | 1 rot |
+| Nr. 4 – Zurückholen aus der Lese-Ansicht | ohne POST | 1 rot |

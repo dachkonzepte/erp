@@ -899,7 +899,7 @@ Dialogs ab.
 - Leiste bei 1280 × 800 weiter ohne Bildlauf (`klicktest_rahmen.py`, Admin mit allen Modulen: der letzte Eintrag passt mit etwa 1 px) -- ein weiterer Eintrag
   in der Leiste bräuchte eine Entscheidung (kleinere Zeilen, Gruppe einklappen oder Bildlauf zulassen).
 
-#### Festlegungen 1.10.14 (Bitte bestätigen)
+#### Festlegungen 1.10.14 (bestätigt am 21.11.2026)
 
 1. „Aufbewahrung“ steht in der Leiste unter Verwaltung zwischen Stammdaten und Einstellungen, für Admin, Büro – Finanzen und Büro – Auftrag; die Monteurin
    sieht ihn nicht.
@@ -932,13 +932,14 @@ Module): Luft unter dem letzten Eintrag bei 1280 × 800 1,1 px für Admin und B�
 - Ohne Archiv bleiben: die Suche der Monteurin (`search_properties_for_field()`), die Verknüpfung im Kalender (`types=projects,quotes`), „Beteiligten hinzufügen“
   (`office_source("customers")`) und alle Listen.
 
-#### Festlegungen 1.10.15 (Bitte bestätigen)
+#### Festlegungen 1.10.15 (bestätigt am 21.11.2026)
 
 1. Die Büro-Suche zeigt Kunden, Objekte eines Kunden im Archiv, Anfragen, Projekte ohne Auftrag und deren Angebote im Archiv in einer eigenen Gruppe
    „im Archiv“, immer zuletzt, zusammen höchstens so viele wie eine Gruppe; die übrigen Gruppen bleiben ohne Archiv. Eingänge der Webseite sucht die
    Büro-Suche nicht (wie bisher).
 2. Ein Treffer im Archiv ist kein Link; geöffnet wird er nur über „Zurückholen und öffnen“ -- jedes Büro, danach zählen die 6 Monate neu. Ein Objekt holt
-   seinen Kunden zurück, ein Angebot sein Projekt; die übrigen Vorgänge des Kunden bleiben im Archiv.
+   seinen Kunden zurück, ein Angebot sein Projekt; die übrigen Vorgänge des Kunden bleiben im Archiv. (Seit 1.10.18 erweitert, Antwort F7: dazu „ansehen“ ohne
+   Zurückholen, nur lesen.)
 3. Der Treffer nennt die Art und „im Archiv seit TT.MM.JJJJ“ (Tag in Berlin).
 4. Die Kopfzeile zeigt keine Treffer aus dem Archiv, nur eine Zeile „n Treffer im Archiv“ in die Suche (Filter „im Archiv“).
 5. Ohne Archiv bleiben die Suche der Monteurin, die Verknüpfung im Kalender, „Beteiligten hinzufügen“ und die Listen.
@@ -966,7 +967,7 @@ zunächst grün, Test nachgezogen).
   `POST /api/aufbewahrung/kunde/{id}/zurueckholen` (jedes Büro), die Liste neu (`loadAll()`), der Kunde gewählt samt Hauptadresse.
 - Kommt die Seite mit `?customer_id=` eines Kunden im Archiv, steht derselbe Hinweis statt der Auswahl.
 
-#### Festlegungen 1.10.16 (Bitte bestätigen)
+#### Festlegungen 1.10.16 (bestätigt am 21.11.2026)
 
 1. Die Kundenauswahl von „Neue Anfrage“ zeigt Kunden im Archiv in einer eigenen Gruppe „im Archiv“ unter den aktiven, mit „im Archiv seit …“; „Bearbeiten“ einer
    Anfrage zeigt sie nicht.
@@ -995,7 +996,7 @@ Anfrage gespeichert, `?customer_id=` mit Hinweis, 412 px hell und dunkel ohne Ü
   keinen aktiven, aber einen im Archiv: „Kein aktiver Kunde gefunden – siehe „im Archiv“.“
 - Das Übernehmen und die Objekte eines Kunden nehmen weiter keinen Kunden im Archiv (404, seit 1.10.11).
 
-#### Festlegungen 1.10.17 (Bitte bestätigen)
+#### Festlegungen 1.10.17 (bestätigt am 21.11.2026)
 
 1. Der Vorschlag zeigt Kunden im Archiv, die nach denselben Gründen passen, in einer eigenen Gruppe „im Archiv“ unter den Vorschlägen -- ohne Auswahlknopf.
 2. „Anderen bestehenden Kunden wählen“ zeigt die Kunden im Archiv, die die Suche findet, ebenso unter den Treffern, mit eigener Zahl.
@@ -1012,3 +1013,42 @@ unter den Treffern, 412 px hell und dunkel ohne Überlauf, Bilder). Angepasste E
 (ein Treffer trägt `archiviert_am`, die leere Antwort `archiv` und `archiv_anzahl` -- Aufbau); `klicktest_archiv_wiederfinden.py` „Neue Anfrage: Gruppe …“ und
 „Zurückholen und wählen …“ (seit 1.10.16: Xaver, Yvonne -> neu dazu Viktor, Wilma aus den Testdaten des Übernehmens). Gegenproben: `gegenproben-webseite.md`,
 „W1c, 1.10.17“ (7, alle rot).
+
+### Antworten des Betriebs zum Bericht F1/F2/F4 (21.11.2026)
+
+Festlegungen 1.10.14-1 bis 1.10.17-4 bestätigt. F3: es kommt noch ein Import aus dem Altsystem -- also (b): in erledigten Rohzeilen die personenbezogenen
+Spalten leeren, Adressnummer, Art, Status, Erledigung und Verweise bleiben; offene Zeilen der Arbeitsliste bleiben unverändert, bis sie erledigt sind; mit
+Vorschau und Bestätigung (Admin), eigene kleine Version. F7: Treffer im Archiv zusätzlich „ansehen“ ohne Zurückholen (nur lesen, die 6 Monate laufen nicht
+neu). F8: die Felder der Übernahme-Karte angleichen. F9: erst, wenn ein Eintrag in der Leiste ansteht. Dazu klein: beim Übernehmen nicht „Kein bestehender
+Kunde passt zu den Angaben“, wenn darunter ein Kunde im Archiv passt.
+
+### Umsetzung 1.10.18: Treffer im Archiv ansehen
+
+- Büro-Suche: je Treffer im Archiv „ansehen“ (Link auf die Seite des Treffers) neben „Zurückholen und öffnen“; der Hinweis der Gruppe sagt, dass „ansehen“ nur
+  zum Lesen öffnet und die 6 Monate dabei nicht neu laufen. Die Zeile der Kopfzeile heißt „in der Suche ansehen oder zurückholen“.
+- Die Zielseiten sagen „im Archiv“: die Kundenakte (seit 1.10.12, mit „Zurückholen“); die Akte eines Projekts im Archiv (archiviert, ohne Auftrag; „Im Archiv seit
+  … – nur zum Ansehen …“ mit „Zurückholen“, `GET /api/projects/{id}` liefert dafür `archiviert_am`); das Objekt eines Kunden im Archiv (Hinweis mit Weg zur
+  Kundenakte, `GET /api/properties/{id}` setzt `kunde_im_archiv`); das Angebot eines Projekts im Archiv (Hinweis mit Weg zur Akte, `projekt_im_archiv` an
+  `QuoteOut`, `app/projects.py::_projekt_im_archiv()`). Eine Anfrage im Archiv steht nicht in der Pipeline: `/inquiries?inquiry=<id>` zeigt sie als Lese-Ansicht
+  oben auf der Seite (Kunde, Objekt, Status, Priorität, Herkunft, Ansprechpartner, Zuständig, Projekt, Notizen -- nur als Text) mit „Zurückholen“, danach im
+  Editor; die Kundenakte verlinkt eine Anfrage im Archiv als „im Archiv – ansehen“.
+- Ansehen schreibt nichts (jeder Weg ist ein GET, Regel 23) -- `archiviert_am` und `zurueckgeholt_am` bleiben, die 6 Monate laufen nicht neu.
+- Nicht geändert: was die Seiten eines Vorgangs im Archiv erlauben. Die Akte zeigt z. B. weiter „Beauftragen“, die Kundenakte „Stammdaten bearbeiten“ -- der
+  Hinweis sagt „Zum Weiterarbeiten zurückholen“, sperrt aber nichts (Frage F10 im Bericht).
+
+#### Festlegungen 1.10.18 (Bitte bestätigen)
+
+1. Jeder Treffer im Archiv hat „ansehen“ (öffnet die Seite des Treffers) und „Zurückholen und öffnen“.
+2. Ansehen holt nicht zurück und schreibt nichts -- die 6 Monate laufen dabei nicht neu.
+3. Akte, Objekt und Angebot eines Vorgangs im Archiv zeigen den Hinweis „im Archiv“; die Akte holt zurück, Objekt und Angebot verweisen auf Kundenakte bzw. Akte.
+4. Eine Anfrage im Archiv zeigt `/inquiries?inquiry=` als Lese-Ansicht (nur Text) mit „Zurückholen“; die Kundenakte verlinkt sie mit „im Archiv – ansehen“.
+5. Ein archiviertes Projekt mit Auftrag ist nicht im Archiv der Aufbewahrung -- dort kein Hinweis (wie die Suche seit 1.10.11).
+
+#### Tests und Prüfung 1.10.18
+
+Neu `tests/test_v789_ansehen_im_archiv.py` (6 Tests: Objekt, Akte und Angebot erfahren das Archiv -- ein Projekt mit Auftrag nicht; Ansehen über alle fünf GETs
+schreibt nichts; die Seiten haben den Hinweis; in node die Lese-Ansicht der Anfrage nur als Text, nicht für eine aktive, „Zurückholen“ mit POST und Editor).
+`scripts/klicktest_archiv_wiederfinden.py` um „ansehen“ erweitert (48 Prüfungen: je Art die Seite mit Hinweis, danach weiter 5 im Archiv; am Ende Zurückholen
+aus der Lese-Ansicht). Angepasste Erwartungen: `tests/test_v786_suche_im_archiv.py::test_ergebnisseite_ohne_link_mit_zurueckholen` -> `…_ansehen_und_zurueckholen`
+(bis 1.10.17 kein Link im Archiv, jetzt genau „ansehen“ je Treffer; Hinweistext), `klicktest_archiv_wiederfinden` „Suche: … ohne Link“ -> „je „ansehen“ und
+„Zurückholen und öffnen““ und „Hinweis zum Archiv“ (neuer Text). Gegenproben: `gegenproben-webseite.md`, „1.10.18“ (9, alle rot).

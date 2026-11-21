@@ -19,6 +19,10 @@
     .archiv-hinweis{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px;padding:10px 12px;border-left:4px solid var(--ds-warn-text);background:var(--ds-warn-hell);color:var(--ds-text);border-radius:var(--ds-ecke-feld)}
     .archiv-hinweis[hidden]{display:none}
     .archiv-hinweis span{flex:1 1 260px}
+    #archivAnsicht[hidden]{display:none}
+    #archivAnsicht{scroll-margin-top:80px}
+    .archiv-angaben{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:6px 16px;margin:0;font-size:14px}
+    .archiv-angaben dt{color:var(--ds-text-2);font-weight:600}.archiv-angaben dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
   </style>
 </head>
 <body class="ds-seite">
@@ -40,6 +44,14 @@
     <div class="metric due"><div class="label">Wiedervorlagen fällig</div><div class="value" id="metricDue">0</div></div>
     <div class="metric"><div class="label">Projekte erzeugt</div><div class="value" id="metricConverted">0</div></div>
   </div>
+
+  {#- seit 1.10.18 (F7): eine Anfrage im Archiv nur zum Ansehen -- über ?inquiry= aus der Suche oder der Kundenakte #}
+  <section id="archivAnsicht" class="card" hidden>
+    <div class="section-title"><div><h2 id="archivTitel" style="margin-bottom:4px">Anfrage im Archiv</h2><div id="archivUnter" class="muted small"></div></div><button class="secondary" data-klick="archiv-ansicht-schliessen">Schließen</button></div>
+    <div class="archiv-hinweis"><span id="archivSeitText"></span><button type="button" data-klick="anfrage-zurueckholen">Zurückholen</button></div>
+    <dl class="archiv-angaben" id="archivAngaben"></dl>
+    <div id="archivStatus" class="status-msg" role="status"></div>
+  </section>
 
   <section class="card">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Neue Anfrage</h2><div class="muted small">Anfrage zuerst als Vertriebsfall erfassen. Projekt und Angebot entstehen erst nach Qualifizierung/Aufmaß.</div></div><button class="secondary" onclick="toggleCreate()" id="toggleCreateButton">Maske ausblenden</button></div>
@@ -168,6 +180,20 @@ location.href=result.quote?'/quotes/'+Number(result.quote.id)+'/edit':'/projects
 // seit 1.8.132 direkt in die Projektmappe -- bis dahin /projects?project_id=…, die Projektliste wertet den Parameter nicht aus
 aktion('kontakt-anfrage',()=>{if(currentInquiry)kontaktDialogOeffnen('anfrage',currentInquiry.id,`${currentInquiry.inquiry_number} · ${currentInquiry.title}`)});  // seit 1.10.10
 function openLinkedProject(){if(currentInquiry?.project_id)location.href='/projects/'+Number(currentInquiry.project_id)}
+// Seit 1.10.18 (Antwort F7 vom 21.11.2026): eine Anfrage im Archiv steht nicht in der Pipeline -- der Direkteinstieg zeigt sie nur zum Lesen (die 6 Monate
+// laufen dabei nicht neu, GET schreibt nichts); „Zurückholen“ (jedes Büro) holt sie zurück und öffnet sie im Editor.
+let archivAnfrage=null;
+function archivAnsichtZeichnen(a){
+  archivAnfrage=a;el('archivTitel').textContent=`${a.inquiry_number} · ${a.title}`;el('archivUnter').textContent=`${a.customer_name} · angelegt ${berlinZeitpunkt(a.created_at,'datum')}`;
+  el('archivSeitText').textContent=`Im Archiv seit ${berlinZeitpunkt(a.archiviert_am,'datum')} – nur zum Ansehen, die 6 Monate laufen dabei nicht neu. Zum Weiterarbeiten zurückholen.`;
+  const zeilen=[['Kunde',a.customer_name],['Objekt',[a.property_name,a.property_address].filter(Boolean).join(' · ')],['Status',statusLabel(a.status)],['Priorität',priorityLabel(a.priority)],
+    ['Herkunft',a.source==='sonstiges'?'Sonstiges':a.source],['Ansprechpartner',a.contact_person],['Zuständig intern',a.assigned_to],['Projekt',a.project_number],['Anfrage / Notizen',a.description]].filter(([,w])=>w);
+  el('archivAngaben').replaceChildren(...zeilen.flatMap(([k,w])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=w;return [dt,dd]}));
+  el('archivAnsicht').hidden=false;el('archivAnsicht').scrollIntoView?.({block:'start'});
+}
+async function archivAnsichtLaden(id){await lesen('archivansicht',()=>api(`/api/inquiries/${Number(id)}`),a=>{if(a.archiviert_am)archivAnsichtZeichnen(a)})}
+aktion('archiv-ansicht-schliessen',()=>{el('archivAnsicht').hidden=true;archivAnfrage=null});
+aktion('anfrage-zurueckholen',async()=>{const a=archivAnfrage;if(!a)return;const s=el('archivStatus');s.textContent='';try{const url=`/api/aufbewahrung/anfrage/${Number(a.id)}/zurueckholen`;await speichern('anfragen',()=>api(url,{method:'POST'}),{neuLaden:loadAll});el('archivAnsicht').hidden=true;archivAnfrage=null;openInquiry(a.id);el('editStatusMsg').textContent='Zurückgeholt – die 6 Monate zählen ab heute neu.'}catch(e){s.textContent='Fehler: '+e.message}});
 async function init(){
   // Seit 1.8.97 über lesen() (_speichern.html): Umsatzsteuer-Vorgabe fürs Umwandeln (eigener Bereich, kein Speichern ersetzt sie).
   try{await lesen('einstellungen',()=>api('/api/settings/general'),g=>{defaultVat=Number(g.default_vat_rate||19)})}catch(e){}
@@ -177,6 +203,8 @@ async function init(){
   const deepLinkInquiryId=Number(new URLSearchParams(location.search).get('inquiry'))||null;
   if(deepLinkInquiryId&&inquiries.some(x=>x.id===deepLinkInquiryId)){
     openInquiry(deepLinkInquiryId);
+  }else if(deepLinkInquiryId){
+    try{await archivAnsichtLaden(deepLinkInquiryId)}catch(e){}  // seit 1.10.18: im Archiv nur zum Ansehen; sonst wie bisher nichts
   }
 }
 init();

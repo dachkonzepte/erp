@@ -31,6 +31,9 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 .result-archiv .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
 .result-archiv button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink);border-radius:var(--ds-ecke-feld)}
 .result-archiv button:hover{background:var(--soft)}
+.result-archiv .knoepfe{display:flex;gap:8px;flex:0 0 auto;align-items:center}
+.result-archiv a.ansehen{border:1px solid var(--line);padding:6px 12px;font-size:13px;font-weight:700;color:var(--ds-link);text-decoration:none;border-radius:var(--ds-ecke-feld)}
+.result-archiv a.ansehen:hover{background:var(--soft)}
 .archiv-hinweis{margin:-4px 0 8px;font-size:12.5px;color:var(--muted)}
 @media(max-width:600px){.result-archiv{flex-direction:column;align-items:flex-start}}
 </style></head><body class="ds-seite">
@@ -125,10 +128,11 @@ function renderGroups(){
     var archiv=g.key==='archiv';
     var hits=g.hits.map(function(h){
       if(archiv)return '<div class="result-archiv"><div><div class="ttl">'+esc(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+esc(h.subtitle)+'</div>':'')+'</div>'
-        +'<button type="button" data-klick="archiv-zurueckholen" data-art="'+esc(h.zurueckholen_art)+'" data-id="'+esc(h.zurueckholen_id)+'" data-ziel="'+esc(h.url)+'">Zurückholen und öffnen</button></div>';
+        +'<div class="knoepfe"><a class="ansehen" href="'+esc(sichererLink(h.url))+'">ansehen</a>'  /* seit 1.10.18 (F7): nur lesen, die 6 Monate laufen nicht neu */
+        +'<button type="button" data-klick="archiv-zurueckholen" data-art="'+esc(h.zurueckholen_art)+'" data-id="'+esc(h.zurueckholen_id)+'" data-ziel="'+esc(h.url)+'">Zurückholen und öffnen</button></div></div>';
       return '<a class="result-hit" href="'+esc(sichererLink(h.url))+'"><div class="ttl">'+esc(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+esc(h.subtitle)+'</div>':'')+'</a>';
     }).join('');
-    var hinweis=archiv?'<div class="archiv-hinweis">Im Archiv: fehlt in Listen und Auswahlen. Öffnen nur über „Zurückholen und öffnen“ – danach zählen die 6 Monate neu.</div><div class="status" id="archivStatus" role="status"></div>':'';
+    var hinweis=archiv?'<div class="archiv-hinweis">Im Archiv: fehlt in Listen und Auswahlen. „ansehen“ öffnet nur zum Lesen – die 6 Monate laufen dabei nicht neu; „Zurückholen und öffnen“ holt zurück, danach zählen die 6 Monate neu.</div><div class="status" id="archivStatus" role="status"></div>':'';
     var more=g.hits.length<g.total?'<button type="button" class="more-btn" data-klick="mehr-treffer" data-art="'+esc(g.key)+'">weitere anzeigen</button>':'';
     return '<div class="card"'+(archiv?' id="archiv"':'')+'><h2 style="margin:0 0 10px">'+esc(g.label)+' <span class="muted small">('+esc(g.total)+')</span></h2>'+hinweis+'<div class="result-list">'+hits+'</div>'+more+'</div>';
   }).join('');

@@ -215,6 +215,8 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
       leere Gruppe blendet _menue.html samt Trennlinie aus #}
   {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="laeuft" hidden>Fortsetzen …</button><button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="pausiert" hidden>Pausieren …</button><button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="abgeschlossen" hidden>Abschließen …</button>{% if storno_zuruecknehmen %}<button type="button" class="ds-menue-eintrag" data-klick="stornoZuruecknehmen" hidden>Storno zurücknehmen …</button>{% endif %}<button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="statusAktion" data-ziel="storniert" hidden>Stornieren …</button><div class="ds-menue-trenner" role="separator"></div><button type="button" class="ds-menue-eintrag" data-klick="projekt-bearbeiten">Projekt bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="beteiligte-oeffnen">Beteiligte</button><button type="button" class="ds-menue-eintrag" data-klick="kontakt-projekt">Kontakt vermerken …</button><button type="button" class="ds-menue-eintrag" data-klick="projekt-kopieren">Kopieren</button><button type="button" class="ds-menue-eintrag" data-klick="als-muster">Als Mustervorgang speichern</button>{% if is_module_enabled('wartungen') %}<button type="button" class="ds-menue-eintrag" id="maintenanceContractMenuItem" data-klick="wartungsvertrag" hidden>Wartungsvertrag erstellen</button>{% endif %}<button type="button" class="ds-menue-eintrag" id="archiveMenuItem" data-klick="archivieren">Archivieren</button><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="deleteMenuItem" data-klick="projekt-loeschen" hidden>Löschen</button><div class="ds-menue-trenner" role="separator"></div><button type="button" class="ds-menue-eintrag" id="menueAbPdf" data-klick="ab-pdf" hidden>Auftragsbestätigung (PDF)</button><a class="ds-menue-eintrag" id="menueAv" href="/projects" hidden>Arbeitsvorbereitung</a>{% if is_module_enabled('wartungen') %}<a class="ds-menue-eintrag" id="menueBerichte" href="/projects" hidden>Einsatzberichte</a>{% endif %}{% endif %}
 {% endcall %}
+{#- seit 1.10.18 (F7): ein Projekt im Archiv (ohne Auftrag) -- ansehen geht ohne Zurückholen, zurückholen darf jedes Büro #}
+<div class="notice warning" id="archivHinweis" hidden>Im Archiv<span id="archivSeit"></span> – nur zum Ansehen, die 6 Monate laufen dabei nicht neu. Zum Weiterarbeiten zurückholen. <button type="button" class="secondary" data-klick="projekt-zurueckholen">Zurückholen</button></div>
 <div class="status" id="seitenStatus" role="status"></div>
 {% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
 <section class="karte" id="auftragPhase" aria-label="Auftrag und Phase">
@@ -478,6 +480,7 @@ function kopfZeichnen(){
   if(orderId&&order)seitenkopf({status:statusKennzeichen('auftrag',order.status)});else seitenkopf({status:statusKennzeichen('projekt',project.status)});
   document.title='DACHKONZEPTE ERP – '+project.project_number+' · '+project.name;
   el('archiveMenuItem').textContent=project.archived?'Entarchivieren':'Archivieren';
+  el('archivHinweis').hidden=!(project.archived&&!(project.order_count>0));el('archivSeit').textContent=project.archiviert_am?' seit '+berlinZeitpunkt(project.archiviert_am,'datum'):'';  // seit 1.10.18
   el('deleteMenuItem').hidden=(project.order_count||0)>0;  // seit 1.9.117 (F15): mit Auftrag nur archivieren
   const mc=el('maintenanceContractMenuItem');if(mc)mc.hidden=!!project.is_template;
   el('menueAbPdf').hidden=!orderId;el('menueAv').hidden=!orderId;
@@ -667,6 +670,7 @@ aktion('projekt-kopieren',()=>duplicateProjectHere(false));
 aktion('als-muster',()=>duplicateProjectHere(true));
 aktion('wartungsvertrag',()=>openMaintenanceContractModal());
 aktion('archivieren',()=>toggleArchivedHere());
+aktion('projekt-zurueckholen',async()=>{try{const url=`/api/aufbewahrung/projekt/${Number(projectId)}/zurueckholen`;await speichern('projekt',()=>api(url,{method:'POST'}),{neuLaden:projektLaden})}catch(e){alert('Fehler: '+e.message)}});  // seit 1.10.18
 aktion('projekt-loeschen',()=>deleteProjectHere());
 aktion('ab-pdf',()=>{if(orderId)window.open('/api/orders/'+orderId+'/pdf','_blank')});
 function openBeteiligte(){renderParticipants();openModal('beteiligteModal')}
