@@ -1,7 +1,8 @@
-"""Klicktest: das Archiv wiederfinden (1.10.15, seit 1.10.16 auch „Neue Anfrage“; Antwort F4 vom 21.11.2026) -- nur Musterdaten.
+"""Klicktest: das Archiv wiederfinden (1.10.15, seit 1.10.16 auch „Neue Anfrage“, seit 1.10.17 Übernehmen; Antwort F4 vom 21.11.2026) -- nur Musterdaten.
 
 Testdaten: Bea Büro – Auftrag, Mona Monteurin. Zacharias Archiv (im Archiv) mit Hauptadresse, einer Anfrage und einem Projekt ohne Auftrag samt Angebot im
-Archiv; Zora Aktiv mit Hauptadresse; seit 1.10.16 Xaver Archiv und Yvonne Archiv (im Archiv) mit Hauptadresse.
+Archiv; Zora Aktiv mit Hauptadresse; seit 1.10.16 Xaver Archiv und Yvonne Archiv (im Archiv) mit Hauptadresse; seit 1.10.17 Wilma Archiv (E-Mail wie die Anfrage
+der Webseite) und Viktor Archiv im Archiv, dazu eine Anfrage der Webseite von Wilma (Attrappe des Empfangsdienstes in diesem Prozess).
 
     Kopfzeile     „Zacharias“: keine Treffer aus dem Archiv, eine Zeile „5 Treffer im Archiv“ -> Suche mit Filter „im Archiv“
     Suche         Gruppe „im Archiv“ (Kunde, Objekt, Anfrage, Projekt, Angebot) ohne Links, je „Zurückholen und öffnen“; die Gruppe „Kunden“ ohne Zacharias;
@@ -10,6 +11,8 @@ Archiv; Zora Aktiv mit Hauptadresse; seit 1.10.16 Xaver Archiv und Yvonne Archiv
     Neue Anfrage  (seit 1.10.16) Kundenauswahl mit der Gruppe „im Archiv“, „Bearbeiten“ ohne; Xaver gewählt -> Auswahl springt zurück, Hinweis mit
                   „Zurückholen und wählen“ und „Abbrechen“; zurückgeholt -> gewählt samt Hauptadresse, Anfrage gespeichert; ?customer_id= von Yvonne -> der Hinweis
                   statt der Auswahl; 412 px ohne Überlauf, Bilder
+    Übernehmen    (seit 1.10.17) Vorschlag: Wilma nur unter „im Archiv“, ohne Auswahlknopf; „Zurückholen und wählen“ -> unter den Vorschlägen gewählt, ihre
+                  Objekte geladen; Suche „viktor“: kein aktiver, Viktor unter „im Archiv“; zurückgeholt -> unter den Treffern gewählt; 412 px ohne Überlauf, Bilder
     Monteurin     keine Büro-Suche (403)
     überall       keine JS-Fehler
 
@@ -27,6 +30,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
+from empfangsdienst_attrappe import Attrappe, muster  # noqa: E402
+
+ATTRAPPE = Attrappe()  # seit 1.10.17
+NR = "R-20261119-0910-0A1B"
 
 SUCHE_BEREIT = "!!document.getElementById('resultGroups').textContent.trim()"
 ARCHIV = "document.getElementById('archiv')"
@@ -42,8 +49,10 @@ def befuellen(db, k):
     mona = AppUser(username="mona", display_name="Mona Monteurin", role="field", password_hash=k.passwort())
     db.add_all([bea, mona])
     kunden = {}
-    for vor, nach, archiv in (("Zacharias", "Archiv", im_archiv), ("Zora", "Aktiv", None), ("Xaver", "Archiv", im_archiv), ("Yvonne", "Archiv", im_archiv)):
-        c = Customer(name=f"{vor} {nach}", first_name=vor, last_name=nach, city="Musterstadt", created_at=alt, archiviert_am=archiv)
+    for vor, nach, archiv in (("Zacharias", "Archiv", im_archiv), ("Zora", "Aktiv", None), ("Xaver", "Archiv", im_archiv), ("Yvonne", "Archiv", im_archiv),
+                              ("Wilma", "Archiv", im_archiv), ("Viktor", "Archiv", im_archiv)):
+        c = Customer(name=f"{vor} {nach}", first_name=vor, last_name=nach, city="Musterstadt", created_at=alt, archiviert_am=archiv,
+                     email=f"{vor.lower()}@example.invalid")
         db.add(c)
         db.flush()
         db.add(CustomerProfile(customer_id=c.id, customer_number=f"K-90{c.id}"))
@@ -60,7 +69,58 @@ def befuellen(db, k):
     objekt = db.query(Property).filter(Property.customer_id == z.id).one()
     xaver = db.query(Property).filter(Property.customer_id == kunden["Xaver"].id).one()
     return {"bea": k.cookies(bea), "mona": k.cookies(mona), "zacharias": z.id, "objekt": objekt.id, "anfrage": anfrage.id, "projekt": projekt.id,
-            "xaver": kunden["Xaver"].id, "xaver_objekt": xaver.id, "yvonne": kunden["Yvonne"].id}
+            "xaver": kunden["Xaver"].id, "xaver_objekt": xaver.id, "yvonne": kunden["Yvonne"].id, "wilma": kunden["Wilma"].id,
+            "viktor": kunden["Viktor"].id}
+
+
+UEB = "document.getElementById('uebernahmeKarte')"
+STATUS = "document.getElementById('uebStatus')"
+
+
+async def _uebernehmen(tab, seed, p):
+    """Seit 1.10.17: Übernehmen einer Anfrage der Webseite -- Kunden im Archiv unter Vorschlag und Suche, gewählt nur über „Zurückholen und wählen“."""
+    ATTRAPPE.dazu(muster(NR, name="Wilma Archiv", email="wilma@example.invalid", telefon=None))
+    await tab.oeffnen("/anfragen/webseite", "true")
+    p.pruefe("Anfrage der Webseite abgeholt", await tab.js("fetch('/api/webanfragen/abholen',{method:'POST'}).then(r=>r.json()).then(d=>d.neu)"), 1)
+    wid = await tab.js(f"fetch('/api/webanfragen').then(r=>r.json()).then(l=>l.find(x=>x.nummer==='{NR}').id)")
+    p.pruefe("Übernehmen geladen", await tab.oeffnen(f"/anfragen/webseite/{wid}", f"!{UEB}.hidden&&!!uebVorschlag"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Vorschlag: Wilma nur unter „im Archiv“, ohne Auswahlknopf", await tab.js(
+        "[document.querySelectorAll('#uebKunden input[type=radio]').length,"
+        "[...document.querySelectorAll('#uebKundenArchiv .ueb-archiv-zeile')].map(z=>[z.querySelector('b').textContent,!!z.querySelector('input'),"
+        "z.querySelector('button').textContent,z.querySelector('small').textContent.includes('E-Mail gleich')])]"),
+        [0, [["Wilma Archiv", False, "Zurückholen und wählen", True]]])
+    await tab.js(f"{UEB}.scrollIntoView({{block:'start'}})")
+    await tab.bild("uebernehmen_im_archiv_1440_hell")
+    await tab.js(STATUS + ".textContent='';document.querySelector('#uebKundenArchiv [data-klick=uebArchivZurueckholen]').click()")
+    await tab.warten(STATUS + ".textContent!==''", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Zurückholen und wählen: unter den Vorschlägen gewählt, Objekte geladen", await tab.js(
+        f"[{STATUS}.textContent,uebKunde,!!document.querySelector('#uebKunden input[value=\"{seed['wilma']}\"]:checked'),"
+        "document.getElementById('uebKundenArchiv').innerHTML,document.getElementById('uebObjekte').textContent.includes('Hauptadresse')]"),
+        ["Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.", str(seed["wilma"]), True, "", True])
+    await tab.js("const i=document.getElementById('uebSucheText');i.value='viktor';i.dispatchEvent(new Event('input',{bubbles:true}))")
+    await tab.warten("document.querySelectorAll('#uebSucheArchiv .ueb-archiv-zeile').length>0", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Suche „viktor“: kein aktiver, Viktor unter „im Archiv“", await tab.js(
+        "[document.querySelectorAll('#uebSucheTreffer input').length,document.getElementById('uebSucheHinweis').textContent,"
+        "[...document.querySelectorAll('#uebSucheArchiv .ueb-archiv-zeile b')].map(b=>b.textContent)]"),
+        [0, "Kein aktiver Kunde gefunden – siehe „im Archiv“.", ["Viktor Archiv"]])
+    for thema, name in (("light", "hell"), ("dark", "dunkel")):
+        await tab.fenster(412, 1000, mobil=True)
+        await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)});document.documentElement.setAttribute('data-theme',{json.dumps(thema)})")
+        await tab.js("document.getElementById('uebSuche').scrollIntoView({block:'start'})")
+        p.pruefe(f"Übernehmen 412 px {name}: ohne Überlauf", await tab.ueberlauf(), [])
+        await tab.bild(f"uebernehmen_im_archiv_412_{name}")
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','light');document.documentElement.setAttribute('data-theme','light')")
+    await tab.js(STATUS + ".textContent='';document.querySelector('#uebSucheArchiv [data-klick=uebArchivZurueckholen]').click()")
+    await tab.warten(STATUS + ".textContent!==''", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Suche: zurückgeholt -> unter den Treffern gewählt", await tab.js(
+        f"[{STATUS}.textContent,uebKunde,uebKundeAusSuche,"
+        f"!!document.querySelector('#uebSucheTreffer input[value=\"{seed['viktor']}\"]:checked'),document.getElementById('uebSucheArchiv').innerHTML]"),
+        ["Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.", str(seed["viktor"]), True, True, ""])
 
 
 NEU = "document.getElementById('newCustomer')"
@@ -71,10 +131,10 @@ async def _neue_anfrage(tab, seed, p):
     """Seit 1.10.16: „Neue Anfrage“ -- Kunden im Archiv in einer eigenen Gruppe, gewählt nur über „Zurückholen und wählen“."""
     p.pruefe("Anfragen geladen", await tab.oeffnen("/inquiries?n=1", f"{NEU}.options.length>1"), True)
     await tab.warte_auf_ruhe()
-    p.pruefe("Neue Anfrage: Gruppe „im Archiv“ mit Xaver und Yvonne, „Bearbeiten“ ohne", await tab.js(
+    p.pruefe("Neue Anfrage: Gruppe „im Archiv“ mit Viktor, Wilma, Xaver und Yvonne, „Bearbeiten“ ohne", await tab.js(
         f"[[...{NEU}.querySelectorAll('optgroup')].map(g=>[g.label,[...g.querySelectorAll('option')].map(o=>o.textContent.split(' (')[0].split(' · ')[1])]),"
         f"[...document.getElementById('editCustomer').options].some(o=>['{seed['xaver']}','{seed['yvonne']}'].includes(o.value))]"),
-        [[["im Archiv", ["Xaver Archiv", "Yvonne Archiv"]]], False])
+        [[["im Archiv", ["Viktor Archiv", "Wilma Archiv", "Xaver Archiv", "Yvonne Archiv"]]], False])  # Viktor, Wilma seit 1.10.17
     await tab.js(f"{NEU}.value='{seed['xaver']}';{NEU}.dispatchEvent(new Event('change',{{bubbles:true}}))")
     p.pruefe("Xaver gewählt: Auswahl springt zurück, Hinweis", await tab.js(
         f"[{NEU}.value,{HINWEIS}.hidden,document.getElementById('newArchivText').textContent.includes('Xaver Archiv ist im Archiv seit')]"), ["", False, True])
@@ -88,7 +148,8 @@ async def _neue_anfrage(tab, seed, p):
     p.pruefe("Zurückholen und wählen: gewählt samt Hauptadresse, Gruppe ohne Xaver", await tab.js(
         f"[document.getElementById('createStatus').textContent,{NEU}.value,document.getElementById('newProperty').value,{HINWEIS}.hidden,"
         f"[...{NEU}.querySelectorAll('optgroup option')].map(o=>o.value)]"),
-        ["Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.", str(seed["xaver"]), str(seed["xaver_objekt"]), True, [str(seed["yvonne"])]])
+        ["Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.", str(seed["xaver"]), str(seed["xaver_objekt"]), True,
+         [str(seed["viktor"]), str(seed["wilma"]), str(seed["yvonne"])]])  # Viktor, Wilma seit 1.10.17
     await tab.js("document.getElementById('newTitle').value='Rinne tropft';document.getElementById('createStatus').textContent='';createInquiry()")
     await tab.warten("document.getElementById('createStatus').textContent!==''", 10)
     await tab.warte_auf_ruhe()
@@ -179,6 +240,7 @@ async def pruefen(tab, seed, p):
         f"[...{ARCHIV}.querySelectorAll('.result-archiv .sub')].map(s=>s.textContent.split(' · ')[0])]"),
         [["Kunden", "Objekte", "im Archiv"], ["Anfrage", "Projekt", "Angebot"]])
     await _neue_anfrage(tab, seed, p)  # seit 1.10.16
+    await _uebernehmen(tab, seed, p)  # seit 1.10.17
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
     # Monteurin
@@ -187,4 +249,10 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__))
+    ATTRAPPE.start()  # seit 1.10.17: der Empfangsdienst für die Anfrage der Webseite
+    try:
+        rc = klicktest_main(befuellen, pruefen, beschreibung=__doc__,
+                            umgebung={"DK_ANFRAGE_URL": ATTRAPPE.adresse, "DK_ANFRAGE_SCHLUESSEL": ATTRAPPE.schluessel})
+    finally:
+        ATTRAPPE.stop()
+    sys.exit(rc)

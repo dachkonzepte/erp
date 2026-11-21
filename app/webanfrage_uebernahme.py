@@ -110,8 +110,9 @@ def _nur_ziffern(spalte):
     return spalte
 
 
-def _kunden(db: Session, a: dict) -> list[dict]:
-    """Bestehende Kunden mit Gründen -- beim Mieter nur nach dem Namen der Hausverwaltung (Telefon und E-Mail sind die des Mieters)."""
+def _kunden(db: Session, a: dict) -> tuple[list[dict], list[dict]]:
+    """Bestehende Kunden mit Gründen -- beim Mieter nur nach dem Namen der Hausverwaltung (Telefon und E-Mail sind die des Mieters). Seit 1.10.17
+    (Antwort F4) zwei Listen nach denselben Gründen: die aktiven und die im Archiv (dort gewählt nur über „Zurückholen und wählen“)."""
     treffer: dict[int, list[str]] = {}
 
     def dazu(abfrage, grund):
@@ -140,28 +141,34 @@ def _kunden(db: Session, a: dict) -> list[dict]:
             bedingung.append(telefonbuch(Customer.first_name) == schluessel(vorname))
         dazu(select(Customer.id).where(*bedingung), "Name gleich")
     plz = (a["objekt"] or {}).get("plz")
-    kunden = db.scalars(select(Customer).where(Customer.id.in_(list(treffer)), Customer.archiviert_am.is_(None))  # 1.10.11: ohne Archiv
-                        .order_by(Customer.id)).all() if treffer else []
-    out = []
+    kunden = db.scalars(select(Customer).where(Customer.id.in_(list(treffer))).order_by(Customer.id)).all() if treffer else []
+    aktiv, archiv = [], []
     for k in kunden:
         gruende = treffer[k.id]
         if plz and (k.postal_code == plz or any(p.postal_code == plz for p in k.properties)):
             gruende.append("PLZ gleich")
-        out.append(_kunde_zeile(k, gruende))
-    out.sort(key=lambda x: (-len(x["gruende"]), schluessel(x["name"]), x["id"]))
-    return out[:VORSCHLAEGE_MAX]
+        if k.archiviert_am is None:  # 1.10.11: ein Kunde im Archiv nie unter den Vorschlägen; seit 1.10.17 in der eigenen Liste
+            aktiv.append(_kunde_zeile(k, gruende))
+        else:
+            archiv.append(_kunde_zeile(k, gruende))
+    for liste in (aktiv, archiv):
+        liste.sort(key=lambda x: (-len(x["gruende"]), schluessel(x["name"]), x["id"]))
+    return aktiv[:VORSCHLAEGE_MAX], archiv[:VORSCHLAEGE_MAX]
 
 
 def _kunde_zeile(k: Customer, gruende: list[str]) -> dict:
     return {"id": k.id, "name": k.name, "kundennummer": k.customer_number,
-            "adresse": adresse_text({"strasse": k.street, "plz": k.postal_code, "ort": k.city}), "gruende": gruende}
+            "adresse": adresse_text({"strasse": k.street, "plz": k.postal_code, "ort": k.city}), "gruende": gruende,
+            "archiviert_am": k.archiviert_am}  # seit 1.10.17: gesetzt nur in den Listen „im Archiv“
 
 
 def kunden_suche(db: Session, text: str) -> dict:
     """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- dieselbe Kundensuche wie die Büro-Suche (app/search.py::kunden_suchen()), in der Form der
     Vorschläge (ohne Gründe); schreibt nichts. anzahl = alle Treffer, kunden = die ersten SUCHE_MAX."""
     anzahl, kunden = kunden_suchen(db, text, SUCHE_MAX)
-    return {"kunden": [_kunde_zeile(k, []) for k in kunden], "anzahl": anzahl}
+    archiv_anzahl, archiv = kunden_suchen(db, text, SUCHE_MAX, im_archiv=True)  # seit 1.10.17 (Antwort F4): Kunden im Archiv für sich
+    return {"kunden": [_kunde_zeile(k, []) for k in kunden], "anzahl": anzahl,
+            "archiv": [_kunde_zeile(k, []) for k in archiv], "archiv_anzahl": archiv_anzahl}
 
 
 def vorschlag(db: Session, zeile: WebAnfrage) -> dict:
@@ -184,8 +191,10 @@ def vorschlag(db: Session, zeile: WebAnfrage) -> dict:
     vor_ort = a["vor_ort"] or ({"name": a["name"], "telefon": a["telefon"]} if a["rolle"] == "mieter" and a["name"] else None)
     u = umschlag_lesen(zeile.umschlag) or {}
     beschreibung = u.get("text") if isinstance(u.get("text"), str) else None
+    kunden, kunden_archiv = _kunden(db, a)
     return {
-        "rolle": a["rolle"], "auftraggeber": auftraggeber, "kunden": _kunden(db, a), "kunde_neu": {**kunde_neu, "is_consumer": a["verbraucher"]},
+        "rolle": a["rolle"], "auftraggeber": auftraggeber, "kunden": kunden, "kunden_archiv": kunden_archiv,
+        "kunde_neu": {**kunde_neu, "is_consumer": a["verbraucher"]},
         "objekt_neu": {"name": objekt.get("strasse") or "Objekt laut Webseite", "street": objekt.get("strasse"), "postal_code": objekt.get("plz"),
                        "city": objekt.get("ort"), "site_contact_name": (vor_ort or {}).get("name"), "site_contact_phone": (vor_ort or {}).get("telefon")}
         if a["objekt"] else None,

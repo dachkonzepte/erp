@@ -74,14 +74,16 @@ def test_suche_wie_die_buero_suche(dienst, threaded_db_session, router_test_clie
     vorher = _anzahlen(db)
     r = c.get(f"/api/webanfragen/{i}/kunden", params={"suche": "grundler"}).json()  # ü wie u -- wie im Telefonbuch
     assert (r["anzahl"], [k["id"] for k in r["kunden"]]) == (1, [hv.id])
-    assert r["kunden"][0] == {"id": hv.id, "name": hv.name, "kundennummer": hv.customer_number, "adresse": None, "gruende": []}
+    assert r["kunden"][0] == {"id": hv.id, "name": hv.name, "kundennummer": hv.customer_number, "adresse": None, "gruende": [],
+                              "archiviert_am": None}  # archiviert_am seit 1.10.17
     r = c.get(f"/api/webanfragen/{i}/kunden", params={"suche": "MULL"}).json()
     buero = next(g for g in search_office(db, "buero_auftrag", "MULL", types=frozenset({"customers"})) if g["key"] == "customers")
     assert [k["id"] for k in r["kunden"]] == [h["id"] for h in buero["hits"]] and r["anzahl"] == buero["total"] == 2  # dieselbe Suche, dieselbe Reihenfolge
     assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": anna.customer_number}).json()["kunden"][0]["id"] == anna.id  # Kundennummer
-    assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": " m "}).json() == {"kunden": [], "anzahl": 0}  # ab zwei Zeichen
-    assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": "%%"}).json() == {"kunden": [], "anzahl": 0}  # „%“ gilt wörtlich
-    assert c.get(f"/api/webanfragen/{i}/kunden").json() == {"kunden": [], "anzahl": 0}
+    LEER = {"kunden": [], "anzahl": 0, "archiv": [], "archiv_anzahl": 0}  # archiv, archiv_anzahl seit 1.10.17
+    assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": " m "}).json() == LEER  # ab zwei Zeichen
+    assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": "%%"}).json() == LEER  # „%“ gilt wörtlich
+    assert c.get(f"/api/webanfragen/{i}/kunden").json() == LEER
     assert c.get(f"/api/webanfragen/{i}/kunden", params={"suche": "x" * 101}).status_code == 422
     assert c.get("/api/webanfragen/999999/kunden", params={"suche": "mull"}).status_code == 404
     assert _anzahlen(db) == vorher  # schreibt nichts

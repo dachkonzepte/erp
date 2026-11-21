@@ -1020,6 +1020,7 @@ class WebAnfrageVorschlagOut(BaseModel):
     rolle: str
     auftraggeber: str
     kunden: list[dict] = Field(default_factory=list)
+    kunden_archiv: list[dict] = Field(default_factory=list)  # seit 1.10.17 (Antwort F4): dieselben Gründe, Kunden im Archiv
     kunde_neu: dict = Field(default_factory=dict)
     objekt_neu: dict | None = None
     vor_ort: dict | None = None
@@ -1035,12 +1036,15 @@ class WebAnfrageKundeOut(BaseModel):
     kundennummer: str | None = None
     adresse: str | None = None
     gruende: list[str] = Field(default_factory=list)
+    archiviert_am: datetime | None = None  # seit 1.10.17: nur in der Liste „im Archiv“
 
 
 class WebAnfrageKundenSucheOut(BaseModel):
-    """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- die ersten Treffer und die Zahl aller Treffer."""
+    """Seit 1.10.8: „Anderen bestehenden Kunden wählen“ -- die ersten Treffer und die Zahl aller Treffer; seit 1.10.17 ebenso die im Archiv."""
     kunden: list[WebAnfrageKundeOut] = Field(default_factory=list)
     anzahl: int = 0
+    archiv: list[WebAnfrageKundeOut] = Field(default_factory=list)
+    archiv_anzahl: int = 0
 
 
 class WebAnfrageObjektOut(BaseModel):

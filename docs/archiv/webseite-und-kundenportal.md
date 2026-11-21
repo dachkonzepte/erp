@@ -708,11 +708,13 @@ Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.10“ (17 über pytest, ein
    der Vorschau (Prüfsumme), sonst 409 und nichts archiviert. Unter den Sperren neu gerechnet; was nicht mehr fällig ist, bleibt mit Grund.
 7. Im Archiv fehlt eine Einheit in Listen, Büro-Suche, Suche der Monteurin, Eingang der Webseite (samt Zählern), Vorschlag und Suche beim Übernehmen, den
    Fotokopien am Objekt und der Wiedervorlage auf „Start“; über die Kennung bleibt sie lesbar. Ein archiviertes Projekt mit Auftrag bleibt in der Suche (wie
-   bisher).
+   bisher). (Seit 1.10.15–1.10.17 erweitert, Antwort F4 vom 21.11.2026: Büro-Suche, „Neue Anfrage“ sowie Vorschlag und Suche beim Übernehmen zeigen das Archiv
+   in einer eigenen Gruppe „im Archiv“, gewählt nur über „Zurückholen und öffnen“ bzw. „… und wählen“; Listen und die Suche der Monteurin bleiben ohne.)
 8. Zurückholen darf jedes Büro (F12: „Büro und Admin“); ab dem Zurückholen zählen die 6 Monate neu; Anfrage und Projekt holen ihren Kunden mit; eine Anfrage mit
    Projekt kommt mit ihrem Projekt.
 9. An einem Kunden im Archiv entsteht nichts Neues (Anfrage anlegen oder ändern, Projekt anlegen, Wechsel eines Projekts zu ihm: 409; beim Übernehmen wie
-   unbekannt); kein Kontaktvermerk und keine Aktion an einem Eingang im Archiv (409).
+   unbekannt); kein Kontaktvermerk und keine Aktion an einem Eingang im Archiv (409). (Bleibt so; seit 1.10.16/1.10.17 bieten „Neue Anfrage“ und das
+   Übernehmen davor „Zurückholen und wählen“ an.)
 10. Archivieren über das „⋮“ der Akte bleibt bei jedem Büro (wie bisher) und ist dasselbe Archiv: Zeitpunkt und Konto, ohne Auftrag mit Anfrage und Eingang;
     Entarchivieren ist Zurückholen (Kunde mit).
 11. Die Historie nennt je Einheit „archiviert“ bzw. „zurückgeholt“ unter der vorhandenen Art, „Archiv: aktiv ↔ im Archiv“, mit der Nummer -- ohne Inhalte.
@@ -980,3 +982,33 @@ gewählt, Hinweis; Abbrechen; Zurückholen und wählen -- POST, Liste neu, gewä
 um „Neue Anfrage“ erweitert (32 Prüfungen: Gruppe mit Xaver und Yvonne, „Bearbeiten“ ohne, Auswahl springt zurück, Abbrechen, Zurückholen und wählen samt Hauptadresse,
 Anfrage gespeichert, `?customer_id=` mit Hinweis, 412 px hell und dunkel ohne Überlauf, Bilder). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`,
 „W1c, 1.10.16“ (6, alle rot).
+
+### Umsetzung 1.10.17: Übernehmen mit Kunden im Archiv
+
+- `app/webanfrage_uebernahme.py::_kunden()` sucht wie bisher nach E-Mail, Telefon, Name (beim Mieter nach dem Namen der Hausverwaltung) und PLZ, teilt die Treffer
+  aber in zwei Listen: `kunden` (aktiv, wie bisher) und `kunden_archiv` (im Archiv, dieselben Gründe, je mit `archiviert_am`). `kunden_suche()` liefert neben
+  `kunden`/`anzahl` auch `archiv`/`archiv_anzahl` -- dieselbe Suche, nur das Archiv (`app/search.py::kunden_suchen(…, im_archiv=True)`,
+  `_search_customers_archiv()` über `_kunden_stmt(term, True)`).
+- `webanfrage.html`: unter den Vorschlägen und unter den Treffern der Suche je eine Gruppe „im Archiv“ (Name, Nummer, Adresse, Gründe, „im Archiv seit …“) ohne
+  Auswahlknopf, je „Zurückholen und wählen“ (`uebArchivZurueckholen`): `POST /api/aufbewahrung/kunde/{id}/zurueckholen` (jedes Büro), dann Vorschlag und Suche neu
+  (`neuLaden`), der Kunde gewählt wie per Klick -- unter den Vorschlägen bzw. den Treffern der Suche, seine Objekte geladen (`uebKundeSetzen()`). Findet die Suche
+  keinen aktiven, aber einen im Archiv: „Kein aktiver Kunde gefunden – siehe „im Archiv“.“
+- Das Übernehmen und die Objekte eines Kunden nehmen weiter keinen Kunden im Archiv (404, seit 1.10.11).
+
+#### Festlegungen 1.10.17 (Bitte bestätigen)
+
+1. Der Vorschlag zeigt Kunden im Archiv, die nach denselben Gründen passen, in einer eigenen Gruppe „im Archiv“ unter den Vorschlägen -- ohne Auswahlknopf.
+2. „Anderen bestehenden Kunden wählen“ zeigt die Kunden im Archiv, die die Suche findet, ebenso unter den Treffern, mit eigener Zahl.
+3. „Zurückholen und wählen“ holt den Kunden zurück (jedes Büro, die 6 Monate zählen neu), liest Vorschlag und Suche neu und wählt ihn dort samt seinen Objekten.
+4. Übernehmen nimmt weiter keinen Kunden im Archiv (404) -- gewählt wird nur über „Zurückholen und wählen“.
+
+#### Tests und Prüfung 1.10.17
+
+Neu `tests/test_v788_uebernehmen_archiv.py` (5 Tests: Vorschlag mit der Gruppe „im Archiv“ und ihren Gründen, Objekte und Übernehmen 404 bis zum Zurückholen, danach
+unter den Vorschlägen und übernommen; Suche mit `archiv`/`archiv_anzahl`; in node die Gruppen ohne Auswahlknopf, über esc(), mit „im Archiv seit“; ohne Archiv keine
+Gruppe; Zurückholen und wählen -- POST vor dem Neulesen, gewählt, Objekte gelesen). `scripts/klicktest_archiv_wiederfinden.py` um das Übernehmen erweitert (40
+Prüfungen: Attrappe des Empfangsdienstes, Vorschlag nur „im Archiv“, zurückgeholt und gewählt samt Objekten, Suche ohne aktiven Treffer, zurückgeholt und gewählt
+unter den Treffern, 412 px hell und dunkel ohne Überlauf, Bilder). Angepasste Erwartungen: `tests/test_v779_webanfragen_anderer_kunde.py::test_suche_wie_die_buero_suche`
+(ein Treffer trägt `archiviert_am`, die leere Antwort `archiv` und `archiv_anzahl` -- Aufbau); `klicktest_archiv_wiederfinden.py` „Neue Anfrage: Gruppe …“ und
+„Zurückholen und wählen …“ (seit 1.10.16: Xaver, Yvonne -> neu dazu Viktor, Wilma aus den Testdaten des Übernehmens). Gegenproben: `gegenproben-webseite.md`,
+„W1c, 1.10.17“ (7, alle rot).

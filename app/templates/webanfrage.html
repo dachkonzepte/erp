@@ -61,6 +61,12 @@
   .ueb-suche>label input{max-width:420px}
   .ueb-suche .ueb-wahl{margin-top:8px}
   .ueb-suche .ueb-wahl:empty{display:none}
+  /* seit 1.10.17 (Antwort F4): Kunden im Archiv -- kein Auswahlknopf, nur „Zurückholen und wählen“ */
+  .ueb-archiv:empty{display:none}
+  .ueb-archiv{margin:8px 0;padding:8px 12px;border-left:4px solid var(--ds-warn-text);background:var(--ds-warn-hell);border-radius:var(--ds-ecke-feld)}
+  .ueb-archiv h4{margin:0 0 4px;font-size:13px}
+  .ueb-archiv-zeile{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;padding:6px 0;border-top:1px solid var(--line)}
+  .ueb-archiv-zeile:first-of-type{border-top:0}
   @media(max-width:850px){.ueb-felder{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:850px){.raster{grid-template-columns:minmax(0,1fr)}.zeile{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:650px){main{padding:12px}.fotos img{width:150px;height:112px}}
@@ -101,11 +107,13 @@
     <div class="muted small" id="uebAuftraggeberText"></div>
     <h3>Auftraggeber</h3>
     <div class="ueb-wahl" id="uebKunden"></div>
+    <div class="ueb-archiv" id="uebKundenArchiv"></div>{# seit 1.10.17: dieselben Gründe, Kunden im Archiv #}
     {# seit 1.10.8: immer sichtbar, auch beim Mieter -- dieselbe Kundensuche wie die Suche oben (passt(), Telefonbuch) #}
     <div class="ueb-suche" id="uebSuche">
       <label for="uebSucheText">Anderen bestehenden Kunden wählen<input id="uebSucheText" maxlength="100" autocomplete="off" placeholder="Name oder Kundennummer" data-eingabe="uebKundeSuchen"></label>
       <div class="muted small" id="uebSucheHinweis" role="status">Name oder Kundennummer, ab zwei Zeichen – dieselbe Suche wie oben.</div>
       <div class="ueb-wahl" id="uebSucheTreffer"></div>
+      <div class="ueb-archiv" id="uebSucheArchiv"></div>{# seit 1.10.17 #}
     </div>
     <div class="ueb-wahl" id="uebKundeNeuWahl"></div>
     <div class="ueb-felder" id="uebKundeNeu" hidden>
@@ -323,12 +331,25 @@ const uebFeld=(id,w)=>{document.getElementById(id).value=w==null?'':String(w)};
 function uebZeichnen(){
   const v=uebVorschlag;
   document.getElementById('uebAuftraggeberText').textContent=v.auftraggeber;
-  document.getElementById('uebKunden').innerHTML=(v.kunden||[]).map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-aenderung="uebKundeWahl"><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')} · ${esc((k.gruende||[]).join(', '))}</small></span></label>`).join('')
-    ||'<div class="muted small">Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.</div>';
+  uebVorschlagKundenZeichnen();
   // seit 1.10.8: „Neuer Kunde“ nach der Suche -- erst suchen, dann neu anlegen (keine Dublette)
   document.getElementById('uebKundeNeuWahl').innerHTML='<label><input type="radio" name="uebKunde" value="neu" data-aenderung="uebKundeWahl"><span><b>Neuer Kunde</b> aus den Angaben<br><small>Die Felder unten kommen aus dem Formular – vor dem Übernehmen prüfen.</small></span></label>';
   const a=v.anfrage||{};
   uebFeld('uebTitel',a.titel);uebFeld('uebBeschreibung',a.beschreibung);uebFeld('uebAnsprech',a.ansprechpartner);
+}
+/* Seit 1.10.17 (Antwort F4 vom 21.11.2026): Kunden im Archiv stehen in einer eigenen Gruppe „im Archiv“ -- unter dem Vorschlag (dieselben Gründe) und unter
+   der Suche. Gewählt wird keiner direkt: „Zurückholen und wählen“ holt ihn zurück (jedes Büro, wie auf „Aufbewahrung“; die 6 Monate zählen ab dann neu),
+   liest Vorschlag bzw. Suche neu und wählt ihn dort wie einen Vorschlag. */
+function uebArchivHtml(liste,quelle,mehr){
+  if(!liste.length)return '';
+  return `<h4>im Archiv</h4>`+liste.map(k=>`<div class="ueb-archiv-zeile"><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')}${(k.gruende||[]).length?' · '+esc(k.gruende.join(', ')):''} · im Archiv seit ${esc(berlinZeitpunkt(k.archiviert_am,'datum'))}</small></span>`
+    +`<button type="button" class="ds-knopf" data-klick="uebArchivZurueckholen" data-id="${Number(k.id)}" data-quelle="${esc(quelle)}">Zurückholen und wählen</button></div>`).join('')+(mehr?`<div class="muted small">${esc(mehr)}</div>`:'');
+}
+function uebVorschlagKundenZeichnen(){
+  const v=uebVorschlag,gewaehlt=uebKundeAusSuche?null:uebKunde;
+  document.getElementById('uebKunden').innerHTML=(v.kunden||[]).map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-aenderung="uebKundeWahl"${String(k.id)===gewaehlt?' checked':''}><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')} · ${esc((k.gruende||[]).join(', '))}</small></span></label>`).join('')
+    ||'<div class="muted small">Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.</div>';
+  document.getElementById('uebKundenArchiv').innerHTML=uebArchivHtml(v.kunden_archiv||[],'vorschlag','');
 }
 function uebObjekteZeichnen(){
   const v=uebVorschlag,neuKunde=uebKunde==='neu';
@@ -349,17 +370,34 @@ function uebTrefferZeichnen(r){
   const treffer=r?(r.kunden||[]):[];
   if(uebKundeAusSuche&&!treffer.some(k=>String(k.id)===uebKunde)){uebKunde=null;uebKundeAusSuche=false;uebObjekteLeeren()}
   const gewaehlt=uebKundeAusSuche?uebKunde:null;
+  const archiv=r?(r.archiv||[]):[],archivAnzahl=r?Number(r.archiv_anzahl)||0:0;
+  document.getElementById('uebSucheArchiv').innerHTML=uebArchivHtml(archiv,'suche',archivAnzahl>archiv.length?`${archivAnzahl} im Archiv, hier die ersten ${archiv.length}.`:'');
   document.getElementById('uebSucheTreffer').innerHTML=treffer.map(k=>`<label><input type="radio" name="uebKunde" value="${Number(k.id)}" data-quelle="suche" data-aenderung="uebKundeWahl"${String(k.id)===gewaehlt?' checked':''}><span><b>${esc(k.name)}</b> ${esc(k.kundennummer||'')}<br><small>${esc(k.adresse||'ohne Anschrift')}</small></span></label>`).join('');
   const anzahl=r?Number(r.anzahl)||0:0;
   document.getElementById('uebSucheHinweis').textContent=!r?'Name oder Kundennummer, ab zwei Zeichen – dieselbe Suche wie oben.'
-    :!treffer.length?'Kein Kunde gefunden.':anzahl>treffer.length?`${anzahl} Treffer, hier die ersten ${treffer.length} – bitte genauer suchen.`:`${treffer.length} Treffer.`;
+    :!treffer.length?(archiv.length?'Kein aktiver Kunde gefunden – siehe „im Archiv“.':'Kein Kunde gefunden.'):anzahl>treffer.length?`${anzahl} Treffer, hier die ersten ${treffer.length} – bitte genauer suchen.`:`${treffer.length} Treffer.`;
 }
-aktion('uebKundeSuchen',async el=>{
-  const text=el.value.trim(),url=`/api/webanfragen/${ID}/kunden?suche=${encodeURIComponent(text)}`;
-  await lesen('kundensuche',()=>text.length>=2?api(url):Promise.resolve(null),uebTrefferZeichnen)
-    .catch(err=>{const h=document.getElementById('uebSucheHinweis');h.textContent='Suche fehlgeschlagen: '+err.message});
+function uebKundeSuchen(){
+  const text=document.getElementById('uebSucheText').value.trim(),url=`/api/webanfragen/${ID}/kunden?suche=${encodeURIComponent(text)}`;
+  return lesen('kundensuche',()=>text.length>=2?api(url):Promise.resolve(null),uebTrefferZeichnen);
+}
+aktion('uebKundeSuchen',async()=>{
+  await uebKundeSuchen().catch(err=>{const h=document.getElementById('uebSucheHinweis');h.textContent='Suche fehlgeschlagen: '+err.message});
 },'input');
-aktion('uebKundeWahl',async el=>{
+// seit 1.10.17: erst Vorschlag und Suche neu lesen (der Kunde steht danach unter den aktiven), dann ihn dort wählen wie per Klick
+aktion('uebArchivZurueckholen',async el=>{
+  const id=Number(el.dataset.id),quelle=el.dataset.quelle,s=document.getElementById('uebStatus');s.className='status';s.textContent='';
+  try{
+    const url=`/api/aufbewahrung/kunde/${id}/zurueckholen`;
+    await speichern('vorschlag',()=>api(url,{method:'POST'}),{neuLaden:()=>Promise.all([
+      lesen('vorschlag',()=>api(`/api/webanfragen/${ID}/vorschlag`),v=>{uebVorschlag=v;uebVorschlagKundenZeichnen()}),uebKundeSuchen()])});
+    const radio=document.querySelector(`#${quelle==='suche'?'uebSucheTreffer':'uebKunden'} input[name="uebKunde"][value="${id}"]`);
+    if(radio){radio.checked=true;await uebKundeSetzen(radio)}
+    s.textContent=radio?'Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.':'Kunde zurückgeholt – bitte oben wählen.';
+  }catch(e){s.className='status err';s.textContent='Fehler: '+e.message}
+});
+aktion('uebKundeWahl',el=>uebKundeSetzen(el),'change');
+async function uebKundeSetzen(el){
   uebKunde=el.value;uebKundeAusSuche=el.dataset.quelle==='suche';document.getElementById('uebStatus').textContent='';
   const neu=uebKunde==='neu',v=uebVorschlag;
   document.getElementById('uebKundeNeu').hidden=!neu;
@@ -372,7 +410,7 @@ aktion('uebKundeWahl',async el=>{
   }
   if(neu){uebObjektListe=[];uebObjekteZeichnen();return}
   await lesen('objekte',()=>api(`/api/webanfragen/${ID}/objekte?kunde_id=${Number(uebKunde)}`),liste=>{uebObjektListe=liste;uebObjekteZeichnen()});
-},'change');
+}
 aktion('uebObjektWahl',el=>{
   uebObjekt=el.value;document.getElementById('uebStatus').textContent='';
   const v=uebVorschlag,neu=uebObjekt==='neu';

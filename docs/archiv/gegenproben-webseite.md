@@ -425,3 +425,18 @@ Probendatei im Scratchpad (`gp_1116.py` über `gegenprobe.py` und `gegenprobe_kl
 | Nr. 3 – erst zurückholen | wählen ohne POST | 1 rot |
 | Nr. 4 – `?customer_id=` mit Hinweis | Hinweis bei Vorwahl aus | Klicktest rot: `/inquiries?customer_id=…` (3 Prüfungen), 28/32 |
 | Nr. 5 – der Server 409 | Prüfung im Router aus | 1 rot |
+
+## Antworten zum Bericht W1c, 1.10.17: Übernehmen mit Kunden im Archiv
+
+Probendatei im Scratchpad (`gp_1117.py` über `gegenprobe.py`), Lauf mit `tests/test_v788_uebernehmen_archiv.py`; alle 7 rot aus dem geprüften Grund (je FAILED, kein
+ERROR), alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – im Archiv nicht unter den Vorschlägen | Kunde im Archiv in die aktiven | 1 rot |
+| Nr. 1 – dieselben Gründe | Archiv ohne Gründe | 1 rot |
+| Nr. 1 / 2 – ohne Auswahlknopf | Auswahlknopf in der Gruppe | 1 rot |
+| Nr. 2 – Suche im Archiv | Archiv wie die aktiven gesucht | 1 rot |
+| Nr. 3 – erst zurückholen | Neulesen ohne POST | 1 rot |
+| Nr. 3 – danach gewählt | zurückgeholt, nicht gewählt | 1 rot |
+| Nr. 4 – Übernehmen nimmt keinen Kunden im Archiv | Prüfung aus | 1 rot |
