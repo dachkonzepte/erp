@@ -48,6 +48,10 @@
     .worklist-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .worklist-actions select{max-width:280px}
     @media(max-width:900px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  /* seit 1.10.21: Rohdaten erledigter Zeilen */
+  #rohdatenText{font-size:13.5px;margin:6px 0 4px}
+  .rohdaten-aktion{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+  .rohdaten-aktion button[hidden]{display:none}
   </style>
 </head>
 <body class="ds-seite">
@@ -115,6 +119,15 @@
         <tbody id="runRows"></tbody>
       </table>
     </div>
+  </section>
+
+  {#- seit 1.10.21 (Antwort F3): Rohdaten erledigter Zeilen leeren -- Vorschau und Bestätigung, nur Admin (wie die ganze Seite) #}
+  <section class="card" id="rohdatenCard">
+    <div class="section-title"><div><h2 style="margin:0 0 4px">Rohdaten erledigter Zeilen</h2><div class="muted small">Namen, Anschriften, Telefon, Mail und Nummern aus
+      dem Altsystem an Zeilen, die erledigt sind. Es bleiben Adressnummer, Art, Status, Erledigung und Verweise – ein späterer Import erkennt die Adressen weiter.</div></div></div>
+    <div id="rohdatenText"></div>
+    <div id="rohdatenBleibt" class="muted small"></div>
+    <div class="rohdaten-aktion"><button type="button" id="rohdatenKnopf" onclick="rohdatenLeeren()" hidden>Rohdaten leeren …</button><span id="rohdatenStatus" class="status" role="status"></span></div>
   </section>
 </main>
 </div>
@@ -249,10 +262,36 @@ async function revertRun(id) {
   catch (e) { alert('Fehler: ' + e.message); }
 }
 
+// Seit 1.10.21 (Antwort F3 vom 21.11.2026): Rohdaten erledigter Zeilen leeren -- die Vorschau vom Server, gesammelt nur mit ihrer Prüfsumme; endgültig.
+let rohdaten = null;
+async function loadRohdaten() {
+  await lesen('rohdaten', () => api('/api/address-import/rohdaten'), d => { rohdaten = d; rohdatenZeichnen(); });
+}
+function rohdatenZeichnen() {
+  const d = rohdaten, arten = d.je_art.map(a => `${a.name}: ${a.zahl}`).join(', ');
+  document.getElementById('rohdatenText').textContent = d.zahl
+    ? `${d.zahl} erledigte ${d.zahl === 1 ? 'Zeile trägt' : 'Zeilen tragen'} noch Rohdaten aus dem Altsystem (${arten}).`
+    : 'Keine erledigte Zeile trägt noch Rohdaten aus dem Altsystem.';
+  document.getElementById('rohdatenBleibt').textContent = `Unverändert bleiben: offen in der Arbeitsliste ${d.offen_arbeitsliste} (bis sie erledigt sind)`
+    + (d.in_vorschau ? `, in der Vorschau ${d.in_vorschau}` : '') + `; schon leer: ${d.schon_leer}.`;
+  document.getElementById('rohdatenKnopf').hidden = !d.zahl;
+}
+async function rohdatenLeeren() {
+  if (!rohdaten || !rohdaten.zahl) return;
+  if (!confirm(`Bei ${rohdaten.zahl} erledigten Zeilen Namen, Anschriften, Telefon, Mail und Nummern aus dem Altsystem leeren? Das lässt sich nicht rückgängig machen.`)) return;
+  const s = document.getElementById('rohdatenStatus');
+  s.textContent = ''; s.className = 'status';
+  try {
+    const body = JSON.stringify({stand: rohdaten.stand});
+    const e = await abschliessen('rohdaten', () => api('/api/address-import/rohdaten/leeren', {method: 'POST', headers: {'Content-Type': 'application/json'}, body}), {neuLaden: loadRohdaten});
+    s.textContent = `${e.geleert} ${e.geleert === 1 ? 'Zeile' : 'Zeilen'} geleert.`; s.className = 'status ok';
+  } catch (e) { s.textContent = 'Fehler: ' + e.message; s.className = 'status err'; }
+}
+
 async function init() {
   // Seit 1.8.97 über lesen() (_speichern.html): die Kundenliste für die Auswahl der Arbeitsliste (eigener Bereich, kein Speichern ersetzt sie).
   await lesen('kunden', () => api('/api/customers'), d => { customers = d; });
-  await Promise.all([loadPendingPreview(), loadWorklist(), loadRuns()]);
+  await Promise.all([loadPendingPreview(), loadWorklist(), loadRuns(), loadRohdaten()]);  // loadRohdaten seit 1.10.21
 }
 init().catch(e => { document.getElementById('uploadStatus').textContent = 'Startfehler: ' + e.message; document.getElementById('uploadStatus').className = 'status err'; });
 </script>

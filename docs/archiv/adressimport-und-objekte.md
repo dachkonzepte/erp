@@ -242,3 +242,10 @@ Jede Zelle wird beim Hochladen gegen die kürzeste Spalte geprüft, in die ihr W
 `app/address_import.py`). Eine Zeile mit zu langem Wert wird abgelehnt, nie gekürzt -- Klasse „abgelehnt“ in der Vorschau, nie
 übernommen, Liste mit Zeile, Feld und Grenze auf der Seite. Herleitung, Festlegungen und Tests: `docs/archiv/sqlite-und-postgresql.md`,
 „Umsetzung 1.9.351“.
+
+## Rohdaten erledigter Zeilen leeren (seit 1.10.21)
+
+Antwort des Betriebs vom 21.11.2026 (F3, Punkt 7 aus W1c): es kommt noch ein Import aus dem Altsystem -- deshalb werden die Rohzeilen nicht gelöscht, sondern an
+erledigten Zeilen nur die personenbezogenen Spalten geleert (Vorschau und Bestätigung nur Admin, Karte „Rohdaten erledigter Zeilen“ auf der Seite „Adressimport“).
+Adressnummer, Art, Status, Erledigung und Verweise bleiben; offene Zeilen der Arbeitsliste und eine laufende Vorschau bleiben ganz. Herleitung, Festlegungen und
+Tests: `docs/archiv/webseite-und-kundenportal.md`, „Umsetzung 1.10.21“.

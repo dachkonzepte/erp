@@ -10,6 +10,7 @@ from .. import address_import as svc
 from ..database import get_db
 from ..deps import require_admin
 from ..ids import Id
+from ..schemas import AdressimportRohdatenGeleertOut, AdressimportRohdatenLeerenIn, AdressimportRohdatenOut
 
 router = APIRouter()
 
@@ -72,6 +73,24 @@ def revert_run(run_id: Id, db: Session = Depends(get_db, scope="function"), _adm
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"ok": True}
+
+
+@router.get("/api/address-import/rohdaten", response_model=AdressimportRohdatenOut)
+def get_rohdaten(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+    """Seit 1.10.21 (Antwort F3): was „Rohdaten leeren“ leeren würde -- schreibt nichts."""
+    return svc.rohdaten_vorschau(db)
+
+
+@router.post("/api/address-import/rohdaten/leeren", response_model=AdressimportRohdatenGeleertOut)
+def post_rohdaten_leeren(payload: AdressimportRohdatenLeerenIn, request: Request, db: Session = Depends(get_db, scope="function"),
+                         _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+    """Seit 1.10.21: nur mit der Prüfsumme der Vorschau (stand) -- hat sich die Liste geändert, 409 und nichts geleert."""
+    user = getattr(request.state, "erp_user", None)
+    try:
+        return svc.rohdaten_leeren(db, payload.stand, getattr(user, "id", None))
+    except svc.RohdatenStandGeaendert as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/api/address-import/unassigned")

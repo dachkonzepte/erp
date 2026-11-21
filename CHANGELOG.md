@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.21 – Adressimport: Rohdaten erledigter Zeilen leeren
+
+Antwort F3 (21.11.2026, Punkt 7 aus W1c): es kommt noch ein Import aus dem Altsystem, also bleibt die Wiedererkennung. Auf der Seite „Adressimport“ zeigt eine neue Karte, wie viele erledigte Zeilen noch Namen, Anschriften, Telefon, Mail und Nummern aus dem Altsystem tragen, je Art, und was bleibt. „Rohdaten leeren …“ (nur Admin, mit Rückfrage, nur für genau die Liste der Vorschau) leert diese Spalten; Adressnummer, Art, Status, Erledigung und Verweise bleiben, offene Zeilen der Arbeitsliste und eine laufende Vorschau bleiben ganz. Die Historie nennt nur die Zahl. Ein späterer Import erkennt die Adressen weiter, ein Lauf lässt sich weiter rückgängig machen.
+
 ## 1.10.20 – Felder der Karte „Als Anfrage übernehmen“ wie die übrigen Formulare
 
 Antwort F8 (21.11.2026): die Felder der Karte standen in ihrer Beschriftung und erbten deren Schrift (12 px, fett), ohne Innenabstand -- seit W1b. Jetzt haben sie die Werte der übrigen Formulare wie „Neue Anfrage“: volle Breite, Innenabstand, 13,5 px, normale Schrift, Rahmen, Hover und Fokus.

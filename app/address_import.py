@@ -12,11 +12,12 @@ ohne dass irgendetwas an anderer Stelle entstanden wäre."""
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from .crm import compose_customer_name, ensure_customer_profile
@@ -547,6 +548,81 @@ def revert_import_run(db: Session, run_id: int) -> None:
     run.status = "reverted"
     run.reverted_at = datetime.utcnow()
     db.commit()
+
+
+# --- Rohdaten erledigter Zeilen leeren (seit 1.10.21, Antwort F3 vom 21.11.2026; Punkt 7 aus W1c) ---------------------------------------------------
+# Es kommt noch ein Import aus dem Altsystem: die Wiedererkennung (_address_already_imported(): Adressnummer, Status) und die Verweise bleiben, die
+# personenbezogenen Spalten einer erledigten Zeile werden geleert. Erledigt = bestätigt und nicht offen in der Arbeitsliste (Kunde, Lieferant, bereits
+# importiert, ungültig, abgelehnt, Arbeitsliste mit Erledigung). Offene Zeilen der Arbeitsliste und eine laufende Vorschau bleiben unverändert. Geleert wird
+# mit einem UPDATE über genau die Zeilen der Vorschau. ImportedAddress steht nicht in AUDITED_TYPES (app/audit.py) -- die Änderungshistorie hält ihre Werte
+# nicht; sie bekommt eine Zeile „Rohdaten geleert“ mit der Zahl, ohne Inhalte.
+ROHDATEN_SPALTEN = ("customer_number_raw", "supplier_number_raw", "salutation", "title", "first_name", "last_name", "street", "country", "postal_code",
+                    "city", "phone", "fax", "mobile", "email", "email_2", "validation_notes")
+ROHDATEN_ARTEN = {"customer": "Kunde", "supplier": "Lieferant", "unassigned": "Arbeitsliste erledigt", "duplicate": "bereits importiert",
+                  "invalid": "ungültig", ABGELEHNT: "abgelehnt"}
+
+
+class RohdatenStandGeaendert(ValueError):
+    """Gesammelt bestätigt, aber die Liste ist inzwischen eine andere -- 409."""
+
+
+def _erledigt():
+    return and_(ImportedAddress.status == "confirmed",
+                or_(ImportedAddress.classification != "unassigned", ImportedAddress.resolution.is_not(None)))
+
+
+def _mit_rohdaten():
+    return or_(*[getattr(ImportedAddress, s).is_not(None) for s in ROHDATEN_SPALTEN])
+
+
+def _rohdaten_zeilen(db: Session) -> list[tuple[int, str]]:
+    return db.execute(select(ImportedAddress.id, ImportedAddress.classification).where(_erledigt(), _mit_rohdaten())
+                      .order_by(ImportedAddress.id)).all()
+
+
+def _zaehlen(db: Session, *bedingung) -> int:
+    return db.scalar(select(func.count()).select_from(ImportedAddress).where(*bedingung)) or 0
+
+
+def rohdaten_vorschau(db: Session) -> dict:
+    """Was „Rohdaten leeren“ leeren würde -- je Art, dazu was bleibt (offen in der Arbeitsliste, in der Vorschau, schon leer); schreibt nichts."""
+    zeilen = _rohdaten_zeilen(db)
+    je_art: dict[str, int] = {}
+    for _, art in zeilen:
+        je_art[art] = je_art.get(art, 0) + 1
+    reihe = list(ROHDATEN_ARTEN)
+    return {
+        "zahl": len(zeilen),
+        "je_art": [{"art": a, "name": ROHDATEN_ARTEN.get(a, a), "zahl": je_art[a]}
+                   for a in sorted(je_art, key=lambda a: (reihe.index(a) if a in reihe else len(reihe), a))],
+        "offen_arbeitsliste": _zaehlen(db, ImportedAddress.status == "confirmed", ImportedAddress.classification == "unassigned",
+                                       ImportedAddress.resolution.is_(None)),
+        "in_vorschau": _zaehlen(db, ImportedAddress.status != "confirmed"),
+        "schon_leer": _zaehlen(db, _erledigt(), ~_mit_rohdaten()),
+        "stand": _rohdaten_summe([i for i, _ in zeilen]),
+    }
+
+
+def _rohdaten_summe(ids: list[int]) -> str:
+    return hashlib.sha256(json.dumps(ids).encode()).hexdigest()[:16]
+
+
+def rohdaten_leeren(db: Session, stand: str, user_id: int | None) -> dict:
+    """Bestätigt: leert die Rohdaten genau der Zeilen, die die Vorschau zeigte (Prüfsumme) -- sonst RohdatenStandGeaendert, nichts geleert."""
+    from .audit import record_audit_entry
+    if db.bind.dialect.name == "postgresql":
+        db.execute(select(ImportedAddress.id).where(_erledigt()).order_by(ImportedAddress.id).with_for_update())
+    ids = [i for i, _ in _rohdaten_zeilen(db)]
+    if _rohdaten_summe(ids) != stand:
+        raise RohdatenStandGeaendert("Die Liste hat sich geändert – bitte neu laden und noch einmal bestätigen.")
+    if ids:
+        db.execute(update(ImportedAddress).where(ImportedAddress.id.in_(ids)).values(**{s: None for s in ROHDATEN_SPALTEN})
+                   .execution_options(synchronize_session=False))
+        record_audit_entry(db, action="Rohdaten geleert", entity_type="Adressimport", entity_id="rohdaten", entity_label="Rohdaten des Adressimports",
+                           field_name="rohdaten", field_label="Rohdaten", old_value=f"{len(ids)} erledigte Zeilen mit Rohdaten", new_value="geleert",
+                           actor_user_id=user_id)
+    db.commit()
+    return {"geleert": len(ids)}
 
 
 def list_unassigned(db: Session, search: str | None = None) -> list[dict]:

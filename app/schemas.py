@@ -1017,6 +1017,30 @@ class WebAnfrageUebernehmenIn(BaseModel):
     prioritaet: Literal["niedrig", "normal", "hoch", "dringend"] = "normal"
 
 
+class AdressimportRohdatenArtOut(BaseModel):
+    art: str
+    name: str
+    zahl: int
+
+
+class AdressimportRohdatenOut(BaseModel):
+    """Seit 1.10.21 (Antwort F3): Vorschau „Rohdaten erledigter Zeilen leeren“ (app/address_import.py::rohdaten_vorschau())."""
+    zahl: int
+    je_art: list[AdressimportRohdatenArtOut] = Field(default_factory=list)
+    offen_arbeitsliste: int = 0
+    in_vorschau: int = 0
+    schon_leer: int = 0
+    stand: str
+
+
+class AdressimportRohdatenLeerenIn(BaseModel):
+    stand: Pflichttext = Field(min_length=1, max_length=64)
+
+
+class AdressimportRohdatenGeleertOut(BaseModel):
+    geleert: int
+
+
 class WebAnfrageVorschlagOut(BaseModel):
     """Seit 1.10.5: was die Seite zum Übernehmen vorschlägt (nur aus den strukturierten Angaben)."""
     rolle: str

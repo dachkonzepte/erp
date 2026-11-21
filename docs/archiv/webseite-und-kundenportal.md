@@ -870,8 +870,8 @@ nach der Adressnummer), (3) das Rückgängigmachen eines Importlaufs -- nur, sol
 Zeilen der Arbeitsliste (offen, als Objekt zugeordnet oder verworfen) oder abgelehnte; welche, zeigt ein Nur-Lese-Befehl (im Bericht). Vorschlag: (a) die
 offene Arbeitsliste abarbeiten; (b) danach in allen Rohzeilen die personenbezogenen Spalten leeren und nur Adressnummer, Art, Status, Erledigung und die
 Verweise behalten -- das reicht für die Wiedererkennung, das Rückgängigmachen eines alten Laufs entfällt; (c) ist kein Import aus dem Altsystem mehr geplant, die
-Rohzeilen ganz löschen. Entscheidung des Betriebs; gebaut als eigene kleine Version mit Vorschau und Bestätigung. Stand 21.11.2026: die Antwort auf F3
-(kommt noch ein Import aus dem Altsystem?) steht aus -- nichts gebaut.
+Rohzeilen ganz löschen. Entscheidung des Betriebs; gebaut als eigene kleine Version mit Vorschau und Bestätigung. Antwort F3 vom 21.11.2026: es kommt noch ein
+Import aus dem Altsystem -- (b), gebaut mit 1.10.21 (unten).
 
 ### Antworten des Betriebs zum Bericht W1c (21.11.2026)
 
@@ -1086,3 +1086,37 @@ behält ihre Höchstbreite von 420 px.
 Neu `tests/test_v791_uebernahme_felder.py` (3 Tests: die Regel mit den Werten von „Neue Anfrage“, Hover und Fokus, Optionsfelder ausgenommen).
 `klicktest_archiv_wiederfinden.py` misst fünf Felder (Betreff, Beschreibung, Ansprechpartner, Priorität, Suche): Schrift 400 und 13,5 px, Innenabstand 9/11 px, mindestens
 38 px hoch, volle Breite (50 Prüfungen). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „1.10.20“.
+
+### Umsetzung 1.10.21: Rohdaten erledigter Zeilen des Adressimports leeren (Antwort F3, Punkt 7)
+
+- `app/address_import.py`: `rohdaten_vorschau()` zählt die erledigten Zeilen mit Rohdaten je Art (bestätigt und nicht offen in der Arbeitsliste: Kunde,
+  Lieferant, Arbeitsliste erledigt, bereits importiert, ungültig, abgelehnt), dazu was bleibt (offen in der Arbeitsliste, in der Vorschau, schon leer) und die
+  Prüfsumme der Liste; `rohdaten_leeren()` leert unter den Sperren genau diese Zeilen, wenn die Prüfsumme noch stimmt (sonst `RohdatenStandGeaendert`, 409,
+  nichts geleert). Geleert werden `ROHDATEN_SPALTEN`: Kunden- und Lieferantennummer aus dem Altsystem, Anrede, Titel, Vorname, Name, Straße, Land, PLZ, Ort,
+  Telefon, Fax, Mobil, beide Mails und die Hinweise der Prüfung (sie nennen Werte). Es bleiben Adressnummer, Art, Status, Erledigung samt Zeitpunkt, die Verweise
+  auf Kunde, Lieferant und Objekt, Lauf und Zeilennummer -- die Wiedererkennung beim nächsten Import (`_address_already_imported()`) bleibt, ein Lauf lässt sich
+  weiter rückgängig machen (er löscht seine Zeilen und, wenn unberührt, seine Kunden und Lieferanten; die brauchen keine Rohdaten). Offene Zeilen der
+  Arbeitsliste und eine laufende Vorschau bleiben ganz.
+- Geleert wird mit einem UPDATE über genau die Zeilen der Vorschau. `ImportedAddress` steht nicht in `AUDITED_TYPES` (`app/audit.py`) -- die
+  Änderungshistorie hält die Rohdaten ohnehin nicht; sie bekommt eine Zeile „Rohdaten geleert“ mit der Zahl, ohne Inhalte.
+- `GET /api/address-import/rohdaten` und `POST /api/address-import/rohdaten/leeren` (`{stand}`), nur Admin (wie der ganze Adressimport).
+- Seite „Adressimport“: Karte „Rohdaten erledigter Zeilen“ unter den Importläufen -- Zahl je Art, was bleibt, „Rohdaten leeren …“ mit Rückfrage
+  (abschließende Aktion), danach die Meldung.
+
+#### Festlegungen 1.10.21 (Bitte bestätigen)
+
+1. Erledigt ist eine bestätigte Zeile, die nicht offen in der Arbeitsliste steht (Kunde, Lieferant, Arbeitsliste erledigt, bereits importiert, ungültig, abgelehnt).
+2. Geleert werden Kunden- und Lieferantennummer aus dem Altsystem, Anrede, Titel, Vorname, Name, Straße, Land, PLZ, Ort, Telefon, Fax, Mobil, beide Mails und die
+   Hinweise der Prüfung; es bleiben Adressnummer, Art, Status, Erledigung, Verweise, Lauf und Zeilennummer.
+3. Offene Zeilen der Arbeitsliste und eine laufende Vorschau bleiben unverändert; Kunden, Lieferanten und Objekte selbst bleiben, wie sie sind.
+4. Vorschau und Bestätigung nur für den Admin; gesammelt nur mit der Prüfsumme der Vorschau (sonst 409, nichts geleert); Rückfrage; endgültig.
+5. Die Historie nennt „Rohdaten geleert“ mit der Zahl, ohne Inhalte.
+6. Wiedererkennung beim nächsten Import und Rückgängigmachen eines Laufs gehen weiter.
+
+#### Tests und Prüfung 1.10.21
+
+Neu `tests/test_v792_rohdaten_leeren.py` (Vorschau zählt und schreibt nichts; nur erledigte und nur die Rohdaten, Verweise und Erledigung bleiben, offene Zeile und
+Vorschau ganz, Kunde und Lieferant unverändert; Wiedererkennung und Suche der Arbeitsliste; Rückgängigmachen danach; Prüfsumme -- nichts geleert; Historie ohne
+Inhalte; nur Admin; über die Schnittstelle; in node Vorschau, Rückfrage, POST mit der Prüfsumme, ohne Rohdaten kein Knopf). Neu `scripts/klicktest_rohdaten_leeren.py`
+(13 Prüfungen: Vorschau, 412 px hell und dunkel ohne Überlauf, Leeren mit Rückfrage, die offene Zeile bleibt, Büro – Finanzen 403, Bilder). Angepasste
+Erwartungen: `tests/test_v399_abschliessen.py::ABSCHLIESSEND` um `rohdatenLeeren` (Aufbau). Gegenproben: `gegenproben-webseite.md`, „1.10.21“ (9, alle rot).

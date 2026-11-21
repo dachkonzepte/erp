@@ -480,3 +480,24 @@ Probendatei im Scratchpad (`gp_1120.py` über `gegenprobe.py` und `gegenprobe_kl
 | Nr. 1 – Werte wie die übrigen Formulare | Regel weg | 2 rot; Klicktest rot („Felder wie die übrigen Formulare“, 49/50) |
 | Nr. 1 – Schrift 400 | `font-weight:400` weg | 1 rot; Klicktest rot (49/50) |
 | Nr. 1 – Optionsfelder ausgenommen | `:not([type="radio"])` weg | 2 rot |
+
+## Antworten zum Bericht F1/F2/F4, 1.10.21: Rohdaten erledigter Zeilen leeren
+
+Probendateien im Scratchpad (`gp_1121.py`, `gp_1121b.py`, `gp_1121c.py` über `gegenprobe.py`), Lauf mit `tests/test_v792_rohdaten_leeren.py`; alle 9 rot aus dem
+geprüften Grund (je FAILED, kein ERROR), alle Dateien byte-gleich zurück. Eine erste Gegenprobe „über das ORM statt UPDATE (Historie mit Inhalten)“ blieb grün --
+nicht der Test war schwach, sondern meine Begründung falsch: `ImportedAddress` steht nicht in `AUDITED_TYPES`, das automatische Protokoll hält ihre Werte nicht.
+Kommentar und Festlegung Nr. 5 berichtigt, ersetzt durch zwei Gegenproben (keine Zeile in der Historie; Namen in der Historie). Die zweite las die Namen zuerst
+nach dem Leeren (grün, Gegenprobe selbst falsch) und wurde vor dem Leeren wiederholt: rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 / 3 – offene Arbeitsliste nicht erledigt | jede bestätigte Zeile gilt als erledigt | 5 rot |
+| Nr. 3 – laufende Vorschau bleibt | auch Zeilen der Vorschau | 4 rot |
+| Nr. 2 – Adressnummer bleibt | Adressnummer unter den geleerten Spalten | 3 rot |
+| Nr. 2 – Hinweise der Prüfung werden geleert | `validation_notes` bleibt | 2 rot |
+| Nr. 4 – nur mit der Prüfsumme | Prüfung aus | 2 rot |
+| Nr. 4 – nur Admin | Vorschau ohne Rolle | 3 rot |
+| Nr. 4 – Rückfrage | ohne Rückfrage | 1 rot |
+| Nr. 5 – eine Zeile in der Historie | keine Zeile | 1 rot |
+| Nr. 5 – ohne Inhalte | Namen in der Historie (vor dem Leeren gelesen) | 1 rot |
+| Nr. 6 – Wiedererkennung und Rückgängigmachen | -- (keine Änderung an `_address_already_imported()` und `revert_import_run()`; `test_wiedererkennung_und_arbeitsliste_bleiben` und `test_ein_lauf_laesst_sich_danach_noch_rueckgaengig_machen` halten es fest) | -- |
