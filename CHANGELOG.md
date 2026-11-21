@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.20 – Felder der Karte „Als Anfrage übernehmen“ wie die übrigen Formulare
+
+Antwort F8 (21.11.2026): die Felder der Karte standen in ihrer Beschriftung und erbten deren Schrift (12 px, fett), ohne Innenabstand -- seit W1b. Jetzt haben sie die Werte der übrigen Formulare wie „Neue Anfrage“: volle Breite, Innenabstand, 13,5 px, normale Schrift, Rahmen, Hover und Fokus.
+
 ## 1.10.19 – Übernehmen: der Satz nennt den Kunden im Archiv
 
 Hinweis des Betriebs (21.11.2026): beim Übernehmen stand „Kein bestehender Kunde passt zu den Angaben“, obwohl direkt darunter ein Kunde im Archiv mit „E-Mail gleich, Name gleich“ passte. Jetzt heißt es in diesem Fall „Kein aktiver Kunde passt – aber einer im Archiv:“ (bei mehreren „– aber n im Archiv:“); ohne Treffer bleibt der bisherige Satz.

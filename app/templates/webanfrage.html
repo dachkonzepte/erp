@@ -55,6 +55,14 @@
   .ueb-felder fieldset legend{font-size:12px;font-weight:650;color:var(--muted);padding:0;margin-right:8px;float:left}
   .ueb-zeile{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:8px;color:var(--ink)}
   .ueb-fuss{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:14px}
+  /* seit 1.10.20 (Antwort F8): Felder wie die übrigen Formulare (Werte wie „Neue Anfrage“) -- bis dahin erbten sie in ihrer Beschriftung deren Schrift
+     (12 px, fett) und hatten keinen Innenabstand */
+  .ueb input:not([type="radio"]):not([type="checkbox"]),.ueb select,.ueb textarea{width:100%;padding:9px 11px;border:1px solid var(--field-border);
+    background:var(--card);color:var(--ink);font:inherit;font-size:13.5px;font-weight:400}
+  .ueb input:not([type="radio"]):not([type="checkbox"]):hover,.ueb select:hover,.ueb textarea:hover{border-color:var(--field-border-hover)}
+  .ueb input:not([type="radio"]):not([type="checkbox"]):focus,.ueb select:focus,.ueb textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;
+    border-color:var(--ds-fokus)}
+  .ueb textarea{resize:vertical}
   /* seit 1.10.8: Anderen bestehenden Kunden wählen */
   .ueb-suche{margin:10px 0 8px;padding:10px 12px;border:1px dashed var(--line);border-radius:var(--ds-ecke-karte)}
   .ueb-suche>label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:650;color:var(--ink)}

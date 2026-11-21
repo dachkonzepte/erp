@@ -121,6 +121,11 @@ async def _uebernehmen(tab, seed, p):
         "[...document.querySelectorAll('#uebKundenArchiv .ueb-archiv-zeile')].map(z=>[z.querySelector('b').textContent,!!z.querySelector('input'),"
         "z.querySelector('button').textContent,z.querySelector('small').textContent.includes('E-Mail gleich')])]"),
         [0, [["Wilma Archiv", False, "Zurückholen und wählen", True]]])
+    p.pruefe("Felder wie die übrigen Formulare (seit 1.10.20): Schrift 400 und 13,5 px, Innenabstand 9/11 px, mindestens 38 px hoch, volle Breite", await tab.js(
+        "['uebTitel','uebBeschreibung','uebAnsprech','uebPrioritaet','uebSucheText'].map(id=>{const e=document.getElementById(id);if(!e)return id+' fehlt';"
+        "const s=getComputedStyle(e),r=e.getBoundingClientRect(),l=e.parentElement.getBoundingClientRect();"
+        "return [s.fontWeight,s.fontSize,s.paddingTop,s.paddingLeft,r.height>=38,id==='uebSucheText'||Math.abs(r.width-l.width)<=1]})"),
+        [["400", "13.5px", "9px", "11px", True, True]] * 5)
     await tab.js(f"{UEB}.scrollIntoView({{block:'start'}})")
     await tab.bild("uebernehmen_im_archiv_1440_hell")
     await tab.js(STATUS + ".textContent='';document.querySelector('#uebKundenArchiv [data-klick=uebArchivZurueckholen]').click()")

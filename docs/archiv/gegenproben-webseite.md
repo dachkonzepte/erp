@@ -469,3 +469,14 @@ byte-gleich zurück.
 | Nr. 1 – mehrere im Archiv | alter Satz | 1 rot |
 | Nr. 2 – keiner: bisheriger Satz | neuer Satz auch ohne Archiv | 1 rot |
 | Nr. 2 – mit aktivem Vorschlag kein Satz | Satz auch neben den Vorschlägen | 1 rot |
+
+## Antworten zum Bericht F1/F2/F4, 1.10.20: Felder der Karte „Als Anfrage übernehmen“
+
+Probendatei im Scratchpad (`gp_1120.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v791_uebernahme_felder.py` bzw.
+`klicktest_archiv_wiederfinden`; alle rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Werte wie die übrigen Formulare | Regel weg | 2 rot; Klicktest rot („Felder wie die übrigen Formulare“, 49/50) |
+| Nr. 1 – Schrift 400 | `font-weight:400` weg | 1 rot; Klicktest rot (49/50) |
+| Nr. 1 – Optionsfelder ausgenommen | `:not([type="radio"])` weg | 2 rot |

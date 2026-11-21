@@ -1069,3 +1069,20 @@ passt ein aktiver, steht kein Satz.
 
 Neu `tests/test_v790_satz_kunde_im_archiv.py` (4 Tests in node: einer, zwei, keiner im Archiv; mit aktivem Vorschlag kein Satz). `klicktest_archiv_wiederfinden.py`
 prüft den Satz beim Übernehmen (49 Prüfungen). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „1.10.19“ (4, alle rot).
+
+### Umsetzung 1.10.20: Felder der Karte „Als Anfrage übernehmen“
+
+Die Felder der Karte stehen in ihrer Beschriftung (`<label>…<input></label>`) und erbten über `font: inherit` (Grundregel `ds-basis.css`) deren Schrift: 12 px,
+fett; Innenabstand und Breite fehlten (seit W1b, 1.10.5/1.10.8; Nebenbefund 2 des Berichts F1/F2/F4). Jetzt tragen alle Felder der Karte (`.ueb`, ohne Optionsfelder
+und Häkchen) die Werte der übrigen Formulare wie „Neue Anfrage“: volle Breite, Innenabstand 9/11 px, 13,5 px, Schrift 400, Rahmen, Hover und Fokus. Die Suche
+behält ihre Höchstbreite von 420 px.
+
+#### Festlegungen 1.10.20 (Bitte bestätigen)
+
+1. Die Felder der Karte „Als Anfrage übernehmen“ sehen aus wie die der übrigen Formulare (Werte wie „Neue Anfrage“); Optionsfelder und Häkchen bleiben, wie sie sind.
+
+#### Tests und Prüfung 1.10.20
+
+Neu `tests/test_v791_uebernahme_felder.py` (3 Tests: die Regel mit den Werten von „Neue Anfrage“, Hover und Fokus, Optionsfelder ausgenommen).
+`klicktest_archiv_wiederfinden.py` misst fünf Felder (Betreff, Beschreibung, Ansprechpartner, Priorität, Suche): Schrift 400 und 13,5 px, Innenabstand 9/11 px, mindestens
+38 px hoch, volle Breite (50 Prüfungen). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`, „1.10.20“.
