@@ -411,3 +411,17 @@ verschieden, im Test geprüft), dieselben Gegenproben noch einmal: rot.
 | Nr. 4 – Kopfzeile ohne Treffer aus dem Archiv | Archiv als Treffer | 1 rot |
 | Nr. 5 – Suche der Monteurin ohne Archiv | Vorgabe im_archiv=True | 1 rot |
 | Nr. 5 – Kalender (Typenfilter) ohne Archiv | „archiv“ trotz Typenfilter | 1 rot |
+
+## Antworten zum Bericht W1c, 1.10.16: „Neue Anfrage“ mit Kunden im Archiv
+
+Probendatei im Scratchpad (`gp_1116.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v787_neue_anfrage_archiv.py` bzw.
+`klicktest_archiv_wiederfinden`; alle 6 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Gruppe nur bei „Neue Anfrage“ | Gruppe auch bei „Bearbeiten“ | 1 rot |
+| Nr. 2 – nicht direkt gewählt | Auswahl springt nicht zurück | 1 rot |
+| Nr. 2 – Abbrechen | Hinweis bleibt stehen | 1 rot |
+| Nr. 3 – erst zurückholen | wählen ohne POST | 1 rot |
+| Nr. 4 – `?customer_id=` mit Hinweis | Hinweis bei Vorwahl aus | Klicktest rot: `/inquiries?customer_id=…` (3 Prüfungen), 28/32 |
+| Nr. 5 – der Server 409 | Prüfung im Router aus | 1 rot |

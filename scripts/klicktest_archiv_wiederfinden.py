@@ -1,12 +1,15 @@
-"""Klicktest: das Archiv wiederfinden (1.10.15, Antwort F4 vom 21.11.2026) -- nur Musterdaten.
+"""Klicktest: das Archiv wiederfinden (1.10.15, seit 1.10.16 auch „Neue Anfrage“; Antwort F4 vom 21.11.2026) -- nur Musterdaten.
 
 Testdaten: Bea Büro – Auftrag, Mona Monteurin. Zacharias Archiv (im Archiv) mit Hauptadresse, einer Anfrage und einem Projekt ohne Auftrag samt Angebot im
-Archiv; Zora Aktiv mit Hauptadresse.
+Archiv; Zora Aktiv mit Hauptadresse; seit 1.10.16 Xaver Archiv und Yvonne Archiv (im Archiv) mit Hauptadresse.
 
     Kopfzeile     „Zacharias“: keine Treffer aus dem Archiv, eine Zeile „5 Treffer im Archiv“ -> Suche mit Filter „im Archiv“
     Suche         Gruppe „im Archiv“ (Kunde, Objekt, Anfrage, Projekt, Angebot) ohne Links, je „Zurückholen und öffnen“; die Gruppe „Kunden“ ohne Zacharias;
                   „Zurückholen und öffnen“ am Objekt -> Seite des Objekts, der Kunde ist zurück (Kundenakte ohne Hinweis), die Vorgänge bleiben im Archiv
     412 px        Suche hell und dunkel ohne Überlauf, Bilder
+    Neue Anfrage  (seit 1.10.16) Kundenauswahl mit der Gruppe „im Archiv“, „Bearbeiten“ ohne; Xaver gewählt -> Auswahl springt zurück, Hinweis mit
+                  „Zurückholen und wählen“ und „Abbrechen“; zurückgeholt -> gewählt samt Hauptadresse, Anfrage gespeichert; ?customer_id= von Yvonne -> der Hinweis
+                  statt der Auswahl; 412 px ohne Überlauf, Bilder
     Monteurin     keine Büro-Suche (403)
     überall       keine JS-Fehler
 
@@ -39,7 +42,7 @@ def befuellen(db, k):
     mona = AppUser(username="mona", display_name="Mona Monteurin", role="field", password_hash=k.passwort())
     db.add_all([bea, mona])
     kunden = {}
-    for vor, nach, archiv in (("Zacharias", "Archiv", im_archiv), ("Zora", "Aktiv", None)):
+    for vor, nach, archiv in (("Zacharias", "Archiv", im_archiv), ("Zora", "Aktiv", None), ("Xaver", "Archiv", im_archiv), ("Yvonne", "Archiv", im_archiv)):
         c = Customer(name=f"{vor} {nach}", first_name=vor, last_name=nach, city="Musterstadt", created_at=alt, archiviert_am=archiv)
         db.add(c)
         db.flush()
@@ -55,7 +58,58 @@ def befuellen(db, k):
     db.add(Quote(project_id=projekt.id, quote_number="A-2026-0903", title="Neues Dach", status="versendet"))
     db.commit()
     objekt = db.query(Property).filter(Property.customer_id == z.id).one()
-    return {"bea": k.cookies(bea), "mona": k.cookies(mona), "zacharias": z.id, "objekt": objekt.id, "anfrage": anfrage.id, "projekt": projekt.id}
+    xaver = db.query(Property).filter(Property.customer_id == kunden["Xaver"].id).one()
+    return {"bea": k.cookies(bea), "mona": k.cookies(mona), "zacharias": z.id, "objekt": objekt.id, "anfrage": anfrage.id, "projekt": projekt.id,
+            "xaver": kunden["Xaver"].id, "xaver_objekt": xaver.id, "yvonne": kunden["Yvonne"].id}
+
+
+NEU = "document.getElementById('newCustomer')"
+HINWEIS = "document.getElementById('newArchivHinweis')"
+
+
+async def _neue_anfrage(tab, seed, p):
+    """Seit 1.10.16: „Neue Anfrage“ -- Kunden im Archiv in einer eigenen Gruppe, gewählt nur über „Zurückholen und wählen“."""
+    p.pruefe("Anfragen geladen", await tab.oeffnen("/inquiries?n=1", f"{NEU}.options.length>1"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Neue Anfrage: Gruppe „im Archiv“ mit Xaver und Yvonne, „Bearbeiten“ ohne", await tab.js(
+        f"[[...{NEU}.querySelectorAll('optgroup')].map(g=>[g.label,[...g.querySelectorAll('option')].map(o=>o.textContent.split(' (')[0].split(' · ')[1])]),"
+        f"[...document.getElementById('editCustomer').options].some(o=>['{seed['xaver']}','{seed['yvonne']}'].includes(o.value))]"),
+        [[["im Archiv", ["Xaver Archiv", "Yvonne Archiv"]]], False])
+    await tab.js(f"{NEU}.value='{seed['xaver']}';{NEU}.dispatchEvent(new Event('change',{{bubbles:true}}))")
+    p.pruefe("Xaver gewählt: Auswahl springt zurück, Hinweis", await tab.js(
+        f"[{NEU}.value,{HINWEIS}.hidden,document.getElementById('newArchivText').textContent.includes('Xaver Archiv ist im Archiv seit')]"), ["", False, True])
+    await tab.bild("neue_anfrage_im_archiv_1440_hell")
+    await tab.js("document.querySelector('[data-klick=\"kunde-archiv-abbrechen\"]').click()")
+    p.pruefe("Abbrechen: Hinweis weg", await tab.js(f"{HINWEIS}.hidden"), True)
+    await tab.js(f"{NEU}.value='{seed['xaver']}';{NEU}.dispatchEvent(new Event('change',{{bubbles:true}}))")
+    await tab.js("document.getElementById('createStatus').textContent='';document.querySelector('[data-klick=\"kunde-zurueckholen-waehlen\"]').click()")
+    await tab.warten("document.getElementById('createStatus').textContent!==''", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Zurückholen und wählen: gewählt samt Hauptadresse, Gruppe ohne Xaver", await tab.js(
+        f"[document.getElementById('createStatus').textContent,{NEU}.value,document.getElementById('newProperty').value,{HINWEIS}.hidden,"
+        f"[...{NEU}.querySelectorAll('optgroup option')].map(o=>o.value)]"),
+        ["Kunde zurückgeholt und gewählt – die 6 Monate zählen ab heute neu.", str(seed["xaver"]), str(seed["xaver_objekt"]), True, [str(seed["yvonne"])]])
+    await tab.js("document.getElementById('newTitle').value='Rinne tropft';document.getElementById('createStatus').textContent='';createInquiry()")
+    await tab.warten("document.getElementById('createStatus').textContent!==''", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Anfrage am zurückgeholten Kunden gespeichert", await tab.js(
+        f"fetch('/api/inquiries?customer_id={seed['xaver']}').then(r=>r.json()).then(l=>l.map(x=>[x.title,x.property_id]))"),
+        [["Rinne tropft", seed["xaver_objekt"]]])
+    p.pruefe("?customer_id= eines Kunden im Archiv: Hinweis statt Auswahl", await tab.oeffnen(
+        f"/inquiries?customer_id={seed['yvonne']}", f"{NEU}.options.length>1&&!{HINWEIS}.hidden"), True)
+    p.pruefe("?customer_id=: nichts gewählt, Yvonne im Hinweis", await tab.js(
+        f"[{NEU}.value,document.getElementById('newArchivText').textContent.includes('Yvonne Archiv')]"), ["", True])
+    for thema, name in (("light", "hell"), ("dark", "dunkel")):
+        await tab.fenster(412, 1000, mobil=True)
+        await tab.js(f"localStorage.setItem('erp_theme',{json.dumps(thema)})")
+        p.pruefe(f"Neue Anfrage 412 px {name}: Hinweis", await tab.oeffnen(
+            f"/inquiries?customer_id={seed['yvonne']}&n={name}", f"{NEU}.options.length>1&&!{HINWEIS}.hidden"), True)
+        await tab.warte_auf_ruhe()
+        await tab.js(f"{HINWEIS}.scrollIntoView({{block:'center'}})")
+        p.pruefe(f"Neue Anfrage 412 px {name}: ohne Überlauf", await tab.ueberlauf(), [])
+        await tab.bild(f"neue_anfrage_im_archiv_412_{name}")
+    await tab.fenster(1440, 1000)
+    await tab.js("localStorage.setItem('erp_theme','light')")
 
 
 async def pruefen(tab, seed, p):
@@ -124,6 +178,7 @@ async def pruefen(tab, seed, p):
         f"[[...document.querySelectorAll('#resultGroups h2')].map(h=>h.firstChild.textContent.trim()),"
         f"[...{ARCHIV}.querySelectorAll('.result-archiv .sub')].map(s=>s.textContent.split(' · ')[0])]"),
         [["Kunden", "Objekte", "im Archiv"], ["Anfrage", "Projekt", "Angebot"]])
+    await _neue_anfrage(tab, seed, p)  # seit 1.10.16
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
     # Monteurin

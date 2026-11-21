@@ -953,3 +953,30 @@ Erwartungen: `tests/test_v270_office_search.py` (EXPECTED_OFFICE_SEARCH_KEYS um 
 Gruppe einen Treffer hat; Schlüssel je Treffer: id, title, subtitle, url -- in der Gruppe „im Archiv“ dazu zurueckholen_art/_id, über die Schnittstelle an jedem
 Treffer, gesetzt nur dort), `tests/test_v271_office_search_ui.py` (19 -> 20). Gegenproben: `gegenproben-webseite.md`, „W1c, 1.10.15“ (12, alle rot; zwei
 zunächst grün, Test nachgezogen).
+
+### Umsetzung 1.10.16: „Neue Anfrage“ mit Kunden im Archiv
+
+- `inquiries.html` lädt die Kunden samt Archiv (`GET /api/customers?archivierte=true`): `customers` sind die aktiven (beide Auswahlen), `kundenArchiv` die im Archiv.
+  Die Kundenauswahl von „Neue Anfrage“ zeigt unter den aktiven die Gruppe „im Archiv“ (`<optgroup>`, „Nummer · Name (im Archiv seit TT.MM.JJJJ)“); „Bearbeiten“
+  einer Anfrage bleibt ohne Archiv (eine aktive Anfrage hängt nie an einem Kunden im Archiv, 409 seit 1.10.11).
+- Wird ein Kunde im Archiv gewählt, springt die Auswahl auf den vorigen Wert zurück, darunter steht „Nummer · Name ist im Archiv seit … – für eine neue Anfrage erst
+  zurückholen.“ mit „Zurückholen und wählen“ und „Abbrechen“ (`neuerKundeGewaehlt()`, `archivHinweisZeigen()`). „Zurückholen und wählen“:
+  `POST /api/aufbewahrung/kunde/{id}/zurueckholen` (jedes Büro), die Liste neu (`loadAll()`), der Kunde gewählt samt Hauptadresse.
+- Kommt die Seite mit `?customer_id=` eines Kunden im Archiv, steht derselbe Hinweis statt der Auswahl.
+
+#### Festlegungen 1.10.16 (Bitte bestätigen)
+
+1. Die Kundenauswahl von „Neue Anfrage“ zeigt Kunden im Archiv in einer eigenen Gruppe „im Archiv“ unter den aktiven, mit „im Archiv seit …“; „Bearbeiten“ einer
+   Anfrage zeigt sie nicht.
+2. Ein Kunde im Archiv wird nicht direkt gewählt: die Auswahl springt zurück, darunter „Zurückholen und wählen“ und „Abbrechen“.
+3. „Zurückholen und wählen“ holt den Kunden zurück (jedes Büro, die 6 Monate zählen neu) und wählt ihn samt Hauptadresse; seine Vorgänge im Archiv bleiben dort.
+4. Kommt „Neue Anfrage“ mit einem Kunden im Archiv (`?customer_id=`), steht der Hinweis statt der Auswahl.
+5. Der Server nimmt weiter keine Anfrage an einem Kunden im Archiv (409).
+
+#### Tests und Prüfung 1.10.16
+
+Neu `tests/test_v787_neue_anfrage_archiv.py` (5 Tests: in node die Gruppe nur bei „Neue Anfrage“, über esc(), mit Datum in Berlin; ein Kunde im Archiv wird nicht
+gewählt, Hinweis; Abbrechen; Zurückholen und wählen -- POST, Liste neu, gewählt; der Server 409 vor und 200 nach dem Zurückholen). `scripts/klicktest_archiv_wiederfinden.py`
+um „Neue Anfrage“ erweitert (32 Prüfungen: Gruppe mit Xaver und Yvonne, „Bearbeiten“ ohne, Auswahl springt zurück, Abbrechen, Zurückholen und wählen samt Hauptadresse,
+Anfrage gespeichert, `?customer_id=` mit Hinweis, 412 px hell und dunkel ohne Überlauf, Bilder). Angepasste Erwartungen: keine. Gegenproben: `gegenproben-webseite.md`,
+„W1c, 1.10.16“ (6, alle rot).
