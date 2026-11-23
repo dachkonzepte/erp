@@ -9,8 +9,8 @@ abgeholt und über die Aufbewahrung ins Archiv gelegt.
                   kein bedienbares Feld; das „⋮“ fehlt; der Hinweis „im Archiv“ steht da
     Zurückholen   an der Akte: Hinweis weg, Klasse weg, „⋮“ wieder da; das Angebot wieder bearbeitbar („Angebot beauftragen“); die Kundenakte (der Kunde kam
                   mit) mit „+ Projekt“; am Eingang der Webseite: „Verwerfen …“ wieder da
-    412 px        Akte und Eingang dunkel nur lesbar, der Eingang ohne Überlauf (die Akte eines Projekts ohne Auftrag läuft schon ohne Archiv
-                  über: Tabelle „Angebote“ der Übersicht, Befund 1.10.24), Bilder
+    412 px        Akte und Eingang dunkel nur lesbar und ohne Überlauf (seit 1.10.25, Frage F12: die Tabelle „Angebote“ der Übersicht rollt in ihrem
+                  Rahmen), Bilder; nach dem Zurückholen die Akte noch einmal ohne Überlauf
     überall       keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -152,8 +152,7 @@ async def pruefen(tab, seed, p):
                                ("Eingang", f"/anfragen/webseite/{wid}", "!document.getElementById('archivHinweis').hidden")):
         await tab.oeffnen(pfad, bereit)
         await tab.warte_auf_ruhe()
-        if name == "Eingang":  # die Akte eines Projekts ohne Auftrag läuft bei 412 px schon ohne Archiv über (Tabelle „Angebote“, Befund 1.10.24)
-            p.pruefe(f"{name}: 412 px ohne Überlauf", await tab.ueberlauf(), [])
+        p.pruefe(f"{name}: 412 px ohne Überlauf", await tab.ueberlauf(), [])  # die Akte seit 1.10.25 (F12)
         p.pruefe(f"{name}: 412 px nur lesbar", (await tab.js(PRUEFEN))["knoepfe"], [])
         await tab.bild(f"{name.lower()}_im_archiv_412_dunkel")
     await tab.js("localStorage.setItem('erp_theme','light')")
@@ -168,6 +167,15 @@ async def pruefen(tab, seed, p):
     p.pruefe("Akte zurückgeholt: Klasse weg, „⋮“ da", await tab.js(
         "[document.body.classList.contains('ds-nur-lesen'),getComputedStyle(document.getElementById('seitenkopfMenueKnopf')).display!=='none']"),
         [False, True])
+    # seit 1.10.25 (F12): auch zurückgeholt läuft die Akte eines Projekts ohne Auftrag bei 412 px nicht über -- die Tabelle „Angebote“ rollt im Rahmen
+    await tab.fenster(412, 900, mobil=True)
+    await tab.oeffnen(f"/projects/{seed['projekt']}", "typeof project!=='undefined'&&!!project")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Akte zurückgeholt: 412 px ohne Überlauf, die Tabelle „Angebote“ im Rahmen, Nummer in einer Zeile", [await tab.ueberlauf(), await tab.js(
+        "(()=>{const r=document.getElementById('uAngeboteListe');return [!r.closest('[hidden]'),r.querySelectorAll('table').length,"
+        "getComputedStyle(r).overflowX,r.querySelector('td.nw a').getClientRects().length]})()")], [[], [True, 1, "auto", 1]])  # die Nummer in einer Zeile
+    await tab.bild("akte_zurueckgeholt_412_hell")
+    await tab.fenster(1440, 1000)
     await tab.oeffnen(f"/quotes/{seed['angebot']}/edit", "typeof quote!=='undefined'&&!!quote")
     await tab.warte_auf_ruhe()
     p.pruefe("Angebot nach dem Zurückholen: „Angebot beauftragen“ da, Felder bedienbar", await tab.js(

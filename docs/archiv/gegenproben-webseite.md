@@ -555,3 +555,15 @@ Probendatei im Scratchpad (`gp_1124.py` über `gegenprobe.py` und `gegenprobe_kl
 | Nr. 5 – der Eingang der Webseite ist nur lesbar | Aufruf weg | Klicktest 31/33 |
 | Nr. 5 – „Zurückholen“ am Eingang | Aktion weg | Klicktest 32/33 |
 | Nr. 6 – nach dem Zurückholen wieder bearbeitbar | `nurLesen(false)` lässt die Klasse | 2 rot; Klicktest 31/33 |
+
+## Antworten zum Bericht F10, 1.10.25: jede Tabelle der Akte rollt in ihrem Rahmen
+
+Probendatei im Scratchpad (`gp_1125.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v796_tabellen_der_akte.py` bzw.
+`klicktest_nur_lesen`; alle 7 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „Angebote“ der Übersicht im Rahmen | `tabelle-wrap` an `#uAngeboteListe` weg | 2 rot; Klicktest im Archiv und zurückgeholt je „412 px ohne Überlauf“ rot |
+| Nr. 1 – jede Tabelle der Akte im Rahmen | `tabelle-wrap` an `#invoicesList` (Reiter Rechnungen) weg | 1 rot |
+| Nr. 2 – die Nummer bricht nicht um | Regel `td.nw` leer | 1 rot; Klicktest „Nummer in einer Zeile“ rot |
+| Nr. 2 – die Nummer bricht nicht um | Klasse `nw` an der Zelle weg | 1 rot |

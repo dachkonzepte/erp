@@ -87,6 +87,7 @@ table{border-collapse:collapse;width:100%}
 th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
 td{font-size:14px;padding:0 8px;height:46px;border-bottom:1px solid var(--ds-flaeche-2)}
 .tabelle-wrap{overflow-x:auto;position:relative}
+td.nw{white-space:nowrap}  /* seit 1.10.25 (F12): die Nummer eines Angebots bricht nicht um -- der Rahmen rollt */
 /* Leistungsverzeichnis */
 .lv-kopf{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .lv-kopf>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}
@@ -262,7 +263,8 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
     </section>
     <section class="karte" id="uAngebote" aria-labelledby="uAngTitel" hidden>
       <div class="karte-kopf"><h2 class="h2" id="uAngTitel">Angebote</h2></div>
-      <div id="uAngeboteListe"></div>
+      {# seit 1.10.25 (Frage F12) im Rahmen, der rollt -- bei 412 px lief die Akte eines Projekts ohne Auftrag sonst 60 px über #}
+      <div class="tabelle-wrap" id="uAngeboteListe"></div>
     </section>
     <section class="karte" id="uVerlauf" aria-labelledby="uVlTitel" style="gap:2px">
       <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uVlTitel">Verlauf</h2><a class="sml" href="#verlauf" style="font-weight:600">Ganzer Verlauf</a></div>
@@ -597,7 +599,7 @@ function beteiligteZeichnen(){
   el('uBeteiligteListe').innerHTML=zeilen.join('');
 }
 function angeboteZeichnen(){
-  const tabelle=quotes.length?`<table><thead><tr><th>Angebot</th><th>Bezeichnung</th><th>Stand</th><th class="r">Netto</th><th class="r">Brutto</th><th></th></tr></thead><tbody>${quotes.map(q=>{const k=statusKennzeichen('angebot',q.status);return `<tr><td><a href="/quotes/${Number(q.id)}/edit"><b>${esc(q.quote_number)}</b></a></td><td>${esc(q.title)}</td><td><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span></td><td class="r num">${money(q.net_total)}</td><td class="r num">${money(q.gross_total)}</td><td class="r"><a class="sml" href="/quotes/${Number(q.id)}/edit" style="font-weight:600">Öffnen</a></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">Noch keine Angebote in diesem Projekt.</div>';
+  const tabelle=quotes.length?`<table><thead><tr><th>Angebot</th><th>Bezeichnung</th><th>Stand</th><th class="r">Netto</th><th class="r">Brutto</th><th></th></tr></thead><tbody>${quotes.map(q=>{const k=statusKennzeichen('angebot',q.status);return `<tr><td class="nw"><a href="/quotes/${Number(q.id)}/edit"><b>${esc(q.quote_number)}</b></a></td><td>${esc(q.title)}</td><td><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span></td><td class="r num">${money(q.net_total)}</td><td class="r num">${money(q.gross_total)}</td><td class="r"><a class="sml" href="/quotes/${Number(q.id)}/edit" style="font-weight:600">Öffnen</a></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">Noch keine Angebote in diesem Projekt.</div>';
   el('quotes').innerHTML=tabelle;
   el('uAngebote').hidden=!!orderId;if(!orderId)el('uAngeboteListe').innerHTML=tabelle;  // D15: „+ Angebot“ nur im Reiter Angebote (ohne Angebot die Hauptaktion)
 }

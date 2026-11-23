@@ -1134,7 +1134,7 @@ wie die übrigen Formulare).
   Innenabstand 9/11 px, 13,5 px, Schrift 400, Rahmen, Hover, Fokus), dazu mindestens 240 px breit -- es steht in einer Zeile neben „Verwerfen“ und
   „Abbrechen“ und wäre sonst nur so breit wie „Bitte wählen“.
 
-#### Festlegungen 1.10.22 (Bitte bestätigen)
+#### Festlegungen 1.10.22 (bestätigt am 23.11.2026)
 
 1. Das Feld „Grund“ beim Verwerfen wie die übrigen Formulare (Werte wie „Neue Anfrage“), mindestens 240 px breit.
 
@@ -1168,7 +1168,7 @@ Innenabstand, Höhe, Breite) und nimmt das Bild `verwerfen_grund_1440_hell` auf 
   einmal je Verbindung nachgesehen. Gefunden in der vollen Suite (`test_v380`, Migrationsprobe auf altem Stand: „Spalte customers.archiviert_am existiert nicht“).
 - Die Seiten zeigen bis zu Teil 2 (1.10.24) noch ihre Knöpfe; ein Klick dort bekommt die Meldung.
 
-#### Festlegungen 1.10.23 (Bitte bestätigen)
+#### Festlegungen 1.10.23 (bestätigt am 23.11.2026)
 
 1. Im Archiv: Kunde und Anfrage mit `archiviert_am`, Projekt archiviert und ohne Auftrag; ein von Hand archiviertes Projekt ohne Auftrag ist damit auch nur
    lesbar, eines mit Auftrag nicht. Der Eingang der Webseite ist seit 1.10.11 geschützt.
@@ -1214,7 +1214,7 @@ Arbeitsvorbereitung (`POST /api/orders/{id}/work-preparation/delivery-notes`, `�
   Dachfläche und Angebot holen nicht selbst zurück, ihr Hinweis führt zur Kundenakte bzw. Akte (wie 1.10.18). Der Hinweis der Kundenakte sagt jetzt auch „nur
   zum Ansehen … Zum Weiterarbeiten zurückholen“ (wie die Akte).
 
-#### Festlegungen 1.10.24 (Bitte bestätigen)
+#### Festlegungen 1.10.24 (bestätigt am 23.11.2026)
 
 1. Kundenakte, Akte, Objekt, Dachfläche, Angebot und Eingang der Webseite eines Vorgangs im Archiv sind nur lesbar: kein Knopf zum Schreiben (auch kein „⋮“,
    kein Link im Aussehen eines Knopfs, keine Ablage zum Hochladen), jedes Feld gesperrt, nichts zu ziehen.
@@ -1234,3 +1234,32 @@ Schreiben da ist; nur diese Seiten; Regeln des Bausteins; in node: schalten, zwe
 und Eingang -- alles wieder da, auch am Angebot und am mitgeholten Kunden; Bilder). Angepasste Erwartung: `tests/test_v334_auswahl_restfaelle.py::BAUSTEINE` um
 `_nur_lesen.html` (die Attrappe der Seiten bindet ihn ein). Befund (nicht geändert, kein Archiv): die Akte eines Projekts ohne Auftrag läuft bei 412 px über --
 die Tabelle „Angebote“ der Übersicht ist 60 px zu breit, mit und ohne Archiv (Frage F12 im Bericht). Gegenproben: `gegenproben-webseite.md`, „1.10.24“.
+
+### Antworten des Betriebs zum Bericht F10 (23.11.2026)
+
+Festlegungen 1.10.22-1 bis 1.10.24-6 bestätigt. F12: ja, klein (die Tabelle „Angebote“ der Akte bei 412 px im Rahmen rollen lassen). F13: ja, klein (die
+Routen der Arbeitsvorbereitung antworten bei einem unbekannten Auftrag mit 404 statt 500). Dazu klein: die Kundenakte im Archiv nennt unter „Laufende
+Projekte“ ein Projekt im Archiv „Abgeschlossen“ (im Klicktest P-2026-0902, nie ein Auftrag) -- ein Projekt im Archiv dort „Im Archiv“ nennen, nicht
+„Abgeschlossen“. Je eine Version.
+
+### Umsetzung 1.10.25: jede Tabelle der Akte rollt in ihrem Rahmen (Antwort F12)
+
+- `app/templates/akte.html`: die Tabelle „Angebote“ der Übersicht (nur ein Projekt ohne Auftrag zeigt sie) stand in einem Element ohne Rahmen -- bei 412 px
+  lief die ganze Akte 60 px über, mit und ohne Archiv. Jetzt trägt das Element `tabelle-wrap` wie die Tabelle im Reiter „Angebote“ und die übrigen Tabellen
+  der Akte: die Tabelle rollt waagrecht in sich, die Seite nicht.
+- Im Rahmen, der rollt, bricht die Nummer eines Angebots nicht mehr um (`td.nw`, Übersicht und Reiter -- beide zeichnen dieselbe Tabelle); bei 412 px stand sie
+  bis dahin auf drei Zeilen („A- / 2026- / 0903“). Wie die Nummer der Rechnungsliste (`.rl-num`).
+
+#### Festlegungen 1.10.25 (Bitte bestätigen)
+
+1. Jede Tabelle der Akte steht in einem Rahmen, der waagrecht rollt (`tabelle-wrap`) -- auch „Angebote“ in der Übersicht eines Projekts ohne Auftrag; bei 412 px
+   läuft die Akte nicht über. Eine neue Tabelle der Akte kommt in einen solchen Rahmen (der Test findet jedes Element, in das das Skript eine Tabelle zeichnet).
+2. Die Nummer eines Angebots bricht in der Tabelle der Akte (Übersicht und Reiter) nicht um.
+
+#### Tests und Prüfung 1.10.25
+
+Neu `tests/test_v796_tabellen_der_akte.py` (jedes Element, in das das Skript der Akte eine Tabelle zeichnet, trägt `tabelle-wrap` -- gefunden über die Token des
+Skripts, heute fünf; die Tabelle „Angebote“ der Übersicht im Rahmen; die Nummer ohne Umbruch). `scripts/klicktest_nur_lesen.py`: die Akte bei 412 px ohne
+Überlauf auch im Archiv und neu nach dem Zurückholen, die Tabelle „Angebote“ dort sichtbar im Rahmen, die Nummer in einer Zeile (35 Prüfungen, bisher 33).
+Angepasste Erwartung: `klicktest_nur_lesen` „Akte: 412 px ohne Überlauf“ -- bis 1.10.24 nur am Eingang der Webseite geprüft (Befund 1.10.24), jetzt auch an der
+Akte. Gegenproben: `gegenproben-webseite.md`, „1.10.25“.
