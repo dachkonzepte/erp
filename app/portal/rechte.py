@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 
+from .funktionen import FUER_DAS_PORTAL
+
 ROLLE = "dkportal"
 
 # Tabelle -> Spalten, die der Benutzer des Portals lesen darf (nur SELECT, nur diese Spalten).
@@ -22,8 +24,9 @@ LESEN: dict[str, tuple[str, ...]] = {
     "alembic_version": ("version_num",),
 }
 
-# Funktionen, die der Benutzer des Portals aufrufen darf: Name -> Argumenttypen (wie pg_get_function_identity_arguments()). Ab 1.11.1.
-FUNKTIONEN: dict[str, str] = {}
+# Funktionen, die der Benutzer des Portals aufrufen darf: Name -> Argumente (wie pg_get_function_identity_arguments()). Seit 1.11.1 genau die
+# SECURITY-DEFINER-Funktionen aus app/portal/funktionen.py -- für Link und Sitzung (Nachtrag N1); die Helfer dort darf er nicht.
+FUNKTIONEN: dict[str, str] = dict(FUER_DAS_PORTAL)
 
 _NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 

@@ -32,3 +32,39 @@ Zeile aus (ERROR statt FAILED). Nr. 2 lief nach dem Fund aus der vollen Suite (k
 
 Ohne eigene Gegenprobe: Nr. 7 (Arbeitsweise -- keine Rechte in Migrationen; der Test der Rechte läuft gegen `create_all()` ohne Migration und setzt sie mit
 dem Skript).
+
+## 1.11.1: Funktionen der Datenbank für Link und Sitzung
+
+Probendatei `gp_1111.py` (Fälle einzeln wählbar), Lauf mit `tests/test_v800_portal_funktionen.py` und je Fall einem Ausschnitt (`-k`); alle 22 rot aus dem
+geprüften Grund, alle Dateien byte-gleich zurück. Drei Proben brauchten eine zweite Fassung:
+- „Ein Helfer für das Portal ausführbar“ erwartete zuerst auch den Test der Rolle rot. Der blieb grün -- zu Recht: ein Helfer ohne SECURITY DEFINER läuft mit
+  den Rechten der Rolle und scheitert an der Tabelle (42501), auch mit EXECUTE. Rot wird der Wächter am Text.
+- „Ohne Sperren beim Prüfen“ blieb zweimal grün: zuerst überlappten zwei Fäden mit Barriere nicht sicher (der Test wurde umgebaut: die erste Eingabe hält
+  ihre Sperren, die zweite wartet nachweislich -- `pg_stat_activity` --, dann erst Commit), dann reihte die Bremse beide an ihrer Zählerzeile hintereinander,
+  weil beide vom selben Anschluss kamen (die zweite Eingabe kommt jetzt von einem anderen Anschluss, wie ein zweites Gerät). Danach rot.
+- Zwei Ersetzungen waren nicht eindeutig (Textblock bzw. „interval '15 minutes')“ je zweimal) -- der Läufer brach vor jeder Änderung ab; eindeutig gemacht.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Funktionen laufen mit den Rechten des ERP | Willkommen ohne SECURITY DEFINER | 2 rot (Wächter, Willkommen: keine Berechtigung) |
+| Nr. 1 – kein Helfer für das Portal | `portal_bremse` in `rechte.FUNKTIONEN` | 1 rot (Wächter) |
+| Nr. 2 – fester search_path | bei `portal_sitzung` weg | 1 rot |
+| Nr. 2 – nicht für alle ausführbar | REVOKE für einen Helfer fehlt | 1 rot |
+| Nr. 3 – nur Prüfwerte, sonst nichts geschrieben | Prüfung beim Link weg | 7 rot (jede Eingabe) |
+| Nr. 3 – Code an die Sitzung gebunden | Prüfwert ohne Sitzung | 1 rot |
+| Nr. 4 – Zeit nur aus portal_jetzt() | now() beim Anlegen der Sitzung | 1 rot |
+| Nr. 5 – jeder Grund unterschieden im Protokoll | Archiv vergessen | 3 rot |
+| Nr. 5 – unbestätigt 15 Minuten | 30 Minuten | 1 rot |
+| Nr. 6 – neuer Code frühestens nach 60 Sekunden | Sperre weg | 1 rot |
+| Nr. 6 – Grenze je Zugang | 4 statt 3 | 1 rot |
+| Nr. 6 – NOTIFY als Weckruf | kein NOTIFY | 1 rot |
+| Nr. 7 – fünf Versuche | sechs | 1 rot |
+| Nr. 7 – neuer Wert nach dem Code | Wert bleibt | 3 rot |
+| Nr. 7 und 11 – von zwei gleichzeitigen gilt eine (Sperren Zugang -> Sitzung) | Sperren von Zugang und Sitzung beim Prüfen weg | 1 rot (die zweite bekommt „neu_anfordern“ statt „ungueltig“) |
+| Nr. 8 – höchstens einmal je Stunde | bei jedem Aufruf verlängert | 1 rot |
+| Nr. 8 – Sperren wirken sofort | Sitzung ohne Prüfung des Zugangs | 5 rot (jede Sperre) |
+| Nr. 9 – alle Geräte nur bestätigt | auch unbestätigt | 1 rot |
+| Nr. 10 – Willkommen nur bestätigt | auch unbestätigt | 1 rot |
+| Nr. 12 – Migration wörtlich | ein Wert anders in der Migration | 1 rot |
+| Nr. 12 – create_all legt sie an | Ereignis weg | 1 rot |
+| Nr. 13 – Modul ohne Zeile aus | ohne Zeile an | 1 rot |

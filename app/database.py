@@ -84,6 +84,9 @@ class Base(DeclarativeBase):
 # Seit 1.9.353: nach jedem create_all() unter PostgreSQL die Funktion telefonbuch() (Testschemas, lokale Entwicklung); auf dem Server legt
 # sie die Migration 9e4b2c7d1a35 an. Siehe app/telefonbuch.py.
 event.listen(Base.metadata, "after_create", telefonbuch.pg_anlegen)
+# Seit 1.11.1: ebenso die Funktionen der Datenbank für Link und Sitzung des Kundenportals (app/portal/funktionen.py, Migration b5d1e8a3c247).
+from .portal import funktionen as portal_funktionen  # noqa: E402
+event.listen(Base.metadata, "after_create", portal_funktionen.pg_anlegen)
 
 
 def get_db():

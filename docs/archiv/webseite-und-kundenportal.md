@@ -1422,3 +1422,55 @@ aus, CHECK greift, Downgrade bricht mit Zugang und mit Portal an ab, sonst zurü
 test_list_module_states_covers_registry` -- bis 1.10.27 „jedes Modul ohne Zeile aktiv“, jetzt „aktiv außer AB_WERK_AUS“. Aufbau: `test_v364` kennt die fünf
 Spalten mit festen Werten, `test_v793` den Zugang in `KEIN_TEIL`, `app/audit.py::FIELD_LABELS` den Namen „Kundenportal an“
 (`test_v436`, `test_v438`). Gegenproben: `gegenproben-portal.md`, „1.11.0“.
+
+### Umsetzung 1.11.1: Funktionen der Datenbank für Link und Sitzung (P1a, Teil 2; Nachtrag N1)
+
+- `app/portal/funktionen.py`: acht Funktionen mit SECURITY DEFINER (Eigentümer der Benutzer des ERP) -- `portal_link_oeffnen` (Link prüfen; neues Gerät:
+  unbestätigte Sitzung 15 Minuten, sonst „angemeldet“), `portal_code_anfordern` (Auftrag an den Postboten und NOTIFY, frühestens alle 60 Sekunden),
+  `portal_post_stand`, `portal_code_pruefen` (5 Versuche; richtig: Sitzung bestätigt, neuer Wert, 30 Tage, Code verbraucht), `portal_sitzung`,
+  `portal_sitzung_weiter` (höchstens einmal je Stunde um 30 Tage), `portal_abmelden` (ein Gerät; alle Geräte nur aus einer bestätigten Sitzung),
+  `portal_willkommen` (Anrede, Titel, Vor- und Nachname, Name des Kunden der Sitzung) -- und sechs Helfer ohne SECURITY DEFINER (`portal_jetzt`,
+  `portal_hash_gueltig`, `portal_bremse`, `portal_protokoll`, `portal_zugang_grund`, `portal_sitzung_id`). Bremsen und Zugriffsprotokoll schreiben die Funktionen.
+- Regeln: fester search_path (pg_catalog, Schema der Tabellen, pg_temp; das Schema setzt das Anlegen aus current_schema() ein), kein dynamisches SQL, keine
+  für alle ausführbar; Eingaben nur als Prüfwerte (64 Zeichen hexadezimal), sonst „ungueltig“ ohne zu schreiben; Zeit nur `portal_jetzt()`; Sperren Zugang
+  (FOR NO KEY UPDATE) -> Sitzung -> Code. Ein Zugang gilt nur mit Link, gültig bis in der Zukunft, nicht gesperrt, Portal am Kunden an, Kunde nicht im Archiv
+  und Modul an -- eine fehlende Zeile des Moduls heißt auch hier „aus“ (`AB_WERK_AUS`). Jede bestätigte Sitzung gilt nur, solange das gilt.
+- `app/portal/pruefwerte.py`: Prüfwerte in Python -- Link und Cookie SHA-256 mit Zweck, Code SHA-256 über Zweck + Prüfwert der Sitzung + Code (passt nur zu
+  seiner Sitzung), Anschluss HMAC-SHA-256 mit dem Schlüssel des Portals; neuer Wert 32 Byte, neuer Code 6 Ziffern.
+- `app/portal/rechte.py::FUNKTIONEN` = genau die acht Funktionen; `scripts/portal_rechte.py` setzt und prüft EXECUTE darauf.
+- Migration `b5d1e8a3c247` trägt die Anweisungen wörtlich (nur PostgreSQL; unter SQLite nichts); jedes `create_all()` unter PostgreSQL legt sie ebenso an
+  (`app/database.py`, wie `telefonbuch()`). Das Portal läuft damit nur gegen PostgreSQL.
+
+#### Festlegungen 1.11.1 (Bitte bestätigen)
+
+1. Alles an Link und Sitzung läuft über acht Funktionen der Datenbank mit SECURITY DEFINER; der Benutzer des Portals darf nur sie aufrufen, keinen Helfer und
+   keine Tabelle.
+2. Jede Funktion hat einen festen search_path (pg_catalog, Schema, pg_temp), kein dynamisches SQL und ist nicht für alle ausführbar.
+3. In die Datenbank gehen nur Prüfwerte (64 Zeichen hexadezimal) -- Link, Cookie und Code nie; jede andere Eingabe ergibt „ungueltig“ und schreibt nichts.
+   Der Prüfwert des Codes hängt an der Sitzung, der Anschluss geht nur als HMAC mit dem Schlüssel des Portals ein.
+4. Die Zeit kommt nur aus der Datenbank (`portal_jetzt()`), nie vom Portal.
+5. Link öffnen: jeder Grund (unbekannt, gesperrt, abgelaufen oder ohne Link, Portal aus, Archiv, Modul aus) sieht von außen gleich aus und steht unterschieden
+   im Protokoll; ein neues Gerät bekommt eine unbestätigte Sitzung für 15 Minuten; eine bestätigte Sitzung desselben Zugangs ist „angemeldet“.
+6. Einen Code fordert nur eine unbestätigte, gültige Sitzung an; Auftrag an den Postboten mit NOTIFY nur als Weckruf (ohne Inhalt, erst beim Commit); ein neuer
+   frühestens nach 60 Sekunden; Grenzen je Zugang 3 je 15 Minuten und 10 je Tag, je Anschluss 10 je Stunde, gesamt 200 je Stunde.
+7. Code prüfen: 5 Versuche je Code (danach gilt auch der richtige nicht mehr); richtig: Sitzung bestätigt, neuer Wert, 30 Tage, Code verbraucht; von zwei
+   gleichzeitigen richtigen Eingaben gilt eine.
+8. Eine Sitzung gilt nur bestätigt und nur solange der Zugang gilt -- Sperren, Ablauf, Portal aus, Archiv und Modul aus wirken sofort; verlängert wird über
+   einen eigenen Aufruf (kein Lesen schreibt), höchstens einmal je Stunde um 30 Tage.
+9. Abmelden: ein Gerät immer; alle Geräte nur aus einer bestätigten Sitzung.
+10. „Willkommen“ liest Anrede, Titel und Namen nur für den Kunden einer bestätigten Sitzung.
+11. Sperren in fester Reihenfolge: Zugang, dann Sitzung, dann Code -- das ERP sperrt beim Sperren und neu Erzeugen ebenso zuerst den Zugang (P1d).
+12. Der Text steht im Code und wörtlich in der Migration; eine Änderung braucht eine neue Migration; jedes `create_all()` unter PostgreSQL legt die Funktionen an.
+13. Auch in der Datenbank gilt das Modul „Kundenportal“ ohne Zeile als aus.
+
+#### Tests und Prüfung 1.11.1
+
+Neu `tests/test_v800_portal_funktionen.py` (41): ohne Datenbank -- fester search_path, kein dynamisches SQL, kein Prozentzeichen, Zeit nur aus portal_jetzt(),
+SECURITY DEFINER genau `rechte.FUNKTIONEN`, jede Funktion für alle entzogen, protokollierte Wörter in `werte.py`, Migration wörtlich, Prüfwerte; gegen
+PostgreSQL im Wegwerf-Schema mit Aufrufen als Testrolle `dkportal_test` -- Link öffnen (unbestätigte Sitzung genau 15 Minuten nach der Zeit der Datenbank;
+acht Gründe außen gleich, im Protokoll unterschieden; bestätigt angemeldet, fremder Zugang neu; Bremse je Anschluss), Code anfordern (Auftrag, NOTIFY als
+Weckruf ohne Inhalt, Stand, 60 Sekunden, Grenze je Zugang, nur unbestätigt und gültig), Code prüfen (fünf falsche mit Rest, danach auch der richtige nicht,
+neuer Code richtig, neuer Wert, 30 Tage, verbraucht; abgelaufen; Code einer anderen Sitzung; zwei gleichzeitig: einer), verlängern, abmelden, Willkommen,
+fünf Sperren wirken sofort, die Rolle liest keine Tabelle und keinen Helfer (42501) und `pruefen()` ohne Abweichung, sieben Eingaben ohne Prüfwert schreiben
+nichts, `create_all()` legt die 14 Funktionen mit festem search_path an, Migration hinauf (keine für alle ausführbar) und herab, unter SQLite ohne Funktionen.
+`tests/test_v799_portal_rechte.py` prüft die Rechte jetzt samt EXECUTE. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.1“.
