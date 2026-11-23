@@ -580,3 +580,18 @@ alle 5 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
 | Nr. 1 – 404 statt anderem Status | `_vorbereitung()` gibt 422 | 7 rot (je Weg, AST) |
 | Nr. 2 – nur über `_vorbereitung()` | die Aufgabe fängt selbst ab (antwortet 404, aber an `_vorbereitung()` vorbei) | 1 rot (AST) |
 | Nr. 3 – der Rundgang verlangt keine 500 | die Aufgabe über `ensure_preparation()` direkt | Rundgang rot (die Route mit 500) |
+
+## Antworten zum Bericht F10, 1.10.27: die Kundenakte nennt ein Projekt im Archiv „Im Archiv“
+
+Probendatei im Scratchpad (`gp_1127.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v798_kundenakte_im_archiv.py` bzw.
+`klicktest_nur_lesen`; alle 9 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – der Server nennt das Projekt im Archiv | `im_archiv` immer falsch | 3 rot; Klicktest „Kundenakte: Projekt unter „Im Archiv““ rot („Abgeschlossen: P-2026-0902 …“) |
+| Nr. 1 – die Seite trennt die Zeilen | alles unter „Abgeschlossen“ (`archiv` leer) | 2 rot; Klicktest rot wie oben |
+| Nr. 1 – die Zeile heißt „Im Archiv“ | Titel „Abgeschlossen“ auch für die Projekte im Archiv | 2 rot |
+| Nr. 2 – nur ohne Auftrag | `im_archiv` = archiviert (auch mit Auftrag) | 2 rot (das stornierte, archivierte Projekt mit Auftrag stand unter „Im Archiv“) |
+| Nr. 3 – nur „Im Archiv“: die Zeile steht da | versteckt, wenn nichts abgeschlossen ist (wie bis 1.10.26) | 1 rot |
+| Nr. 3 – ohne beides keine Zeile | Zeile immer sichtbar | 1 rot |
+| Nr. 3 – untereinander | ohne `display:block` | 2 rot |

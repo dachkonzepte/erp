@@ -92,7 +92,8 @@ def _zahlen_je_auftrag(db: Session, orders: list[Order]) -> dict[int, dict]:
 
 def projekte(db: Session, customer_id: int, heute: date | None = None) -> list[dict]:
     """Die Projekte des Kunden ohne Mustervorgänge: laufende zuerst (nicht abgeschlossen, nicht storniert, nicht archiviert), je Gruppe die
-    jüngsten zuerst."""
+    jüngsten zuerst. „im_archiv“ (seit 1.10.27): im Archiv der Aufbewahrung -- archiviert und ohne Auftrag, wie app/projects.py::_projekt_im_archiv();
+    die Übersicht nennt es „Im Archiv“, nicht „Abgeschlossen“."""
     from .auftragsstatus import NAMEN as AUFTRAG_NAMEN, wert as auftrag_status
 
     heute = heute or berlin_today()
@@ -125,6 +126,7 @@ def projekte(db: Session, customer_id: int, heute: date | None = None) -> list[d
             "property_id": p.property_id,  # seit 1.9.137: Objekte der Kundenakte nennen ihre Projekte
             "status": s, "status_label": PROJEKTSTATUS_NAMEN[s],
             "laufend": s not in GESCHLOSSENE_STATUS and not p.archived,
+            "im_archiv": bool(p.archived) and not eigene,
             "objekt": (", ".join(t for t in (prop.street, " ".join(x for x in (prop.postal_code, prop.city) if x)) if t) or prop.name)
                       if prop is not None else None,
             "auftraege": [{"id": o.id, "order_number": o.order_number, "status": auftrag_status(o.status),

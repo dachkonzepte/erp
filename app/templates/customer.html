@@ -554,12 +554,17 @@ function projektZeile(p,oben=false){
   const k=statusKennzeichen('projekt',p.status);
   return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex projekt-kopf"><a class="projekt-name" href="/projects/${p.id}" title="${esc(p.project_number)} · ${esc(p.name)}">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="num sml mut projekt-abrechnung">${projektAbrechnung(p)}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
 }
+// Seit 1.10.27: ein Projekt im Archiv (archiviert und ohne Auftrag, im_archiv vom Server) steht unter „Im Archiv“, nicht unter „Abgeschlossen“ -- es hatte
+// nie einen Auftrag. Je Liste eine Zeile, höchstens fünf Projekte, dann „und n weitere“.
+function projektKurzliste(titel,liste){
+  return liste.length?`<span class="projekt-kurzliste" style="display:block">${esc(titel)}: `+liste.slice(0,5).map(p=>`<a href="/projects/${p.id}">${esc(p.project_number)}</a> ${esc(p.name)}`).join(' · ')+(liste.length>5?` · <a href="#projekte">und ${zahlText(liste.length-5,0)} weitere</a>`:'')+'</span>':'';
+}
 function uebersichtProjekte(){
-  const alle=akte.projekte,laufend=alle.filter(p=>p.laufend),fertig=alle.filter(p=>!p.laufend);
+  const alle=akte.projekte,laufend=alle.filter(p=>p.laufend),fertig=alle.filter(p=>!p.laufend&&!p.im_archiv),archiv=alle.filter(p=>!p.laufend&&p.im_archiv);
   el('uAlleProjekte').textContent=alle.length?`Alle ${zahlText(alle.length,0)} Projekte`:'Projekte';
   el('uProjekteListe').innerHTML=laufend.length?laufend.map(projektZeile).join(''):`<p class="mut sml" style="margin:0">${alle.length?'Kein laufendes Projekt.':'Noch kein Projekt – „+ Projekt“ legt eines an.'}</p>`;
-  const ab=el('uAbgeschlossen');ab.hidden=!fertig.length;
-  ab.innerHTML=fertig.length?'Abgeschlossen: '+fertig.slice(0,5).map(p=>`<a href="/projects/${p.id}">${esc(p.project_number)}</a> ${esc(p.name)}`).join(' · ')+(fertig.length>5?` · <a href="#projekte">und ${zahlText(fertig.length-5,0)} weitere</a>`:''):'';
+  const ab=el('uAbgeschlossen');ab.hidden=!fertig.length&&!archiv.length;
+  ab.innerHTML=projektKurzliste('Abgeschlossen',fertig)+projektKurzliste('Im Archiv',archiv);
 }
 function renderProjects(){
   el('projects').innerHTML=akte.projekte.length?akte.projekte.map(p=>{

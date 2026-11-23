@@ -6,9 +6,10 @@ abgeholt und über die Aufbewahrung ins Archiv gelegt.
 
     je Seite      Kundenakte (jeder Reiter), Objekt, Dachfläche, Akte (jeder Reiter), Angebot (jeder Reiter rechts), Eingang der Webseite: am <body> die Klasse
                   ds-nur-lesen; kein sichtbarer Knopf im Inhalt außer den lesenden (data-lesen: Zurückholen, Filter, PDF-Vorschau, Reiter des Angebots);
-                  kein bedienbares Feld; das „⋮“ fehlt; der Hinweis „im Archiv“ steht da
+                  kein bedienbares Feld; das „⋮“ fehlt; der Hinweis „im Archiv“ steht da; die Kundenakte nennt das Projekt (nie ein Auftrag) unter „Laufende
+                  Projekte“ „Im Archiv“, nicht „Abgeschlossen“ (seit 1.10.27)
     Zurückholen   an der Akte: Hinweis weg, Klasse weg, „⋮“ wieder da; das Angebot wieder bearbeitbar („Angebot beauftragen“); die Kundenakte (der Kunde kam
-                  mit) mit „+ Projekt“; am Eingang der Webseite: „Verwerfen …“ wieder da
+                  mit) mit „+ Projekt“ und dem Projekt unter den laufenden; am Eingang der Webseite: „Verwerfen …“ wieder da
     412 px        Akte und Eingang dunkel nur lesbar und ohne Überlauf (seit 1.10.25, Frage F12: die Tabelle „Angebote“ der Übersicht rollt in ihrem
                   Rahmen), Bilder; nach dem Zurückholen die Akte noch einmal ohne Überlauf
     überall       keine JS-Fehler
@@ -113,6 +114,10 @@ async def pruefen(tab, seed, p):
     await _seite(tab, p, "Kundenakte", f"/customers/{seed['kunde']}", "typeof customer!=='undefined'&&!!customer",
                  reiter(("projekte", "objekte", "anfragen", "zahlungen", "dokumente", "kontakte", "verlauf", "uebersicht")),
                  lesen_soll=("Zurückholen", "Alles", "Änderungen"))
+    # seit 1.10.27: das Projekt im Archiv (nie ein Auftrag) heißt unter „Laufende Projekte“ „Im Archiv“, nicht „Abgeschlossen“
+    p.pruefe("Kundenakte: Projekt unter „Im Archiv“", await tab.js(
+        "[document.getElementById('uProjekteListe').textContent,document.getElementById('uAbgeschlossen').hidden,"
+        "document.getElementById('uAbgeschlossen').textContent]"), ["Kein laufendes Projekt.", False, "Im Archiv: P-2026-0902 Neues Dach"])
     await tab.bild("kundenakte_im_archiv_1440_hell")
     await tab.js("document.querySelector('.reiter a[data-reiter=dokumente]').click()")
     p.pruefe("Kundenakte: die Ablage zum Hochladen fehlt (data-schreiben)", await tab.js(
@@ -187,6 +192,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kundenakte nach dem Zurückholen (der Kunde kam mit): „+ Projekt“ da", await tab.js(
         "[document.body.classList.contains('ds-nur-lesen'),getComputedStyle(document.querySelector('[data-klick=neues-projekt]')).display!=='none']"),
         [False, True])
+    p.pruefe("Kundenakte nach dem Zurückholen: das Projekt läuft wieder, keine Zeile „Im Archiv“", await tab.js(
+        "[document.getElementById('uProjekteListe').textContent.includes('P-2026-0902'),document.getElementById('uAbgeschlossen').hidden]"), [True, True])
 
     # Zurückholen am Eingang der Webseite
     await tab.oeffnen(f"/anfragen/webseite/{wid}", "!document.getElementById('archivHinweis').hidden")

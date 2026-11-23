@@ -1286,3 +1286,27 @@ mit Meldung und ohne Spur in sechs Tabellen und der Ablage; dieselbe Anfrage mit
 `_vorbereitung()`). Angepasste Erwartung: `tests/test_v794_archiv_rundgang.py` -- bis 1.10.25 nannte er die 500 nur in der Ausgabe, jetzt `fehler == []`. Kein
 Klicktest (keine Seite ruft die Routen mit einem unbekannten Auftrag auf; die Seite der Arbeitsvorbereitung bleibt unverändert). Gegenproben:
 `gegenproben-webseite.md`, „1.10.26“.
+
+### Umsetzung 1.10.27: die Kundenakte nennt ein Projekt im Archiv „Im Archiv“, nicht „Abgeschlossen“
+
+- Die Übersicht der Kundenakte zeigt unter „Laufende Projekte“ die laufenden; jedes andere Projekt stand bis 1.10.26 in einer Zeile „Abgeschlossen: …“ -- auch
+  ein Projekt im Archiv, das nie einen Auftrag hatte (im Klicktest P-2026-0902).
+- `app/kundenakte.py::projekte()` nennt je Projekt `im_archiv`: archiviert und ohne Auftrag, dieselbe Regel wie `app/projects.py::_projekt_im_archiv()` (Akte,
+  Angebot, Suche). Die Seite (`customer.html`, `projektKurzliste()`) zeigt darunter zwei Zeilen: „Abgeschlossen: …“ (abgeschlossen, storniert, archiviert mit
+  Auftrag) und „Im Archiv: …“ -- je höchstens fünf Projekte, dann „und n weitere“; eine Zeile ohne Projekt fehlt.
+- Unverändert: ein archiviertes Projekt mit Auftrag ist nicht im Archiv der Aufbewahrung und bleibt „Abgeschlossen“; das Kennzeichen „archiviert“ an der
+  Projektzeile im Reiter „Projekte“ bleibt (wie „· archiviert“ im Kopf der Akte).
+
+#### Festlegungen 1.10.27 (Bitte bestätigen)
+
+1. Unter „Laufende Projekte“ der Kundenakte steht ein Projekt im Archiv (archiviert, ohne Auftrag) in der Zeile „Im Archiv: …“, nicht unter „Abgeschlossen“.
+2. „Im Archiv“ heißt dort dasselbe wie an Akte, Angebot und Suche: archiviert und ohne Auftrag -- ein archiviertes Projekt mit Auftrag bleibt „Abgeschlossen“.
+3. Beide Zeilen stehen untereinander, je höchstens fünf Projekte, dann „und n weitere“; eine leere Zeile fehlt.
+
+#### Tests und Prüfung 1.10.27
+
+Neu `tests/test_v798_kundenakte_im_archiv.py` (Server: `im_archiv` nur archiviert und ohne Auftrag; Seite in node mit den Antworten der echten Endpunkte:
+„Abgeschlossen“ mit dem archivierten Projekt mit Auftrag, „Im Archiv“ mit dem ohne; nur ein Projekt im Archiv -- nur die Zeile „Im Archiv“; ohne beides keine
+Zeile). `scripts/klicktest_nur_lesen.py`: die Kundenakte im Archiv nennt „Kein laufendes Projekt.“ und „Im Archiv: P-2026-0902 Neues Dach“; nach dem Zurückholen
+steht das Projekt unter den laufenden, die Zeile fehlt (37 Prüfungen, bisher 35). Unverändert grün: `klicktest_kundenakte` („Abgeschlossen: P-2025-0064 …“, ein
+Projekt mit Auftrag). Gegenproben: `gegenproben-webseite.md`, „1.10.27“.
