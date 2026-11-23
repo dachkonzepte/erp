@@ -122,7 +122,7 @@ tr:last-child td{border-bottom:none}
     <h2>Objektdateien</h2>
   </div>
   <div id="propertyDocUploadStatus" class="status"></div>
-  <div class="fields-2col" style="margin-bottom:12px;align-items:end">
+  <div class="fields-2col" style="margin-bottom:12px;align-items:end" data-schreiben>
     <div class="field"><label>Kategorie</label><select id="propertyDocCategory"></select></div>
     <div class="field"><label>Datei</label><input type="file" id="propertyDocFile"></div>
     <div class="field full"><label>Bemerkung (optional)</label><input id="propertyDocDescription"></div>
@@ -156,6 +156,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_nur_lesen.html" %}
 <script>
 const propertyId={{ property_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -379,7 +380,8 @@ async function init(){
       const geladen=await api(`/api/properties/${propertyId}`);
       return [geladen,await api(`/api/customers/${geladen.customer_id}`).catch(()=>null)];
     },([geladen,kunde])=>{property=geladen;customer=kunde;renderBreadcrumb();renderHeader();fillPropertyForm();
-      document.getElementById('archivHinweis').hidden=!geladen.kunde_im_archiv;document.getElementById('archivKundeLink').href='/customers/'+Number(geladen.customer_id)});  // Hinweis seit 1.10.18
+      document.getElementById('archivHinweis').hidden=!geladen.kunde_im_archiv;document.getElementById('archivKundeLink').href='/customers/'+Number(geladen.customer_id);  // Hinweis seit 1.10.18
+      nurLesen(!!geladen.kunde_im_archiv)});  // seit 1.10.24 (F10): im Archiv nur lesbar (_nur_lesen.html)
   }catch(e){
     seitenkopf({untertitel:'Fehler: '+e.message});
     return;

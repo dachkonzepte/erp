@@ -4551,6 +4551,7 @@ class RoofAreaOut(BaseModel):
     property_name: str | None = None
     customer_id: int | None = None
     customer_name: str | None = None
+    kunde_im_archiv: bool = False  # seit 1.10.24 (F10): nur in GET /api/roof-areas/{id} gesetzt -- Hinweis, die Seite ist nur lesbar
     name: str
     roof_type: str | None = None
     covering: str | None = None

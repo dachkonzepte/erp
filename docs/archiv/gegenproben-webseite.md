@@ -536,3 +536,22 @@ Gegenprobe den genannten weiteren Tests; 16 Gegenproben, alle rot aus dem geprü
 | Nr. 2 – die Meldung nennt das Projekt vor dem Kunden | Kunde zuerst | 26 rot |
 | Nr. 8 – ohne Spalten des Archivs prüft der Schutz nichts | immer prüfen | 2 rot (Migrationsprobe unter SQLite und PostgreSQL) |
 | Struktur – jede Tabelle am Vorgang eingeordnet | Schichten der Dachfläche nicht in `TEILE` | 1 rot |
+
+## Antworten zum Bericht F7, 1.10.24: die Seiten eines Vorgangs im Archiv sind nur lesbar
+
+Probendatei im Scratchpad (`gp_1124.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v795_nur_lesen.py` bzw. `klicktest_nur_lesen`; alle
+17 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – kein Knopf zum Schreiben | Regel des Bausteins weg | 1 rot; Klicktest 23/33 („+ Projekt“, „⋮“, „Bearbeiten“ …) |
+| Nr. 1 – jedes Feld gesperrt | Felder nicht gesperrt | 1 rot; Klicktest 27/33 |
+| Nr. 1 – nichts zu ziehen | Ziehen nicht gesperrt | Klicktest 32/33 (zwei Zeilen des LV ziehbar) |
+| Nr. 1 – keine Ablage zum Hochladen | Regel für `data-schreiben` weg | Klicktest 32/33 („block“) |
+| Nr. 1 – jede Seite ruft `nurLesen()` | Aufruf in der Akte weg | 2 rot; Klicktest 30/33 („Beauftragen“, „⋮“, „Bearbeiten“) |
+| Nr. 2 / 3 – „Zurückholen“ bleibt | ohne `data-lesen` | 1 rot; Klicktest 32/33 |
+| Nr. 3 – nur Knöpfe zum Lesen tragen `data-lesen` | „Stammdaten bearbeiten“ mit `data-lesen` | 1 rot |
+| Nr. 4 – die Dachfläche kennt den Kunden im Archiv | `kunde_im_archiv` immer falsch | 1 rot; Klicktest 31/33 |
+| Nr. 5 – der Eingang der Webseite ist nur lesbar | Aufruf weg | Klicktest 31/33 |
+| Nr. 5 – „Zurückholen“ am Eingang | Aktion weg | Klicktest 32/33 |
+| Nr. 6 – nach dem Zurückholen wieder bearbeitbar | `nurLesen(false)` lässt die Klasse | 2 rot; Klicktest 31/33 |

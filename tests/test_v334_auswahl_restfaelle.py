@@ -110,7 +110,8 @@ BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitu
              "_verlauf.html",  # seit 1.9.115 (eine Darstellung der Änderung: /history und Verlauf der Projektmappe)
              "_auftragsstatus.html",  # seit 1.9.124 (Status des Auftrags: Kennzeichen, Übergänge, Rückfrage)
              "_schlechtwetter.html",  # seit 1.9.170 (Ausfalltag Schlechtwetter: „Zeiten“, „Meine Zeiten“)
-             "_kontaktvermerk.html")  # seit 1.10.10 (Kontakt vermerken: Anfragen, Akte, Kundenakte)
+             "_kontaktvermerk.html",  # seit 1.10.10 (Kontakt vermerken: Anfragen, Akte, Kundenakte)
+             "_nur_lesen.html")  # seit 1.10.24 (F10: Seiten eines Vorgangs im Archiv nur lesbar)
 
 
 def eingebunden(vorlage: str) -> list[str]:

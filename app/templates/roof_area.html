@@ -34,6 +34,10 @@ tr:last-child td{border-bottom:none}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap}
 .row-archived{opacity:.6}
+/* seit 1.10.24 (F10): der Kunde ist im Archiv -- wie auf der Seite des Objekts */
+.archiv-hinweis{margin:0 0 14px;padding:10px 12px;border-left:4px solid var(--ds-warn-text);background:var(--ds-warn-hell);color:var(--ds-text);border-radius:var(--ds-ecke-feld);font-size:13px}
+.archiv-hinweis[hidden]{display:none}
+.archiv-hinweis a{color:var(--ds-link);font-weight:600}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .sketch-wrap{position:relative;border:1px solid var(--line);background:var(--soft);touch-action:none;max-width:640px}
 .sketch-img{display:block;width:100%;height:auto}
@@ -64,6 +68,7 @@ tr:last-child td{border-bottom:none}
   {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="archiveBtn" data-klick="archivieren">Archivieren</button>
   <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="loeschen">Löschen</button>{% endif %}
 {% endcall %}
+<div class="archiv-hinweis" id="archivHinweis" hidden>Der Kunde ist im Archiv – die Dachfläche ist nur zum Ansehen da, die 6 Monate laufen dabei nicht neu. Zurückholen in der <a id="archivKundeLink">Kundenakte</a>.</div>
 
 <div class="editor-card">
   <h2>Angaben zur Dachfläche</h2>
@@ -162,6 +167,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_nur_lesen.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
 <script>
@@ -744,6 +750,9 @@ async function init(){
       units=un.options||[];
       area=a;
       renderBreadcrumb();renderHeader();fillAreaForm();
+      // seit 1.10.24 (F10): der Kunde ist im Archiv -- Hinweis mit Weg zur Kundenakte, die Seite nur lesbar (_nur_lesen.html)
+      document.getElementById('archivHinweis').hidden=!a.kunde_im_archiv;document.getElementById('archivKundeLink').href='/customers/'+Number(a.customer_id);
+      nurLesen(!!a.kunde_im_archiv);
     });
   }catch(e){
     seitenkopf({untertitel:'Fehler: '+e.message});

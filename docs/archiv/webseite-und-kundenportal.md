@@ -1196,3 +1196,41 @@ nicht im Archiv), `test_v789` (Fixture), `test_v267` (zwei Testdaten: das Dokume
 `klicktest_auswahl_inaktiv` (Seed: erst anlegen bzw. die Aufgabe, dann ins Archiv). Nebenbefund des Rundgangs (nicht geändert, kein Archiv): vier Routen der
 Arbeitsvorbereitung (`POST /api/orders/{id}/work-preparation/delivery-notes`, `…/employees`, `…/tasks`, `…/teams`) antworten bei einem unbekannten Auftrag mit
 500 statt 404 („Auftrag nicht gefunden.“ als ValueError). Gegenproben: `gegenproben-webseite.md`, „1.10.23“.
+
+### Umsetzung 1.10.24: die Seiten eines Vorgangs im Archiv sind nur lesbar (Antwort F10, Teil 2)
+
+- Neuer Baustein `app/templates/_nur_lesen.html`: `nurLesen(an)` setzt am `<body>` die Klasse `ds-nur-lesen`. Dann fehlt jeder Knopf im Inhalt (`<main>`), in
+  Dialogen und Fenstern -- auch das „⋮“ und Links im Aussehen eines Knopfs --, außer Knöpfen mit `data-lesen`; Schließen und Abbrechen eines Dialogs bleiben
+  von selbst. Jedes Feld dort ist gesperrt (disabled, Aussehen aus `ds-gesperrt.css`), auch was die Seite danach zeichnet oder wieder freigibt
+  (MutationObserver); nichts lässt sich ziehen oder als Datei ablegen; was nur zum Schreiben da ist (Ablage zum Hochladen, „+ Termin“), trägt `data-schreiben`
+  und fehlt. `nurLesen(false)` nimmt das zurück -- nach dem Zurückholen ist die Seite ohne Neuladen wieder bearbeitbar.
+- Umgekehrt gedacht (Standardverweigerung): ein Knopf bleibt im Archiv nur, wenn er `data-lesen` trägt -- ein neuer Knopf zum Schreiben ist von selbst weg.
+  Welche das je Seite sind, steht in `tests/test_v795_nur_lesen.py` (`LESEN`): „Zurückholen“ (Kundenakte, Akte, Eingang der Webseite), Filter und „Ältere
+  laden“ im Verlauf und bei den Dokumenten, „Öffnen“ eines Objekts in der Kundenakte, „PDF-Vorschau“ und die Reiter rechts im Angebot. Reiter und Links zum
+  Lesen bleiben ohnehin.
+- Die Seiten rufen `nurLesen()` nach jedem Laden mit dem Stand des Vorgangs: Kundenakte (`archiviert_am`), Akte (archiviert, ohne Auftrag), Objekt
+  (`kunde_im_archiv`), Dachfläche (neu: `kunde_im_archiv` an `GET /api/roof-areas/{id}` und der Hinweis wie am Objekt, mit Weg zur Kundenakte), Angebot
+  (`projekt_im_archiv`), Eingang der Webseite (neu: Hinweis „Im Archiv seit … – nur zum Ansehen …“ mit „Zurückholen“ über die Aufbewahrung). Objekt,
+  Dachfläche und Angebot holen nicht selbst zurück, ihr Hinweis führt zur Kundenakte bzw. Akte (wie 1.10.18). Der Hinweis der Kundenakte sagt jetzt auch „nur
+  zum Ansehen … Zum Weiterarbeiten zurückholen“ (wie die Akte).
+
+#### Festlegungen 1.10.24 (Bitte bestätigen)
+
+1. Kundenakte, Akte, Objekt, Dachfläche, Angebot und Eingang der Webseite eines Vorgangs im Archiv sind nur lesbar: kein Knopf zum Schreiben (auch kein „⋮“,
+   kein Link im Aussehen eines Knopfs, keine Ablage zum Hochladen), jedes Feld gesperrt, nichts zu ziehen.
+2. Es bleiben „Zurückholen“, Reiter, Filter, „Ältere laden“, Wege zum Lesen (Öffnen, PDF-Vorschau, die Reiter rechts im Angebot) und Schließen bzw. Abbrechen
+   in Dialogen.
+3. Ein Knopf bleibt nur mit `data-lesen`; ein neuer Knopf zum Schreiben ist im Archiv von selbst weg.
+4. Objekt, Dachfläche und Angebot holen nicht selbst zurück; ihr Hinweis führt zur Kundenakte bzw. Akte. Die Dachfläche bekommt den Hinweis neu.
+5. Der Eingang der Webseite im Archiv zeigt den Hinweis mit „Zurückholen“ (wie unter Aufbewahrung, die 6 Monate zählen neu).
+6. Nach dem Zurückholen ist die Seite ohne Neuladen wieder bearbeitbar.
+
+#### Tests und Prüfung 1.10.24
+
+Neu `tests/test_v795_nur_lesen.py` (je Seite eingebunden und genau ein Aufruf mit dem Stand des Vorgangs; je Seite genau die lesenden Knöpfe und was nur zum
+Schreiben da ist; nur diese Seiten; Regeln des Bausteins; in node: schalten, zweimal derselbe Aufruf tut nichts, Sperren für Ziehen und Ablegen an und ab;
+`kunde_im_archiv` an der Dachfläche). Neu `scripts/klicktest_nur_lesen.py` (33 Prüfungen: je Seite und Reiter Klasse, kein Knopf, kein Feld; lesende Knöpfe da;
+„⋮“, Hauptaktion und „Angebot beauftragen“ fehlen; Hinweise mit Weg; Ablage zum Hochladen fehlt; keine Zeile des LV ziehbar; 412 px dunkel; Zurückholen an Akte
+und Eingang -- alles wieder da, auch am Angebot und am mitgeholten Kunden; Bilder). Angepasste Erwartung: `tests/test_v334_auswahl_restfaelle.py::BAUSTEINE` um
+`_nur_lesen.html` (die Attrappe der Seiten bindet ihn ein). Befund (nicht geändert, kein Archiv): die Akte eines Projekts ohne Auftrag läuft bei 412 px über --
+die Tabelle „Angebote“ der Übersicht ist 60 px zu breit, mit und ohne Archiv (Frage F12 im Bericht). Gegenproben: `gegenproben-webseite.md`, „1.10.24“.

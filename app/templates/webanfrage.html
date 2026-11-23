@@ -47,6 +47,11 @@
   .verwerfen-panel select:hover{border-color:var(--field-border-hover)}
   .verwerfen-panel select:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
   .meldung{font-size:12.5px;color:var(--muted);margin-top:8px}
+  /* seit 1.10.24 (F10): ein Eingang im Archiv -- nur zum Ansehen, einzig „Zurückholen“ */
+  .archiv-hinweis{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:0 0 14px;padding:10px 12px;border-left:4px solid var(--ds-warn-text);
+    background:var(--ds-warn-hell);color:var(--ds-text);border-radius:var(--ds-ecke-feld);font-size:13px}
+  .archiv-hinweis[hidden]{display:none}
+  .archiv-hinweis .status{flex:1 1 100%}
   /* seit 1.10.5: Als Anfrage übernehmen */
   .ueb h3{margin:16px 0 6px;font-size:14px;color:var(--ink)}
   .ueb-wahl{display:flex;flex-direction:column;gap:6px}
@@ -97,6 +102,8 @@
     {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/inquiries">Anfragen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/anfragen/webseite">Anfragen der Webseite</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page" id="pfadNummer">Anfrage</span>{% endif %}
   {% endcall %}
   <div id="hinweise"></div>
+  {# seit 1.10.24 (F10): ein Eingang im Archiv ist nur lesbar -- einzig „Zurückholen“ (Aufbewahrung) #}
+  <div class="archiv-hinweis" id="archivHinweis" hidden><span>Im Archiv seit <span id="archivSeit"></span> – nur zum Ansehen, die 6 Monate laufen dabei nicht neu.</span><button type="button" class="ds-knopf" data-klick="eingang-zurueckholen" data-lesen>Zurückholen</button><div class="status" id="archivStatus" role="status"></div></div>
   {# seit 1.10.4 (Stufe W1b): Stand und Aktionen des Büros #}
   <section class="card" id="bearbeitungKarte">
     <h2>Bearbeitung</h2>
@@ -180,6 +187,7 @@
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
+{% include "_nur_lesen.html" %}
 {% include "_zahl.html" %}
 {% include "_seitenkopf.html" %}
 {% include "_aktionen.html" %}
@@ -244,6 +252,9 @@ const ORT_AUS_OBJEKT=['reparatur','wartung','dach','pv'];
 
 function zeichnen(d){
   const u=d.umschlag||{},k=(u.kontakt&&typeof u.kontakt==='object')?u.kontakt:{};
+  // seit 1.10.24 (F10): ein Eingang im Archiv ist nur lesbar (_nur_lesen.html)
+  document.getElementById('archivHinweis').hidden=!d.archiviert_am;document.getElementById('archivSeit').textContent=d.archiviert_am?berlinZeitpunkt(d.archiviert_am,'datum'):'';
+  nurLesen(!!d.archiviert_am);
   const adresse=objektAdresseText(d);
   seitenkopf({titel:d.art_name||'Anfrage der Webseite',kennung:d.nummer,status:statusKennzeichen('webanfrage',d.zustand),
     untertitel:(adresse?'Objekt: '+adresse:(d.art==='kantservice'?'Kantservice – ohne Objekt-Adresse':'ohne Objekt-Adresse'))
@@ -475,6 +486,14 @@ aktion('zurueckholen',async()=>{
     await speichern('anfrage',()=>api(`/api/webanfragen/${ID}/zurueckholen`,{method:'POST'}),{anwenden:zeichnen});
     waStatus('Zurück im Eingang.',false);
   }catch(err){waStatus('Fehler: '+err.message,true)}
+});
+
+aktion('eingang-zurueckholen',async()=>{  // seit 1.10.24 (F10): wie „Zurückholen“ unter Aufbewahrung -- ab heute zählen die 6 Monate neu
+  const s=document.getElementById('archivStatus');
+  try{
+    await speichern('anfrage',()=>api(`/api/aufbewahrung/eingang/${ID}/zurueckholen`,{method:'POST'}),{neuLaden:()=>lesen('anfrage',()=>api(`/api/webanfragen/${ID}`),zeichnen)});
+    waStatus('Zurückgeholt – die 6 Monate zählen ab heute neu.',false);
+  }catch(err){s.className='status err';s.textContent='Fehler: '+err.message}
 });
 
 lesen('anfrage',()=>api(`/api/webanfragen/${ID}`),zeichnen).catch(err=>{

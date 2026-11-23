@@ -161,7 +161,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {% endcall %}
 <div class="status" id="seitenStatus" role="status"></div>
 {#- seit 1.10.12 (W1c): ein Kunde im Archiv -- fehlt in Listen und Suche; zurückholen darf jedes Büro #}
-<div class="notice warning" id="archivHinweis" hidden>Im Archiv seit <span id="archivSeit"></span> – der Kunde fehlt in Listen, Suche und Auswahlen. <button type="button" class="secondary" data-klick="kunde-zurueckholen">Zurückholen</button></div>
+<div class="notice warning" id="archivHinweis" hidden>Im Archiv seit <span id="archivSeit"></span> – nur zum Ansehen; der Kunde fehlt in Listen, Suche und Auswahlen. Zum Weiterarbeiten zurückholen. <button type="button" class="secondary" data-klick="kunde-zurueckholen" data-lesen>Zurückholen</button></div>
 <nav class="reiter" aria-label="Bereiche der Kundenakte">
   <a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>
   <a href="#projekte" data-reiter="projekte">Projekte<span class="cnt" id="zahlProjekte" hidden></span></a>
@@ -246,7 +246,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {# --- Dokumente (Hochladen, Kategorien, Suche wie bisher; Bearbeiten im Dialog) --- #}
 <section id="reiter-dokumente" class="karte" aria-label="Dokumente" hidden>
   <div><h2 class="h2">Dokumente</h2><div class="mut sml">Verträge, Schriftverkehr und weitere Unterlagen direkt in der Kundenmappe.</div></div>
-  <div id="docUploadZone" class="upload">
+  <div id="docUploadZone" class="upload" data-schreiben>
     <div class="upload-grid">
       <div class="field"><label for="docCategory">Kategorie</label><select id="docCategory"></select></div>
       <div class="field"><label for="docSubfolder">Unterordner <span class="mut sml">(optional)</span></label><input id="docSubfolder" list="docSubfolderSuggestions"><datalist id="docSubfolderSuggestions"></datalist></div>
@@ -273,10 +273,10 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {# --- Verlauf (wie die Akte): Änderungen am Kunden, Kontakte, Objekte, Anfragen, Zahlungen, Versand --- #}
 <section id="reiter-verlauf" class="karte" aria-label="Verlauf" hidden>
   <div class="filter-leiste" id="verlaufArten" role="group" aria-label="Art">
-    <button type="button" data-klick="verlauf-art" data-art="" aria-pressed="true">Alles</button><button type="button" data-klick="verlauf-art" data-art="aenderung" aria-pressed="false">Änderungen</button><button type="button" data-klick="verlauf-art" data-art="versand" aria-pressed="false">Versand</button><button type="button" data-klick="verlauf-art" data-art="zahlung" aria-pressed="false">Zahlungen</button>
+    <button type="button" data-klick="verlauf-art" data-lesen data-art="" aria-pressed="true">Alles</button><button type="button" data-klick="verlauf-art" data-lesen data-art="aenderung" aria-pressed="false">Änderungen</button><button type="button" data-klick="verlauf-art" data-lesen data-art="versand" aria-pressed="false">Versand</button><button type="button" data-klick="verlauf-art" data-lesen data-art="zahlung" aria-pressed="false">Zahlungen</button>
   </div>
   <div id="verlaufListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
-  <div><button type="button" class="secondary" id="verlaufWeiter" data-klick="verlauf-weiter" hidden>Ältere laden</button></div>
+  <div><button type="button" class="secondary" id="verlaufWeiter" data-klick="verlauf-weiter" data-lesen hidden>Ältere laden</button></div>
   <div class="mut sml"><a href="/versandprotokoll" id="versandprotokollLink">Versandprotokoll des Kunden</a> · <a href="/history">Ganze Änderungshistorie</a></div>
 </section>
 </main>
@@ -359,6 +359,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {% include "_berlin_date.html" %}
 {% include "_verlauf.html" %}
 {% include "_speichern.html" %}
+{% include "_nur_lesen.html" %}
 {% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
@@ -426,6 +427,7 @@ function zahlungenNeu(){verlaufDaten=null;return Promise.all([loadPayments(),akt
 function render(){
   kopfZeichnen();stammdatenZeichnen();renderExtras();renderProperties();renderInquiries();renderDocCategories();
   el('archivHinweis').hidden=!customer.archiviert_am;el('archivSeit').textContent=berlinZeitpunkt(customer.archiviert_am,'datum');  // seit 1.10.12
+  nurLesen(!!customer.archiviert_am);  // seit 1.10.24 (F10): im Archiv nur lesbar, einzig „Zurückholen“ (_nur_lesen.html)
   zahlSetzen('zahlObjekte',properties.length);zahlSetzen('zahlAnfragen',inquiries.length);zahlSetzen('zahlKontakte',(customer.extra_infos||[]).length);
 }
 function akteZeichnen(){
@@ -696,7 +698,7 @@ function objektUnter(p){
   return [n?anzahl(n,'Dachfläche','Dachflächen'):'keine Dachfläche',pr.length?(pr.length===1?'Projekt '+pr[0].project_number:anzahl(pr.length,'Projekt','Projekte')):null].filter(Boolean).join(' · ');
 }
 function renderProperties(){
-  el('properties').innerHTML=properties.length?properties.map(p=>{const pr=projekteAmObjekt(p.id);return `<section class="karte${p.is_primary_address?' objekt-haupt':''}" data-objekt="${p.id}"><div class="karte-kopf"><div class="li-text"><span class="zeile-flex" style="gap:10px"><a class="li-titel" href="/properties/${p.id}" style="font-size:15px">${esc(p.name)}</a>${p.is_primary_address?'<span class="chip chip-ok">Hauptadresse</span>':''}</span><span class="mut sml">${esc(anschrift(p)||'Keine Adresse hinterlegt')}</span>${p.notes?`<span class="sml" style="white-space:pre-wrap">${esc(p.notes)}</span>`:''}</div><span class="zeile-flex"><a class="btn secondary" href="/properties/${p.id}">Öffnen</a>${p.is_primary_address?'':`<button type="button" class="secondary" data-klick="objekt-bearbeiten" data-id="${p.id}">Bearbeiten</button>`}<button type="button" class="secondary" data-klick="dachflaeche-neu" data-id="${p.id}">+ Dachfläche</button></span></div>${roofAreaRows(p.id)}${pr.length?`<p class="mut sml" style="margin:0">Projekte: ${pr.map(x=>`<a href="/projects/${x.id}">${esc(x.project_number)}</a> ${esc(x.name)}`).join(' · ')}</p>`:''}</section>`}).join(''):'<div class="empty">Noch kein Objekt.</div>';
+  el('properties').innerHTML=properties.length?properties.map(p=>{const pr=projekteAmObjekt(p.id);return `<section class="karte${p.is_primary_address?' objekt-haupt':''}" data-objekt="${p.id}"><div class="karte-kopf"><div class="li-text"><span class="zeile-flex" style="gap:10px"><a class="li-titel" href="/properties/${p.id}" style="font-size:15px">${esc(p.name)}</a>${p.is_primary_address?'<span class="chip chip-ok">Hauptadresse</span>':''}</span><span class="mut sml">${esc(anschrift(p)||'Keine Adresse hinterlegt')}</span>${p.notes?`<span class="sml" style="white-space:pre-wrap">${esc(p.notes)}</span>`:''}</div><span class="zeile-flex"><a class="btn secondary" data-lesen href="/properties/${p.id}">Öffnen</a>${p.is_primary_address?'':`<button type="button" class="secondary" data-klick="objekt-bearbeiten" data-id="${p.id}">Bearbeiten</button>`}<button type="button" class="secondary" data-klick="dachflaeche-neu" data-id="${p.id}">+ Dachfläche</button></span></div>${roofAreaRows(p.id)}${pr.length?`<p class="mut sml" style="margin:0">Projekte: ${pr.map(x=>`<a href="/projects/${x.id}">${esc(x.project_number)}</a> ${esc(x.name)}`).join(' · ')}</p>`:''}</section>`}).join(''):'<div class="empty">Noch kein Objekt.</div>';
   el('uObjekteListe').innerHTML=properties.length?properties.slice(0,5).map(p=>`<div class="li" style="align-items:center"><div class="li-text"><a href="/properties/${p.id}" style="font-size:14px;font-weight:600">${esc(anschrift(p)||p.name)}</a><span class="mut sml">${esc(objektUnter(p))}</span></div></div>`).join('')+(properties.length>5?`<p class="sml" style="margin:8px 0 0"><a href="#objekte" style="font-weight:600">Alle ${zahlText(properties.length,0)} Objekte</a></p>`:''):'<p class="mut sml" style="margin:0">Noch kein Objekt.</p>';
 }
 function newProperty(){setv('propertyId','');setv('propertyName','');setv('propertyStreet','');setv('propertyZip','');setv('propertyCity','');setv('propertyNotes','');el('propertyEditorTitle').textContent='Neues Objekt';el('propertyStatus').textContent='';el('propertyDialog').showModal()}
@@ -729,7 +731,7 @@ function renderDocCategories(){
   const cats=docCategoryGroup.options||[];
   const allCats=[...new Set([...cats.map(x=>x.value),...customerDocuments.map(x=>x.category)])];
   document.getElementById('docCategory').innerHTML=cats.filter(x=>x.active).map(x=>`<option value="${esc(x.value)}" ${x.is_default?'selected':''}>${esc(x.label)}</option>`).join('');
-  document.getElementById('docCategoryCards').innerHTML=`<button type="button" class="cat ${!activeDocCategory?'active':''}" data-klick="dokumentkategorie" data-wert=""><b>Alle Dateien</b><span class="mut sml">${customerDocuments.length} Einträge</span></button>`+allCats.map(c=>`<button type="button" class="cat ${activeDocCategory===c?'active':''}" data-klick="dokumentkategorie" data-wert="${esc(c)}"><b>${esc(c)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===c).length} Dateien</span></button>`).join('');
+  document.getElementById('docCategoryCards').innerHTML=`<button type="button" class="cat ${!activeDocCategory?'active':''}" data-klick="dokumentkategorie" data-lesen data-wert=""><b>Alle Dateien</b><span class="mut sml">${customerDocuments.length} Einträge</span></button>`+allCats.map(c=>`<button type="button" class="cat ${activeDocCategory===c?'active':''}" data-klick="dokumentkategorie" data-lesen data-wert="${esc(c)}"><b>${esc(c)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===c).length} Dateien</span></button>`).join('');
   document.getElementById('docSubfolderSuggestions').innerHTML=[...new Set(customerDocuments.map(d=>d.subfolder).filter(Boolean))].map(s=>`<option value="${esc(s)}">`).join('');
   renderDocSubfolders();
   renderCustomerDocuments();
@@ -745,7 +747,7 @@ function renderDocSubfolders(){
   const subs=[...new Set(customerDocuments.filter(d=>d.category===activeDocCategory).map(d=>d.subfolder).filter(Boolean))].sort();
   if(!subs.length){box.style.display='none';box.innerHTML='';return}
   box.style.display='';
-  box.innerHTML=`<button type="button" class="cat ${!activeDocSubfolder?'active':''}" data-klick="dokumentunterordner" data-wert=""><b>Alle Unterordner</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory).length} Dateien</span></button>`+subs.map(s=>`<button type="button" class="cat ${activeDocSubfolder===s?'active':''}" data-klick="dokumentunterordner" data-wert="${esc(s)}"><b>${esc(s)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory&&d.subfolder===s).length} Dateien</span></button>`).join('');
+  box.innerHTML=`<button type="button" class="cat ${!activeDocSubfolder?'active':''}" data-klick="dokumentunterordner" data-lesen data-wert=""><b>Alle Unterordner</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory).length} Dateien</span></button>`+subs.map(s=>`<button type="button" class="cat ${activeDocSubfolder===s?'active':''}" data-klick="dokumentunterordner" data-lesen data-wert="${esc(s)}"><b>${esc(s)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory&&d.subfolder===s).length} Dateien</span></button>`).join('');
 }
 function filterDocSubfolder(s){activeDocSubfolder=s;renderDocSubfolders();renderCustomerDocuments()}
 function renderCustomerDocuments(){

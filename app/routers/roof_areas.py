@@ -4,12 +4,13 @@ Bewusst KEINE is_module_enabled("wartungen")-Prüfung: Property ist Kern-Stammda
 Eintrag in OPTIONAL_MODULES, siehe app/roof_areas.py."""
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
 from ..archivschutz import archiv_vorab
 from ..database import get_db
-from ..models import AppUser, RoofArea
+from ..models import AppUser, Customer, RoofArea
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..roof_area_sketches import MAX_UPLOAD_BYTES, sketch_path
 from ..roof_areas import (
@@ -52,6 +53,9 @@ def get_roof_area_detail(roof_area_id: Id, db: Session = Depends(get_db, scope="
     result = get_roof_area(db, roof_area_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")
+    # seit 1.10.24 (F10): ist der Kunde im Archiv, zeigt die Seite den Hinweis und ist nur lesbar -- nur für die Antwort, keine Spalte
+    result["kunde_im_archiv"] = result.get("customer_id") is not None and db.scalar(
+        select(Customer.archiviert_am).where(Customer.id == result["customer_id"])) is not None
     return result
 
 

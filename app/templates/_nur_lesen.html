@@ -1,0 +1,72 @@
+{#- Nur lesen (seit 1.10.24, Antwort F10 vom 23.11.2026): die Seite eines Vorgangs im Archiv. nurLesen(true) setzt am <body> die Klasse ds-nur-lesen:
+    - jeder Knopf im Inhalt (<main>), in Dialogen und Fenstern fehlt -- auch das „⋮“ und Links im Aussehen eines Knopfs --, außer Knöpfen zum Lesen mit
+      data-lesen (Filter, „Ältere laden“, „Zurückholen“); Schließen und Abbrechen eines Dialogs bleiben von selbst (✕, „Abbrechen“, „Schließen“);
+    - jedes Feld dort ist gesperrt (disabled, Aussehen aus ds-gesperrt.css), auch was die Seite danach zeichnet oder wieder freigibt -- außer Feldern mit
+      data-lesen (Filter einer Liste);
+    - nichts lässt sich mehr ziehen oder als Datei ablegen; was nur zum Schreiben da ist (Ablage zum Hochladen u. ä.), trägt data-schreiben und fehlt.
+    nurLesen(false) nimmt das zurück (nach dem Zurückholen lädt die Seite ohnehin neu). Der Server lehnt jede Änderung an einem Vorgang im Archiv ab
+    (app/archivschutz.py, 409) -- die Seite zeigt nur nicht an, was nicht geht. Wer einbindet, ruft nurLesen() nach jedem Laden mit dem Stand des Vorgangs. -#}
+<style>
+  body.ds-nur-lesen :is(main, dialog, .modal-backdrop) :is(button, a.ds-knopf, a.btn, input[type="file"]):not([data-lesen]){display:none!important}
+  body.ds-nur-lesen [data-schreiben]{display:none!important}
+</style>
+<script>
+var _nurLesen = {an: false, beobachter: null};
+var NUR_LESEN_BEREICH = 'main, dialog, .modal-backdrop';
+var NUR_LESEN_SCHLIESSEN = ['✕', '×', 'Abbrechen', 'Schließen'];
+function _nurLesenAnwenden(wurzel){
+  if(!_nurLesen.an || !wurzel || !wurzel.querySelectorAll)return;
+  var bereich = NUR_LESEN_BEREICH.split(', ');
+  var felder = bereich.map(function(b){return b + ' input, ' + b + ' select, ' + b + ' textarea'}).join(', ');
+  var liste = [].slice.call(wurzel.querySelectorAll(felder));
+  if(wurzel.matches && wurzel.matches(felder))liste.push(wurzel);
+  liste.forEach(function(f){
+    if(f.hasAttribute('data-lesen') || f.type === 'hidden' || f.type === 'file')return;
+    if(!f.disabled){f.disabled = true;f.setAttribute('data-nur-lesen-gesperrt', '')}
+  });
+  [].slice.call(wurzel.querySelectorAll('[draggable="true"]')).forEach(function(z){z.setAttribute('draggable', 'false');z.setAttribute('data-nur-lesen-zug', '')});
+  var knoepfe = bereich.slice(1).map(function(b){return b + ' button'}).join(', ');
+  [].slice.call(wurzel.querySelectorAll(knoepfe)).forEach(function(k){
+    var text = (k.textContent || '').trim();
+    if(!k.hasAttribute('data-lesen') && (NUR_LESEN_SCHLIESSEN.indexOf(text) >= 0 || k.getAttribute('aria-label') === 'Schließen')){
+      k.setAttribute('data-lesen', '');k.setAttribute('data-nur-lesen-schliessen', '');
+    }
+  });
+}
+function _nurLesenSperren(e){
+  if(!_nurLesen.an)return;
+  e.preventDefault();e.stopPropagation();
+}
+function nurLesen(an){
+  an = !!an;
+  if(an === _nurLesen.an)return;
+  _nurLesen.an = an;
+  var body = document.body;
+  if(!body)return;
+  if(an){
+    body.classList.add('ds-nur-lesen');
+    _nurLesenAnwenden(body);
+    if(typeof MutationObserver !== 'undefined'){
+      _nurLesen.beobachter = new MutationObserver(function(aenderungen){
+        aenderungen.forEach(function(a){
+          if(a.type === 'attributes')_nurLesenAnwenden(a.target.parentNode || body);
+          else [].slice.call(a.addedNodes || []).forEach(function(n){if(n.nodeType === 1)_nurLesenAnwenden(n.parentNode || n)});
+        });
+      });
+      _nurLesen.beobachter.observe(body, {childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'draggable']});
+    }
+    document.addEventListener('dragstart', _nurLesenSperren, true);
+    document.addEventListener('drop', _nurLesenSperren, true);
+    document.addEventListener('dragover', _nurLesenSperren, true);
+    return;
+  }
+  if(_nurLesen.beobachter){_nurLesen.beobachter.disconnect();_nurLesen.beobachter = null}
+  body.classList.remove('ds-nur-lesen');
+  [].slice.call(body.querySelectorAll('[data-nur-lesen-gesperrt]')).forEach(function(f){f.disabled = false;f.removeAttribute('data-nur-lesen-gesperrt')});
+  [].slice.call(body.querySelectorAll('[data-nur-lesen-zug]')).forEach(function(z){z.setAttribute('draggable', 'true');z.removeAttribute('data-nur-lesen-zug')});
+  [].slice.call(body.querySelectorAll('[data-nur-lesen-schliessen]')).forEach(function(k){k.removeAttribute('data-lesen');k.removeAttribute('data-nur-lesen-schliessen')});
+  document.removeEventListener('dragstart', _nurLesenSperren, true);
+  document.removeEventListener('drop', _nurLesenSperren, true);
+  document.removeEventListener('dragover', _nurLesenSperren, true);
+}
+</script>
