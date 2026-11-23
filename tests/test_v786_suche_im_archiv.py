@@ -36,10 +36,13 @@ def welt(threaded_db_session):
     db.add(Property(customer_id=otto.id, name="Lager", city="Musterstadt"))
     w.projekt(otto)
     alt = w.kunde(name="Zacharias Archiv")
-    alt.archiviert_am = IM_ARCHIV
-    w.anfrage_archiv = w.anfrage(alt, archiviert_am=IM_ARCHIV)
-    w.projekt_archiv = w.projekt(alt, archived=True, archiviert_am=IM_ARCHIV)
+    w.anfrage_archiv = w.anfrage(alt)
+    w.projekt_archiv = w.projekt(alt)
     db.add(Quote(project_id=w.projekt_archiv.id, quote_number="A-ZACH-1", title="Zacharias Angebot", status="versendet"))
+    db.flush()
+    # seit 1.10.23 (Archivschutz): erst anlegen, dann ins Archiv -- an einem Vorgang im Archiv entsteht nichts mehr
+    alt.archiviert_am = w.anfrage_archiv.archiviert_am = IM_ARCHIV
+    w.projekt_archiv.archived, w.projekt_archiv.archiviert_am = True, IM_ARCHIV
     aktiv = w.kunde(name="Zacharias Aktiv")
     w.anfrage(aktiv)
     db.commit()
@@ -89,7 +92,13 @@ def test_ohne_zeitpunkt_nur_im_archiv(welt):
 
 
 def test_ein_projekt_mit_auftrag_bleibt_in_den_projekten(welt):
+    # seit 1.10.23 (Archivschutz) bekommt ein Projekt im Archiv keinen Auftrag -- wie im Betrieb: erst der Auftrag, dann von Hand archiviert; ein Kunde
+    # mit Auftrag ist nie im Archiv
+    welt.projekt_archiv.archived = False
+    welt.alt.archiviert_am = None
+    welt.db.flush()
     welt.auftrag(welt.projekt_archiv)
+    welt.projekt_archiv.archived = True
     welt.db.commit()
     g = _gruppen(welt.db)
     assert [h["id"] for h in g["projects"]["hits"]] == [welt.projekt_archiv.id]

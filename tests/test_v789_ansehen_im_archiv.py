@@ -31,15 +31,19 @@ def welt(threaded_db_session):
     w = Welt(threaded_db_session)
     db = w.db
     w.alt = w.kunde(name="Zacharias Archiv")
-    w.alt.archiviert_am = IM_ARCHIV
-    w.anfrage_alt = w.anfrage(w.alt, archiviert_am=IM_ARCHIV)
-    w.projekt_alt = w.projekt(w.alt, archived=True, archiviert_am=IM_ARCHIV)
+    w.anfrage_alt = w.anfrage(w.alt)
+    w.projekt_alt = w.projekt(w.alt)
     w.aktiv = w.kunde(name="Zora Aktiv")
     w.projekt_aktiv = w.projekt(w.aktiv)
-    w.projekt_mit_auftrag = w.projekt(w.aktiv, archived=True)  # von Hand archiviert, mit Auftrag: nicht im Archiv der Aufbewahrung
+    w.projekt_mit_auftrag = w.projekt(w.aktiv)
     w.auftrag(w.projekt_mit_auftrag)
+    w.projekt_mit_auftrag.archived = True  # von Hand archiviert, mit Auftrag: nicht im Archiv der Aufbewahrung
     for p in (w.projekt_alt, w.projekt_aktiv, w.projekt_mit_auftrag):
         db.add(Quote(project_id=p.id, quote_number=f"A-{p.id}", title="Dach", status="versendet"))
+    db.flush()
+    # seit 1.10.23 (Archivschutz): erst anlegen, dann ins Archiv -- an einem Vorgang im Archiv entsteht nichts mehr
+    w.alt.archiviert_am = w.anfrage_alt.archiviert_am = IM_ARCHIV
+    w.projekt_alt.archived, w.projekt_alt.archiviert_am = True, IM_ARCHIV
     db.commit()
     w.angebote = {q.project_id: q.id for q in db.query(Quote).all()}
     w.objekt_alt = db.query(Property).filter(Property.customer_id == w.alt.id).one()

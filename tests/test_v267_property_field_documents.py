@@ -174,9 +174,11 @@ def test_field_document_list_excludes_archived_project_documents(router_test_cli
     ensure_default_categories(db)
     customer, prop = _customer_and_property(db)
     active_project = _project(db, customer, prop, number="P-A-0001", archived=False)
-    archived_project = _project(db, customer, prop, number="P-A-0002", archived=True)
+    archived_project = _project(db, customer, prop, number="P-A-0002", archived=False)
     _project_document(db, active_project, "Pläne", filename="aktiv.pdf")
     _project_document(db, archived_project, "Pläne", filename="archiviert.pdf")
+    archived_project.archived = True  # seit 1.10.23 (Archivschutz): erst das Dokument, dann ins Archiv
+    db.commit()
 
     monteur = _employee(db, "T-D3", "Klaus", "Keiner")
     field = router_test_client(db, field_router, role="field", employee_id=monteur.id)
@@ -226,8 +228,10 @@ def test_field_cannot_download_document_of_archived_project_via_guessed_id(route
     db = threaded_db_session
     ensure_default_categories(db)
     customer, prop = _customer_and_property(db)
-    archived_project = _project(db, customer, prop, number="P-A-0003", archived=True)
+    archived_project = _project(db, customer, prop, number="P-A-0003", archived=False)
     doc = _project_document(db, archived_project, "Pläne")
+    archived_project.archived = True  # seit 1.10.23 (Archivschutz): erst das Dokument, dann ins Archiv
+    db.commit()
 
     monteur = _employee(db, "T-D5b", "Klaus", "Keiner")
     field = router_test_client(db, field_router, role="field", employee_id=monteur.id)

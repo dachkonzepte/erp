@@ -55,21 +55,28 @@ def befuellen(db, k):
     kunden = {}
     for vor, nach, archiv in (("Zacharias", "Archiv", im_archiv), ("Zora", "Aktiv", None), ("Xaver", "Archiv", im_archiv), ("Yvonne", "Archiv", im_archiv),
                               ("Wilma", "Archiv", im_archiv), ("Viktor", "Archiv", im_archiv)):
-        c = Customer(name=f"{vor} {nach}", first_name=vor, last_name=nach, city="Musterstadt", created_at=alt, archiviert_am=archiv,
+        c = Customer(name=f"{vor} {nach}", first_name=vor, last_name=nach, city="Musterstadt", created_at=alt,
                      email=f"{vor.lower()}@example.invalid")
+        c.ins_archiv = archiv
         db.add(c)
         db.flush()
         db.add(CustomerProfile(customer_id=c.id, customer_number=f"K-90{c.id}"))
         db.add(Property(customer_id=c.id, name="Hauptadresse", street=f"{nach}weg 1", postal_code="12345", city="Musterstadt", is_primary_address=True))
         kunden[vor] = c
     z = kunden["Zacharias"]
-    anfrage = Inquiry(inquiry_number="AN-2026-0901", customer_id=z.id, title="Undichtes Vordach", created_at=alt, archiviert_am=im_archiv)
+    anfrage = Inquiry(inquiry_number="AN-2026-0901", customer_id=z.id, title="Undichtes Vordach", created_at=alt)
     projekt = Project(project_number="P-2026-0902", name="Neues Dach", customer_id=z.id, pipeline_column_id=default_pipeline_column_id(db),
-                      created_at=alt, archived=True, archiviert_am=im_archiv)
+                      created_at=alt)
     db.add_all([anfrage, projekt])
     db.flush()
     angebot = Quote(project_id=projekt.id, quote_number="A-2026-0903", title="Neues Dach", status="versendet")
     db.add(angebot)
+    db.flush()
+    # seit 1.10.23 (Archivschutz): erst anlegen, dann ins Archiv -- an einem Vorgang im Archiv entsteht nichts mehr
+    for c in kunden.values():
+        c.archiviert_am = c.ins_archiv
+    anfrage.archiviert_am = im_archiv
+    projekt.archived, projekt.archiviert_am = True, im_archiv
     db.commit()
     objekt = db.query(Property).filter(Property.customer_id == z.id).one()
     xaver = db.query(Property).filter(Property.customer_id == kunden["Xaver"].id).one()

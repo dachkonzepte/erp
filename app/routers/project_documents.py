@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, ProjectDocument
@@ -18,7 +19,9 @@ from ..project_documents import can_preview_type, document_path, is_image_type
 from ..schemas import ProjectDocumentOut, ProjectDocumentUpdate
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(document_id="project_documents")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Projektdokumente sind Büro-/Admin-Bereich -- kein
 # Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.

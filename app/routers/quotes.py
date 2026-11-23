@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..contract_basis import validate_contract_basis
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
@@ -22,7 +23,9 @@ from ..quote_framed_pdf import build_quote_framed_pdf
 from ..schemas import OrderCreateFromQuote, OrderOut, QuoteDocumentMetaUpdate, QuoteEmailSend, QuoteFreeItemCreate, QuoteItemCalculationOut, QuoteItemCalculationUpdate, QuoteItemCreate, QuoteItemMove, QuoteItemLayoutUpdate, QuoteItemUpdate, QuoteOut, QuoteReorderRequest, QuoteSectionCreate, QuoteSectionUpdate, QuoteUpdate, TaxKeySelection
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(quote_id="quotes", item_id="quote_items", section_id="quote_sections")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Angebote sind reiner Büro-/Admin-Bereich -- geprüft
 # (siehe CLAUDE.md "Rechtekonzept" → Teil A des Rest-Etappe-Durchgangs), kein einziger Endpunkt

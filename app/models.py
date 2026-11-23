@@ -6638,3 +6638,8 @@ def _order_holds_customer(mapper, connection, target):
     if target.customer_id is None:
         from sqlalchemy import select
         target.customer_id = connection.scalar(select(Project.customer_id).where(Project.id == target.project_id))
+
+
+# Seit 1.10.23 (Antwort F10): ein Vorgang im Archiv ist nur lesbar -- der Archivschutz hängt sich an jeden Flush (vor das Änderungsprotokoll). Hier
+# eingebunden, damit jede Sitzung ihn hat, sobald die Modelle geladen sind (App, Tests, Skripte).
+from . import archivschutz  # noqa: E402,F401

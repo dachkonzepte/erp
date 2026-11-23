@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..models import AppUser, Customer, Property
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -17,7 +18,9 @@ from ..schemas import PropertyCreate, PropertyOut, PropertyUpdate
 from ..telefonbuch import nach_namen
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(property_id="properties")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Objektverwaltung ist Büro-/Admin-Bereich -- der
 # feldsichere Lesezugriff für den Einsatzbericht läuft über einen eigenen, unabhängigen

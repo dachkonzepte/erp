@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, object_session, selectinload
 from ..akte import PROJEKTSTATUS_NAMEN, akte_kontext, hauptaktion, projekt_status, projekt_status_alle, soll_stunden
 from .. import akte_verlauf
 from ..dateiauslieferung import gespeicherter_typ
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_invoices_for_project
@@ -34,7 +35,9 @@ from ..ids import Id
 
 from .project_documents import _project_document_out
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(project_id="projects")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Projekte/Mustervorgänge sind Büro-/Admin-Bereich --
 # geprüft, kein Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.

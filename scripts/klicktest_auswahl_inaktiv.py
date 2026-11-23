@@ -49,14 +49,16 @@ def befuellen(db, k):
                 EmployeeRoleSettings(employee_id=otto.id, available_as_caseworker=True)])
     projekt = Project(project_number="P-KT-1", name="Sanierung", customer_id=kunde.id,
                       pipeline_column_id=default_pipeline_column_id(db))
-    archiv = Project(project_number="P-KT-0", name="Altprojekt", customer_id=kunde.id, archived=True,
+    archiv = Project(project_number="P-KT-0", name="Altprojekt", customer_id=kunde.id,
                      pipeline_column_id=default_pipeline_column_id(db))
     db.add_all([projekt, archiv]); db.flush()
     auftrag = Order(order_number="AU-KT-0001", project_id=projekt.id, source_quote_id=quell_angebot(db, projekt.id, "AU-KT-0001"), quote_number_snapshot="A-KT-1",
                     title="Dachsanierung", customer_name=kunde.name, vat_rate=Decimal("19"),
                     caseworker_employee_id=erika.id, project_manager_employee_id=erika.id)
     aufgabe = Task(title="Rückruf Kundin", assigned_employee_id=erika.id, project_id=archiv.id)
-    db.add_all([auftrag, aufgabe]); db.commit()
+    db.add_all([auftrag, aufgabe]); db.flush()
+    archiv.archived = True  # seit 1.10.23 (Archivschutz): erst die Aufgabe, dann ins Archiv -- ein neuer Verweis auf einen Vorgang im Archiv geht nicht
+    db.commit()
     prep = ensure_preparation(db, auftrag.id)
     av_aufgabe = WorkPreparationTask(preparation_id=prep.id, title="Kran bestellen", assigned_employee_id=erika.id)
     material = WorkPreparationMaterial(preparation_id=prep.id, name="Blech", unit="m", status="bedarf",

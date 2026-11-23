@@ -512,3 +512,27 @@ Probendatei im Scratchpad (`gp_1122.py` über `gegenprobe.py` und `gegenprobe_kl
 | Nr. 1 – Werte wie die übrigen Formulare | Regel weg | 1 rot; Klicktest 78/79 (Schrift 650, 12,5 px, Innenabstand 0) |
 | Nr. 1 – Schrift 400 | Schrift erbt wieder | 1 rot |
 | Nr. 1 – mindestens 240 px | ohne Mindestbreite | 1 rot; Klicktest 78/79 (schmaler als 240 px) |
+
+## Antworten zum Bericht F7, 1.10.23: der Server lehnt Änderungen an Vorgängen im Archiv ab
+
+Probendatei im Scratchpad (`gp_1123.py` über `gegenprobe.py`), Lauf mit `tests/test_v793_archivschutz.py`, `tests/test_v794_archiv_rundgang.py` und je
+Gegenprobe den genannten weiteren Tests; 16 Gegenproben, alle rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 2 / 3 – die Sitzung prüft jede Änderung | Prüfung im Flush aus | 6 rot |
+| Nr. 3 – auch ein gelöschter Teil | Löschen zählt nicht | 1 rot |
+| Nr. 3 – auch ein Teil, dessen Verweis erst über die Beziehung entsteht | Beziehungen nicht gelesen | 1 rot |
+| Nr. 4 – ein geänderter Verweis auf das Archiv | geänderter Verweis zählt nicht | 1 rot |
+| Nr. 4 – ein neuer Verweis beim Anlegen (Aufgabe, Auftrag) | beim Anlegen zählt nur ein Teil | 2 rot |
+| Nr. 4 – ein schon gesetzter Verweis bleibt änderbar | jede Änderung am Verweisenden geprüft | 1 rot |
+| Nr. 5 – 409 vor dem Endpunkt, vor jeder Datei | Prüfung vorab aus | 28 rot, darunter „Hochladen ohne Datei“ und der Rundgang |
+| Nr. 5 – die Monteurin bekommt auf Büro-Routen 403 | auch sie vorab geprüft | 1 rot |
+| Nr. 5 – jeder Router der Vorgänge prüft vorab | Router der Angebote ohne Prüfung | 8 rot, darunter die Struktur und der Rundgang |
+| Nr. 6 – Zustellung nachtragen am Angebot | Prüfung im Versandprotokoll aus | 1 rot |
+| Nr. 7 – an der Wurzel ändern sich die Spalten des Archivs | Ausnahme weg | 3 rot |
+| Nr. 7 – „Entarchivieren“ bleibt | `ZURUECKHOLEN` leer | 3 rot |
+| Nr. 1 – ein Projekt mit Auftrag ist nicht im Archiv | Auftrag nicht beachtet | 1 rot |
+| Nr. 2 – die Meldung nennt das Projekt vor dem Kunden | Kunde zuerst | 26 rot |
+| Nr. 8 – ohne Spalten des Archivs prüft der Schutz nichts | immer prüfen | 2 rot (Migrationsprobe unter SQLite und PostgreSQL) |
+| Struktur – jede Tabelle am Vorgang eingeordnet | Schichten der Dachfläche nicht in `TEILE` | 1 rot |

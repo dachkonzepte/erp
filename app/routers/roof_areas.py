@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..models import AppUser, RoofArea
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -28,7 +29,9 @@ from ..schemas import (
 )
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(property_id="properties", roof_area_id="roof_areas", component_id="roof_components")])
 
 SKETCH_CONTENT_TYPES = ("image/png", "image/jpeg", "image/webp")
 

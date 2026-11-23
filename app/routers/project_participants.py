@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..contacts import linked_contact
 from ..dateiauslieferung import datei_antwort
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..email_dispatch import actor_of
 from ..models import AppUser, Contact, Customer, Project, ProjectParticipant, Supplier
@@ -32,7 +33,9 @@ from ..schemas import (
 from ..search import office_source, office_source_visible
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(project_id="projects", participant_id="project_participants")])
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 

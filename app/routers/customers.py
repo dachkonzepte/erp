@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..crm import KundennameZuLang, ensure_customer_profile, kunde_anlegen, kundenname
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..dateiauslieferung import gespeicherter_typ
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from .. import akte_verlauf, kunde_verlauf
 from ..kundenakte import kunde_kontext
@@ -35,7 +36,9 @@ from ..schemas import (
 from ..telefonbuch import nach_namen
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(customer_id="customers", info_id="customer_extra_infos")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Kundendaten sind Büro-/Admin-Bereich, ein Monteur
 # erreicht das, was er über einen Einsatz braucht, ausschließlich über

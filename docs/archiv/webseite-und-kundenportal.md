@@ -1143,3 +1143,56 @@ wie die übrigen Formulare).
 `tests/test_v791_uebernahme_felder.py` um `test_grund_beim_verwerfen_wie_die_uebrigen`; `scripts/klicktest_webanfragen.py` misst das Feld (Schrift, Größe,
 Innenabstand, Höhe, Breite) und nimmt das Bild `verwerfen_grund_1440_hell` auf (78 -> 79 Prüfungen). Gegenproben: `gegenproben-webseite.md`, „1.10.22“
 (5, alle rot).
+
+### Umsetzung 1.10.23: der Server lehnt Änderungen an Vorgängen im Archiv ab (Antwort F10, Teil 1)
+
+- `app/archivschutz.py` (neu). Im Archiv ist ein Kunde oder eine Anfrage mit `archiviert_am` und ein Projekt, das archiviert ist und keinen Auftrag hat -- wie
+  die Suche und die Hinweise seit 1.10.18 (ein archiviertes Projekt mit Auftrag ist nicht im Archiv der Aufbewahrung). Der Eingang der Webseite ist seit 1.10.11
+  geschützt (jede Aktion ein bedingtes UPDATE) und steht dort nicht. Die Meldung (409): „Das Projekt / Die Anfrage / Der Kunde ist im Archiv – nur zum
+  Ansehen. Zum Ändern erst zurückholen.“ -- sind mehrere Wurzeln im Archiv, nennt sie das Projekt vor der Anfrage vor dem Kunden.
+- Zum Vorgang gehören (`TEILE`): Kunde mit Profil, Kundenwissen, Dokumenten, Objekten samt Dokumenten, Dachflächen, Schichten und Bauteilen; Projekt mit
+  Profil, Dokumenten, Beteiligten und Angeboten samt Positionen, Titeln, Layout, Kalkulation und Mitarbeitern; Anfrage; Kontaktvermerke. Jede Tabelle mit einem
+  Fremdschlüssel NOT NULL auf einen Teil ist selbst ein Teil oder steht mit Grund in `KEIN_TEIL` (`tests/test_v793_archivschutz.py`: Aufträge, Zeitbuchungen,
+  Wartungsverträge, Zahlungen -- ein Kunde mit Bindung, ein Projekt mit Auftrag sind nie im Archiv).
+- Zwei Stufen. **Sitzung**: vor jedem Flush (vor dem Änderungsprotokoll) prüft der Schutz jede neue, geänderte oder gelöschte Zeile eines Teils und jeden neu
+  gesetzten Verweis einer anderen Tabelle auf einen Teil (Aufgabe, Termin, Auftrag, Zahlung, Eintrag im Adressbuch, Wartungsvertrag, Checkliste …) -- ein
+  schon gesetzter Verweis bleibt änderbar (eine Aufgabe am Projekt im Archiv gehört dem Aufgabenmodul, ein Termin dem Kalender und seinem Abgleich mit Outlook).
+  **Vorab**: die Router der Vorgänge (Kunden, Kundendokumente, Objekte, Objektdokumente, Dachflächen, Projekte, Projektdokumente, Beteiligte, Angebote,
+  Anfragen, dazu das Hochladen am Objekt in /mobil) prüfen jede schreibende Anfrage, deren Pfad einen Teil im Archiv nennt, vor dem Endpunkt
+  (`archiv_vorab()`) -- 409, bevor eine Datei geschrieben oder gelöscht oder eine Mail gesendet ist; das Versandprotokoll (Zustellung nachtragen, Empfang bzw.
+  unzustellbar, Klären) ebenso über `pruefen_dokument()`. Die Monteurin bekommt auf Büro-Routen weiter 403 (die Prüfung vorab läuft vor der Rollenprüfung und
+  lässt sie aus).
+- Einzig das Zurückholen bleibt: an der Wurzel ändern sich dabei nur die Spalten des Archivs (Zurückholen der Aufbewahrung; Archivieren und Entarchivieren im
+  „⋮“ der Akte, `ZURUECKHOLEN`). Auch Kopieren, Löschen, Beauftragen, Versenden, Zustellung nachtragen und Kontakt vermerken gehen erst nach dem Zurückholen.
+- Auf einem Datenbankstand ohne die Spalten des Archivs (eine Migration der Kette auf einer frischen Datenbank, eine Migrationsprobe) prüft der Schutz nichts --
+  einmal je Verbindung nachgesehen. Gefunden in der vollen Suite (`test_v380`, Migrationsprobe auf altem Stand: „Spalte customers.archiviert_am existiert nicht“).
+- Die Seiten zeigen bis zu Teil 2 (1.10.24) noch ihre Knöpfe; ein Klick dort bekommt die Meldung.
+
+#### Festlegungen 1.10.23 (Bitte bestätigen)
+
+1. Im Archiv: Kunde und Anfrage mit `archiviert_am`, Projekt archiviert und ohne Auftrag; ein von Hand archiviertes Projekt ohne Auftrag ist damit auch nur
+   lesbar, eines mit Auftrag nicht. Der Eingang der Webseite ist seit 1.10.11 geschützt.
+2. Der Server lehnt jede Änderung an einem Vorgang im Archiv mit 409 ab: „… ist im Archiv – nur zum Ansehen. Zum Ändern erst zurückholen.“ (Projekt vor
+   Anfrage vor Kunde).
+3. Zum Vorgang gehören Kunde, Objekte, Dachflächen, Dokumente, Kundenwissen, Projekt, Angebote, Beteiligte, Anfrage und Kontaktvermerke mit allem, was an ihnen
+   hängt (`TEILE`) -- jede neue, geänderte oder gelöschte Zeile.
+4. Ein neuer Verweis auf einen Vorgang im Archiv wird abgelehnt (Aufgabe, Termin, Auftrag, Zahlung, Adressbuch, Wartungsvertrag, Checkliste …); was schon auf
+   ihn zeigt, bleibt änderbar.
+5. Nennt der Pfad einen Vorgang im Archiv, kommt die 409 vor dem Endpunkt -- vor jeder Datei und Mail; die Monteurin bekommt auf Büro-Routen weiter 403.
+6. Auch Kopieren, Löschen, Beauftragen, Versenden, Zustellung nachtragen und Kontakt vermerken erst nach dem Zurückholen.
+7. Einzig das Zurückholen bleibt (Aufbewahrung; „Entarchivieren“ im „⋮“ der Akte); an der Wurzel ändern sich dabei nur die Spalten des Archivs.
+8. Ohne die Spalten des Archivs in der Datenbank prüft der Schutz nichts; eine künftige Migration, die über das ORM einen Teil eines Vorgangs im Archiv ändert,
+   scheitert an ihm -- Migrationen schreiben mit Core.
+
+#### Tests und Prüfung 1.10.23
+
+Neu `tests/test_v793_archivschutz.py` (Struktur: jede Tabelle eingeordnet, jede schreibende Route mit Kunde, Objekt, Dachfläche, Projekt, Angebot, Anfrage oder
+Beteiligtem im Pfad prüft vorab oder steht mit Grund in `OHNE_VORAB`; 35 Routen 409 und nichts geändert; Hochladen ohne Datei; Versenden ohne Mail; Zustellung
+nachtragen; Anlegen aus der Sitzung; vorhandener Verweis änderbar; Monteurin 403; Zurückholen; Archivieren von Hand; Kontakt vermerken mit eigener Meldung; die
+Sitzung direkt, auch über die Beziehung) und `tests/test_v794_archiv_rundgang.py` (jede schreibende Route der Anwendung, 495, mit den Kennungen des
+Archivs: keine ändert etwas am Archiv, keine neue Datei, kein Versand; jede Route mit Prüfung vorab endet mit der Meldung -- 61 vorab, 4 aus der
+Sitzung). Angepasste Testdaten (erst anlegen, dann ins Archiv): `test_v786` (Fixture; „ein Projekt mit Auftrag“: erst Auftrag, dann von Hand archiviert, Kunde
+nicht im Archiv), `test_v789` (Fixture), `test_v267` (zwei Testdaten: das Dokument vor dem Archivieren); Klicktests `klicktest_archiv_wiederfinden` und
+`klicktest_auswahl_inaktiv` (Seed: erst anlegen bzw. die Aufgabe, dann ins Archiv). Nebenbefund des Rundgangs (nicht geändert, kein Archiv): vier Routen der
+Arbeitsvorbereitung (`POST /api/orders/{id}/work-preparation/delivery-notes`, `…/employees`, `…/tasks`, `…/teams`) antworten bei einem unbekannten Auftrag mit
+500 statt 404 („Auftrag nicht gefunden.“ als ValueError). Gegenproben: `gegenproben-webseite.md`, „1.10.23“.

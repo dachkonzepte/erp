@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.23 – Vorgänge im Archiv nur lesbar: der Server lehnt Änderungen ab
+
+Antwort F10 (23.11.2026), Teil 1: ein Kunde, ein Projekt (archiviert, ohne Auftrag) oder eine Anfrage im Archiv ist nur noch zum Ansehen. Der Server lehnt jede Änderung daran mit 409 ab – „… ist im Archiv – nur zum Ansehen. Zum Ändern erst zurückholen.“ –, auch an allem, was am Vorgang hängt (Objekte, Dachflächen, Dokumente, Angebote, Beteiligte …), und jeden neuen Verweis darauf (eine neue Aufgabe, ein Auftrag, eine Zahlung). Wer einen Vorgang im Archiv im Pfad nennt, bekommt die Antwort, bevor eine Datei geschrieben oder eine Mail gesendet ist. Einzig das Zurückholen bleibt, auch „Entarchivieren“ an der Akte. Die Seiten blenden ihre Knöpfe mit der nächsten Version aus. Auf einem alten Datenbankstand ohne die Spalten des Archivs (Migrationskette) prüft der Schutz nichts – gefunden in der vollen Suite an einer Migrationsprobe.
+
 ## 1.10.22 – Feld „Grund“ beim Verwerfen wie die übrigen Formulare
 
 Antwort F11 (23.11.2026): das Feld „Grund“ im Bereich „Verwerfen …“ einer Anfrage der Webseite hatte dieselbe Schwäche wie bis 1.10.20 die Felder der Übernahme-Karte -- es stand in seiner Beschriftung und erbte deren fette, kleine Schrift, ohne Innenabstand. Jetzt dieselben Werte wie „Neue Anfrage“, dazu mindestens 240 px breit, weil es in einer Zeile neben den Knöpfen steht. Die Festlegungen 1.10.18 bis 1.10.21 sind im Archiv als bestätigt vermerkt.

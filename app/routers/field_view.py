@@ -46,6 +46,7 @@ from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
 from .. import sitzungen
 from ..auth import COOKIE_NAME
 from ..dateiauslieferung import datei_antwort
+from ..archivschutz import archiv_vorab
 from ..database import get_db
 from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..deps import require_admin
@@ -83,7 +84,9 @@ from ..service_reports import (
 )
 from ..ids import Id
 
-router = APIRouter()
+# Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
+# (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
+router = APIRouter(dependencies=[archiv_vorab(monteurin=True, property_id="properties")])
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): reiner Lesezugriff auf eine nicht-sensible
 # Konfigurationszeile (Feierabend-Uhrzeit) -- für jede Rolle offen, Muster wie GET /api/modules.

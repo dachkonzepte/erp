@@ -24,6 +24,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
+from ..archivschutz import pruefen_dokument
 from ..database import get_db
 from ..email_dispatch import (
     DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, delivery_recipients, dispatch_authorizations,
@@ -121,6 +122,7 @@ def post_resolve_email_dispatch(dispatch_id: Id, payload: EmailDispatchResolve, 
     if dispatch is None or (dispatch.document_type == "aufgabe" and not has_role(user, ROLE_ADMIN)):
         raise HTTPException(status_code=404, detail="Protokolleintrag nicht gefunden.")
     _require_geld_for(user, dispatch.document_type)
+    pruefen_dokument(db, dispatch.document_type, dispatch.document_id)  # seit 1.10.23: nicht an einem Vorgang im Archiv (409)
     user_id, user_name = actor_of(user)
     try:
         resolved = resolve_stuck_dispatch(db, dispatch_id, outcome=payload.outcome, note=payload.note,
@@ -159,6 +161,7 @@ def post_manual_delivery(
     if document_type == "checkliste" and not is_module_enabled(db, "checklisten"):
         raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
     _require_geld_for(user, document_type)
+    pruefen_dokument(db, document_type, document_id)  # seit 1.10.23: nicht an einem Vorgang im Archiv (409), bevor ein Beleg in die Ablage geht
     receipt_bytes = None
     if receipt is not None and receipt.filename:
         receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)
@@ -192,6 +195,7 @@ def post_dispatch_outcome(
         raise HTTPException(status_code=404, detail="Protokolleintrag nicht gefunden.")
     _require_module_for(db, dispatch.document_type)
     _require_geld_for(user, dispatch.document_type)
+    pruefen_dokument(db, dispatch.document_type, dispatch.document_id)  # seit 1.10.23: nicht an einem Vorgang im Archiv (409)
     receipt_bytes = None
     if receipt is not None and receipt.filename:
         receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)
