@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.3 – Kundenportal P1b: Link, Code und Sitzung
+
+Der Portal-Dienst bekommt seine Wege für die Anmeldung: Link prüfen, Code anfordern und eingeben, Sitzung verlängern, abmelden (auf diesem Gerät oder auf allen) und die Begrüßung als JSON. Jeder Weg ruft genau eine Funktion der Datenbank aus 1.11.1 und gibt ihr nur Prüfwerte; die Cookies gelten nur für diese Adresse, sind für Skripte unlesbar und gehen nicht mit Anfragen fremder Seiten mit. Ein Link, der nicht gilt, sieht von außen immer gleich aus; ohne gültige Sitzung antwortet jeder Weg 401. Dazu `scripts/pruefe_portal_e4.py` für den Nachweis auf dem Server, dass das Portal die Adresse des Geräts sieht und nicht die von nginx. Noch keine Oberfläche, noch kein Versand der Codes (P1c).
+
 ## 1.11.2 – Kundenportal P1b: der Portal-Dienst (Gerüst)
 
 Der eigene Dienst des Kundenportals: eine App nur mit den Wegen des Portals, in einer Schranke, die nur den eigenen Namen, nur GET, HEAD und POST, kleine Körper und schreibend nur Anfragen von der eigenen Seite durchlässt und an jede Antwort die Schutz-Kopfzeilen hängt. Der Dienst startet nur gegen PostgreSQL und nur auf dem Stand der Migrationen; Fehler verraten nichts. Dazu die Dateien für den Server (systemd-Einheit, nginx-Block, Muster der Umgebung) und gunicorn in den Abhängigkeiten. Öffentlich nur `/health` und die Firmendaten; noch keine Anmeldung, keine Oberfläche.

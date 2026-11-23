@@ -1538,3 +1538,64 @@ Die volle Suite fand vor dem Commit einen roten Wächter: `tests/test_v384_pg_ni
 `test_einstellung_falsch_kein_start_und_kein_wert_in_der_meldung` -- Wörterbücher mit dem Schlüssel `DATABASE_URL` im Dekorator -- als Übergabe an
 einen Kindprozess. Einen Kindprozess gibt es dort nicht; der Test nimmt jetzt Paare (Name, Inhalt), der Wächter bleibt unverändert. Beide
 Gegenproben zu Nr. 8 danach noch einmal rot.
+
+### Umsetzung 1.11.3: Link, Code und Sitzung im Portal-Dienst (P1b, Teil 2)
+
+- Wege (`app/portal/routen.py`): `POST /api/link` (öffentlich; der Link nur in der Kopfzeile X-Portal-Link -- die Seite liest ihn aus dem #-Fragment),
+  Vorstufe `POST /api/code`, `GET /api/code/stand`, `POST /api/code/pruefen` (`{"code": "123456"}`), Sitzung `POST /api/sitzung/weiter`,
+  `POST /api/abmelden` (`{"ueberall": false | true}`), `GET /api/willkommen`. Jeder ruft genau eine Funktion der Datenbank aus 1.11.1
+  (`app/portal/datenbank.py`: schreibende in einer Transaktion mit Commit, lesende ohne) -- an sie gehen nur Prüfwerte (`app/portal/pruefwerte.py`), nie
+  Link, Code oder Wert eines Cookies. Alles Prüfen (Zugang, Sperre, Portal am Kunden, Archiv, Modul, Ablauf, Versuche, Bremsen, Protokoll) bleibt in der
+  Datenbank; der Dienst bildet nur die Ergebniswörter auf Antworten ab.
+- Cookies: `__Host-dkportal` (bestätigte Sitzung, 30 Tage, bei jeder Verlängerung neu gesetzt) und `__Host-dkportal-code` (unbestätigte Sitzung bis zum
+  richtigen Code, 15 Minuten) -- zwei Namen, damit ein angemeldeter Browser beim Öffnen eines anderen Links seine Sitzung bis zum richtigen Code behält.
+  Beide Secure, HttpOnly, SameSite=Strict, Path=/, ohne Domain; gesetzt und gelöscht nur in `_setzen()`/`_loeschen()`. Richtiger Code: neuer Wert, das
+  Code-Cookie gelöscht, eine frühere Sitzung dieses Browsers endet („abgemeldet“) -- ein Browser, eine Sitzung.
+- Antworten: `{"stand": …}` (Link: angemeldet | code_noetig mit verdeckter Adresse | ungueltig; Code: angefordert; Stand: wartet | gesendet | fehler |
+  verworfen | keiner; Prüfen: angemeldet | falsch mit Rest | neu_anfordern; Sitzung: angemeldet; Abmelden: abgemeldet), Willkommen
+  `{"begruessung": …}`. Ohne gültige Sitzung 401 `{"fehler": "sitzung"}` (ein POST löscht dabei sein Cookie, ein GET setzt keins), Bremse 429
+  `{"fehler": "bremse", "minuten": n}` mit Retry-After. Ein Link, der nicht gilt, ist außen dieselbe Antwort, gleich aus welchem Grund.
+- `BEHANDELT`: was jede Funktion antworten kann -- ein unbekanntes Wort (Code und Migration auseinander) beantwortet der Dienst mit 500, statt es als etwas
+  anderes zu lesen.
+- Begrüßung (`app/portal/begruessung.py`, Bauplan D (1)): Herr/Frau mit Titel und Nachname („Guten Tag, Herr Dr. Muster“), Firma mit dem Namen ohne
+  Anrede und Titel, sonst (Divers, ohne Anrede) Titel, Vor- und Nachname, ohne Namen der zusammengesetzte Name, sonst „Guten Tag“.
+- Anschluss: `request.client.host` -- hinter nginx die rechteste fremde Adresse aus X-Forwarded-For (gunicorn/uvicorn vertrauen der Kopfzeile nur von
+  127.0.0.1, E4), als HMAC mit dem Schlüssel der Bremsen.
+- `scripts/pruefe_portal_e4.py` (Nachweis E4, S8): zählt die Anschlüsse mit „Link geöffnet“ im laufenden und im vorigen Stundenfenster, nur Zahlen.
+  **Abweichung vom Bauplan:** dort „als dkportal“ und „davon die Adresse des Servers: 0“. Seit dem Nachtrag N1 liest dkportal keine Tabelle, und den
+  Prüfwert von 127.0.0.1 rechnete nur, wer den Schlüssel der Bremsen hat (er liegt nur in /etc/dk-portal/portal.env). Das Skript läuft deshalb als
+  Benutzer des ERP und vergleicht die Zahl der Anschlüsse mit der Zahl der Geräte (zwei Geräte -> 2; sieht das Portal nur nginx -> 1).
+
+#### Festlegungen 1.11.3 (Bitte bestätigen)
+
+1. Der Link kommt nur per POST in der Kopfzeile X-Portal-Link (fehlt sie oder ist sie länger als 256 Zeichen: 422); an die Datenbank geht nur sein
+   Prüfwert. Ein Link, der nicht gilt, ist außen dieselbe Antwort (200, gleicher Text, kein Cookie), gleich aus welchem Grund.
+2. Zwei Cookies `__Host-dkportal` (30 Tage, bei jeder Verlängerung neu gesetzt) und `__Host-dkportal-code` (15 Minuten), beide Secure, HttpOnly,
+   SameSite=Strict, Path=/, ohne Domain -- auch lokal und in Tests; gesetzt und gelöscht nur an einer Stelle.
+3. Richtiger Code: neuer Wert im Cookie, das Code-Cookie gelöscht; eine frühere Sitzung desselben Browsers endet (ein Browser, eine Sitzung).
+4. Ohne gültige Sitzung 401 `{"fehler": "sitzung"}`; ein POST löscht dabei sein Cookie, ein GET setzt nie ein Cookie.
+5. Eine Bremse antwortet 429 `{"fehler": "bremse", "minuten": n}` mit Retry-After.
+6. Code nur als genau sechs Ziffern 0–9 (sonst 422, kein Versuch, keine Anfrage an die Datenbank); `ueberall` nur true oder false.
+7. Der Anschluss ist die Adresse der Verbindung nach X-Forwarded-For von 127.0.0.1 (rechteste fremde Adresse), als HMAC; eine vorangestellte Adresse ändert
+   nichts.
+8. Begrüßung: Herr/Frau mit Titel und Nachname; Firma mit dem Namen ohne Anrede und Titel; sonst Titel, Vor- und Nachname; ohne Namen der zusammengesetzte
+   Name, sonst „Guten Tag“.
+9. Jede Antwort hat genau die Schlüssel ihres Wegs und Status; kein Weg nimmt eine ID -- der Kunde kommt nur aus der Sitzung.
+10. Jedes Ergebniswort jeder Funktion ist im Dienst behandelt (gegen den Text der Funktionen geprüft); ein unbekanntes Wort ist 500.
+11. Kein GET schreibt: Lesen nur über Funktionen, die nichts schreiben, ohne Commit, ohne Cookie.
+12. Link, Code und Wert eines Cookies stehen nie in einem Protokoll oder einer Antwort (nur in Set-Cookie).
+13. Abmelden auf diesem Gerät beendet jede noch nicht beendete Sitzung des Browsers (auch eine, die nicht mehr gilt) samt einer unbestätigten; „auf allen
+    Geräten“ nur mit gültiger Sitzung.
+14. Die Sitzung verlängert sich höchstens einmal je Stunde, dann auch das Cookie (30 Tage ab jetzt).
+15. `scripts/pruefe_portal_e4.py` läuft als Benutzer des ERP und nennt nur Zahlen; statt „davon 127.0.0.1“ der Vergleich mit der Zahl der Geräte.
+
+#### Tests und Prüfung 1.11.3
+
+Neu `tests/test_v802_portal_sitzung.py` (64): ohne Datenbank Begrüßung (elf Fälle), Ergebniswörter gegen den Text der Funktionen, kein Weg mit ID,
+Cookies an einer Stelle, Eingaben 422 und ohne Cookie 401 vor der Datenbank (über SQLite, wo es die Funktionen nicht gibt), unbekanntes Wort 500, Prüfskript;
+gegen PostgreSQL in einem Schema je Datei (zwischen den Tests geleert), der Dienst als Testrolle `dkportal_test`: ganzer Ablauf mit Protokoll, jeder
+ungültige Link gleich, 401 auf jedem Weg der Sitzung (elf Zustände) und der Vorstufe (neun), Code einer anderen Sitzung, fünf Versuche, eine Sitzung je
+Browser, abmelden (dieses Gerät, überall, nicht mehr gültig), verlängern, kein GET schreibt, Bremsen, nichts in Protokoll und Antwort (Protokoll auf DEBUG,
+auch SQLAlchemy), Anschluss hinter nginx (echter uvicorn mit X-Forwarded-For: 30 Aufrufe mit wechselnder vorangestellter Adresse -> der 31. gebremst, eine
+andere Adresse nicht), Angriffe auf die neuen Wege (neun Methoden, sieben Wege, sechs Kopf-Varianten, h11 und httptools: nichts erreicht, kein Protokoll).
+Jede Antwort jedes Tests geht durch die Positivliste (`ERWARTET`). Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.3“.

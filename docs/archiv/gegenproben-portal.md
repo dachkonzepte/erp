@@ -104,3 +104,40 @@ geprüften Grund, alle Dateien byte-gleich zurück. Drei Proben brauchten eine z
 | Nr. 13 – gunicorn vertraut nur 127.0.0.1 | `--forwarded-allow-ips '*'` | 1 rot |
 | Nr. 13 – nginx protokolliert keine Adresse | `$remote_addr` im Format | 1 rot |
 | Nr. 14 – gunicorn in requirements.txt | fehlt | 1 rot |
+
+## 1.11.3: Link, Code und Sitzung im Portal-Dienst
+
+Probendatei `gp_1113.py`, Lauf mit `tests/test_v802_portal_sitzung.py` und je Fall einem Ausschnitt (`-k`); alle 28 beim ersten Anlauf rot aus dem
+geprüften Grund (FAILED, kein ERROR), alle Dateien byte-gleich zurück. Ohne eigene Gegenprobe: „lesend ohne Commit“ (Nr. 11) -- eine Funktion, die nichts
+schreibt (STABLE), kann in PostgreSQL nicht schreiben; geprüft ist der Weg (ein GET, der eine schreibende Funktion ruft, ist rot).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ohne Kopfzeile 422 | Prüfung weg | 13 rot (500 statt 422) |
+| Nr. 1 – ungültiger Link außen gleich | anderer Text bei „ungültig“ | 1 rot |
+| Nr. 2 – Cookie HttpOnly | für Skripte lesbar | 2 rot |
+| Nr. 2 – Cookie SameSite=Strict | lax | 1 rot |
+| Nr. 2 – Code-Cookie 15 Minuten | eine Stunde | 1 rot |
+| Nr. 3 – frühere Sitzung des Browsers endet | bleibt | 1 rot |
+| Nr. 3 – Code-Cookie nach dem Code gelöscht | bleibt | 1 rot |
+| Nr. 4 – 401 löscht das Cookie | löscht nicht | 21 rot (jeder Zustand, jeder Weg) |
+| Nr. 4 – ein GET setzt kein Cookie | Willkommen löscht bei 401 | 1 rot |
+| Nr. 5 – Bremse 429 | als 200 | 1 rot |
+| Nr. 5 – mit Retry-After | ohne | 1 rot |
+| Nr. 6 – Code nur Ziffern 0–9 | `\d` (nimmt auch breite Ziffern) | 1 rot |
+| Nr. 6 – `ueberall` nur true/false | `bool` (nimmt 1) | 1 rot |
+| Nr. 7 – Anschluss rechts aus X-Forwarded-For | von links | 1 rot (echter uvicorn) |
+| Nr. 8 – Firma ohne Anrede | „Firma“ wie Herr/Frau | 1 rot |
+| Nr. 8 – Herr/Frau mit Titel | ohne Titel | 3 rot |
+| Nr. 9 – genau die Schlüssel | ein Schlüssel mehr in Willkommen | 1 rot |
+| Nr. 9 – kein Weg nimmt eine ID | `kunde` als Abfrage | 1 rot |
+| Nr. 10 – jedes Ergebniswort behandelt | „keiner“ fehlt | 2 rot (Wächter, Ablauf 500) |
+| Nr. 11 – kein GET schreibt | Willkommen öffnet einen Link | 1 rot |
+| Nr. 12 – Link nie im Protokoll | im Protokoll | 1 rot |
+| Nr. 12 – Code nie im Protokoll | im Protokoll | 1 rot |
+| Nr. 13 – auf allen Geräten | wie dieses Gerät | 1 rot |
+| Nr. 13 – unbestätigte Sitzung endet mit | bleibt | 1 rot |
+| Nr. 13 – dieses Gerät auch ohne gültige Sitzung | nur mit gültiger | 1 rot |
+| Nr. 14 – Verlängern setzt das Cookie | setzt nicht | 1 rot |
+| Nr. 15 – Prüfskript nur Zahlen | nennt die Prüfwerte | 1 rot |
+| Nr. 15 – erst zwei Anschlüsse sind gut | einer reicht | 1 rot |
