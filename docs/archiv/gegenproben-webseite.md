@@ -501,3 +501,14 @@ nach dem Leeren (grün, Gegenprobe selbst falsch) und wurde vor dem Leeren wiede
 | Nr. 5 – eine Zeile in der Historie | keine Zeile | 1 rot |
 | Nr. 5 – ohne Inhalte | Namen in der Historie (vor dem Leeren gelesen) | 1 rot |
 | Nr. 6 – Wiedererkennung und Rückgängigmachen | -- (keine Änderung an `_address_already_imported()` und `revert_import_run()`; `test_wiedererkennung_und_arbeitsliste_bleiben` und `test_ein_lauf_laesst_sich_danach_noch_rueckgaengig_machen` halten es fest) | -- |
+
+## Antworten zum Bericht F7, 1.10.22: das Feld „Grund“ beim Verwerfen
+
+Probendatei im Scratchpad (`gp_1122.py` über `gegenprobe.py` und `gegenprobe_klick.py`), Lauf mit `tests/test_v791_uebernahme_felder.py` bzw.
+`klicktest_webanfragen`; alle 5 rot aus dem geprüften Grund, die Datei byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Werte wie die übrigen Formulare | Regel weg | 1 rot; Klicktest 78/79 (Schrift 650, 12,5 px, Innenabstand 0) |
+| Nr. 1 – Schrift 400 | Schrift erbt wieder | 1 rot |
+| Nr. 1 – mindestens 240 px | ohne Mindestbreite | 1 rot; Klicktest 78/79 (schmaler als 240 px) |

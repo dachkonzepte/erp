@@ -1036,7 +1036,7 @@ Kunde passt zu den Angaben“, wenn darunter ein Kunde im Archiv passt.
 - Nicht geändert: was die Seiten eines Vorgangs im Archiv erlauben. Die Akte zeigt z. B. weiter „Beauftragen“, die Kundenakte „Stammdaten bearbeiten“ -- der
   Hinweis sagt „Zum Weiterarbeiten zurückholen“, sperrt aber nichts (Frage F10 im Bericht).
 
-#### Festlegungen 1.10.18 (Bitte bestätigen)
+#### Festlegungen 1.10.18 (bestätigt am 23.11.2026)
 
 1. Jeder Treffer im Archiv hat „ansehen“ (öffnet die Seite des Treffers) und „Zurückholen und öffnen“.
 2. Ansehen holt nicht zurück und schreibt nichts -- die 6 Monate laufen dabei nicht neu.
@@ -1060,7 +1060,7 @@ Beim Übernehmen stand „Kein bestehender Kunde passt zu den Angaben – unten 
 aber einer im Archiv, heißt es „Kein aktiver Kunde passt – aber einer im Archiv:“ (bei mehreren „– aber n im Archiv:“); passt keiner, bleibt der bisherige Satz;
 passt ein aktiver, steht kein Satz.
 
-#### Festlegungen 1.10.19 (Bitte bestätigen)
+#### Festlegungen 1.10.19 (bestätigt am 23.11.2026)
 
 1. Passt kein aktiver Kunde, aber einer bzw. mehrere im Archiv: „Kein aktiver Kunde passt – aber einer im Archiv:“ bzw. „– aber n im Archiv:“.
 2. Passt keiner, bleibt „Kein bestehender Kunde passt zu den Angaben – unten suchen oder einen neuen anlegen.“; passt ein aktiver, steht kein Satz.
@@ -1077,7 +1077,7 @@ fett; Innenabstand und Breite fehlten (seit W1b, 1.10.5/1.10.8; Nebenbefund 2 de
 und Häkchen) die Werte der übrigen Formulare wie „Neue Anfrage“: volle Breite, Innenabstand 9/11 px, 13,5 px, Schrift 400, Rahmen, Hover und Fokus. Die Suche
 behält ihre Höchstbreite von 420 px.
 
-#### Festlegungen 1.10.20 (Bitte bestätigen)
+#### Festlegungen 1.10.20 (bestätigt am 23.11.2026)
 
 1. Die Felder der Karte „Als Anfrage übernehmen“ sehen aus wie die der übrigen Formulare (Werte wie „Neue Anfrage“); Optionsfelder und Häkchen bleiben, wie sie sind.
 
@@ -1103,7 +1103,7 @@ Neu `tests/test_v791_uebernahme_felder.py` (3 Tests: die Regel mit den Werten vo
 - Seite „Adressimport“: Karte „Rohdaten erledigter Zeilen“ unter den Importläufen -- Zahl je Art, was bleibt, „Rohdaten leeren …“ mit Rückfrage
   (abschließende Aktion), danach die Meldung.
 
-#### Festlegungen 1.10.21 (Bitte bestätigen)
+#### Festlegungen 1.10.21 (bestätigt am 23.11.2026)
 
 1. Erledigt ist eine bestätigte Zeile, die nicht offen in der Arbeitsliste steht (Kunde, Lieferant, Arbeitsliste erledigt, bereits importiert, ungültig, abgelehnt).
 2. Geleert werden Kunden- und Lieferantennummer aus dem Altsystem, Anrede, Titel, Vorname, Name, Straße, Land, PLZ, Ort, Telefon, Fax, Mobil, beide Mails und die
@@ -1120,3 +1120,26 @@ Vorschau ganz, Kunde und Lieferant unverändert; Wiedererkennung und Suche der A
 Inhalte; nur Admin; über die Schnittstelle; in node Vorschau, Rückfrage, POST mit der Prüfsumme, ohne Rohdaten kein Knopf). Neu `scripts/klicktest_rohdaten_leeren.py`
 (13 Prüfungen: Vorschau, 412 px hell und dunkel ohne Überlauf, Leeren mit Rückfrage, die offene Zeile bleibt, Büro – Finanzen 403, Bilder). Angepasste
 Erwartungen: `tests/test_v399_abschliessen.py::ABSCHLIESSEND` um `rohdatenLeeren` (Aufbau). Gegenproben: `gegenproben-webseite.md`, „1.10.21“ (9, alle rot).
+
+### Antworten des Betriebs zum Bericht F7 (23.11.2026)
+
+Festlegungen 1.10.18-1 bis 1.10.21-6 bestätigt. F10: ja -- Seiten im Archiv nur lesbar: der Server lehnt Änderungen an Vorgängen im Archiv mit 409 ab, die
+Seiten blenden die Knöpfe aus (z. B. „Beauftragen“ an der Akte); einzig „Zurückholen“ bleibt; eigene Version. F11: ja, klein (das Feld „Grund“ beim Verwerfen
+wie die übrigen Formulare).
+
+### Umsetzung 1.10.22: das Feld „Grund“ beim Verwerfen (Antwort F11)
+
+- `app/templates/webanfrage.html`: das Feld „Grund“ im Bereich „Verwerfen …“ stand wie die Felder der Übernahme-Karte (bis 1.10.20) in seiner Beschriftung und
+  erbte deren Schrift (12,5 px, fett), ohne Innenabstand. Jetzt dieselben Werte wie „Neue Anfrage“ und die Übernahme-Karte (volle Breite der Beschriftung,
+  Innenabstand 9/11 px, 13,5 px, Schrift 400, Rahmen, Hover, Fokus), dazu mindestens 240 px breit -- es steht in einer Zeile neben „Verwerfen“ und
+  „Abbrechen“ und wäre sonst nur so breit wie „Bitte wählen“.
+
+#### Festlegungen 1.10.22 (Bitte bestätigen)
+
+1. Das Feld „Grund“ beim Verwerfen wie die übrigen Formulare (Werte wie „Neue Anfrage“), mindestens 240 px breit.
+
+#### Tests und Prüfung 1.10.22
+
+`tests/test_v791_uebernahme_felder.py` um `test_grund_beim_verwerfen_wie_die_uebrigen`; `scripts/klicktest_webanfragen.py` misst das Feld (Schrift, Größe,
+Innenabstand, Höhe, Breite) und nimmt das Bild `verwerfen_grund_1440_hell` auf (78 -> 79 Prüfungen). Gegenproben: `gegenproben-webseite.md`, „1.10.22“
+(5, alle rot).

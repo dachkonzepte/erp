@@ -204,6 +204,12 @@ async def pruefen(tab, seed, p):
     await tab.bild_ganz("webanfragen_bearbeitung_1440_hell")
     await tab.js("verwerfenOeffnenKnopf.click()")
     p.pruefe("Verwerfen: Feld nach dem Klick sichtbar", await tab.js("getComputedStyle(verwerfenPanel).display"), "flex")
+    p.pruefe("Verwerfen: Feld „Grund“ wie die übrigen Formulare (seit 1.10.22): Schrift 400 und 13,5 px, Innenabstand 9/11 px, mindestens 38 px hoch "
+             "und 240 px breit, so breit wie die Beschriftung", await tab.js(
+        "(()=>{const e=verwerfenGrund,s=getComputedStyle(e),r=e.getBoundingClientRect(),l=e.parentElement.getBoundingClientRect();"
+        "return [s.fontWeight,s.fontSize,s.paddingTop,s.paddingLeft,r.height>=38,r.width>=240,Math.abs(r.width-l.width)<=1]})()"),
+        ["400", "13.5px", "9px", "11px", True, True, True])
+    await tab.bild("verwerfen_grund_1440_hell")
     p.pruefe("Verwerfen: ohne Grund nicht", await tab.js("verwerfenKnopf.click(),aktionStatus.textContent"), "Bitte einen Grund wählen.")
     await tab.js("verwerfenGrund.value='spam';verwerfenKnopf.click()")
     await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Verworfen'")

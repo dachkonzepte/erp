@@ -39,6 +39,18 @@ def test_hover_und_fokus():
     assert "outline:2px solid var(--ds-fokus)" in _regel(css, '.ueb input:not([type="radio"]):not([type="checkbox"]):focus,.ueb select:focus,.ueb textarea:focus')
 
 
+def test_grund_beim_verwerfen_wie_die_uebrigen():
+    """Seit 1.10.22 (Antwort F11): das Feld „Grund“ im Bereich „Verwerfen …“ hatte dieselbe Ursache (es erbte die Schrift seiner Beschriftung) --
+    dieselben Werte, dazu eine Mindestbreite (es steht in einer Zeile neben den Knöpfen); gemessen in klicktest_webanfragen."""
+    css = _css()
+    regel = _regel(css, ".verwerfen-panel select").replace("\n", "").replace("    ", "")
+    for teil in ("width:100%", "min-width:240px", "padding:9px 11px", "border:1px solid var(--field-border)", "font:inherit", "font-size:13.5px",
+                 "font-weight:400"):
+        assert teil in regel, teil
+    assert "border-color:var(--field-border-hover)" in _regel(css, ".verwerfen-panel select:hover")
+    assert "outline:2px solid var(--ds-fokus)" in _regel(css, ".verwerfen-panel select:focus")
+
+
 def test_optionsfelder_ausgenommen():
     """Optionsfelder und Häkchen bekommen weder Breite noch Innenabstand: keine Regel für alle Eingaben der Karte."""
     css = _css().replace("\n", "")

@@ -40,6 +40,12 @@
   .verwerfen-panel{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
   .verwerfen-panel[hidden]{display:none}
   .verwerfen-panel label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:650;color:var(--muted)}
+  /* seit 1.10.22 (Antwort F11): das Feld „Grund“ wie die übrigen Formulare (Werte wie „Neue Anfrage“ und die Übernahme-Karte, 1.10.20) -- bis dahin
+     erbte es die Schrift seiner Beschriftung (12,5 px, fett) */
+  .verwerfen-panel select{width:100%;min-width:240px;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);
+    font:inherit;font-size:13.5px;font-weight:400}
+  .verwerfen-panel select:hover{border-color:var(--field-border-hover)}
+  .verwerfen-panel select:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
   .meldung{font-size:12.5px;color:var(--muted);margin-top:8px}
   /* seit 1.10.5: Als Anfrage übernehmen */
   .ueb h3{margin:16px 0 6px;font-size:14px;color:var(--ink)}
