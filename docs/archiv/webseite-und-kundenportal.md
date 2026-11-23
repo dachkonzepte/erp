@@ -1263,3 +1263,26 @@ Skripts, heute fünf; die Tabelle „Angebote“ der Übersicht im Rahmen; die N
 Überlauf auch im Archiv und neu nach dem Zurückholen, die Tabelle „Angebote“ dort sichtbar im Rahmen, die Nummer in einer Zeile (35 Prüfungen, bisher 33).
 Angepasste Erwartung: `klicktest_nur_lesen` „Akte: 412 px ohne Überlauf“ -- bis 1.10.24 nur am Eingang der Webseite geprüft (Befund 1.10.24), jetzt auch an der
 Akte. Gegenproben: `gegenproben-webseite.md`, „1.10.25“.
+
+### Umsetzung 1.10.26: die Arbeitsvorbereitung antwortet bei einem unbekannten Auftrag mit 404 (Antwort F13)
+
+- `app/routers/work_preparation.py`: `POST /api/orders/{id}/work-preparation/employees`, `/tasks`, `/teams` und `/delivery-notes` riefen
+  `ensure_preparation()` ohne Abfangen auf -- ein unbekannter Auftrag ließ deren `ValueError` („Auftrag nicht gefunden.“) als 500 durch (gefunden im Rundgang
+  `tests/test_v794_archiv_rundgang.py`, Befund 1.10.23). Jetzt holt jeder Schreibweg der Datei die Arbeitsvorbereitung über `_vorbereitung()`: dort wird der
+  Fehler 404 mit derselben Meldung; nichts wird angelegt, keine Datei geschrieben. Anlegen und Ändern antworteten schon mit 404 und gehen denselben Weg.
+- Der Rundgang des Archivs lässt seither keine 500 mehr zu (bis 1.10.25 zählte er sie nur auf).
+
+#### Festlegungen 1.10.26 (Bitte bestätigen)
+
+1. Ein Schreibweg der Arbeitsvorbereitung mit einem unbekannten Auftrag antwortet mit 404 „Auftrag nicht gefunden.“ und hinterlässt nichts (keine
+   Arbeitsvorbereitung, keine Zuordnung, keine Datei).
+2. Jeder Schreibweg des Routers holt die Arbeitsvorbereitung über `_vorbereitung()`; `ensure_preparation()` steht dort nur in dieser Funktion.
+3. Der Rundgang über alle schreibenden Routen (`test_v794`) verlangt: keine 500.
+
+#### Tests und Prüfung 1.10.26
+
+Neu `tests/test_v797_av_unbekannter_auftrag.py` (je Schreibweg mit dem Auftrag im Pfad -- Mitarbeiter, Aufgabe, Kolonne, Lieferschein, Anlegen, Ändern -- 404
+mit Meldung und ohne Spur in sechs Tabellen und der Ablage; dieselbe Anfrage mit dem echten Auftrag 200; per AST `ensure_preparation()` nur in
+`_vorbereitung()`). Angepasste Erwartung: `tests/test_v794_archiv_rundgang.py` -- bis 1.10.25 nannte er die 500 nur in der Ausgabe, jetzt `fehler == []`. Kein
+Klicktest (keine Seite ruft die Routen mit einem unbekannten Auftrag auf; die Seite der Arbeitsvorbereitung bleibt unverändert). Gegenproben:
+`gegenproben-webseite.md`, „1.10.26“.

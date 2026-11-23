@@ -34,6 +34,16 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
+def _vorbereitung(db: Session, order_id: int) -> WorkPreparation:
+    """Die Arbeitsvorbereitung des Auftrags zum Schreiben, angelegt, wenn sie fehlt -- jeder Schreibweg dieser Datei holt sie hier. Seit 1.10.26 (Frage F13)
+    ein unbekannter Auftrag 404 „Auftrag nicht gefunden.“: bis 1.10.25 ließen Mitarbeiter, Aufgabe, Kolonne und Lieferschein den ValueError aus
+    ensure_preparation() als 500 durch (gefunden im Rundgang tests/test_v794_archiv_rundgang.py)."""
+    try:
+        return ensure_preparation(db, order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/api/work-preparation/tasks")
 def get_open_work_preparation_tasks(request: Request, employee_id: Id | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Offene Arbeitsvorbereitungs-Aufgaben über alle Aufträge hinweg, fürs
@@ -61,18 +71,12 @@ def get_work_preparation(order_id: Id, db: Session = Depends(get_db, scope="func
 @router.post("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
 def create_work_preparation(order_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Arbeitsvorbereitung anlegen (seit 1.8.84, "Arbeitsvorbereitung anlegen" auf der Seite) -- eine vorhandene bleibt."""
-    try:
-        return preparation_to_dict(db, ensure_preparation(db, order_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    return preparation_to_dict(db, _vorbereitung(db, order_id))
 
 
 @router.put("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
 def update_work_preparation(order_id: Id, payload: WorkPreparationUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    try:
-        prep = ensure_preparation(db, order_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    prep = _vorbereitung(db, order_id)
     # Seit 1.9.145 Teil-Update (Regel 22; bis 1.9.144 setzte ein PUT nur mit Beginn den Status auf „offen“ und leerte Ende und Hinweise) und F12: mit Einsätzen
     # ergibt sich der Zeitraum aus ihnen, von Hand nur ohne Einsatz (409).
     felder = payload.model_dump(exclude_unset=True)
@@ -88,7 +92,7 @@ def update_work_preparation(order_id: Id, payload: WorkPreparationUpdate, db: Se
 
 @router.post("/api/orders/{order_id}/work-preparation/employees", response_model=WorkPreparationOut)
 def add_work_preparation_employee(order_id: Id, payload: WorkPreparationEmployeeCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    prep = ensure_preparation(db, order_id)
+    prep = _vorbereitung(db, order_id)
     employee = db.get(Employee, payload.employee_id)
     if employee is None or not employee.active:
         raise HTTPException(status_code=422, detail="Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
@@ -121,7 +125,7 @@ def delete_work_preparation_employee(assignment_id: Id, db: Session = Depends(ge
 
 @router.post("/api/orders/{order_id}/work-preparation/tasks", response_model=WorkPreparationOut)
 def add_work_preparation_task(order_id: Id, payload: WorkPreparationTaskCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    prep=ensure_preparation(db,order_id)
+    prep=_vorbereitung(db,order_id)
     if payload.assigned_employee_id is not None:
         e=db.get(Employee,payload.assigned_employee_id)
         if e is None or not e.active: raise HTTPException(status_code=422,detail="Zugeordneter Mitarbeiter ist nicht aktiv.")
@@ -236,7 +240,7 @@ def update_work_preparation_material(material_id: Id, payload: WorkPreparationMa
 
 @router.post("/api/orders/{order_id}/work-preparation/teams", response_model=WorkPreparationOut)
 def assign_work_preparation_team(order_id:Id,payload:WorkPreparationTeamAssign,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    prep=ensure_preparation(db,order_id)
+    prep=_vorbereitung(db,order_id)
     team=db.scalar(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).where(Team.id==payload.team_id))
     if team is None or not team.active: raise HTTPException(status_code=422,detail="Kolonne / Team wurde nicht gefunden oder ist inaktiv.")
     if db.scalar(select(WorkPreparationTeamAssignment).where(WorkPreparationTeamAssignment.preparation_id==prep.id,WorkPreparationTeamAssignment.team_id==team.id)):
@@ -268,7 +272,7 @@ def upload_work_preparation_delivery_note(
     document_date:str|None=Form(None), description:str|None=Form(None), db:Session=Depends(get_db, scope="function"),
     _role:AppUser=_role_dep,
 ):
-    prep=ensure_preparation(db,order_id); order=db.get(Order,order_id)
+    prep=_vorbereitung(db,order_id); order=db.get(Order,order_id)
     if not file.filename: raise HTTPException(status_code=400,detail="Bitte Lieferschein-Datei auswählen.")
     supplier=None
     if supplier_id:

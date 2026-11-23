@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.10.26 – Arbeitsvorbereitung: unbekannter Auftrag 404 statt 500
+
+Antwort F13 (23.11.2026): Vier Schreibwege der Arbeitsvorbereitung – Mitarbeiter, Aufgabe, Kolonne und Lieferschein zuordnen – antworteten bei einem unbekannten Auftrag mit einem Serverfehler (500), gefunden im Rundgang über alle schreibenden Routen. Jetzt holt jeder Schreibweg die Arbeitsvorbereitung an einer Stelle; ein unbekannter Auftrag ergibt 404 „Auftrag nicht gefunden.“, und nichts wird angelegt. Der Rundgang lässt seither keinen Serverfehler mehr zu.
+
 ## 1.10.25 – Akte: jede Tabelle rollt in ihrem Rahmen
 
 Antwort F12 (23.11.2026): In der Akte eines Projekts ohne Auftrag stand die Tabelle „Angebote“ der Übersicht ohne Rahmen – bei 412 px lief die ganze Seite 60 px über, mit und ohne Archiv. Jetzt rollt sie wie die übrigen Tabellen der Akte waagrecht in ihrem Rahmen, und die Nummer eines Angebots bricht dabei nicht mehr auf drei Zeilen um. Ein Test findet jedes Element, in das die Akte eine Tabelle zeichnet, und verlangt den Rahmen.

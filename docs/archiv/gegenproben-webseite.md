@@ -567,3 +567,16 @@ Probendatei im Scratchpad (`gp_1125.py` über `gegenprobe.py` und `gegenprobe_kl
 | Nr. 1 – jede Tabelle der Akte im Rahmen | `tabelle-wrap` an `#invoicesList` (Reiter Rechnungen) weg | 1 rot |
 | Nr. 2 – die Nummer bricht nicht um | Regel `td.nw` leer | 1 rot; Klicktest „Nummer in einer Zeile“ rot |
 | Nr. 2 – die Nummer bricht nicht um | Klasse `nw` an der Zelle weg | 1 rot |
+
+## Antworten zum Bericht F10, 1.10.26: die Arbeitsvorbereitung antwortet bei einem unbekannten Auftrag mit 404
+
+Probendatei im Scratchpad (`gp_1126.py` über `gegenprobe.py`), Lauf mit `tests/test_v797_av_unbekannter_auftrag.py` und `tests/test_v794_archiv_rundgang.py`;
+alle 5 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Mitarbeiter: 404 | `ensure_preparation()` direkt statt `_vorbereitung()` | 2 rot („mitarbeiter“ mit 500, AST) |
+| Nr. 1 – Lieferschein: 404 ohne Datei | `ensure_preparation()` direkt | 2 rot („lieferschein“ mit 500, AST) |
+| Nr. 1 – 404 statt anderem Status | `_vorbereitung()` gibt 422 | 7 rot (je Weg, AST) |
+| Nr. 2 – nur über `_vorbereitung()` | die Aufgabe fängt selbst ab (antwortet 404, aber an `_vorbereitung()` vorbei) | 1 rot (AST) |
+| Nr. 3 – der Rundgang verlangt keine 500 | die Aufgabe über `ensure_preparation()` direkt | Rundgang rot (die Route mit 500) |

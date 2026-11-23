@@ -181,6 +181,7 @@ def test_jede_schreibende_route_aendert_nichts_am_archiv(welt, router_test_clien
             rot.append(f"{methode} {route.path}: neue oder gelöschte Datei")
             vorher_dateien = _dateien(welt)
     assert not rot, "\n".join(rot)
+    assert fehler == [], fehler  # seit 1.10.26 (Frage F13) keine 500 mehr -- bis dahin vier Routen der Arbeitsvorbereitung mit einem unbekannten Auftrag
     assert db.scalar(select(func.count()).select_from(EmailDispatch).where(EmailDispatch.document_type == "angebot",
                                                                          EmailDispatch.document_id == welt.angebot.id)) == 0
     assert len(routen) > 450
@@ -190,4 +191,4 @@ def test_jede_schreibende_route_aendert_nichts_am_archiv(welt, router_test_clien
     assert vorab <= set(archiv), sorted(vorab - set(archiv))
     assert len(vorab) > 50
     print(f"\nRundgang Archiv: {len(routen)} Routen, Status {dict(sorted(status.items()))}, Meldung des Archivs {len(archiv)} (vorab {len(vorab)}, "
-          f"aus der Sitzung: {sorted(set(archiv) - vorab)}); 500 (Kennungen ins Leere, nicht am Archiv): {fehler}")
+          f"aus der Sitzung: {sorted(set(archiv) - vorab)})")
