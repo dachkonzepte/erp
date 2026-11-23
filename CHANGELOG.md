@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.2 – Kundenportal P1b: der Portal-Dienst (Gerüst)
+
+Der eigene Dienst des Kundenportals: eine App nur mit den Wegen des Portals, in einer Schranke, die nur den eigenen Namen, nur GET, HEAD und POST, kleine Körper und schreibend nur Anfragen von der eigenen Seite durchlässt und an jede Antwort die Schutz-Kopfzeilen hängt. Der Dienst startet nur gegen PostgreSQL und nur auf dem Stand der Migrationen; Fehler verraten nichts. Dazu die Dateien für den Server (systemd-Einheit, nginx-Block, Muster der Umgebung) und gunicorn in den Abhängigkeiten. Öffentlich nur `/health` und die Firmendaten; noch keine Anmeldung, keine Oberfläche.
+
 ## 1.11.1 – Kundenportal P1a: Funktionen der Datenbank für Link und Sitzung
 
 Alles, was an einem Link oder einer Sitzung des Kundenportals hängt – Link öffnen, Code anfordern, Code prüfen, Sitzung prüfen, verlängern, abmelden, Begrüßung –, läuft über Funktionen der Datenbank, die mit den Rechten des ERP laufen. Der eigene Datenbank-Benutzer des Portals darf nur diese Funktionen aufrufen und keine Tabelle lesen: ohne Link legt so selbst ein übernommener Portal-Prozess keine Sitzung an und liest keine Kundennamen. Link, Cookie und Code kommen nie in die Datenbank, nur ihre Prüfwerte; die Zeit kommt aus der Datenbank. Noch kein Dienst, keine Oberfläche.

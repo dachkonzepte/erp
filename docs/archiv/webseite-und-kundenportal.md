@@ -1322,7 +1322,7 @@ oben), dann ein Nachtrag zum Bedrohungsmodell, dann P1a.
 ### Bauplan P1, Nachtrag und Antworten des Betriebs (23.11.2026)
 
 Bauplan `bildgrundlage/bauplan_p1_e8bb2af.txt` und Nachtrag „Portal-Prozess übernommen“ `bildgrundlage/nachtrag_p1_bedrohungsmodell_e8bb2af.txt` (nicht in
-Git, nach der Bestätigung im Archiv der Berichte). Das Tragende:
+Git; seit 23.11.2026 in `C:\DACHKONZEPTE-ERP\Archiv\berichte\`, dort auch der Befund Webseite und der Bericht P1a). Das Tragende:
 
 - **Antworten P1-1 bis P1-15** (alle wie vorgeschlagen): P1-1 Codes über einen Postboten (Dienst unter dem Benutzer des ERP, Auftrag in der Datenbank);
   P1-2 Zugriffsprotokoll 24 Monate; P1-3 Portal-Mails nur über Microsoft 365 (Graph), mit SMTP lehnt das ERP sie ab; P1-4 Zugänge verwalten ab Büro – Auftrag,
@@ -1394,7 +1394,7 @@ Was gilt (Kurzfassung des Bauplans):
 - Archivschutz: `portal_zugaenge.customer_id` in `KEIN_TEIL` (Sperren geht auch im Archiv; ein neuer Zugang an einem Kunden im Archiv ist ein neuer Verweis
   und wird abgelehnt).
 
-#### Festlegungen 1.11.0 (Bitte bestätigen)
+#### Festlegungen 1.11.0 (bestätigt am 23.11.2026)
 
 1. Sechs Tabellen des Portals wie oben; die festen Werte als CHECK in der Datenbank, gleich `app/portal/werte.py` und der Migration.
 2. Das Portal ist am Kunden ab Werk aus (`customers.portal_aktiv`, auch für den Bestand).
@@ -1441,7 +1441,7 @@ Spalten mit festen Werten, `test_v793` den Zugang in `KEIN_TEIL`, `app/audit.py:
 - Migration `b5d1e8a3c247` trägt die Anweisungen wörtlich (nur PostgreSQL; unter SQLite nichts); jedes `create_all()` unter PostgreSQL legt sie ebenso an
   (`app/database.py`, wie `telefonbuch()`). Das Portal läuft damit nur gegen PostgreSQL.
 
-#### Festlegungen 1.11.1 (Bitte bestätigen)
+#### Festlegungen 1.11.1 (bestätigt am 23.11.2026)
 
 1. Alles an Link und Sitzung läuft über acht Funktionen der Datenbank mit SECURITY DEFINER; der Benutzer des Portals darf nur sie aufrufen, keinen Helfer und
    keine Tabelle.
@@ -1474,3 +1474,67 @@ neuer Code richtig, neuer Wert, 30 Tage, verbraucht; abgelaufen; Code einer ande
 fünf Sperren wirken sofort, die Rolle liest keine Tabelle und keinen Helfer (42501) und `pruefen()` ohne Abweichung, sieben Eingaben ohne Prüfwert schreiben
 nichts, `create_all()` legt die 14 Funktionen mit festem search_path an, Migration hinauf (keine für alle ausführbar) und herab, unter SQLite ohne Funktionen.
 `tests/test_v799_portal_rechte.py` prüft die Rechte jetzt samt EXECUTE. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.1“.
+
+### Antworten des Betriebs zum Bericht P1a (23.11.2026)
+
+Festlegungen 1.11.0-1 bis 1.11.1-13 bestätigt. Aufräumen: bestätigte Berichte, Bauplan P1, Nachtrag und der Befund Webseite liegen jetzt im Archiv der
+Berichte (`C:\DACHKONZEPTE-ERP\Archiv\berichte\`, SHA-256 geprüft) und werden dort gelesen; in `bildgrundlage/` bleiben nur Entwürfe, `lohn/`,
+`lohn_echt/` und der jeweils offene Bericht -- so nach jeder Bestätigung, ohne Erwähnung. Dann P1b wie geplant (Portal-Dienst ohne Oberfläche, gunicorn in
+requirements.txt).
+
+### Umsetzung 1.11.2: der Portal-Dienst -- Gerüst, Schranke, Startprüfung (P1b, Teil 1)
+
+- `app/portal/main.py::erzeugen()`: eigene FastAPI-App nur mit den Wegen des Portals (`app/portal/routen.py`), ohne Schnittstellen-Doku, ohne create_all() und
+  Grunddaten, in der Schranke. Gestartet mit `python -m gunicorn 'app.portal.main:erzeugen()' -w 1 -k uvicorn.workers.UvicornWorker` (ein Arbeitsprozess,
+  10 Fäden, Pool 3 + 3 Verbindungen, 10 Sekunden). Startprüfung: nur PostgreSQL, Revision der Datenbank = Kopf der Migrationen aus `alembic/` -- sonst kein
+  Start; im Journal „Portal verbunden als <Rolle>, Revision <rev>“.
+- `app/portal/einstellungen.py`: nur aus der Umgebung (`DATABASE_URL`, `PORTAL_HERKUNFT`, `PORTAL_BREMSE_SCHLUESSEL`, `ERP_ENV`), streng geprüft; fehlt
+  `ERP_ENV`, gilt production; http nur für localhost mit development oder test; keine Meldung nennt einen Wert.
+- `app/portal/schranke.py` (ASGI-Hülle um die App -- jede Antwort läuft hindurch, auch die 500 von Starlette): Host nur der eigene (421), Methoden nur GET,
+  HEAD, POST (405 mit Allow), Körper höchstens 16 KB (413, auch stückweise ohne Content-Length), schreibend nur same-origin bzw. passende Origin (403);
+  an jeder Antwort CSP ohne Inline-Skript mit Trusted Types, kein Einrahmen, nosniff, no-referrer, COOP/CORP, Permissions-Policy, no-store, HSTS außer lokal
+  und in Tests. Eine Ausnahme nach der Antwort fängt die Schranke und protokolliert nur ihre Klasse (sonst schriebe uvicorn ihren Text ins Journal).
+- Fehler als JSON mit festem Wort (`{"fehler": …}`): 500 ohne Detail, 503 bei leerem Pool, 422 bei falscher Eingabe.
+- `app/portal/tabellen.py`: die Core-Tabellen des Dienstes = `rechte.LESEN` (Firmendaten, Revision). `app/portal/datenbank.py`: eigene Engine.
+- Öffentliche Wege: `/health` (GET, HEAD -- der Dienst erreicht die Datenbank, sonst 503) und `/api/kontakt` (Firmendaten aus den Einstellungen, P1-14).
+- Server-Dateien: `scripts/server/erp-portal.service` (dkportal, nur app/, alembic/, alembic.ini, .venv lesend in /srv/erp-code, ProtectHome=tmpfs,
+  ProtectSystem=strict, MemoryHigh 200M, MemoryMax 256M, ohne --forwarded-allow-ips und ohne Zugriffsprotokoll), `scripts/server/nginx-kunde.conf` (E4-
+  Kopfzeilen, Begrenzung je Anschluss, Protokoll ohne Adresse und ohne Abfrage, Fehler ab „error“, Meldungen der Begrenzung nicht im Fehlerprotokoll,
+  16 KB, Port 80 nur ACME und Umleitung), `scripts/server/portal.env.beispiel` (Muster ohne Werte).
+- `requirements.txt`: `gunicorn>=22.0,<24.0` (P1-12; die Version vom Server liest S0 -- liegt sie außerhalb, wird der Bereich angepasst).
+- Speichermessung lokal (Windows, Working Set des Prozessbaums nach 50 Anfragen): Portal 90 MB, ERP 189 MB je Prozess -- passt zur Betreiberangabe (ERP
+  rund 380 MB mit zwei Prozessen); Grenze des Portals MemoryHigh 200M / MemoryMax 256M.
+
+#### Festlegungen 1.11.2 (Bitte bestätigen)
+
+1. Der Portal-Dienst ist eine eigene App nur mit den Wegen des Portals; jeder Weg steht in genau einer Liste (öffentlich, Vorstufe, Sitzung); kein Weg des
+   ERP, keine Schnittstellen-Doku.
+2. Host nur der aus `PORTAL_HERKUNFT`, sonst 421.
+3. Methoden nur GET, HEAD und POST, sonst 405.
+4. Körper höchstens 16 KB, sonst 413 -- auch ohne Content-Length.
+5. Schreibend nur von der eigenen Seite (Sec-Fetch-Site same-origin, sonst Origin gleich der Herkunft), sonst 403.
+6. An jeder Antwort die Schutz-Kopfzeilen und no-store; HSTS außer lokal und in Tests.
+7. Fehler ohne Detail (500), leerer Pool 503; im Protokoll nur die Klasse einer Ausnahme.
+8. Einstellungen nur aus der Umgebung, streng geprüft; fehlt `ERP_ENV`, gilt production; keine Meldung nennt einen Wert.
+9. Start nur gegen PostgreSQL und nur, wenn die Revision der Datenbank dem Kopf der Migrationen entspricht; im Journal Rolle und Revision.
+10. Ein Arbeitsprozess mit 10 Fäden, Pool 3 + 3 Verbindungen, 10 Sekunden.
+11. Der Dienst liest nur seine Core-Tabellen (= `rechte.LESEN`).
+12. Öffentlich nur `/health` und `/api/kontakt` (Firmendaten).
+13. Server-Dateien: die Einheit (dkportal, nur app/, alembic/, alembic.ini, .venv lesend, Speichergrenzen, ohne --forwarded-allow-ips, ohne
+    Zugriffsprotokoll), der nginx-Block (E4, Begrenzung je Anschluss, Protokoll ohne Adresse und ohne Abfrage, Fehlerprotokoll ab „error“ -- dort steht bei
+    einem Fehler die Adresse --, 16 KB) und das Muster der Umgebung ohne Werte.
+14. gunicorn steht in requirements.txt (Bereich, abgeglichen mit dem Server in S0).
+
+#### Tests und Prüfung 1.11.2
+
+Neu `tests/test_v801_portal_dienst.py` (70): Wege und Listen, jeder Pfad des ERP 404 (über 400), keine Doku, fremder Host (fünf), sieben Methoden auf drei
+Pfaden, zehn Fälle der Herkunft, Körper (genau 16 KB, 1 Byte mehr, stückweise, kaputte Länge), Kopfzeilen an jeder Art Antwort, 500 ohne Detail und Protokoll
+nur mit Klasse, HSTS je Umgebung, Pool, zehn Fäden, `/health`, `/api/kontakt`, Einstellungen (gut und dreizehn falsche), Startprüfung (SQLite, als Rolle
+`dkportal_test` gegen PostgreSQL, Revision weicht ab), Kontakt als Rolle, Core-Tabellen, Einheit, nginx, Muster der Umgebung, requirements; Angriffe mit
+rohen Anfragen gegen einen echten uvicorn (h11, httptools): neun Methoden, sechs Pfade, vier Kopf-Varianten -- erreicht nur GET/HEAD auf `/health` und
+`/api/kontakt` mit dem eigenen Host. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.2“.
+
+Die volle Suite fand vor dem Commit einen roten Wächter: `tests/test_v384_pg_nicht_public.py` (Regel 27) las die Parameter von
+`test_einstellung_falsch_kein_start_und_kein_wert_in_der_meldung` -- Wörterbücher mit dem Schlüssel `DATABASE_URL` im Dekorator -- als Übergabe an
+einen Kindprozess. Einen Kindprozess gibt es dort nicht; der Test nimmt jetzt Paare (Name, Inhalt), der Wächter bleibt unverändert. Beide
+Gegenproben zu Nr. 8 danach noch einmal rot.

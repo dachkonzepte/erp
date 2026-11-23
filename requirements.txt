@@ -1,5 +1,6 @@
 fastapi>=0.121,<1.0  # seit 1.8.114: Depends(get_db, scope="function") -- die Sitzung schließt vor dem Senden (app/database.py)
 uvicorn[standard]>=0.30,<1.0
+gunicorn>=22.0,<24.0  # seit 1.11.2 (P1-12): Server-Prozesse von ERP und Kundenportal mit UvicornWorker -- nur unter Linux; lokal startet uvicorn
 sqlalchemy>=2.0,<3.0
 pydantic>=2.10,<3.0
 python-multipart>=0.0.20,<1.0

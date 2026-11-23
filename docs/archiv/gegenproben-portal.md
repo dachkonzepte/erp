@@ -68,3 +68,39 @@ geprüften Grund, alle Dateien byte-gleich zurück. Drei Proben brauchten eine z
 | Nr. 12 – Migration wörtlich | ein Wert anders in der Migration | 1 rot |
 | Nr. 12 – create_all legt sie an | Ereignis weg | 1 rot |
 | Nr. 13 – Modul ohne Zeile aus | ohne Zeile an | 1 rot |
+
+## 1.11.2: der Portal-Dienst -- Gerüst, Schranke, Startprüfung
+
+Probendatei `gp_1112.py` (Fälle einzeln wählbar), Lauf mit `tests/test_v801_portal_dienst.py` und je Fall einem Ausschnitt (`-k`); alle 23 rot aus dem
+geprüften Grund, alle Dateien byte-gleich zurück. Drei Proben brauchten eine zweite Fassung:
+- „Ein Weg außerhalb der Listen“: der Test „kein Weg des ERP“ übersprang zuerst jeden Weg, der im Router steht -- auch den eingeschmuggelten. Er misst jetzt
+  gegen die erklärten Listen; danach beide rot.
+- „Schnittstellen-Doku an“: die erste Ersetzung kommentierte den Rest des Aufrufs aus (ERROR statt FAILED); danach rot.
+- „Herkunft nicht geprüft“ erwartete zuerst auch den Angriff gegen den echten uvicorn rot -- in 1.11.2 gibt es noch keinen schreibenden Weg, die Probe
+  zeigt sich nur am Test der Herkunft (ab 1.11.3 auch an den Wegen der Sitzung).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur die erklärten Wege | ein Weg `/api/customers` außerhalb der Listen | 2 rot |
+| Nr. 1 – keine Schnittstellen-Doku | `/docs` und `/openapi.json` an | 1 rot |
+| Nr. 2 – Host nur der eigene | Prüfung weg | 6 rot (fünf Hosts, echter uvicorn) |
+| Nr. 3 – nur GET, HEAD, POST | PUT erlaubt | 3 rot |
+| Nr. 4 – höchstens 16 KB | 64 KB | 1 rot |
+| Nr. 5 – schreibend nur von der eigenen Seite | Prüfung weg | 7 rot (jeder fremde Fall) |
+| Nr. 6 – Schutz-Kopfzeilen an jeder Antwort | X-Frame-Options fehlt | viele rot (jede Art Antwort) |
+| Nr. 6 – no-store von selbst | fehlt | 1 rot |
+| Nr. 6 – HSTS nur außerhalb von Test und Entwicklung | immer | 1 rot |
+| Nr. 7 – 500 ohne Detail | Text in der Antwort | 1 rot |
+| Nr. 7 – im Protokoll nur die Klasse | Text im Protokoll | 1 rot |
+| Nr. 7 – leerer Pool 503 | als 500 | 1 rot |
+| Nr. 8 – ohne ERP_ENV production | development | 1 rot |
+| Nr. 8 – keine Meldung nennt einen Wert | Herkunft in der Meldung | 1 rot |
+| Nr. 9 – Start nur auf dem Stand der Migrationen | Revision nicht geprüft | 1 rot |
+| Nr. 10 – Pool 3 + 3 | 5 + 35 | 1 rot |
+| Nr. 10 – 10 Fäden | 40 | 1 rot |
+| Nr. 11 – nur die Core-Tabellen | eine Spalte mehr (IBAN) | 1 rot |
+| Nr. 12 – `/health` prüft die Datenbank | immer gesund | 1 rot |
+| Nr. 13 – Einheit mit Speichergrenze | MemoryMax fehlt | 1 rot |
+| Nr. 13 – gunicorn vertraut nur 127.0.0.1 | `--forwarded-allow-ips '*'` | 1 rot |
+| Nr. 13 – nginx protokolliert keine Adresse | `$remote_addr` im Format | 1 rot |
+| Nr. 14 – gunicorn in requirements.txt | fehlt | 1 rot |

@@ -1,0 +1,53 @@
+# Kundenportal (seit 1.11.2, Stufe P1b) -- der Portal-Dienst unter dem eigenen Systembenutzer dkportal, ein Arbeitsprozess hinter nginx.
+# Einrichten: docs/archiv/webseite-und-kundenportal.md, „Server-Schritte P1“ (S0–S10); vorher /srv/erp-code anlegen (sudo mkdir -p /srv/erp-code).
+# Der Dienst sieht vom Repo nur app/, alembic/, alembic.ini und .venv -- nur lesend; .env, .git, data/, docs/, tests/, bildgrundlage/ sind gar nicht da,
+# /home ist leer (ProtectHome=tmpfs). Liegt in app/, alembic/ oder .venv ein Geheimnis (S0: git status --ignored), kommt es vor dem Start in
+# InaccessiblePaths= (unten). Kein --forwarded-allow-ips: gunicorn vertraut X-Forwarded-For nur von 127.0.0.1 (nginx) -- E4.
+[Unit]
+Description=ERP: Kundenportal (kunde.dachkonzepte.gmbh)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=dkportal
+Group=dkportal
+EnvironmentFile=/etc/dk-portal/portal.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/srv/erp-code
+WorkingDirectory=/srv/erp-code
+TemporaryFileSystem=/srv/erp-code
+BindReadOnlyPaths=/home/tobias/erp/app:/srv/erp-code/app
+BindReadOnlyPaths=/home/tobias/erp/alembic:/srv/erp-code/alembic
+BindReadOnlyPaths=/home/tobias/erp/alembic.ini:/srv/erp-code/alembic.ini
+BindReadOnlyPaths=/home/tobias/erp/.venv:/srv/erp-code/.venv
+# InaccessiblePaths=/srv/erp-code/app/<Geheimnis aus S0>
+ExecStart=/srv/erp-code/.venv/bin/python -m gunicorn 'app.portal.main:erzeugen()' --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8010 --timeout 30 --graceful-timeout 10 --max-requests 2000 --max-requests-jitter 200
+Restart=on-failure
+RestartSec=5
+MemoryHigh=200M
+MemoryMax=256M
+TasksMax=64
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
