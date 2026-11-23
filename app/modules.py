@@ -21,15 +21,21 @@ OPTIONAL_MODULES = {
     "buchhaltung": "Buchhaltung (Eingangsrechnungen)",
     "kalender": "Kalender (Büro-Termine)",
     "checklisten": "Checklisten & Formulare",
+    "kundenportal": "Kundenportal",
 }
+
+# Seit 1.11.0 (Kundenportal, P1-13): Module, die ab Werk aus sind -- fehlt ihre Zeile, gelten sie als aus (sonst: aktiv). Ein solches Modul ändert also
+# beim Einspielen nichts an einer Installation, bis ein Admin es einschaltet. Die Funktionen der Datenbank des Portals lesen die Zeile genauso.
+AB_WERK_AUS = frozenset({"kundenportal"})
 
 
 def is_module_enabled(db: Session, module_key: str) -> bool:
     """Fehlt eine Zeile für module_key, gilt das Modul als aktiv (Opt-out statt
     Opt-in) -- ein neuer Registry-Eintrag ändert dadurch nie stillschweigend etwas an
-    einer bestehenden Installation, bis ein Admin ihn bewusst abschaltet."""
+    einer bestehenden Installation, bis ein Admin ihn bewusst abschaltet. Ausnahme seit
+    1.11.0: ein Modul in AB_WERK_AUS gilt ohne Zeile als aus (Kundenportal)."""
     row = db.scalar(select(EnabledModule).where(EnabledModule.module_key == module_key))
-    return row.enabled if row is not None else True
+    return row.enabled if row is not None else module_key not in AB_WERK_AUS
 
 
 def stored_module_states(db: Session) -> dict[str, bool]:
@@ -40,7 +46,7 @@ def stored_module_states(db: Session) -> dict[str, bool]:
 
 def module_enabled_in(states: dict[str, bool], module_key: str) -> bool:
     """is_module_enabled() auf den Zuständen aus stored_module_states()."""
-    return states.get(module_key, True)
+    return states.get(module_key, module_key not in AB_WERK_AUS)
 
 
 def list_module_states(db: Session) -> list[dict]:

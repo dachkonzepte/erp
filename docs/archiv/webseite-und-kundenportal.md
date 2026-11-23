@@ -77,6 +77,7 @@ Empfangsdienstes (webseite-2026-11-18a, anfrage-2026-11-18a); sie liegen nicht i
 - **P1 Fundament des Portals:** eigener Dienst unter kunde.dachkonzepte.gmbh mit eigenem PostgreSQL- und Systembenutzer, Schranke, Zugänge je Kunde (ab
   Werk aus), Link, Code per Mail, Sitzung, Bremsen und Zugriffsprotokoll in der Datenbank, Mailweg ohne „Gesendete Elemente“, Beleg zu E4.
 - **P2 Lesen**, **P3 Angebot annehmen** (nach Bestätigung von F6), **P4 Ausführung**, **P5 Hausverwaltungen**.
+- W1 abgeschlossen am 23.11.2026; P1 ab 1.11.0 (Abschnitt „P1: Fundament des Kundenportals“ unten).
 
 ## W1a: Abholen und Eingang (ab 1.10.0)
 
@@ -1250,7 +1251,7 @@ Projekte“ ein Projekt im Archiv „Abgeschlossen“ (im Klicktest P-2026-0902,
 - Im Rahmen, der rollt, bricht die Nummer eines Angebots nicht mehr um (`td.nw`, Übersicht und Reiter -- beide zeichnen dieselbe Tabelle); bei 412 px stand sie
   bis dahin auf drei Zeilen („A- / 2026- / 0903“). Wie die Nummer der Rechnungsliste (`.rl-num`).
 
-#### Festlegungen 1.10.25 (Bitte bestätigen)
+#### Festlegungen 1.10.25 (bestätigt am 23.11.2026)
 
 1. Jede Tabelle der Akte steht in einem Rahmen, der waagrecht rollt (`tabelle-wrap`) -- auch „Angebote“ in der Übersicht eines Projekts ohne Auftrag; bei 412 px
    läuft die Akte nicht über. Eine neue Tabelle der Akte kommt in einen solchen Rahmen (der Test findet jedes Element, in das das Skript eine Tabelle zeichnet).
@@ -1272,7 +1273,7 @@ Akte. Gegenproben: `gegenproben-webseite.md`, „1.10.25“.
   Fehler 404 mit derselben Meldung; nichts wird angelegt, keine Datei geschrieben. Anlegen und Ändern antworteten schon mit 404 und gehen denselben Weg.
 - Der Rundgang des Archivs lässt seither keine 500 mehr zu (bis 1.10.25 zählte er sie nur auf).
 
-#### Festlegungen 1.10.26 (Bitte bestätigen)
+#### Festlegungen 1.10.26 (bestätigt am 23.11.2026)
 
 1. Ein Schreibweg der Arbeitsvorbereitung mit einem unbekannten Auftrag antwortet mit 404 „Auftrag nicht gefunden.“ und hinterlässt nichts (keine
    Arbeitsvorbereitung, keine Zuordnung, keine Datei).
@@ -1297,7 +1298,7 @@ Klicktest (keine Seite ruft die Routen mit einem unbekannten Auftrag auf; die Se
 - Unverändert: ein archiviertes Projekt mit Auftrag ist nicht im Archiv der Aufbewahrung und bleibt „Abgeschlossen“; das Kennzeichen „archiviert“ an der
   Projektzeile im Reiter „Projekte“ bleibt (wie „· archiviert“ im Kopf der Akte).
 
-#### Festlegungen 1.10.27 (Bitte bestätigen)
+#### Festlegungen 1.10.27 (bestätigt am 23.11.2026)
 
 1. Unter „Laufende Projekte“ der Kundenakte steht ein Projekt im Archiv (archiviert, ohne Auftrag) in der Zeile „Im Archiv: …“, nicht unter „Abgeschlossen“.
 2. „Im Archiv“ heißt dort dasselbe wie an Akte, Angebot und Suche: archiviert und ohne Auftrag -- ein archiviertes Projekt mit Auftrag bleibt „Abgeschlossen“.
@@ -1310,3 +1311,114 @@ Neu `tests/test_v798_kundenakte_im_archiv.py` (Server: `im_archiv` nur archivier
 Zeile). `scripts/klicktest_nur_lesen.py`: die Kundenakte im Archiv nennt „Kein laufendes Projekt.“ und „Im Archiv: P-2026-0902 Neues Dach“; nach dem Zurückholen
 steht das Projekt unter den laufenden, die Zeile fehlt (37 Prüfungen, bisher 35). Unverändert grün: `klicktest_kundenakte` („Abgeschlossen: P-2025-0064 …“, ein
 Projekt mit Auftrag). Gegenproben: `gegenproben-webseite.md`, „1.10.27“.
+
+### Antworten des Betriebs zum Bericht F12/F13 (23.11.2026)
+
+Festlegungen 1.10.25-1 bis 1.10.27-3 bestätigt. W1 ist abgeschlossen. Nächste Stufe P1 -- zuerst nur ein Bauplan (Befund Abschnitt 4 und 5, Entscheidungen
+oben), dann ein Nachtrag zum Bedrohungsmodell, dann P1a.
+
+## P1: Fundament des Kundenportals (ab 1.11.0)
+
+### Bauplan P1, Nachtrag und Antworten des Betriebs (23.11.2026)
+
+Bauplan `bildgrundlage/bauplan_p1_e8bb2af.txt` und Nachtrag „Portal-Prozess übernommen“ `bildgrundlage/nachtrag_p1_bedrohungsmodell_e8bb2af.txt` (nicht in
+Git, nach der Bestätigung im Archiv der Berichte). Das Tragende:
+
+- **Antworten P1-1 bis P1-15** (alle wie vorgeschlagen): P1-1 Codes über einen Postboten (Dienst unter dem Benutzer des ERP, Auftrag in der Datenbank);
+  P1-2 Zugriffsprotokoll 24 Monate; P1-3 Portal-Mails nur über Microsoft 365 (Graph), mit SMTP lehnt das ERP sie ab; P1-4 Zugänge verwalten ab Büro – Auftrag,
+  die Monteurin nie, das Modul nur der Admin; P1-5 „neu erzeugen“ beendet alle Sitzungen des Zugangs; P1-6 „Auf allen Geräten abmelden“ schon in P1; P1-7
+  Texte der Portal-Mails fest im Code; P1-8 Protokoll von nginx für kunde.… ohne IP-Adresse und ohne Abfrage; P1-9 E4 auch für das ERP belegen (Zählung
+  ohne Adressen); P1-10 die Karte „Kundenportal“ im ERP nach dem Muster der Kundenakte, Bilder aller Zustände im Bericht; P1-11 lokale Testrolle
+  `dkportal_test` (angelegt: NOLOGIN, `GRANT dkportal_test TO erp WITH INHERIT FALSE, SET TRUE`); P1-12 gunicorn in requirements.txt (P1b); P1-13 Version
+  1.11.0 für das neue Modul, Modul „Kundenportal“ ab Werk aus (Notaus); P1-14 Kontakt aus den Firmendaten der Einstellungen; P1-15 ein Zugang je Kunde mit
+  eigener E-Mail (vorbelegt mit der des Kunden), mehrere erst mit P5.
+- **Nachtrag N1 (Bedrohungsmodell „Portal-Prozess übernommen“):** alles an Link und Sitzung läuft über Funktionen der Datenbank (SECURITY DEFINER, Eigentümer
+  der Benutzer des ERP) -- Link öffnen, Code anfordern, Stand des Versands, Code prüfen, Sitzung prüfen, verlängern, abmelden, Willkommen. Der Benutzer des
+  Portals hat danach nur EXECUTE darauf und liest sonst nur die Firmendaten und die Revision -- keine Tabelle `portal_*`, kein `customers`. Ohne Link kann ein
+  übernommener Prozess keine Sitzung anlegen und keine Namen lesen. Code, Link und Cookie gehen nur als Prüfwert in die Datenbank (SHA-256 mit Zweck, in
+  Python gerechnet; der Code nie, auch nicht als Parameter im Log). Zeit nur `now()` der Datenbank. Die Begrüßung als Kopie am Zugang (Punkt a) entfällt;
+  ab P2 Lese-Funktionen statt Row-Level-Security und die PDFs über einen Dienst unter dem Benutzer des ERP (die Ablage liegt auf der Platte -- Rechte der
+  Datenbank schützen sie nicht). Umgesetzt in P1a als 1.11.1.
+- **Ergänzungen:** S0 nennt die Dateien im Repo-Ordner des Servers, die nicht in Git sind (`git status --ignored --short`, nur Namen); jedes Geheimnis außer
+  .env kommt vor S6 in InaccessiblePaths (vorgeschlagen zusätzlich: der Dienst sieht nur app/, alembic/, alembic.ini, .venv). S0 belegt, dass der Benutzer des
+  ERP kein Superuser ist und weder Rollen anlegen noch Zeilenrechte umgehen darf (rolsuper, rolcreaterole, rolbypassrls = false) -- die Funktionen laufen mit
+  seinen Rechten; `scripts/portal_rechte.py --pruefen` meldet es ebenso. Protokolle: nginx täglich gewechselt, 14 alte Dateien (höchstens 15 Tage), das
+  Journal 14 Tage.
+
+Was gilt (Kurzfassung des Bauplans):
+
+- **Dienst:** eigene ASGI-App `app/portal` (nur die Wege des Portals, kein Router des ERP), Systembenutzer `dkportal`, gunicorn mit einem Arbeitsprozess auf
+  127.0.0.1:8010 hinter nginx unter kunde.dachkonzepte.gmbh, MemoryHigh 200M / MemoryMax 256M, gestartet über `.venv/bin/python -m gunicorn`, eigene
+  Umgebung `/etc/dk-portal/portal.env` (DATABASE_URL der Rolle dkportal, ERP_ENV, PORTAL_HERKUNFT, PORTAL_BREMSE_SCHLUESSEL); Start nur, wenn die Revision der
+  Datenbank zum Code passt. Das Paket importiert aus dem ERP nur `app.portal`, `app.berlin_time`, `app.design_dateien`.
+- **Datenbank-Benutzer `dkportal`:** kein Superuser, legt nichts an, erbt nichts, CONNECTION LIMIT 10, statement_timeout 5 s, idle_in_transaction 15 s,
+  pg_hba nur Datenbank dachkonzepte über 127.0.0.1 (jede andere `reject`). Rechte nur aus `app/portal/rechte.py`, gesetzt und geprüft von
+  `scripts/portal_rechte.py` als Benutzer des ERP nach jeder Migration (update.sh), nie in einer Migration.
+- **Postbote** (`erp-portalpost`, Benutzer des ERP): hört mit LISTEN (NOTIFY nur als Weckruf), erzeugt den Code, speichert nur den Prüfwert, sendet über
+  `dispatch_email()` ohne „Gesendete Elemente“ (Betreff fest, ohne Code), prüft die Grenzen ein zweites Mal, räumt auf (Codes 24 Stunden, Sitzungen 30 Tage
+  nach dem Ende, Bremsen 48 Stunden, Protokoll 24 Monate) und meldet einen Stau auf „Start“.
+- **Sicherheit:** Link 32 Byte im #-Fragment, nur als Prüfwert gespeichert, gültig 12 Monate; ungültig, abgelaufen, gesperrt, aus und Archiv sehen von außen
+  gleich aus. Code 6 Ziffern, 10 Minuten, 5 Versuche, nur für die unbestätigte Sitzung, die ihn anforderte. Sitzung im Cookie `__Host-dkportal` (Secure,
+  HttpOnly, SameSite=Strict), 30 Tage gleitend über POST (kein GET schreibt), neuer Wert nach dem Code. Bremsen und Protokoll in der Datenbank. CSP ohne
+  Inline-Skript, Trusted Types, im Skript des Portals kein innerHTML; Host nur kunde.…, schreibend nur same-origin, Methoden nur GET/HEAD/POST; jede Antwort
+  über eine Positivliste; Angriffstests mit allen Methoden, fremder Herkunft, fremden Kennungen.
+- **Server-Schritte S0–S10:** S0 Bestand lesen (Speicher, Port, Rechte der Dateien, Versionen, Dateien außerhalb von Git, Log-Einstellungen von PostgreSQL,
+  Attribute des Benutzers des ERP); S1 DNS; S2 Systembenutzer; S3 Datenbank-Benutzer (Passwort nie angezeigt, über stdin, log_statement none); S4 Schlüssel der
+  Bremsen; S5 Einspielen mit update.sh samt Rechten; S6 systemd; S7 nginx und Zertifikat; S8 Nachweis E4 ohne Adressen; S9 Rauchtest; S10 update.sh für
+  zwei Dienste. Befehle je Schritt im Bauplan; ins Archiv mit P1f.
+- **Datenschutzerklärung (für den Webseiten-Chat):** Zweck, Rechtsgrundlagen, Daten (Name, E-Mail des Zugangs, Sitzungen, Zugriffsprotokoll, Codes nur als
+  Prüfwert, Anschluss nur als HMAC, Protokoll von nginx ohne IP), ein notwendiges Cookie, Mails über Microsoft 365, Fristen (Code 10 Minuten / Prüfwert 24
+  Stunden, Sitzung 30 Tage nach letzter Nutzung + 30 Tage, Bremsen 48 Stunden, Zugriffsprotokoll 24 Monate, nginx höchstens 15 Tage, Journal 14 Tage).
+- **Runden:** P1a Daten, Rechte, Wächter (1.11.0) und Funktionen der Datenbank (1.11.1); P1b Dienst ohne Oberfläche; P1c Postbote und Mails; P1d Karte
+  „Kundenportal“; P1e Seiten nach den Entwürfen des Betriebs; P1f Inbetriebnahme. Für die Stufe 2 der Aufbewahrung vermerkt: die E-Mail am Zugang
+  (`portal_zugaenge.email`) gehört zu den Daten, die beim Löschen bzw. Anonymisieren eines Kunden mitgehen.
+
+### Umsetzung 1.11.0: Tabellen und Rechte des Kundenportals (P1a, Teil 1)
+
+- Neue Spalte `customers.portal_aktiv` (Pflicht, Vorgabe aus -- nur als Vorgabe der Datenbank: eine Vorgabe in Python schrieb ein Core-Insert der
+  Migrationsproben alter Stände mit, Fund `test_v380` in der vollen Suite; Name in der Änderungshistorie „Kundenportal an“) und sechs Tabellen ohne
+  Bestand (Migration `4f8a2c6e1b97`): `portal_zugaenge` (einer je Kunde,
+  eigene E-Mail und ihre verdeckte Anzeige, Link nur als Prüfwert, gültig bis, gesperrt mit Grund), `portal_sitzungen` (nur der Prüfwert des Cookies,
+  unbestätigt/bestätigt, beendet mit Grund), `portal_codes` (nur Prüfwerte, Versuche), `portal_post` (Aufträge an den Postboten), `portal_zugriffe` (nur
+  feste Wörter, ohne Adresse) und `portal_bremsen` (Zähler je Schlüssel und Fenster). Die festen Werte stehen in `app/portal/werte.py`, als CHECK in der
+  Datenbank und wörtlich in der Migration.
+- `app/portal/rechte.py`: was der Benutzer des Portals darf -- heute nur lesen: `general_settings` (id, Firmenname, Anschrift, Telefon, E-Mail, Webseite) und
+  `alembic_version`; Funktionen ab 1.11.1. `setzen()` nimmt jedes andere Recht der Rolle auf Tabellen, Sequenzen und Funktionen des Schemas weg, macht eigene
+  Funktionen nicht mehr für alle ausführbar (auch künftige, ALTER DEFAULT PRIVILEGES) und setzt genau diese Rechte, in einer Transaktion; `pruefen()` liest nur
+  und meldet jede Abweichung -- auch einen Benutzer des ERP mit Superuser, CREATEROLE oder BYPASSRLS und eine Rolle mit Sonderrechten, Vererbung oder
+  Mitgliedschaft. `scripts/portal_rechte.py --setzen | --pruefen` (0 in Ordnung, 1 Abweichung, 2 ohne DATABASE_URL oder ohne PostgreSQL).
+- Modul „Kundenportal“ in der Registry, ab Werk aus: `app/modules.py::AB_WERK_AUS` -- ohne Zeile gilt ein solches Modul als aus (bisher hieß „ohne Zeile“
+  immer „aktiv“). Ein Admin schaltet es unter Einstellungen → Module ein; die Funktionen der Datenbank (1.11.1) lesen die Zeile genauso.
+- Adressimport: ein Zugang zum Portal ist eine Verwendung des Kunden -- ein Lauf mit einem solchen Kunden lässt sich nicht mehr rückgängig machen (sonst
+  scheiterte das Löschen des Kunden am Fremdschlüssel).
+- Archivschutz: `portal_zugaenge.customer_id` in `KEIN_TEIL` (Sperren geht auch im Archiv; ein neuer Zugang an einem Kunden im Archiv ist ein neuer Verweis
+  und wird abgelehnt).
+
+#### Festlegungen 1.11.0 (Bitte bestätigen)
+
+1. Sechs Tabellen des Portals wie oben; die festen Werte als CHECK in der Datenbank, gleich `app/portal/werte.py` und der Migration.
+2. Das Portal ist am Kunden ab Werk aus (`customers.portal_aktiv`, auch für den Bestand).
+3. Das Modul „Kundenportal“ ist ab Werk aus -- ohne Zeile aus (`AB_WERK_AUS`); nur ein Admin schaltet es ein.
+4. Der Benutzer des Portals darf nur, was `app/portal/rechte.py` nennt: heute nur die acht Spalten der Firmendaten und die Revision lesen; keine Tabelle
+   `portal_*`, keine Kundendaten, kein Schreiben.
+5. Jede Tabelle ist eingeordnet (`KEIN_ZUGRIFF` in `tests/test_v799_portal_rechte.py`); Konten, Sitzungen, Geheimnisse, Personal, Lohn, Zeiten, Protokolle,
+   Kundendaten und die Tabellen des Portals nie zum Lesen (`VERBOTEN`); eine weitere Tabelle zum Lesen nur nach Entscheidung des Betriebs.
+6. `scripts/portal_rechte.py --setzen` setzt genau diese Rechte (alles andere fällt weg, eigene Funktionen nicht für alle ausführbar), `--pruefen` meldet jede
+   Abweichung samt Benutzer des ERP mit Superuser, CREATEROLE oder BYPASSRLS; Rückgabe 0/1/2.
+7. Rechte stehen nie in einer Migration; gesetzt und geprüft nach jeder Migration als Benutzer des ERP (update.sh, ab der Inbetriebnahme, P1f).
+8. Das Paket `app/portal` importiert aus dem ERP nur `app.portal`, `app.berlin_time`, `app.design_dateien`.
+9. Ein Zugang zum Portal ist eine Verwendung des Kunden: ein Adressimport mit einem solchen Kunden wird nicht rückgängig gemacht.
+10. Die Migration lässt sich nicht herabstufen, solange ein Zugang besteht oder ein Kunde das Portal an hat.
+11. Der Zugang zählt nicht zum Vorgang des Archivs: Sperren geht im Archiv, ein neuer Zugang an einem Kunden im Archiv wird abgelehnt.
+
+#### Tests und Prüfung 1.11.0
+
+Neu `tests/test_v799_portal_rechte.py` (18): jede Tabelle eingeordnet, VERBOTEN nie lesbar, LESEN genau, Spalten vorhanden, Namen geprüft, CHECK = werte.py =
+Migration, Importe des Pakets, Modul ab Werk aus, Portal am Kunden ab Werk aus, Adressimport, Archiv (neuer Zugang abgelehnt, Sperren geht), Skript ohne
+Datenbank; gegen PostgreSQL mit der Testrolle `dkportal_test` im Wegwerf-Schema: setzen und prüfen ohne Abweichung (zweimal), unter SET ROLE nur die erlaubten
+Spalten, jede Tabelle des Modells mit SELECT * verweigert (42501), Schreiben, Sequenz, eigene Funktion und CREATE verweigert, `pruefen()` meldet acht
+eingebaute Abweichungen und `setzen()` räumt sie ab, Rolle fehlt, Tabelle fehlt; die Migration auf einem Bestand unter SQLite und PostgreSQL (Bestand: Portal
+aus, CHECK greift, Downgrade bricht mit Zugang und mit Portal an ab, sonst zurück und wieder hinauf). Angepasste Erwartung: `tests/test_v197_module_toggle.py::
+test_list_module_states_covers_registry` -- bis 1.10.27 „jedes Modul ohne Zeile aktiv“, jetzt „aktiv außer AB_WERK_AUS“. Aufbau: `test_v364` kennt die fünf
+Spalten mit festen Werten, `test_v793` den Zugang in `KEIN_TEIL`, `app/audit.py::FIELD_LABELS` den Namen „Kundenportal an“
+(`test_v436`, `test_v438`). Gegenproben: `gegenproben-portal.md`, „1.11.0“.

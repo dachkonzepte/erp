@@ -41,7 +41,9 @@ def test_list_module_states_covers_registry():
     db = db_session()
     states = list_module_states(db)
     assert {s["module_key"] for s in states} == set(OPTIONAL_MODULES)
-    assert all(s["enabled"] for s in states)
+    # seit 1.11.0: ohne Zeile aktiv -- außer den Modulen, die ab Werk aus sind (Kundenportal, app/modules.py::AB_WERK_AUS)
+    from app.modules import AB_WERK_AUS
+    assert all(s["enabled"] is (s["module_key"] not in AB_WERK_AUS) for s in states)
 
 
 def test_update_module_route_wires_require_admin_dependency():

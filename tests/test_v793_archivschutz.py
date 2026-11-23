@@ -57,6 +57,8 @@ KEIN_TEIL = {
     ("time_entries", "project_id"): "Zeitbuchung hängt am Auftrag",
     ("time_entry_groups", "project_id"): "Zeitbuchung hängt am Auftrag",
     ("work_preparation_delivery_notes", "project_document_id"): "Arbeitsvorbereitung hängt am Auftrag",
+    ("portal_zugaenge", "customer_id"): "Zugang zum Kundenportal (seit 1.11.0): Sperren muss auch im Archiv gehen; im Archiv wirkt kein Zugang -- die "
+                                        "Funktionen der Datenbank prüfen das Archiv des Kunden selbst; ein neuer Zugang ist ein neuer Verweis (abgelehnt)",
 }
 
 # Schreibende Routen, deren Pfad einen Teil nennt, ohne archiv_vorab() -- je mit Grund

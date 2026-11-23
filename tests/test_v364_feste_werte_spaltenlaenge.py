@@ -152,6 +152,12 @@ FESTE_WERTE = {
     "inquiries.status": [("app.routers.inquiries", "mod.INQUIRY_STATUSES")],
     "inquiries.priority": [("app.routers.inquiries", "mod.INQUIRY_PRIORITIES")],
     "webanfragen.status": [("app.webanfragen", "mod.STATUS")],  # seit 1.10.0 (Stufe W1a): Eingang der Anfragen der Webseite
+    # seit 1.11.0 (Stufe P1a): Kundenportal -- die Werte stehen in app/portal/werte.py und als CHECK in der Datenbank
+    "portal_post.status": [("app.portal.werte", "mod.POST_STATUS")],
+    "portal_post.art": [("app.portal.werte", "mod.POST_ARTEN")],
+    "portal_sitzungen.beendet_grund": [("app.portal.werte", "mod.SITZUNG_ENDE")],
+    "portal_zugriffe.aktion": [("app.portal.werte", "mod.AKTIONEN")],
+    "portal_zugriffe.ergebnis": [("app.portal.werte", "mod.ERGEBNISSE")],
     "inspection_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],
     "inspection_items.result": [("app.service_report_pdf", "mod.RESULT_LABELS")],
     "inspection_template_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],

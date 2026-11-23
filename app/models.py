@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Ind
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
+from .portal import werte as portal_werte
 from .telefonbuch import nach_namen
 
 
@@ -278,6 +279,9 @@ class Customer(Base):
     archiviert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     archiviert_von_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
     zurueckgeholt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Kundenportal (seit 1.11.0, Stufe P1): je Kunde einschalten, ab Werk aus. Aus heißt: kein Zugang wirkt (die Funktionen der Datenbank prüfen es).
+    # Nur server_default, keine Vorgabe in Python: ein Core-Insert alter Migrationsproben (tests/test_v380) schriebe die Spalte sonst mit.
+    portal_aktiv: Mapped[bool] = mapped_column(Boolean, server_default="0")
 
     profile: Mapped["CustomerProfile | None"] = relationship(
         back_populates="customer", cascade="all, delete-orphan", uselist=False
@@ -6638,6 +6642,135 @@ def _order_holds_customer(mapper, connection, target):
     if target.customer_id is None:
         from sqlalchemy import select
         target.customer_id = connection.scalar(select(Project.customer_id).where(Project.id == target.project_id))
+
+
+def portal_in(spalte: str, werte: tuple[str, ...], leer: bool = False) -> str:
+    """CHECK „spalte ist einer der festen Werte“ (app/portal/werte.py) -- die Migration trägt denselben Text wörtlich."""
+    liste = ", ".join(f"'{w}'" for w in werte)
+    return f"{spalte} IS NULL OR {spalte} IN ({liste})" if leer else f"{spalte} IN ({liste})"
+
+
+class PortalZugang(Base):
+    """Zugang zum Kundenportal (seit 1.11.0, Stufe P1; docs/archiv/webseite-und-kundenportal.md, „Bauplan P1“): einer je Kunde (F10, bis P5), mit eigener
+    E-Mail -- Link und Code gehen dorthin (F4) -- und deren verdeckter Anzeige für das Portal (email_anzeige; die Adresse selbst sieht das Portal nie). Der
+    Link steht nur als Prüfwert hier (link_sha256 = SHA-256 über app/portal/werte.py::ZWECK_LINK + Wert; leer = noch kein Link), gültig bis gueltig_bis
+    (12 Monate ab dem Erzeugen, F3), gesperrt mit Grund. Der Benutzer des Portals hat auf diese und alle Tabellen portal_* kein Recht
+    (app/portal/rechte.py) -- er ruft ab 1.11.1 Funktionen der Datenbank auf, die dem Benutzer des ERP gehören."""
+
+    __tablename__ = "portal_zugaenge"
+    __table_args__ = (
+        UniqueConstraint("customer_id", name="uq_portal_zugang_kunde"),
+        UniqueConstraint("link_sha256", name="uq_portal_zugang_link"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    email: Mapped[str] = mapped_column(String(255))
+    email_anzeige: Mapped[str] = mapped_column(String(255))
+    link_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    link_erzeugt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    gueltig_bis: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    gesperrt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    gesperrt_grund: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gesperrt_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    gesperrt_von_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    angelegt_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    angelegt_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    angelegt_von_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    zuletzt_genutzt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PortalSitzung(Base):
+    """Sitzung eines Geräts im Kundenportal (seit 1.11.0): nur der Prüfwert des Cookies (wert_sha256, app/portal/werte.py::ZWECK_SITZUNG). Erst
+    unbestätigt (15 Minuten, bis der Code stimmt), dann bestätigt und 30 Tage gleitend (F2); beendet mit Grund (SITZUNG_ENDE). Angelegt, bestätigt,
+    verlängert und beendet nur über die Funktionen der Datenbank (ab 1.11.1) bzw. vom ERP (sperren, neu erzeugen)."""
+
+    __tablename__ = "portal_sitzungen"
+    __table_args__ = (
+        UniqueConstraint("wert_sha256", name="uq_portal_sitzung_wert"),
+        CheckConstraint(portal_in("beendet_grund", portal_werte.SITZUNG_ENDE, leer=True), name="ck_portal_sitzung_ende"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    zugang_id: Mapped[int] = mapped_column(ForeignKey("portal_zugaenge.id"), index=True)
+    wert_sha256: Mapped[str] = mapped_column(String(64))
+    angelegt_am: Mapped[datetime] = mapped_column(DateTime)
+    bestaetigt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    zuletzt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    laeuft_ab: Mapped[datetime] = mapped_column(DateTime)
+    beendet_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    beendet_grund: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class PortalCode(Base):
+    """Anmeldecode einer unbestätigten Sitzung (seit 1.11.0): nur der Prüfwert (SHA-256 über ZWECK_CODE + Prüfwert der Sitzung + Code), angelegt vom
+    Postboten (Benutzer des ERP, ab P1c); 10 Minuten, 5 Versuche (F2). Der Code selbst steht nirgends in der Datenbank."""
+
+    __tablename__ = "portal_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sitzung_id: Mapped[int] = mapped_column(ForeignKey("portal_sitzungen.id", ondelete="CASCADE"), index=True)
+    pruefwert: Mapped[str] = mapped_column(String(64))
+    angelegt_am: Mapped[datetime] = mapped_column(DateTime)
+    gueltig_bis: Mapped[datetime] = mapped_column(DateTime)
+    versuche: Mapped[int] = mapped_column(default=0, server_default="0")
+    verbraucht_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ersetzt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PortalPost(Base):
+    """Auftrag an den Postboten (seit 1.11.0): das Portal fordert einen Code an (über eine Funktion der Datenbank, mit NOTIFY), der Postbote -- ein Dienst
+    unter dem Benutzer des ERP (ab P1c) -- erzeugt ihn, legt den Prüfwert an und sendet über dispatch_email(). Status POST_STATUS, Fehler nur fester Text."""
+
+    __tablename__ = "portal_post"
+    __table_args__ = (
+        CheckConstraint(portal_in("art", portal_werte.POST_ARTEN), name="ck_portal_post_art"),
+        CheckConstraint(portal_in("status", portal_werte.POST_STATUS), name="ck_portal_post_status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    art: Mapped[str] = mapped_column(String(20))
+    zugang_id: Mapped[int] = mapped_column(ForeignKey("portal_zugaenge.id"), index=True)
+    sitzung_id: Mapped[int] = mapped_column(ForeignKey("portal_sitzungen.id", ondelete="CASCADE"), index=True)
+    angefordert_am: Mapped[datetime] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(20), server_default="wartet", index=True)
+    erledigt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    email_dispatch_id: Mapped[int | None] = mapped_column(ForeignKey("email_dispatches.id"), nullable=True)
+    fehler: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class PortalZugriff(Base):
+    """Zugriffsprotokoll des Kundenportals (seit 1.11.0): nur anhängen, nur Zeitpunkt, Zugang, Sitzung, Aktion und Ergebnis als feste Wörter
+    (app/portal/werte.py::AKTIONEN, ERGEBNISSE) -- nie Inhalte, nie eine Adresse (Regel 18, F14). Ein Link ohne Zugang steht ohne zugang_id. Geschrieben
+    von den Funktionen der Datenbank und vom Postboten; gelöscht nach 24 Monaten (P1-2, Postbote)."""
+
+    __tablename__ = "portal_zugriffe"
+    __table_args__ = (
+        CheckConstraint(portal_in("aktion", portal_werte.AKTIONEN), name="ck_portal_zugriff_aktion"),
+        CheckConstraint(portal_in("ergebnis", portal_werte.ERGEBNISSE), name="ck_portal_zugriff_ergebnis"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    zeitpunkt: Mapped[datetime] = mapped_column(DateTime, index=True)
+    zugang_id: Mapped[int | None] = mapped_column(ForeignKey("portal_zugaenge.id"), nullable=True, index=True)
+    sitzung_id: Mapped[int | None] = mapped_column(ForeignKey("portal_sitzungen.id", ondelete="SET NULL"), nullable=True)
+    aktion: Mapped[str] = mapped_column(String(30))
+    ergebnis: Mapped[str] = mapped_column(String(20))
+    objekt_art: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    objekt_id: Mapped[int | None] = mapped_column(nullable=True)
+
+
+class PortalBremse(Base):
+    """Bremsen des Kundenportals (seit 1.11.0): ein Zähler je Schlüssel und Zeitfenster, in der Datenbank statt im Speicher (zwei Prozesse, Neustarts).
+    Der Anschluss steht nur als HMAC im Schlüssel (F14). Gezählt von den Funktionen der Datenbank, gelöscht nach 48 Stunden (Postbote)."""
+
+    __tablename__ = "portal_bremsen"
+    __table_args__ = (UniqueConstraint("schluessel", "fenster_beginn", name="uq_portal_bremse"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    schluessel: Mapped[str] = mapped_column(String(100))
+    fenster_beginn: Mapped[datetime] = mapped_column(DateTime)
+    zaehler: Mapped[int] = mapped_column(default=0, server_default="0")
 
 
 # Seit 1.10.23 (Antwort F10): ein Vorgang im Archiv ist nur lesbar -- der Archivschutz hängt sich an jeden Flush (vor das Änderungsprotokoll). Hier

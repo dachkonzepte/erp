@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.0 – Kundenportal P1a: Tabellen und Rechte
+
+Beginn der Stufe P1 (Fundament des Kundenportals, Bauplan vom 23.11.2026): die Tabellen des Portals – Zugänge (einer je Kunde, Link nur als Prüfwert), Sitzungen, Codes (nur Prüfwerte), Aufträge an den Postboten, Zugriffsprotokoll (nur feste Wörter, ohne Adresse) und Bremsen – und der Schalter „Portal“ am Kunden, ab Werk aus. Das Modul „Kundenportal“ steht unter Einstellungen → Module und ist ab Werk aus. Was der eigene Datenbank-Benutzer des Portals darf, steht an einer Stelle (app/portal/rechte.py) – heute nur die Firmendaten und die Revision lesen; ein Skript setzt und prüft die Rechte nach jeder Migration, ein Test verlangt für jede Tabelle eine Einordnung. Noch kein Dienst, keine Oberfläche.
+
 ## 1.10.27 – Kundenakte: ein Projekt im Archiv heißt „Im Archiv“
 
 Antwort zum Bericht F10 (23.11.2026): Unter „Laufende Projekte“ nannte die Kundenakte jedes Projekt, das nicht läuft, „Abgeschlossen“ – auch ein Projekt im Archiv, das nie einen Auftrag hatte. Jetzt steht es in einer eigenen Zeile „Im Archiv: …“; „Abgeschlossen“ bleibt für abgeschlossene, stornierte und archivierte Projekte mit Auftrag. „Im Archiv“ heißt dort dasselbe wie an Akte, Angebot und Suche: archiviert und ohne Auftrag.

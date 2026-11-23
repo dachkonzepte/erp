@@ -273,6 +273,7 @@ FIELD_LABELS = {
     "is_crew_leader": "Kolonnenführer",
     "is_primary_address": "Hauptadresse",
     "is_template": "Mustervorgang",
+    "portal_aktiv": "Kundenportal an",  # 1.11.0
     "job_title": "Berufsbezeichnung",
     "labor_rate_override": "Verrechnungssatz (abweichend)",
     "last_year": "Letztes Jahr",
