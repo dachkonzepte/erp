@@ -2270,3 +2270,51 @@ der Postbote sendet: „Code gesendet an …“, die Eingabe bleibt, angemeldet)
 senden“ frei); B breit mit dem Hinweis direkt unter dem Inhalt; Bilder `c_versand_dauert`, `c_versand_gescheitert`. Angepasste Erwartung:
 `test_v811::test_link_aus_der_adresse_bevor_eine_anfrage_hinausgeht` -- im Speicher des Tabs bis 1.11.15 Schritt und Anzeige, jetzt dazu `seit`. Gegenproben:
 `gegenproben-portal.md`, „1.11.16“.
+
+### Umsetzung 1.11.17: Name, Anschrift und Pflichtangaben unter jeder Mail an Kunden (§ 35a GmbHG, neue Version)
+
+Anlass: der Befund zu 1.11.12 („tragen die übrigen Mails des ERP die Pflichtangaben?“ -- nein) und die Antwort des Betriebs vom 24.11.2026 (der dort
+genannte Weg „zentral unter jede Mail an Kunden und Beteiligte“).
+
+- `app/firmenangaben.py` (neu) ist die eine Quelle: `anschrift()` („Name · Straße · PLZ Ort“ ohne leere Teile), `pflichtangaben()` (die Zeile aus 1.11.12,
+  aus `app/portal_mails.py` hierher verschoben), `zeilen(db)` (beide aus den Firmendaten der Einstellungen, ohne leere) und `text_fusszeile(db)` (eine
+  Leerzeile, dann die Zeilen; ohne jede Angabe leer). `app/portal_mails.py` nimmt Anschrift und Pflichtangaben seiner HTML-Fußzeile von dort -- dieselben
+  Zeichen wie bisher.
+- `app/email_dispatch.py::dispatch_email()` setzt den Schluss an jede Text-Mail an, bevor sie hinausgeht: Leerraum am Ende des Texts fällt weg, dann
+  `text_fusszeile()`. Ohne nur `OHNE_FIRMENANGABEN` = {„aufgabe“} (die Aufgaben-Mails gehen nur an Mitarbeiter); die Mails des Portals (HTML) tragen die Angaben
+  nur in ihrer Fußzeile, nicht ein zweites Mal. Damit gilt der Schluss für jede Versandart des Versandprotokolls: Angebot, Auftrag, Rechnung (auch Storno),
+  Mahnung, Vertrag, Checkliste (auch das Abnahmeprotokoll), Behinderungsanzeige, Wiederaufnahme, Bedenkenanzeige -- auch für eine Mail an einen Beteiligten
+  (Kopie). Eine neue Versandart bekommt ihn ohne Zutun; geht sie nur an Mitarbeiter, kommt sie nach `OHNE_FIRMENANGABEN`.
+- Unverändert: die E-Mail-Vorlagen und ihre Vorgaben, das vorausgefüllte Textfeld vor dem Versand (der Schluss ist dort nicht zu sehen), die PDFs und die
+  Ablage, das Versandprotokoll (speichert keinen Text, Regel 18).
+
+Beispiel (erfundene Firmendaten, eine Angebotsmail aus `send_quote_email()` mit dem Text der Vorgabe):
+
+    Sehr geehrte Damen und Herren,
+
+    anbei erhalten Sie unser Angebot A-TEST-0001 über 148,75 €. Alle Einzelheiten entnehmen Sie bitte dem beigefügten PDF.
+
+    Mit freundlichen Grüßen
+
+    Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt
+    Sitz Musterstadt · Amtsgericht Musterstadt HRB 99999 · Geschäftsführer: Erika Beispiel
+
+#### Festlegungen 1.11.17 (Bitte bestätigen)
+
+1. Unter jede Mail an Kunden und Beteiligte setzt das ERP beim Senden nach einer Leerzeile „Name · Straße · PLZ Ort“ und darunter „Sitz <Ort> ·
+   <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“ aus den Firmendaten -- jede Versandart außer den Aufgaben-Mails.
+2. Die Aufgaben-Mails an Mitarbeiter bleiben ohne (`OHNE_FIRMENANGABEN`).
+3. Fehlt ein Feld, fällt nur dieses weg (wie 1.11.12-3); fehlt eine ganze Zeile, steht nur die andere; ohne jede Angabe bleibt die Mail ohne Schluss.
+4. Leerraum am Ende des Texts fällt weg, dann genau eine Leerzeile vor dem Schluss.
+5. Eine Quelle (`app/firmenangaben.py`) für die Zeilen unter den Mails des ERP und die Fußzeile der Mails des Portals.
+6. Die Mails des Portals tragen die Angaben nur in ihrer HTML-Fußzeile, kein zweiter Schluss.
+7. Vorlagen und Textfeld vor dem Versand bleiben ohne Schluss; er kommt erst beim Senden dazu.
+
+#### Tests und Prüfung 1.11.17
+
+`tests/test_v813_firmenangaben_mails.py` (neu, 18): jede Versandart eingeordnet (ohne nur „aufgabe“), jede Versandart an Kunden mit genau dem Schluss, die
+Aufgaben-Mail unverändert, fehlende Felder (4 Fälle, auch ohne jede Angabe), eine echte Angebotsmail aus `send_quote_email()` (das Beispiel oben), eine Quelle
+für Portal und ERP, die Mail des Portals ohne Text-Schluss mit den Angaben in der HTML-Fußzeile. Angepasste Erwartungen (`tests/test_v393_ueberzahlung.py`):
+`test_email_of_an_overpaid_final_invoice_names_the_refund` -- bis 1.11.16 war der letzte Absatz der Mail „Mit freundlichen Grüßen“, jetzt der letzte vor dem
+Schluss (der Schluss gesondert geprüft); `test_custom_template_with_placeholder_gets_no_extra_paragraph_and_other_invoices_stay` -- bis 1.11.16 der Text genau
+wie die Vorlage, jetzt Vorlage und Schluss (beide Fälle). Gegenproben: `gegenproben-portal.md`, „1.11.17“.

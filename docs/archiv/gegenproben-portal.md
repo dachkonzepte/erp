@@ -433,3 +433,18 @@ Grund, alle Dateien byte-gleich zurück. Nr. 4 blieb zuerst grün: ohne die Abzw
 | Nr. 5 – die Eingabe bleibt stehen | C neu gezeichnet | Klicktest rot |
 | Nr. 6 – breit direkt unter dem Inhalt | wie auf dem Handy | Klicktest rot |
 | Nr. 7 – Hinweis in den Farben für Fortschritt | grün | 1 rot |
+
+## 1.11.17: Name, Anschrift und Pflichtangaben unter jeder Mail an Kunden
+
+Probendatei `gp_11117.py`, Lauf mit `tests/test_v813_firmenangaben_mails.py`; alle 6 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück. Bei Nr. 4
+blieb die Angebotsmail grün -- ihr Text endet ohne Leerraum; rot sind jede Versandart und die fehlenden Felder (die Texte dort enden mit einem Zeilenende).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – jede Versandart an Kunden mit dem Schluss | „rechnung“ ohne Schluss | 5 rot |
+| Nr. 2 – Aufgaben-Mails ohne | `OHNE_FIRMENANGABEN` leer | 2 rot |
+| Nr. 3 – ohne jede Angabe kein Schluss | immer eine Leerzeile | 1 rot |
+| Nr. 4 – Leerraum am Ende weg, genau eine Leerzeile | ohne `rstrip()` | 13 rot |
+| Nr. 5 – eine Quelle für Portal und ERP | Portal mit eigener Anschrift | 2 rot |
+| Nr. 6 – Portal ohne zweiten Schluss | auch an die HTML-Mail | 1 rot |
+| Nr. 7 – Vorlagen und Textfeld ohne Schluss | keine eigene Gegenprobe: Ort im Code; Nr. 1 und das Beispiel prüfen den Schluss am Ausgang von `dispatch_email()`, die Angebotsmail genau einmal | – |

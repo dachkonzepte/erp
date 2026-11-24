@@ -23,6 +23,7 @@ from app.berlin_time import berlin_today
 from app.document_email_templates import update_email_template
 from app.email_sending import update_smtp_settings
 from app.final_dunning import dunning_state
+from app.firmenangaben import text_fusszeile
 from app.invoice_pdf import build_invoice_pdf
 from app.invoices import (
     InvoiceBlocked, compute_invoice_totals, create_abschlag_leistungsstand, create_schlussrechnung, create_storno_draft,
@@ -276,7 +277,9 @@ def test_email_of_an_overpaid_final_invoice_names_the_refund(mock_smtp_cls):
     _, _, schluss = _ueberzahlt(db)
     body = _senden(db, schluss, mock_smtp_cls, "test-erstattung-1")
     assert f"Laut Zahlungshinweis (Stand {HEUTE.strftime('%d.%m.%Y')}) ergibt sich ein Erstattungsbetrag von 1.190,00 €" in body
-    paragraphs = body.strip().split("\n\n")
+    schluss_der_mail = text_fusszeile(db)  # seit 1.11.17: Name, Anschrift und Pflichtangaben unter jeder Mail an Kunden
+    assert schluss_der_mail and body.endswith(schluss_der_mail)
+    paragraphs = body.removesuffix(schluss_der_mail).strip().split("\n\n")
     assert paragraphs[-1].startswith("Mit freundlichen Grüßen") and "Erstattungsbetrag" in paragraphs[-2]
 
 
@@ -299,7 +302,7 @@ def test_custom_template_with_placeholder_gets_no_extra_paragraph_and_other_invo
                           body_template="Hallo,\n\nzu zahlen: {zahlbetrag}{erstattungsbetrag}.\n\nGruß")
     _, _, schluss = _ueberzahlt(db)
     body = _senden(db, schluss, mock_smtp_cls, "test-vorlage-1")
-    assert body == "Hallo,\n\nzu zahlen: 1.190,00 €.\n\nGruß"  # Erstattung: {zahlbetrag} leer, {erstattungsbetrag} der Betrag
+    assert body == "Hallo,\n\nzu zahlen: 1.190,00 €.\n\nGruß" + text_fusszeile(db)  # seit 1.11.17 mit dem Schluss; Erstattung: {zahlbetrag} leer, {erstattungsbetrag} der Betrag
     db = db_session()  # zweiter Auftrag: eigene Datenbank (Projektnummer der Testhelfer fest)
     _smtp(db)
     update_email_template(db, "invoice", subject_template="Rechnung {rechnungsnummer}",
@@ -307,7 +310,7 @@ def test_custom_template_with_placeholder_gets_no_extra_paragraph_and_other_invo
     order, _ = make_order_with_item(db)
     abschlag = _abschlag(db, order, "40")
     body = _senden(db, abschlag, mock_smtp_cls, "test-vorlage-2")
-    assert body == f"Hallo,\n\nanbei {abschlag.invoice_number} über 2.380,00 €.\n\nGruß"  # keine Endrechnung: unverändert
+    assert body == f"Hallo,\n\nanbei {abschlag.invoice_number} über 2.380,00 €.\n\nGruß" + text_fusszeile(db)  # keine Endrechnung: unverändert
 
 
 # ---------------------------------------------------------------------------

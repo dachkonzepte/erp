@@ -79,6 +79,10 @@ DELIVERY_NOTE_MAX = 1000
 # Microsoft 365 und ohne „Gesendete Elemente“ (gesendete_elemente=False).
 PORTAL_TYPES = {"portal_link": "Link zum Kundenportal", "portal_code": "Anmeldecode des Kundenportals"}
 DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung", **PORTAL_TYPES}
+# Seit 1.11.17 (§ 35a GmbHG): unter jede Mail an Kunden und Beteiligte setzt dispatch_email() nach einer Leerzeile Name, Anschrift und Pflichtangaben aus
+# den Firmendaten (app/firmenangaben.py::text_fusszeile()) -- außer diesen Mails an Mitarbeiter. Die Mails des Portals tragen dieselben Angaben in ihrer
+# HTML-Fußzeile (app/portal_mails.py, dieselbe Quelle). Eine neue Versandart gehört in DISPATCH_TYPES und, geht sie nicht an Kunden, hierher.
+OHNE_FIRMENANGABEN = frozenset({"aufgabe"})
 NUR_MICROSOFT_365 = ("Mails des Kundenportals gehen nur über Microsoft 365 -- über SMTP läge jede Kopie mit Link oder Code in „Gesendete Elemente“. "
                      "Stell den Versand unter Einstellungen → E-Mail-Versand auf Microsoft 365 um. Es wurde nichts versendet.")
 # Seit 1.11.8: die Mails des Kundenportals gehen als HTML (app/portal_mails.py, nach dem Entwurf), alle anderen weiter als Text.
@@ -274,6 +278,9 @@ def dispatch_email(
         raise ValueError("Mails des Kundenportals gehen nie in „Gesendete Elemente“, alle anderen immer -- es wurde nichts versendet.")
     if (document_type in PORTAL_TYPES) != (body_html is not None) or (body_html is not None and body_text):
         raise ValueError(NUR_PORTAL_HTML)
+    if document_type not in OHNE_FIRMENANGABEN and body_html is None:  # seit 1.11.17: Name, Anschrift, Pflichtangaben (§ 35a GmbHG) unter die Mail
+        from .firmenangaben import text_fusszeile
+        body_text = (body_text or "").rstrip() + text_fusszeile(db)
     key = (dispatch_key or "").strip()
     if not _KEY_RE.match(key):
         raise ValueError("Ungültiger Versandschlüssel. Bitte die Seite neu laden.")

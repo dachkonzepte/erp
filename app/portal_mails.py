@@ -19,7 +19,8 @@ MIME-Bau (sendMail nimmt genau einen Körper, Text oder HTML) -- deshalb nur HTM
   Webseite (Bauplan P1, Abschnitt 5: „Links auf die Webseite“), so wie die Webseite selbst sie verlinkt: https://<Webseite>/impressum und /datenschutz.
   Ohne gültige Webseite fehlen beide Links und die Webseite in der Fußzeile; ohne Telefon fällt nur die Nummer weg, der Satz „rufen Sie uns … an“ bleibt.
 - Seit 1.11.12 (§ 35a GmbHG) darunter eine kleine Zeile „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“ aus den
-  Firmendaten (Sitz = Ort der Anschrift; ein eigenes Feld dafür gibt es nicht); fehlt ein Feld, fällt nur dieses weg, fehlen alle, fehlt die Zeile.
+  Firmendaten (Sitz = Ort der Anschrift; ein eigenes Feld dafür gibt es nicht); fehlt ein Feld, fällt nur dieses weg, fehlen alle, fehlt die Zeile. Seit
+  1.11.17 kommen Anschrift und Pflichtangaben aus app/firmenangaben.py -- derselben Quelle wie die Zeilen unter jeder anderen Mail an Kunden.
 
 Link (ab P1d) und Code (Postbote, ab 1.11.6) stehen nur im Text der Mail und kurz im Speicher -- nie in einer Tabelle, einem Protokoll, einer Antwort oder
 einer Ausnahme.
@@ -36,6 +37,8 @@ from sqlalchemy.orm import Session
 
 from .berlin_time import to_berlin
 from .email_dispatch import PORTAL_TYPES, DispatchResult, dispatch_email
+from .firmenangaben import anschrift as firmen_anschrift
+from .firmenangaben import pflichtangaben  # noqa: F401 -- seit 1.11.17 dort (eine Quelle für Portal und ERP)
 from .models import Customer
 from .portal.begruessung import begruessung
 from .settings import load_general_settings
@@ -117,8 +120,7 @@ def firma(db: Session) -> Firma:
     s = load_general_settings(db)
     name = (s.company_name or "").strip()
     marke, _, rest = name.partition(" ")
-    ort = " ".join(t.strip() for t in (s.postal_code, s.city) if t and t.strip())
-    anschrift = " · ".join(t for t in (name, (s.street or "").strip(), ort) if t)
+    anschrift = firmen_anschrift(s.company_name, s.street, s.postal_code, s.city)  # seit 1.11.17 aus app/firmenangaben.py
     host = webseite_host(s.website)
     return Firma(
         name=name, marke=marke, marke_rest=rest.strip(), anschrift=anschrift, telefon=(s.phone or "").strip() or None, webseite=host,
@@ -126,16 +128,6 @@ def firma(db: Session) -> Firma:
         pflichtangaben=pflichtangaben(s.city, s.register_court, s.register_number, s.managing_director),
     )
 
-
-def pflichtangaben(ort: str | None, gericht: str | None, nummer: str | None, geschaeftsfuehrer: str | None) -> str | None:
-    """Die Pflichtangaben nach § 35a GmbHG als eine Zeile (seit 1.11.12): „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer:
-    <Name(n)>“. Fehlt ein Feld, fällt nur dieses weg (Gericht ohne Nummer und umgekehrt bleibt stehen); ohne jedes Feld keine Zeile."""
-    def rein(wert: str | None) -> str:
-        return " ".join((wert or "").split())
-
-    register = " ".join(t for t in (rein(gericht), rein(nummer)) if t)
-    teile = (f"Sitz {rein(ort)}" if rein(ort) else "", register, f"Geschäftsführer: {rein(geschaeftsfuehrer)}" if rein(geschaeftsfuehrer) else "")
-    return " · ".join(t for t in teile if t) or None
 
 
 # --- Bausteine (Tabellen und Stile in den Tags) -----------------------------------------------------------------------------------------------
