@@ -448,3 +448,20 @@ blieb die Angebotsmail grün -- ihr Text endet ohne Leerraum; rot sind jede Vers
 | Nr. 5 – eine Quelle für Portal und ERP | Portal mit eigener Anschrift | 2 rot |
 | Nr. 6 – Portal ohne zweiten Schluss | auch an die HTML-Mail | 1 rot |
 | Nr. 7 – Vorlagen und Textfeld ohne Schluss | keine eigene Gegenprobe: Ort im Code; Nr. 1 und das Beispiel prüfen den Schluss am Ausgang von `dispatch_email()`, die Angebotsmail genau einmal | – |
+
+## Vorbereitung P1f: Server-Schritte und Datenschutz (nur Doku)
+
+Keine Gegenprobe möglich: die Festlegungen V1–V8 sind eine Anleitung für den Server bzw. Stichpunkte für die Datenschutzerklärung -- es gibt keinen Schutz im
+Code, den eine Probe aushebeln könnte. Geprüft werden sie in P1f auf dem Server (Erwartung und Abbruch je Schritt). Lokal nachgeprüft: die Shell-Ausschnitte von
+S0, S3 und S7 an erfundenen Daten.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| V1 – pg_hba: dkportal nur zu dachkonzepte über 127.0.0.1 | keine: Anleitung; geprüft in S3 (drei Verbindungen ohne Passwort) | – |
+| V2 – Passwort nie angezeigt, nie im Log | keine: Anleitung; Ablauf in S3 | – |
+| V3 – S3b nur vor PostgreSQL 15 | keine: Anleitung; `--pruefen` meldet den Fall (W5) | – |
+| V4 – Rechte nur gegen dachkonzepte | keine: Anleitung (update.sh liegt nur auf dem Server) | – |
+| V5 – drei Dienste zusammen neu starten | keine: Anleitung | – |
+| V6 – E4 fürs ERP mit erfundenem Namen | keine: Anleitung | – |
+| V7 – erst Port 80, dann die ganze Datei | keine: Anleitung; der Ausschnitt lokal nachgeprüft | – |
+| V8 – Datenschutz: zwei Cookies, Speicher des Tabs | keine: Doku; die Cookies prüfen `test_v802_portal_sitzung.py`, der Speicher `test_v811_portal_seiten.py` | – |

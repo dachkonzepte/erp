@@ -2318,3 +2318,480 @@ für Portal und ERP, die Mail des Portals ohne Text-Schluss mit den Angaben in d
 `test_email_of_an_overpaid_final_invoice_names_the_refund` -- bis 1.11.16 war der letzte Absatz der Mail „Mit freundlichen Grüßen“, jetzt der letzte vor dem
 Schluss (der Schluss gesondert geprüft); `test_custom_template_with_placeholder_gets_no_extra_paragraph_and_other_invoices_stay` -- bis 1.11.16 der Text genau
 wie die Vorlage, jetzt Vorlage und Schluss (beide Fälle). Gegenproben: `gegenproben-portal.md`, „1.11.17“.
+
+### Vorbereitung P1f: Server-Schritte und Datenschutz (24.11.2026, nur Doku)
+
+Auf die Antwort vom 24.11.2026 („danach P1f vorbereiten, nichts auf dem Server“): die Server-Schritte S0–S10 aus dem Bauplan P1 (Abschnitt 2) als Befehle zum
+Kopieren, je Schritt mit Erwartung, Abbruch und Rückweg (unten, „Server-Schritte P1“; dieselbe Datei als `server_schritte_p1_fc8b758.md` beim Bericht), und die
+Stichpunkte für die Datenschutzerklärung des Portals als eigene Datei für den Webseiten-Chat (`datenschutz_portal_2026-11-24.md` beim Bericht). Nichts auf dem
+Server ausgeführt, nichts am Code geändert.
+
+- Abgeglichen mit dem Code von fc8b758 bis 1.11.18: Einheiten (`scripts/server/erp-portal.service`, `erp-portalpost.service`), `nginx-kunde.conf`,
+  `portal-wartung.html`, `portal.env.beispiel`, `scripts/portal_rechte.py` (2 Tabellen, 8 Funktionen), `scripts/pruefe_portal_e4.py` (als Benutzer des ERP seit
+  1.11.3-15), die Startprüfung des Portals (`Portal verbunden als …`), die Schranke (Host kunde, sonst 421 -- `/health` lokal deshalb mit `Host:`), die Texte der
+  Seite und die Spalten von `failed_login_attempts`.
+- Gegenüber dem Bauplan genauer: pg_hba auch für den Socket (`local … reject`); im Anlegen der Rolle zusätzlich `log_min_error_statement = 'panic'` (sonst stünde
+  die Anweisung bei einem Fehler im Log) und `pg_stat_statements.track_utility = off`, psql mit `VERBOSITY=terse` (zeigt bei einem Fehler nie die Anweisung);
+  S3b für PostgreSQL vor 15 (dort darf PUBLIC im Schema public anlegen -- `--pruefen` meldete das); `systemd-analyze verify` nicht für `erp-portal` (es suchte
+  den Pfad im Dienst auf dem Rechner); der erfundene Link in S8 öffnet sich je Mal in einem neuen Tab (die Seite nimmt ihn sofort aus der Adresse).
+- Lokal nachgeprüft (Git Bash, erfundene Daten): der Ausschnitt des Blocks für Port 80 (`listen 80;` einmal, `listen 443` keinmal, Zonen und Protokollformat
+  dabei); die Ausgabe der Verbindungszeichenfolge ohne Passwort (auch mit „@“ im Passwort und ohne Passwort); das Einfügen der drei Zeilen vor die erste Regel
+  von pg_hba.
+- Datenschutz, gegenüber Abschnitt 6 des Bauplans und den Stichpunkten oben („Datenschutzerklärung (für den Webseiten-Chat)“): zwei Cookies statt eines
+  (`__Host-dkportal-code` nur während der Anmeldung, 15 Minuten), der Speicher des Tabs während der Anmeldung (Schritt, verdeckte Adresse, Zeitpunkt der
+  Anforderung), der Link gilt 12 Monate, höchstens 5 Fehlversuche je Code, die Mails nicht in „Gesendete Elemente“.
+
+#### Festlegungen Vorbereitung P1f (Bitte bestätigen)
+
+V1. pg_hba: drei Zeilen vor allen übrigen -- dkportal nur zu `dachkonzepte` über 127.0.0.1 mit scram-sha-256, jede andere Verbindung von dkportal (andere
+    Datenbank, andere Adresse, Socket) `reject`.
+V2. Das Passwort (40 Zeichen hexadezimal) entsteht in einer root-Shell, geht über stdin an psql und gleich in `/etc/dk-portal/portal.env`; in der Sitzung
+    `log_statement = 'none'`, `log_min_error_statement = 'panic'`, `pg_stat_statements.track_utility = off`; psql `VERBOSITY=terse`.
+V3. S3b nur, wenn S0 zeigt, dass PUBLIC im Schema public anlegen darf: dem Benutzer des ERP `CREATE` ausdrücklich, PUBLIC weg.
+V4. Rechte des Portals in `update.sh` nur gegen `dachkonzepte`, nach `alembic current`, mit Abbruch vor dem Neustart; gegen `spielwiese` nichts.
+V5. `update.sh` startet `erp`, `erp-portal` und `erp-portalpost` zusammen neu und prüft danach alle drei und `/health` des Portals.
+V6. Der Nachweis E4 fürs ERP nimmt den erfundenen Benutzernamen `e4-probe` (zählt gegen kein echtes Konto).
+V7. Die Datei für nginx heißt `/etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf`; zuerst nur der Block für Port 80 (für certbot), dann die ganze Datei.
+V8. Datenschutz: zwei Cookies und der Speicher des Tabs, Link 12 Monate (statt „ein Cookie“ im Bauplan).
+
+#### Tests und Prüfung Vorbereitung P1f
+
+Keine Änderung am Code, kein Test. Gegenproben: keine möglich (eine Anleitung für den Server, sie wird in P1f auf dem Server geprüft) -- Tabelle mit Begründung in
+`gegenproben-portal.md`, „Vorbereitung P1f“.
+
+### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
+
+Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.18: seit fc8b758 hat sich nichts an den Einheiten, an nginx, an den
+Migrationen oder an den Rechten geändert. Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
+Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026.
+
+So zu lesen:
+
+- **Als tobias** heißt: in der normalen SSH-Sitzung. **In der root-Shell** heißt: nach `sudo -i`, bis `exit`.
+- Jeder Schritt nennt, was zu sehen sein soll (**Erwartet**), wann nicht weiterzumachen ist (**Abbrechen**) und wie er zurückgeht (**Rückweg**). Bei „Abbrechen“
+  die Ausgabe in den Chat geben -- keiner der Befehle zeigt ein Geheimnis.
+- **Geheimnisse:** kein Befehl liest `.env` oder `/etc/dk-portal/portal.env` aus. Passwort und Schlüssel entstehen in der root-Shell direkt in der Datei; geprüft
+  werden nur Namen und Längen. Nie `cat`, `less` oder einen Editor auf diese beiden Dateien.
+- `<ERP-Benutzer>` ist der Name des Datenbank-Benutzers des ERP aus S0 (kein Geheimnis) -- in den Befehlen einsetzen.
+- Meldet psql „could not change directory to …: Permission denied“, ist das harmlos (der Benutzer postgres darf den aktuellen Ordner nicht lesen).
+- Gebraucht: SSH als tobias mit sudo, der DNS-Zugang bei Ionos, ein Handy mit mobilen Daten (WLAN aus), das eigene Postfach, ein Konto im ERP als Admin.
+
+#### S0 Bestand lesen (nichts ändern)
+
+Als tobias:
+
+```bash
+cd /home/tobias/erp
+git log --oneline -1
+lsb_release -ds; systemctl --version | head -1; psql --version; nginx -v
+free -m
+ss -ltn
+stat -c '%a %U:%G %n' /home/tobias /home/tobias/erp /home/tobias/erp/.env /home/tobias/erp-data
+.venv/bin/python -c "import uvicorn, gunicorn; print(uvicorn.__version__, gunicorn.__version__)"
+systemctl show -p User -p ExecStart erp
+sed -n 's|^DATABASE_URL=\([^:]*\)://\([^:@/]*\).*@\([^/@?]*\)/\([^?]*\).*|\1 \2 \3 \4|p' .env
+git status --ignored --short -- app alembic alembic.ini
+ls /etc/systemd/system | grep erp; ls -d /srv/erp-code 2>&1
+```
+
+Die `sed`-Zeile gibt nur Art, Benutzer, Rechner:Port und Datenbank aus der Verbindungszeichenfolge aus -- nie das Passwort (es steht vor dem letzten „@“
+und wird übersprungen).
+
+**Erwartet:**
+
+- `git log`: fc8b758 oder später.
+- `free -m`: in der Spalte „available“ mindestens 600 (zwei neue Dienste mit je höchstens 256 MB).
+- `ss -ltn`: keine Zeile mit `:8010`; nginx auf `0.0.0.0:80`, `0.0.0.0:443` und `[::]:80`, `[::]:443`.
+- `stat`: `.env` 600 tobias:tobias.
+- Versionen: `0.52.4 26.2.0`.
+- `systemctl show`: `User=tobias`, im ExecStart gunicorn mit `-w 2`.
+- `sed`: `postgresql+psycopg <ERP-Benutzer> 127.0.0.1:5432 dachkonzepte` (oder `localhost:5432`).
+- `git status`: nichts oder nur Zeilen `!! app/…/__pycache__/`.
+- `ls /etc/systemd/system | grep erp`: `erp.service`, `erp-webanfragen.service`, `erp-webanfragen.timer` -- noch kein `erp-portal*`; `/srv/erp-code` gibt es noch
+  nicht.
+
+**Abbrechen,** wenn: weniger als 600 MB verfügbar; `:8010` belegt; `.env` nicht 600; andere Versionen als 0.52.4/26.2.0; `User=` nicht tobias (der Postbote
+läuft als tobias); nginx nicht auf `[::]` (die Datei für nginx lauscht auch dort); Rechner:Port anders als 127.0.0.1 bzw. localhost mit 5432 oder die Datenbank
+nicht `dachkonzepte` (dann passe ich S3 an); `git status` nennt unter `app/`, `alembic/` oder `alembic.ini` eine Datei außerhalb von `__pycache__` (nur den
+Namen in den Chat -- sie käme vor dem Start in `InaccessiblePaths=`).
+
+PostgreSQL lesen, als tobias:
+
+```bash
+sudo -u postgres psql -tAX -c "show log_statement" -c "show log_min_duration_statement" -c "show password_encryption" -c "show listen_addresses" -c "show port" -c "show shared_preload_libraries"
+sudo -u postgres psql -tAX -c "select rolname from pg_roles where rolname = 'dkportal'"
+sudo -u postgres psql -tAX -c "select rolsuper, rolcreaterole, rolbypassrls from pg_roles where rolname = '<ERP-Benutzer>'"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select has_schema_privilege('public', 'public', 'CREATE')"
+sudo -u postgres psql -X -c "select line_number, type, database, user_name, address, auth_method from pg_hba_file_rules order by line_number"
+```
+
+**Erwartet:** `none`, `-1`, `scram-sha-256`, `localhost` (oder eine Liste mit 127.0.0.1), `5432`, leer oder `pg_stat_statements`; die Rolle `dkportal` gibt es
+nicht (leere Zeile); `f|f|f`; `f` (in PostgreSQL ab 15 darf PUBLIC im Schema public nichts anlegen); die Regeln von pg_hba (zum Ansehen -- `dkportal` steht in
+keiner).
+
+**Abbrechen,** wenn: `password_encryption` nicht `scram-sha-256`; die Rolle `dkportal` gibt es schon; der Benutzer des ERP ist Superuser, darf Rollen anlegen
+oder umgeht Zeilenrechte (nicht `f|f|f`); `shared_preload_libraries` nennt `pgaudit` oder etwas, das Anweisungen mitschreibt. Nicht abbrechen bei
+`log_statement` anders als `none` (S3 schaltet es für seine Sitzung ab) und bei `t` für das Schema (dann gilt S3b).
+
+nginx, Zertifikat, Protokolle, als tobias:
+
+```bash
+grep -n 'include' /etc/nginx/nginx.conf
+ls /etc/nginx/conf.d /etc/nginx/sites-enabled
+ls /etc/letsencrypt/options-ssl-nginx.conf /etc/letsencrypt/ssl-dhparams.pem
+sudo certbot plugins 2>/dev/null | grep -A1 '^\* nginx'
+sudo ufw status | grep -E '^(80|443)'
+grep -E '^\s*(daily|weekly|rotate)' /etc/logrotate.d/nginx
+grep -rhE '^\s*MaxRetentionSec' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/ 2>/dev/null
+```
+
+**Erwartet:** eine Zeile `include /etc/nginx/conf.d/*.conf;`; in `conf.d` noch keine Datei für kunde; beide Dateien von Let's Encrypt da; das Plugin `nginx`;
+80 und 443 erlaubt (oder ufw inaktiv); `daily` und `rotate 14`; `MaxRetentionSec=14day`.
+
+**Abbrechen,** wenn: `conf.d` nicht eingebunden ist; eine der Dateien von Let's Encrypt fehlt; das Plugin `nginx` fehlt. Nicht abbrechen, aber melden, wenn
+logrotate oder das Journal andere Fristen zeigen -- die Datenschutzerklärung nennt „höchstens 15 Tage“ bzw. „14 Tage“.
+
+#### S1 DNS (Ionos)
+
+Bei Ionos für `kunde.dachkonzepte.gmbh` einen A-Eintrag auf dieselbe IPv4-Adresse wie `app.dachkonzepte.gmbh`; hat `app` einen AAAA-Eintrag, ebenso einen
+AAAA-Eintrag auf dieselbe IPv6-Adresse. Nach ein paar Minuten, als tobias:
+
+```bash
+dig +short A app.dachkonzepte.gmbh;    dig +short A kunde.dachkonzepte.gmbh
+dig +short AAAA app.dachkonzepte.gmbh; dig +short AAAA kunde.dachkonzepte.gmbh
+dig +short CAA dachkonzepte.gmbh
+```
+
+(Fehlt `dig`: `resolvectl query app.dachkonzepte.gmbh` und `resolvectl query kunde.dachkonzepte.gmbh`.)
+
+**Erwartet:** je Paar dieselbe Adresse; CAA leer oder mit `letsencrypt.org`.
+**Abbrechen,** wenn kunde keine oder eine andere Adresse hat (warten, bis der Eintrag sichtbar ist) oder CAA Let's Encrypt nicht erlaubt.
+**Rückweg:** den Eintrag bei Ionos löschen.
+
+#### S2 Systembenutzer dkportal
+
+Als tobias:
+
+```bash
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin dkportal
+id dkportal
+getent passwd dkportal
+sudo mkdir -p /srv/erp-code
+cd / && sudo -u dkportal test -r /home/tobias/erp/.env && echo "LESBAR" || echo "nicht lesbar"
+```
+
+Dann, was der Dienst später sieht (dieselben Einhängungen wie die Einheit `erp-portal`):
+
+```bash
+sudo systemd-run --pipe --wait --quiet -p User=dkportal -p ProtectHome=tmpfs -p TemporaryFileSystem=/srv/erp-code \
+  -p BindReadOnlyPaths=/home/tobias/erp/app:/srv/erp-code/app -p BindReadOnlyPaths=/home/tobias/erp/alembic:/srv/erp-code/alembic \
+  -p BindReadOnlyPaths=/home/tobias/erp/alembic.ini:/srv/erp-code/alembic.ini -p BindReadOnlyPaths=/home/tobias/erp/.venv:/srv/erp-code/.venv \
+  /bin/sh -c 'ls -A /srv/erp-code; echo "home: $(ls -A /home)"; test -e /srv/erp-code/.env && echo ".env SICHTBAR" || echo ".env nicht da"; ls /srv/erp-code/app/portal | head -3'
+```
+
+**Erwartet:** `uid=…(dkportal) gid=…(dkportal) groups=…(dkportal)`; die passwd-Zeile endet mit `/usr/sbin/nologin`; `nicht lesbar`; danach
+`.venv alembic alembic.ini app` (auch untereinander), `home: ` (leer), `.env nicht da` und drei Dateinamen aus `app/portal` (`__init__.py` …).
+**Abbrechen,** wenn `LESBAR`, `.env SICHTBAR`, `/home` nicht leer oder `systemd-run` einen Fehler meldet (dann die Meldung in den Chat).
+**Rückweg:** `sudo userdel dkportal; sudo rmdir /srv/erp-code`.
+
+#### S3 Datenbank-Benutzer dkportal (Passwort entsteht in der Datei, nie angezeigt)
+
+In der root-Shell (`sudo -i`), Zeile für Zeile:
+
+```bash
+cd /
+umask 077
+install -d -m 750 -o root -g dkportal /etc/dk-portal
+P=$(openssl rand -hex 20)
+printf '%s\n' "SET log_statement = 'none';" "SET log_min_error_statement = 'panic';" "SET pg_stat_statements.track_utility = off;" \
+  "CREATE ROLE dkportal LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION CONNECTION LIMIT 10 PASSWORD '$P';" \
+  | sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=terse
+printf 'DATABASE_URL=postgresql+psycopg://dkportal:%s@127.0.0.1:5432/dachkonzepte\nPORTAL_HERKUNFT=https://kunde.dachkonzepte.gmbh\nERP_ENV=production\n' "$P" > /etc/dk-portal/portal.env
+unset P
+chown root:dkportal /etc/dk-portal/portal.env
+chmod 640 /etc/dk-portal/portal.env
+exit
+```
+
+Warum so: das Passwort (40 Zeichen 0–9a–f, nichts zu kodieren) entsteht in einer Variablen der root-Shell, geht über stdin an psql (nie als Argument, nie in einen
+Verlauf -- im Verlauf steht nur `$P`) und gleich in die Datei; `printf` ist in bash eingebaut und erscheint nicht in der Prozessliste. In der Sitzung schreibt
+PostgreSQL keine Anweisung ins Log, auch nicht bei einem Fehler, und `pg_stat_statements` merkt sie sich nicht. psql zeigt bei einem Fehler nur die Meldung, nie
+die Anweisung. Zeigte S0 einen anderen Port als 5432, die Zahl in der `printf`-Zeile anpassen (kein Geheimnis).
+
+Einstellungen der Rolle, als tobias:
+
+```bash
+printf '%s\n' "ALTER ROLE dkportal SET statement_timeout = '5s';" "ALTER ROLE dkportal SET idle_in_transaction_session_timeout = '15s';" \
+  "ALTER ROLE dkportal SET search_path = public;" | sudo -u postgres psql -X -q -v ON_ERROR_STOP=1
+```
+
+**S3b, nur wenn S0 für das Schema `t` zeigte** (PostgreSQL vor 15): erst dem ERP das Anlegen ausdrücklich geben, dann PUBLIC nehmen -- für das ERP ändert sich
+nichts:
+
+```bash
+sudo -u postgres psql -d dachkonzepte -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON SCHEMA public TO <ERP-Benutzer>" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
+```
+
+pg_hba: drei Zeilen vor alle übrigen (die erste passende Regel gilt), als tobias:
+
+```bash
+HBA=$(sudo -u postgres psql -tAX -c "show hba_file")
+sudo cp -a "$HBA" "$HBA.vor-p1"
+sudo awk '!fertig && $0 !~ /^[[:space:]]*(#|$)/ { print "host    dachkonzepte    dkportal    127.0.0.1/32    scram-sha-256"; print "host    all             dkportal    all             reject"; print "local   all             dkportal                    reject"; fertig = 1 } { print }' "$HBA.vor-p1" | sudo tee "$HBA" > /dev/null
+sudo -u postgres psql -X -c "select line_number, type, database, user_name, address, auth_method, error from pg_hba_file_rules where 'dkportal' = any(user_name) or error is not null order by line_number"
+```
+
+**Erwartet:** genau drei Zeilen mit den kleinsten Zeilennummern -- `host {dachkonzepte} {dkportal} 127.0.0.1 scram-sha-256`, `host {all} {dkportal} all reject`,
+`local {all} {dkportal} reject` --, die Spalte `error` leer.
+**Abbrechen,** wenn eine Zeile einen Fehler zeigt oder die Zeilen nicht vorn stehen: `sudo cp -a "$HBA.vor-p1" "$HBA"` (noch nichts neu geladen, nichts
+passiert).
+
+Dann neu laden und ohne Passwort prüfen, als tobias:
+
+```bash
+sudo -u postgres psql -tAX -c "select pg_reload_conf()"
+cd /
+sudo -u dkportal psql -X -w -h 127.0.0.1 -U dkportal -d spielwiese -c 'select 1'
+sudo -u dkportal psql -X -w -U dkportal -d dachkonzepte -c 'select 1'
+sudo -u dkportal psql -X -w -h 127.0.0.1 -U dkportal -d dachkonzepte -c 'select 1'
+curl -fsS https://app.dachkonzepte.gmbh/health; echo
+sudo -u postgres psql -tAX -c "select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls, rolconnlimit from pg_roles where rolname = 'dkportal'"
+sudo -u postgres psql -tAX -c "select unnest(setconfig) from pg_db_role_setting where setrole = 'dkportal'::regrole"
+sudo stat -c '%a %U:%G %n' /etc/dk-portal /etc/dk-portal/portal.env
+sudo grep -o '^[A-Z_]*=' /etc/dk-portal/portal.env
+sudo grep -c '^DATABASE_URL=postgresql+psycopg://dkportal:[0-9a-f]\{40\}@127.0.0.1:' /etc/dk-portal/portal.env
+```
+
+**Erwartet:** `t`; die erste Verbindung „pg_hba.conf rejects connection … database "spielwiese"“ (deutsch: „pg_hba.conf lehnt Verbindung … ab“), die zweite
+ebenso für `[local]`, die dritte `fe_sendauth: no password supplied` (sie kam bis zur Passwortprüfung, die Regel greift); das ERP antwortet wie immer;
+`dkportal|f|f|f|f|f|f|10`; `statement_timeout=5s`, `idle_in_transaction_session_timeout=15s`, `search_path=public`; `750 root:dkportal /etc/dk-portal` und
+`640 root:dkportal /etc/dk-portal/portal.env`; `DATABASE_URL=`, `PORTAL_HERKUNFT=`, `ERP_ENV=`; `1`.
+**Abbrechen,** wenn eine der drei Verbindungen anders endet, das ERP nicht antwortet (dann zuerst `sudo cp -a "$HBA.vor-p1" "$HBA"` und neu laden) oder ein Wert
+abweicht.
+**Rückweg:** `sudo -u postgres psql -X -c "DROP ROLE dkportal"`; `sudo cp -a "$HBA.vor-p1" "$HBA"` und `select pg_reload_conf()`; `sudo rm -r /etc/dk-portal`;
+nach S3b `REVOKE CREATE ON SCHEMA public FROM <ERP-Benutzer>` und `GRANT CREATE ON SCHEMA public TO PUBLIC`.
+
+#### S4 Schlüssel der Bremsen (nie angezeigt)
+
+Als tobias:
+
+```bash
+sudo sh -c 'umask 077; printf "PORTAL_BREMSE_SCHLUESSEL=%s\n" "$(openssl rand -hex 32)" >> /etc/dk-portal/portal.env'
+sudo awk -F= '/^PORTAL_BREMSE_SCHLUESSEL=/{print length($2)}' /etc/dk-portal/portal.env
+sudo grep -c '^PORTAL_BREMSE_SCHLUESSEL=' /etc/dk-portal/portal.env
+sudo stat -c '%a %U:%G' /etc/dk-portal/portal.env
+```
+
+**Erwartet:** `64`, `1`, `640 root:dkportal`.
+**Abbrechen,** wenn die Länge nicht 64 oder der Name zweimal da ist.
+**Rückweg:** `sudo sed -i '/^PORTAL_BREMSE_SCHLUESSEL=/d' /etc/dk-portal/portal.env`. Ein neuer Schlüssel später macht nur die laufenden Bremsen wirkungslos
+(höchstens eine Stunde), kein Datenverlust.
+
+#### S5 Version und Rechte
+
+Der Code von fc8b758 samt Migrationen ist schon eingespielt. Liegt inzwischen ein neuerer Stand im Repo, zuerst wie immer `/home/tobias/update.sh`. Dann als
+tobias (die Klammern laden `.env` nur für diese Befehle):
+
+```bash
+cd /home/tobias/erp
+( set -a; . ./.env; set +a
+  .venv/bin/alembic current 2>/dev/null
+  .venv/bin/alembic heads 2>/dev/null
+  .venv/bin/python scripts/portal_rechte.py --setzen && .venv/bin/python scripts/portal_rechte.py --pruefen )
+sudo -u postgres psql -d dachkonzepte -tAX -c "select count(*) from information_schema.column_privileges where grantee = 'dkportal'" -c "select count(*) from information_schema.routine_privileges where grantee = 'dkportal'"
+```
+
+**Erwartet:** `current` und `heads` nennen dieselbe Revision (`… (head)`); „Rechte für dkportal gesetzt: 2 Tabellen (nur Lesen), 8 Funktionen, n Anweisungen.“ und
+„Rechte für dkportal stimmen.“; `9` (Spalten: 8 der Firmendaten, 1 der Revision) und `8` (Funktionen).
+**Abbrechen,** wenn `current` und `heads` verschieden sind (erst `update.sh`) oder `--pruefen` Abweichungen nennt (die Zeilen in den Chat; „Schema public: darf
+Objekte anlegen“ heißt S3b fehlt).
+**Rückweg:** keiner nötig -- `--setzen` gibt nur dkportal Rechte; `DROP ROLE` (S3) nimmt sie mit (vorher `sudo -u postgres psql -d dachkonzepte -X -c "DROP OWNED
+BY dkportal"`).
+
+#### S6 Die beiden Dienste
+
+Als tobias:
+
+```bash
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/erp-portalpost.service /home/tobias/erp/scripts/server/erp-portal.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now erp-portalpost
+journalctl -u erp-portalpost -n 5 --no-pager
+sudo systemctl enable --now erp-portal
+journalctl -u erp-portal -n 10 --no-pager
+curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health; echo
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8010/health
+systemctl is-active erp erp-portal erp-portalpost
+ss -ltn | grep 8010
+systemctl show -p MemoryCurrent erp-portal erp-portalpost
+sudo systemd-analyze security erp-portal | tail -1
+```
+
+(`systemd-analyze verify` hier bewusst nicht: es sucht `/srv/erp-code/.venv/bin/python` auf dem Rechner selbst -- den Pfad gibt es nur im Dienst.)
+
+**Erwartet:**
+
+- Postbote: „… app.portal_postbote: Postbote bereit (LISTEN portal_post)“ und „Postbote: aufgeräumt {'codes': 0, 'sitzungen': 0, 'bremsen': 0, 'zugriffe': 0}“.
+- Portal: gunicorn „Listening at: http://127.0.0.1:8010“, „Booting worker …“ und „Portal verbunden als dkportal, Revision <dieselbe wie in S5>“.
+- `{"ok":true}`; ohne den Namen kunde `421` (fremder Host).
+- `active` dreimal; `127.0.0.1:8010` (nur lokal).
+- `MemoryCurrent` je unter 200 MB (Zahl in Byte, z. B. `MemoryCurrent=95000000`).
+- `Overall exposure level for erp-portal.service: …` -- den Wert in den Chat.
+
+**Abbrechen,** wenn ein Dienst nicht `active` ist: `journalctl -u erp-portal -n 30 --no-pager` bzw. `-u erp-portalpost` in den Chat (das Journal enthält keine
+Geheimnisse: Fehler nur mit Namen der Klasse). Typisch: „Datenbank auf Revision …, der Code erwartet … -- erst update.sh“ (dann `update.sh`, danach
+`sudo systemctl restart erp-portal`); „… startet nicht“ mit einem Namen aus portal.env (S3/S4 prüfen); beim Postboten Rückgabe 3 „Es läuft schon ein
+Postbote“ (nur einer je Datenbank).
+**Rückweg:** `sudo systemctl disable --now erp-portal erp-portalpost && sudo rm /etc/systemd/system/erp-portal.service /etc/systemd/system/erp-portalpost.service
+&& sudo systemctl daemon-reload`.
+
+#### S7 nginx und Zertifikat
+
+Erst nur der Block für Port 80 (für die Prüfung durch Let's Encrypt), als tobias:
+
+```bash
+awk '/^server [{]/{n++} n<2' /home/tobias/erp/scripts/server/nginx-kunde.conf | sudo tee /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf > /dev/null
+grep -c 'listen 80;' /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf; grep -c 'listen 443' /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
+sudo nginx -t && sudo systemctl reload nginx
+curl -sI http://kunde.dachkonzepte.gmbh/health | head -1
+sudo certbot certonly --nginx -d kunde.dachkonzepte.gmbh
+sudo certbot certificates --cert-name kunde.dachkonzepte.gmbh
+```
+
+**Erwartet:** `1` und `0`; „syntax is ok“, „test is successful“; `HTTP/1.1 301 Moved Permanently`; certbot „Successfully received certificate“ mit
+`/etc/letsencrypt/live/kunde.dachkonzepte.gmbh/fullchain.pem`; in `certificates` der Name `kunde.dachkonzepte.gmbh` und ein Ablauf in rund 90 Tagen.
+**Abbrechen,** wenn `nginx -t` einen Fehler meldet (`sudo rm /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf` -- ohne Neuladen ist nichts passiert) oder certbot
+scheitert bzw. einen anderen Pfad nennt (etwa `…-0001`).
+
+Dann der volle Block mit der Seite „Gleich wieder da“:
+
+```bash
+sudo install -D -m 644 -o root -g root /home/tobias/erp/scripts/server/portal-wartung.html /etc/nginx/dk-portal/wartung.html
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/nginx-kunde.conf /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Erwartet:** „syntax is ok“, „test is successful“. Ab nginx 1.25.1 (S0: `nginx -v`) steht davor eine Warnung, dass „listen … http2“ veraltet ist -- nur eine
+Warnung.
+**Abbrechen,** wenn `nginx -t` einen Fehler meldet: sofort `sudo rm /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf` (sonst scheiterte das nächste Neuladen, auch
+das von certbot) und die Meldung in den Chat.
+
+Prüfen, als tobias:
+
+```bash
+curl -sI http://kunde.dachkonzepte.gmbh/health | head -1
+curl -sI https://kunde.dachkonzepte.gmbh/health
+for p in / /api/customers /docs; do printf '%s ' "$p"; curl -s -o /dev/null -w '%{http_code}\n' "https://kunde.dachkonzepte.gmbh$p"; done
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE https://kunde.dachkonzepte.gmbh/
+curl -sI https://app.dachkonzepte.gmbh/health | head -1
+sudo systemctl stop erp-portal; curl -s -w '\n%{http_code}\n' https://kunde.dachkonzepte.gmbh/ | grep -oE 'Gleich wieder da|^50[24]$'; sudo systemctl start erp-portal
+sleep 3; curl -fsS https://kunde.dachkonzepte.gmbh/health; echo
+sudo certbot renew --dry-run --cert-name kunde.dachkonzepte.gmbh 2>&1 | tail -2
+systemctl list-timers | grep -i certbot
+```
+
+**Erwartet:**
+
+- `301`; `HTTP/2 200` mit `server: nginx` (ohne Version), `strict-transport-security: max-age=31536000`, `content-security-policy: …`,
+  `x-frame-options: DENY`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer`, `cache-control: no-store`.
+- `/ 200`, `/api/customers 404` (kein Weg des ERP), `/docs 404`; `DELETE` `405`; das ERP `200`.
+- Bei angehaltenem Portal `Gleich wieder da` und `502`, danach wieder `{"ok":true}`.
+- certbot „Congratulations, all simulated renewals succeeded“; ein Timer für certbot.
+
+Im Browser (Handy und Rechner): `https://kunde.dachkonzepte.gmbh` zeigt die Seite des Portals mit „Bitte über den Link anmelden“ (ohne
+Link).
+**Abbrechen,** wenn eine Schutz-Kopfzeile fehlt, ein Weg des ERP nicht 404 ist oder das ERP nicht mehr 200 antwortet.
+**Rückweg:** `sudo rm /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo nginx -t && sudo systemctl reload nginx`; das Zertifikat kann bleiben (`sudo certbot
+delete --cert-name kunde.dachkonzepte.gmbh` nimmt es weg).
+
+#### S8 Nachweis E4 (sieht das Portal die Adresse des Geräts?)
+
+Ein erfundener Link (43 Zeichen, gilt nicht):
+
+    https://kunde.dachkonzepte.gmbh/#z=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+Vom Handy im Mobilnetz (WLAN aus) und vom Rechner im Büro je zweimal in einem neuen Tab öffnen (neu laden reicht nicht -- die Seite nimmt den Link sofort aus der
+Adresse). Jedes Mal erscheint „Dieser Link funktioniert nicht“. Dann als tobias:
+
+```bash
+cd /home/tobias/erp
+( set -a; . ./.env; set +a; .venv/bin/python scripts/pruefe_portal_e4.py )
+```
+
+**Erwartet:** „Link geöffnet seit HH:MM Uhr (UTC): 2 Anschlüsse, 4 Aufrufe.“ und „Erwartet nach dem Nachweis mit zwei Geräten: 2 …“ (Rückgabe 0).
+**Abbrechen,** wenn dort „1 Anschlüsse“ steht: das Portal sieht nur nginx. Die Ausgabe in den Chat; nginx reicht `X-Forwarded-For` weiter (S7), gunicorn wertet es
+nur von 127.0.0.1 aus.
+
+Dasselbe fürs ERP (Frage P1-9): auf `https://app.dachkonzepte.gmbh/login` von beiden Anschlüssen je einmal mit dem erfundenen Benutzernamen `e4-probe` und
+einem beliebigen Passwort anmelden (scheitert; ein Fehlversuch sperrt nichts). Dann als tobias:
+
+```bash
+sudo -u postgres psql -d dachkonzepte -tAX -c "select count(distinct bucket), count(*) filter (where bucket = 'login_ip:127.0.0.1') from failed_login_attempts where bucket like 'login_ip:%' and occurred_at > (now() at time zone 'utc') - interval '1 hour'"
+```
+
+**Erwartet:** `2|0` (die erste Zahl kann höher sein, wenn in der Stunde noch jemand sich vertippt hat; die zweite muss 0 sein). Die Abfrage zeigt keine Adresse.
+**Abbrechen,** wenn die zweite Zahl nicht 0 ist.
+
+#### S9 Rauchtest
+
+Im ERP als Admin:
+
+1. Einstellungen → Module: „Kundenportal“ einschalten.
+2. Einen Kunden „Rauchtest Portal“ anlegen, als E-Mail die eigene Adresse (keine eines Kunden).
+3. Kundenakte → Übersicht → Karte „Kundenportal“: einschalten, Zugang anlegen, „Link senden“.
+4. Im eigenen Postfach: „Ihr Zugang zum Kundenportal“ -- gesiezt, Knopf, Fußzeile mit Anschrift und „Sitz … · Amtsgericht … · Geschäftsführer: …“; Betreff ohne
+   Link.
+5. Im Postfach des Absenders (Einstellungen → E-Mail-Versand) unter „Gesendete Elemente“: die Mail steht dort **nicht**.
+6. Die Rohdaten der Mail ansehen (Outlook im Web: „…“ → Ansicht → Nachrichtenquelle anzeigen; Apple Mail: Darstellung → Nachricht → Rohdaten): steht dort
+   `multipart/alternative` (Exchange hat einen Textteil ergänzt) oder nur `text/html`? Das Ergebnis in den Chat.
+7. Den Link auf dem Handy öffnen: „Willkommen im Kundenportal“ → „Code senden“ → „Code eingeben“; Mail „Ihr Anmeldecode für das Kundenportal“ (Betreff ohne
+   Code, auch sie nicht unter „Gesendete Elemente“); die 6 Ziffern eingeben → „Guten Tag, …“ mit dem Kontakt des Betriebs.
+8. Im ERP auf der Karte das Protokoll (je Aktion eine Zeile); im Versandprotokoll zwei Einträge, der Betreff ohne Link und Code.
+9. Im Portal „Auf allen Geräten abmelden“; im ERP auf der Karte „Sperren“ und das Portal des Kunden ausschalten.
+
+Ist 1.11.17 schon eingespielt: eine beliebige Mail an Kunden (etwa ein Angebot des Rauchtest-Kunden an die eigene Adresse) zeigt unten nach einer Leerzeile Name,
+Anschrift und Pflichtangaben.
+
+**Abbrechen,** wenn eine Mail unter „Gesendete Elemente“ steht, der Code nach einer Minute nicht da ist (dann `journalctl -u erp-portalpost -n 20 --no-pager` und
+der Hinweis auf „Start“ in den Chat) oder ein Betreff Link oder Code enthält.
+
+#### S10 update.sh für drei Dienste
+
+`update.sh` liegt nur auf dem Server; ich kenne ihn nicht wörtlich. Zuerst sichern:
+
+```bash
+cp -a /home/tobias/update.sh /home/tobias/update.sh.vor-p1
+```
+
+Dann drei Stellen ändern:
+
+1. Nach der Zeile mit `alembic current` für **dachkonzepte** (die Umgebung ist dort geladen), vor dem Neustart:
+
+   ```bash
+   .venv/bin/python scripts/portal_rechte.py --setzen && .venv/bin/python scripts/portal_rechte.py --pruefen || { echo "Rechte des Kundenportals stimmen nicht -- Abbruch vor dem Neustart"; exit 1; }
+   ```
+
+   Gegen `spielwiese` nichts: der Benutzer des Portals darf dort gar nicht hin (pg_hba), die Probe bleibt, wie sie ist.
+
+2. Den Neustart `sudo systemctl restart erp` ersetzen durch:
+
+   ```bash
+   sudo systemctl restart erp erp-portal erp-portalpost
+   ```
+
+3. Danach prüfen:
+
+   ```bash
+   systemctl is-active erp erp-portal erp-portalpost && curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health && echo
+   ```
+
+Den Unterschied in den Chat (er enthält keine Geheimnisse): `diff -u /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
+
+**Erwartet beim nächsten Einspielen:** „Rechte für dkportal gesetzt …“, „Rechte für dkportal stimmen.“, `active` dreimal, `{"ok":true}`. Während des Neustarts
+zeigt das Portal für ein paar Sekunden „Gleich wieder da“.
+**Rückweg:** `cp -a /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
+
+#### Danach
+
+Den Bericht P1f schreibe ich aus den Ausgaben im Chat: Speicher je Dienst, Wert von `systemd-analyze security`, E4 (Portal und ERP), Textteil der Mail (S9.6),
+Fristen von logrotate und Journal (S0).
