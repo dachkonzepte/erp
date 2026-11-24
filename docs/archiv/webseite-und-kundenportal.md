@@ -1650,3 +1650,74 @@ Ausgabe, Start im Fehlerprotokoll; der UvicornWorker bedient Anfragen -- ohne Ko
 von ::1 die angehängte Adresse, eine vorangestellte hilft nicht; Platzhalter nur unter Windows. Angepasste Erwartung: test_v801
 `test_gunicorn_in_den_abhaengigkeiten` -- alt „eine Zeile beginnt mit gunicorn>=“, neu „eine Zeile beginnt mit gunicorn==“ (die Version selbst prüft
 test_v803). Gegenproben: `gegenproben-portal.md`, „1.11.4“.
+
+### Umsetzung 1.11.5: Mails des Kundenportals ohne „Gesendete Elemente“ (P1c, Teil 1)
+
+- Zwei Versandarten ohne Dokument (`app/email_dispatch.py::PORTAL_TYPES`): `portal_link` „Link zum Kundenportal“ (Dokument-Nummer = Zugang, ab P1d) und
+  `portal_code` „Anmeldecode des Kundenportals“ (= Auftrag an den Postboten, ab 1.11.6) -- wie die Aufgaben-Benachrichtigung ohne PDF, ohne Ablage, ohne
+  Versandergebnis. Im Versandprotokoll stehen Empfänger und der feste Betreff.
+- `dispatch_email(…, gesendete_elemente=False)` reicht bis zum Graph-Aufruf durch (`saveToSentItems` "false", wie in der Doku von Microsoft als Text).
+  Eine Art des Portals geht nur so, jede andere nur mit Kopie -- sonst ValueError, bevor etwas geschrieben wird. Über SMTP lässt sich „Gesendete Elemente“
+  nicht steuern: abgelehnt mit `NUR_MICROSOFT_365` (P1-3), dazu eine zweite Sicherung im SMTP-Versand selbst.
+- `app/portal_mails.py`: feste Texte (P1-7), gesiezt (`KUNDENTEXTE` in test_v440), Begrüßung wie im Portal (`app/portal/begruessung.py`), Absender aus den
+  Firmendaten der Einstellungen (P1-14); fester Betreff je Art (`BETREFF`, ohne Link und Code); `senden()` ist der einzige Weg -- der Wächter in test_v804
+  lässt eine Art des Portals und den Schalter `gesendete_elemente` nur dort zu. Je Art ein Aufruf mit fester Versandart: die Wächter test_v355 (eine
+  veränderliche Art könnte eine Aufgaben-Mail sein) und test_v371 (Dokumente mit „Kopie an:“) verlangen eine Konstante -- gefunden von der vollen Suite,
+  die erste Fassung gab die Art als Variable weiter; die Wächter blieben unverändert.
+- Texte (Kunde „Herr Dr. Muster“; Absender aus den Einstellungen):
+
+      Betreff: Ihr Anmeldecode für das Kundenportal
+      Guten Tag, Herr Dr. Muster,
+
+      Ihr Anmeldecode für das Kundenportal:
+
+      123456
+
+      Der Code gilt 10 Minuten und nur in dem Browser, in dem Sie ihn angefordert haben.
+
+      Haben Sie keinen Code angefordert? Dann hat jemand Ihren Link zum Kundenportal geöffnet. Bitte rufen Sie uns an – wir sperren den Link und
+      schicken Ihnen einen neuen. Wir fragen Sie nie nach diesem Code oder einem Passwort.
+
+      Mit freundlichen Grüßen
+
+      <Firmenname>
+      <Straße>
+      <PLZ Ort>
+      Telefon <Telefon> · <E-Mail> · <Webseite>
+
+      Betreff: Ihr Zugang zum Kundenportal
+      Guten Tag, Herr Dr. Muster,
+
+      über unser Kundenportal erreichen Sie Ihre Unterlagen bei uns. Ihr persönlicher Zugang:
+
+      https://kunde.dachkonzepte.gmbh/#z=…
+
+      Der Link gilt bis 24.11.2027. Beim ersten Öffnen auf einem Gerät schicken wir Ihnen einen Anmeldecode an diese E-Mail-Adresse.
+
+      Bitte geben Sie den Link nicht weiter – er öffnet Ihr Kundenportal. Wir fragen Sie nie nach einem Passwort. Haben Sie diese E-Mail nicht erwartet,
+      rufen Sie uns bitte an.
+
+      Mit freundlichen Grüßen
+      … (wie oben)
+
+#### Festlegungen 1.11.5 (Bitte bestätigen)
+
+1. Zwei Versandarten des Portals, `portal_link` und `portal_code`, ohne Dokument: kein PDF, keine Ablage, kein Versandergebnis; im Versandprotokoll Empfänger
+   und fester Betreff.
+2. Mails des Portals gehen nur über `app/portal_mails.py::senden()`, mit dem festen Betreff der Art (ohne Link und Code); keine andere Stelle nimmt eine Art
+   des Portals (Wächter).
+3. Ohne Kopie in „Gesendete Elemente“ nur die Mails des Portals, alle anderen weiter mit; eine Art des Portals mit Kopie oder eine andere ohne wird
+   abgelehnt.
+4. Über SMTP lehnt das ERP Mails des Portals ab, bevor etwas geschrieben wird -- mit dem Weg „Einstellungen → E-Mail-Versand auf Microsoft 365“.
+5. Texte fest im Code wie oben: gesiezt, Begrüßung wie im Portal, Code bzw. Link allein auf einer Zeile, Sicherheitshinweis, „gilt bis“ als Tag in Berlin,
+   Absender aus den Firmendaten (leere Angaben fallen weg). Der Wortlaut ist ein Vorschlag -- Änderungen über eine Version.
+6. Link und Code stehen nie im Versandprotokoll, in einem Protokoll oder einer Fehlermeldung; ein gescheiterter Versand nennt nur Klasse und Code des Fehlers.
+
+#### Tests und Prüfung 1.11.5
+
+Neu `tests/test_v804_portal_mails.py` (13): Versandarten und feste Betreffe; Code und Link über die Graph-Attrappe aus test_v321 (die ganze Anfrage:
+`saveToSentItems` "false", fester Betreff, ein Empfänger, kein Anhang, Text mit Code bzw. Link; im Protokoll weder Code noch Link); eine andere Mail weiter
+mit "true"; SMTP abgelehnt ohne Eintrag und ohne Mail, auch der SMTP-Versand selbst; eine Art des Portals mit Kopie abgelehnt; gescheiterter Versand ohne
+Code in Meldung, Protokoll und Versandprotokoll; Texte für Herr, Frau und Firma mit Hinweis, Absender und „gilt bis“ (23:30 UTC = nächster Tag in Berlin);
+Absender ohne leere Zeilen; Wächter per AST über app/ und scripts/. Aufbau: `KUNDENTEXTE` in test_v440 kennt `app/portal_mails.py`. Keine angepasste
+Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.5“.

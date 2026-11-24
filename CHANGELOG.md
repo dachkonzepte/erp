@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.5 – Kundenportal P1c: Mails ohne „Gesendete Elemente“
+
+Zwei neue Versandarten für das Kundenportal: der Link zum Portal und der Anmeldecode. Beide gehen nur über Microsoft 365 hinaus und ohne Kopie in „Gesendete Elemente“ -- Link und Code lägen sonst im Postfach des Betriebs. Über SMTP lehnt das ERP sie ab, weil sich die Kopie dort nicht abschalten lässt. Die Texte stehen fest im Code, gesiezt, mit Sicherheitshinweis und den Firmendaten als Absender; der Betreff ist fest und enthält weder Link noch Code, denn das Versandprotokoll speichert ihn. Noch sendet niemand diese Mails: den Code schickt ab 1.11.6 der Postbote, den Link ab P1d die Karte in der Kundenakte.
+
 ## 1.11.4 – gunicorn und uvicorn in den Versionen des Servers
 
 requirements.txt nennt jetzt genau die Versionen, die auf dem Server laufen: gunicorn 26.2.0 und uvicorn 0.52.4. Der Bereich aus 1.11.2 (gunicorn 22–23) hätte beim nächsten Einspielen den gunicorn des ERP zurückgesetzt. Ein neuer Test startet gunicorn so, wie die Einheit des Portals ihn startet, bis zum Arbeitsprozess und prüft: X-Forwarded-For gilt nur von 127.0.0.1 und ::1, ab Werk gibt es kein Zugriffsprotokoll, und der UvicornWorker bedient Anfragen. Den Hauptprozess (fork) gibt es unter Windows nicht -- ihn belegt der ERP-Dienst auf dem Server mit denselben Versionen.

@@ -101,6 +101,7 @@ KUNDENTEXTE = {
     "app/notice_letters.py": {"INTRO", "DEFAULT_EMAIL_BODY", "salutation_line", "build_letter_content"},
     "app/option_settings.py": {"DEFAULT_OPTION_GROUPS"},  # Vortexte, Zahlungsbedingungen, Schlusstexte
     "app/orders.py": {"DEFAULT_ORDER_EMAIL_BODY"},
+    "app/portal_mails.py": {"BETREFF", "schluss", "link_text", "code_text"},  # seit 1.11.5: Mails des Kundenportals
     "app/projects.py": {"DEFAULT_QUOTE_EMAIL_BODY"},
     "app/reminders.py": {"DEFAULT_REMINDER_EMAIL_BODY", "DEFAULT_REMINDER_LEVELS"},
     "alembic/versions/8e2f4b6d1c97_nebenforderungen_z2b.py": {"OLD_TEXTS", "NEW_TEXTS"},  # Mahntexte in der Datenbank

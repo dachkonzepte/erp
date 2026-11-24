@@ -254,9 +254,11 @@ def check_smtp_connection(db: Session) -> None:
     conn.quit()
 
 
-def _send_via_smtp(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
+def _send_via_smtp(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str, gesendete_elemente: bool = True,
                     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
                     headers: dict[str, str] | None = None) -> None:
+    if not gesendete_elemente:  # zweite Sicherung -- dispatch_email() lehnt vorher ab (NUR_MICROSOFT_365)
+        raise ValueError("Über SMTP lässt sich „Gesendete Elemente“ nicht steuern -- es wurde nichts versendet.")
     msg = MIMEMultipart()
     msg["From"] = formataddr((settings.sender_name or settings.sender_email, settings.sender_email))
     msg["To"] = ", ".join(to)
@@ -363,7 +365,7 @@ def graph_send_error_text(status: int, detail: str) -> str:
     return f"{text} Es wurde nichts versendet. ({code + ', ' if code else ''}HTTP {status})"
 
 
-def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
+def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str, gesendete_elemente: bool = True,
                      attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
                      headers: dict[str, str] | None = None) -> None:
     """sendMail mit Anhang inline (fileAttachment) -- der einzige Weg, der mit Mail.Send allein
@@ -390,7 +392,9 @@ def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], sub
             "contentType": "application/pdf",
             "contentBytes": base64.b64encode(attachment_bytes).decode("ascii"),
         }]
-    payload = {"message": message, "saveToSentItems": "true"}
+    # seit 1.11.5: ohne Kopie in „Gesendete Elemente“ nur für die Mails des Kundenportals (dispatch_email(gesendete_elemente=False)); Graph nimmt
+    # den Wert wie in der Doku von Microsoft als "true"/"false"
+    payload = {"message": message, "saveToSentItems": "true" if gesendete_elemente else "false"}
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST", headers={
         "Authorization": f"Bearer {token}",
@@ -425,7 +429,7 @@ def check_attachment_size(attachment_bytes: bytes | None, attachment_filename: s
 def send_message(
     settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
-    headers: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None, gesendete_elemente: bool = True,
 ) -> None:
     """Der eigentliche Versand über den eingestellten Weg (SmtpSettings.send_method). NUR aus
     app/email_dispatch.py aufrufen -- jeder Versand geht durch Protokoll und Ablage
@@ -433,7 +437,7 @@ def send_message(
     Wirft ValueError bei Versandfehlern; Konfiguration und Größe prüft der Aufrufer vorher."""
     kwargs = dict(
         to=to, cc=cc, subject=subject, body_text=body_text, attachment_bytes=attachment_bytes,
-        attachment_filename=attachment_filename, headers=headers,
+        attachment_filename=attachment_filename, headers=headers, gesendete_elemente=gesendete_elemente,
     )
     if settings.send_method == "graph_oauth2":
         _send_via_graph(settings, **kwargs)

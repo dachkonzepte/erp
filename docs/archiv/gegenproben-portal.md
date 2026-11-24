@@ -161,3 +161,27 @@ installierten Pakete sieht, nicht eine Kopie). Ohne eigene Gegenprobe: Nr. 5 (Ar
 | Nr. 3 – uvicorn ohne eigenes Protokoll | eigener Handler am Logger uvicorn.access | 1 rot |
 | Nr. 4 – UvicornWorker | --worker-class asgi (Arbeitsprozess von gunicorn) | 3 rot |
 | Nr. 4 – vorangestellte Adresse hilft nicht | uvicorn liest X-Forwarded-For von links | 1 rot |
+
+## 1.11.5: Mails des Kundenportals ohne „Gesendete Elemente“
+
+Probendatei `gp_1115.py`, Lauf mit `tests/test_v804_portal_mails.py`; alle 15 rot aus dem geprüften Grund (FAILED, kein ERROR), alle Dateien
+byte-gleich zurück. Eine Gegenprobe in zweiter Fassung: „Absender aus den Firmendaten“ setzte den Marker zuerst mitten in die Zeile (der Rest wurde
+Kommentar, ERROR beim Sammeln) -- neu mit dem Marker am Ende der Zeile, dann rot. Nachdem `senden()` je Art einen Aufruf mit fester Versandart bekam
+(Wächter test_v355 und test_v371), liefen alle noch einmal, dazu neu „Betreff passt zur Art“.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Arten bekannt, keine Dokumente | Arten nicht in DISPATCH_TYPES | 6 rot |
+| Nr. 2 – Betreff ohne Code | Ziffer im Betreff | 2 rot |
+| Nr. 2 – fester Betreff in senden() | Betreff aus einem Ausdruck mit dem Text | 4 rot (Wächter und Ablauf) |
+| Nr. 2 – Betreff passt zur Art | der Link mit dem Betreff des Codes | 2 rot |
+| Nr. 2 – nur senden() nimmt eine Art | zweiter Aufruf mit portal_code in email_dispatch.py | 1 rot |
+| Nr. 3 – ohne Kopie über Graph | saveToSentItems immer "true" | 2 rot |
+| Nr. 3 – Art des Portals nur ohne Kopie | Prüfung entfernt | 1 rot |
+| Nr. 4 – SMTP abgelehnt, bevor etwas geschrieben wird | Prüfung entfernt | 1 rot |
+| Nr. 4 – zweite Sicherung im SMTP-Versand | Prüfung entfernt | 1 rot |
+| Nr. 5 – Sicherheitshinweis | Satz entfernt | 3 rot |
+| Nr. 5 – Begrüßung wie im Portal | nur „Guten Tag,“ | 3 rot |
+| Nr. 5 – Absender aus den Firmendaten | ohne Telefon (zweite Fassung) | 3 rot |
+| Nr. 5 – „gilt bis“ in Berlin | Tag in UTC | 3 rot |
+| Nr. 6 – Fehler nennt nichts vom Text | Fehlermeldung mit dem Text der Mail | 1 rot |

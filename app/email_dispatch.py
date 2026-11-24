@@ -75,7 +75,12 @@ MANUAL_CHANNELS = {"einschreiben": "Einschreiben", "persoenlich": "Persönliche 
 CHANNELS = {"smtp": "SMTP", "graph_oauth2": "Microsoft 365", **MANUAL_CHANNELS}
 MAX_RECEIPT_BYTES = 15_000_000  # Beleg einer nachgetragenen Zustellung (Foto vom Handy, Scan)
 DELIVERY_NOTE_MAX = 1000
-DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung"}
+# Seit 1.11.5 (Stufe P1c): Mails des Kundenportals -- keine Dokumente (kein PDF, keine Ablage), nur über app/portal_mails.py::senden(), nur über
+# Microsoft 365 und ohne „Gesendete Elemente“ (gesendete_elemente=False).
+PORTAL_TYPES = {"portal_link": "Link zum Kundenportal", "portal_code": "Anmeldecode des Kundenportals"}
+DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung", **PORTAL_TYPES}
+NUR_MICROSOFT_365 = ("Mails des Kundenportals gehen nur über Microsoft 365 -- über SMTP läge jede Kopie mit Link oder Code in „Gesendete Elemente“. "
+                     "Stell den Versand unter Einstellungen → E-Mail-Versand auf Microsoft 365 um. Es wurde nichts versendet.")
 DISPATCH_ENTITY_TYPE = "Versand"  # Änderungshistorie (app/audit.py) für die Klärung eines Eintrags
 # Versandergebnis (seit 1.8.41, record_dispatch_outcome())
 OUTCOMES = {"empfangen": "Empfang bestätigt", "unzustellbar": "Unzustellbar"}
@@ -242,7 +247,7 @@ def dispatch_email(
     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
     archived_document: SentDocument | None = None,
     user_id: int | None = None, user_name: str | None = None, block_parallel: bool = True,
-    before_send: Callable[[Session, EmailDispatch], None] | None = None,
+    before_send: Callable[[Session, EmailDispatch], None] | None = None, gesendete_elemente: bool = True,
 ) -> DispatchResult:
     """Siehe Moduldocstring. Wirft ValueError (Eingabe/Konfiguration/Versandfehler, Router 400)
     und DispatchConflict (Router 409). Committet selbst.
@@ -253,9 +258,14 @@ def dispatch_email(
     before_send (seit 1.8.40): läuft nach dem Ablegen des PDFs und vor dem Senden, mit dem Eintrag
     (Empfänger schon geprüft und entdoppelt) -- für weitere Nachweise in der Ablage. Er committet
     nicht; scheitert er, wird nichts gesendet. Eine Wiederholung desselben Schlüssels ruft ihn nicht. Seit 1.8.67 auch für
-    eine letzte Prüfung (Abnahmeprotokoll: Fassung noch gültig) -- ein ValueError von ihm geht mit seinem Text weiter."""
+    eine letzte Prüfung (Abnahmeprotokoll: Fassung noch gültig) -- ein ValueError von ihm geht mit seinem Text weiter.
+
+    gesendete_elemente (seit 1.11.5): False nur für die Mails des Kundenportals (PORTAL_TYPES, app/portal_mails.py) -- keine Kopie in „Gesendete
+    Elemente“ (Graph: saveToSentItems false); über SMTP nicht steuerbar, dort abgelehnt, bevor etwas geschrieben wird (P1-3)."""
     if document_type not in DISPATCH_TYPES:
         raise ValueError(f"Unbekannte Versandart: {document_type}")
+    if (document_type in PORTAL_TYPES) == gesendete_elemente:
+        raise ValueError("Mails des Kundenportals gehen nie in „Gesendete Elemente“, alle anderen immer -- es wurde nichts versendet.")
     key = (dispatch_key or "").strip()
     if not _KEY_RE.match(key):
         raise ValueError("Ungültiger Versandschlüssel. Bitte die Seite neu laden.")
@@ -280,6 +290,8 @@ def dispatch_email(
         raise ValueError(f"Höchstens {MAX_RECIPIENTS} Empfänger (An und CC zusammen) je Versand.")
     settings = load_smtp_settings(db)
     ensure_configured(settings)
+    if not gesendete_elemente and settings.send_method != "graph_oauth2":
+        raise ValueError(NUR_MICROSOFT_365)
     check_attachment_size(attachment_bytes, attachment_filename)
     lock_key = _lock_key(document_type, document_id) if block_parallel and document_id is not None else None
     if lock_key is not None and _running_dispatch(db, document_type, document_id) is not None:
@@ -342,7 +354,7 @@ def dispatch_email(
         send_message(
             settings, to=to_list, cc=cc_list, subject=subject, body_text=body_text,
             attachment_bytes=attachment_bytes, attachment_filename=attachment_filename,
-            headers={HEADER_NAME: dispatch.message_ref},
+            headers={HEADER_NAME: dispatch.message_ref}, gesendete_elemente=gesendete_elemente,
         )
     except Exception as e:
         _finish(db, dispatch_id, "fehlgeschlagen", e)
