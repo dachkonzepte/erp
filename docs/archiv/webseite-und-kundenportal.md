@@ -1721,3 +1721,49 @@ mit "true"; SMTP abgelehnt ohne Eintrag und ohne Mail, auch der SMTP-Versand sel
 Code in Meldung, Protokoll und Versandprotokoll; Texte für Herr, Frau und Firma mit Hinweis, Absender und „gilt bis“ (23:30 UTC = nächster Tag in Berlin);
 Absender ohne leere Zeilen; Wächter per AST über app/ und scripts/. Aufbau: `KUNDENTEXTE` in test_v440 kennt `app/portal_mails.py`. Keine angepasste
 Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.5“.
+
+### Umsetzung 1.11.6: der Postbote (P1c, Teil 2)
+
+- `app/portal_postbote.py`: `naechster()` erledigt einen wartenden Auftrag aus `portal_post` -- FOR UPDATE SKIP LOCKED, dann Zugang (FOR NO KEY UPDATE) und
+  Sitzung (FOR UPDATE) in der Reihenfolge der Funktionen; zweite Prüfung (`_grund()`); Code erzeugen, nur den Prüfwert speichern (frühere Codes der Sitzung
+  ersetzt), über `app/portal_mails.py::senden()` schicken; Ergebnis am Auftrag (bedingtes UPDATE aus „wartet“) und im Zugriffsprotokoll
+  (`portal_protokoll()`). Zeit nur aus der Datenbank (`portal_jetzt()`). `aufraeumen()` löscht nach den Fristen; `laufen()` ist die Schleife des Dienstes
+  (Sperre, LISTEN, Weckruf oder jede Minute, Aufräumen beim Start und stündlich).
+- `senden()` committet den Code zusammen mit dem Eintrag „in Arbeit“ im Versandprotokoll vor dem Senden (dispatch_email()). Bricht der Postbote danach ab,
+  steht der Auftrag noch auf „wartet“ -- der nächste Lauf findet den Versandschlüssel `portal-code-<Auftrag>` und übernimmt dessen Ergebnis, statt einen
+  zweiten Code zu senden.
+- `scripts/portal_postbote.py`: nur mit DATABASE_URL für PostgreSQL (sonst 2); baut seine Engine aus genau dieser Zeichenfolge (zwei Verbindungen) --
+  nicht `app.database.engine`, die DATABASE_URL noch einmal selbst läse (beim Bau der Gegenproben gefunden: die erste Fassung prüfte die übergebene
+  Zeichenfolge, verband sich aber über app.database); läuft schon ein Postbote 3, ein Fehler der Datenbank 1 (systemd startet neu).
+- `scripts/server/erp-portalpost.service`: Benutzer des ERP, lädt .env, Type=simple, Restart=always (5 s), MemoryHigh 200M, MemoryMax 256M, TasksMax 32.
+- Speicher (lokal, Windows, Working Set nach 20 Aufträgen, zweimal gemessen): Python-Prozess 115 MB, mit dem Startprogramm von .venv 119 MB -- wie im
+  Bauplan geschätzt (rund 120 MB), unter MemoryHigh 200M.
+
+#### Festlegungen 1.11.6 (Bitte bestätigen)
+
+1. Der Postbote ist ein eigener Dienst `erp-portalpost` unter dem Benutzer des ERP (lädt .env, Restart=always, MemoryHigh 200M, MemoryMax 256M), nur mit
+   PostgreSQL, mit eigener Verbindung aus der geprüften DATABASE_URL.
+2. Genau ein Postbote je Datenbank und Schema (pg_try_advisory_lock); ein zweiter endet mit Rückgabe 3.
+3. Geweckt über LISTEN portal_post, sonst jede Minute; die Aufträge der Reihe nach, ein gerade gehaltener wird übersprungen (SKIP LOCKED).
+4. Zweite Prüfung vor jedem Code: Auftrag höchstens 10 Minuten alt; Zugang gilt (gesperrt, abgelaufen, Portal aus, Archiv, Modul aus); Sitzung unbestätigt,
+   nicht beendet, nicht abgelaufen; Grenzen an den gesendeten Codes (je Zugang 3 je 15 Minuten und 10 je Tag, gesamt 200 je Stunde) -- sonst „verworfen“ mit
+   festem Text, kein Code, keine Mail.
+5. Der Code: 6 Ziffern, gespeichert nur der Prüfwert, gültig 10 Minuten nach der Zeit der Datenbank; frühere Codes der Sitzung gelten nicht mehr; scheitert
+   der Versand, gilt auch der neue nicht (Auftrag „fehler“).
+6. Ein Auftrag geht nie zweimal hinaus: Versandschlüssel `portal-code-<Auftrag>`; liegt er schon vor, übernimmt der Postbote dessen Ergebnis (gesendet bzw.
+   „Versand hängt“) ohne neuen Code.
+7. Zugriffsprotokoll: „code_gesendet“ (ok) bzw. „code_fehler“ mit dem Grund (gesperrt, abgelaufen, portal_aus, archiv, modul_aus, bremse; „ungueltig“ für
+   Sitzung, zu alten Auftrag und gescheiterten Versand) -- feste Wörter, keine neue Spalte, kein neuer Wert.
+8. Aufräumen beim Start und stündlich: Codes 24 Stunden nach dem Anlegen; Sitzungen 30 Tage nach ihrem Ende (beendet bzw. abgelaufen) samt Codes und
+   Aufträgen; Bremsen 48 Stunden nach dem Beginn ihres Fensters; Zugriffsprotokoll nach 24 Monaten. Das Versandprotokoll bleibt (Regel 21).
+9. Das Protokoll des Dienstes nennt nur Nummern der Aufträge, Zähler und Namen von Ausnahmen -- nie Code, Link oder Adresse.
+
+#### Tests und Prüfung 1.11.6
+
+Neu `tests/test_v805_portal_postbote.py` (25): gegen PostgreSQL in einem Schema für die Datei, das Portal als Testrolle (Welt aus test_v800), Graph als
+Attrappe (test_v804) -- Code geht hinaus und meldet an (ganze Anfrage, Versandprotokoll, 10 Minuten, Code in keiner Tabelle, Protokoll); neuer Code ersetzt
+den alten (nur einer gilt); elf Gründe der zweiten Prüfung verwerfen (je Grund das Wort im Protokoll); knapp unter der Grenze geht hinaus; gescheiterter
+Versand (Code gilt nicht, kein Code im Protokoll); SMTP (kein Eintrag, kein Code); Abbruch mitten im Versand (in Arbeit, gesendet: nie zweimal); ein
+gehaltener Auftrag wird übersprungen; genau ein Postbote und Weckruf über LISTEN (Schleife in einem Faden, zweiter Postbote abgelehnt, Code ohne Warten);
+Aufräumen nach den Fristen (Sitzung samt Code und Auftrag, Protokoll ohne Sitzung, Versandprotokoll bleibt); kein Code im Protokoll (mit der Ausgabe von
+SQLAlchemy); ohne Datenbank das Skript (nur PostgreSQL) und die Einheit. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.6“.

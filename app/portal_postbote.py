@@ -1,0 +1,196 @@
+"""Der Postbote des Kundenportals (seit 1.11.6, Stufe P1c; Bauplan P1, Abschnitt 1.1 und 3.2) -- ein Dienst unter dem Benutzer des ERP (erp-portalpost).
+
+Das Portal fordert einen Anmeldecode nur an: portal_code_anfordern() legt einen Auftrag in portal_post und weckt mit NOTIFY portal_post (ohne Inhalt).
+Der Postbote
+1. hört mit LISTEN auf den Kanal (nur ein Weckruf -- er liest die Aufträge selbst) und schaut ohne Weckruf jede Minute nach;
+2. nimmt je Auftrag die Zeile mit FOR UPDATE SKIP LOCKED, sperrt Zugang und Sitzung in der Reihenfolge der Funktionen (Zugang -> Sitzung -> Code) und
+   prüft ein zweites Mal: Auftrag höchstens 10 Minuten alt, Zugang gilt (portal_zugang_grund()), Sitzung unbestätigt und gültig, Grenzen an den
+   gesendeten Codes -- je Zugang 3 je 15 Minuten und 10 je Tag, gesamt 200 je Stunde. Sonst „verworfen“ mit festem Text;
+3. erzeugt den Code, speichert nur den Prüfwert (frühere Codes der Sitzung gelten nicht mehr), schickt ihn über app/portal_mails.py::senden()
+   (Microsoft 365, ohne „Gesendete Elemente“) und hält das Ergebnis am Auftrag und im Zugriffsprotokoll fest. Scheitert der Versand, gilt der Code nicht;
+4. räumt auf (beim Start, danach stündlich): Codes 24 Stunden nach dem Anlegen, Sitzungen 30 Tage nach ihrem Ende (mit ihnen ihre Codes und Aufträge),
+   Bremsen 48 Stunden nach ihrem Fenster, das Zugriffsprotokoll nach 24 Monaten (P1-2).
+
+Genau ein Postbote: er hält eine Sperre der Datenbank (pg_try_advisory_lock je Schema -- auf dem Server eines, in Tests jedes Wegwerf-Schema für
+sich) -- ein zweiter bricht ab. Ein Auftrag geht nie zweimal hinaus: der
+Versandschlüssel ist „portal-code-<Auftrag>“; findet der Postbote ihn schon im Versandprotokoll (Abbruch mitten im Versand), übernimmt er dessen
+Ergebnis und erzeugt keinen neuen Code. Nur PostgreSQL (LISTEN, SKIP LOCKED, die Funktionen des Portals). Zeit nur aus der Datenbank (portal_jetzt()),
+wie in den Funktionen. Der Code steht nur in der Mail und kurz in einer Variablen -- nie in einer Tabelle, einem Protokoll oder einer Ausnahme; das
+Protokoll nennt nur die Nummer des Auftrags und den Namen einer Ausnahme (Regel 18).
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timedelta
+from typing import Callable
+
+from sqlalchemy import delete, func, literal_column, select, text, update
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+
+from . import portal_mails
+from .email_dispatch import DispatchConflict
+from .models import Customer, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang, PortalZugriff
+from .portal import pruefwerte
+
+logger = logging.getLogger(__name__)
+
+KANAL = "portal_post"            # wie pg_notify() in portal_code_anfordern()
+SPERRE = 7311250                 # pg_try_advisory_lock(SPERRE, hashtext(Schema)): genau ein Postbote je Datenbank und Schema
+NAME = "Postbote"                # „erstellt von“ im Versandprotokoll
+AUFTRAG_HOECHSTENS = timedelta(minutes=10)
+CODE_GUELTIG = timedelta(minutes=portal_mails.CODE_MINUTEN)
+# (Fenster, Grenze, je Zugang) -- gezählt an den gesendeten Codes; dieselben Zahlen prüft portal_code_anfordern() an den Anforderungen
+GRENZEN = ((timedelta(minutes=15), 3, True), (timedelta(days=1), 10, True), (timedelta(hours=1), 200, False))
+NACHSEHEN_SEKUNDEN = 60
+AUFRAEUMEN_SEKUNDEN = 3600
+
+# Fester Text am Auftrag (portal_post.fehler, höchstens 60 Zeichen) -> Ergebnis im Zugriffsprotokoll
+ZU_ALT, SITZUNG_UNGUELTIG, GRENZE, ZUGANG = "Auftrag zu alt", "Sitzung gilt nicht mehr", "Grenze erreicht", "Zugang gilt nicht"
+VERSAND, HAENGT = "Versand gescheitert", "Versand hängt -- im Versandprotokoll klären"
+
+
+class AndererPostbote(RuntimeError):
+    """Es läuft schon ein Postbote (die Sperre der Datenbank ist belegt)."""
+
+
+def jetzt(db: Session) -> datetime:
+    """Die Zeit der Datenbank (naiv UTC) -- dieselbe, mit der die Funktionen des Portals Codes prüfen."""
+    return db.scalar(select(func.portal_jetzt()))
+
+
+def _protokoll(db: Session, zugang_id: int, sitzung_id: int, aktion: str, ergebnis: str) -> None:
+    db.execute(select(func.portal_protokoll(zugang_id, sitzung_id, aktion, ergebnis)))
+
+
+def _abschliessen(db: Session, post_id: int, zugang_id: int, sitzung_id: int, status: str, fehler: str | None, dispatch_id: int | None,
+                  ergebnis: str) -> None:
+    """Auftrag erledigt (nur aus „wartet“), Eintrag im Zugriffsprotokoll, commit."""
+    db.execute(update(PortalPost).where(PortalPost.id == post_id, PortalPost.status == "wartet")
+               .values(status=status, fehler=fehler, email_dispatch_id=dispatch_id, erledigt_am=func.portal_jetzt())
+               .execution_options(synchronize_session=False))
+    _protokoll(db, zugang_id, sitzung_id, "code_gesendet" if status == "gesendet" else "code_fehler", ergebnis)
+    db.commit()
+
+
+def _grund(db: Session, post: PortalPost, sitzung: PortalSitzung | None, jetzt_: datetime) -> tuple[str, str] | None:
+    """Die zweite Prüfung: (Ergebnis fürs Zugriffsprotokoll, fester Text am Auftrag) oder None, wenn der Code hinausgehen darf."""
+    if post.angefordert_am < jetzt_ - AUFTRAG_HOECHSTENS:
+        return "ungueltig", ZU_ALT
+    grund = db.scalar(select(func.portal_zugang_grund(post.zugang_id)))
+    if grund is not None:
+        return grund, ZUGANG
+    if (sitzung is None or sitzung.zugang_id != post.zugang_id or sitzung.beendet_am is not None or sitzung.bestaetigt_am is not None
+            or sitzung.laeuft_ab <= jetzt_):
+        return "ungueltig", SITZUNG_UNGUELTIG
+    for fenster, grenze, je_zugang in GRENZEN:
+        anzahl = select(func.count(PortalPost.id)).where(PortalPost.status == "gesendet", PortalPost.erledigt_am > jetzt_ - fenster)
+        if je_zugang:
+            anzahl = anzahl.where(PortalPost.zugang_id == post.zugang_id)
+        if db.scalar(anzahl) >= grenze:
+            return "bremse", GRENZE
+    return None
+
+
+def naechster(db: Session) -> int | None:
+    """Einen wartenden Auftrag erledigen (der älteste, den kein anderer gerade hält); seine Nummer, None ohne wartenden Auftrag. Committet."""
+    post = db.scalars(select(PortalPost).where(PortalPost.status == "wartet").order_by(PortalPost.id).limit(1)
+                      .with_for_update(skip_locked=True)).first()
+    if post is None:
+        db.rollback()
+        return None
+    post_id, zugang_id, sitzung_id = post.id, post.zugang_id, post.sitzung_id
+    schluessel = f"portal-code-{post_id}"
+    vorhanden = db.scalars(select(EmailDispatch).where(EmailDispatch.dispatch_key == schluessel)).first()
+    if vorhanden is not None:  # Abbruch mitten im Versand: dessen Ergebnis übernehmen -- nie ein zweiter Code, nie eine zweite Mail
+        gesendet = vorhanden.status == "gesendet"
+        _abschliessen(db, post_id, zugang_id, sitzung_id, "gesendet" if gesendet else "fehler", None if gesendet else HAENGT, vorhanden.id,
+                      "ok" if gesendet else "ungueltig")
+        return post_id
+    db.execute(select(PortalZugang.id).where(PortalZugang.id == zugang_id).with_for_update(key_share=True))   # FOR NO KEY UPDATE
+    sitzung = db.scalars(select(PortalSitzung).where(PortalSitzung.id == sitzung_id).with_for_update()).first()
+    jetzt_ = jetzt(db)
+    grund = _grund(db, post, sitzung, jetzt_)
+    if grund is not None:
+        _abschliessen(db, post_id, zugang_id, sitzung_id, "verworfen", grund[1], None, grund[0])
+        return post_id
+
+    zugang = db.get(PortalZugang, zugang_id)
+    kunde = db.get(Customer, zugang.customer_id)
+    code = pruefwerte.neuer_code()
+    db.execute(update(PortalCode).where(PortalCode.sitzung_id == sitzung_id, PortalCode.verbraucht_am.is_(None), PortalCode.ersetzt_am.is_(None))
+               .values(ersetzt_am=jetzt_).execution_options(synchronize_session=False))
+    neu = PortalCode(sitzung_id=sitzung_id, pruefwert=pruefwerte.code(sitzung.wert_sha256, code), angelegt_am=jetzt_, gueltig_bis=jetzt_ + CODE_GUELTIG)
+    db.add(neu)
+    db.flush()
+    code_id, an = neu.id, zugang.email
+    text_ = portal_mails.code_text(db, kunde, code)
+    del code
+    try:
+        # senden() committet den Code zusammen mit dem Eintrag „in Arbeit“ im Versandprotokoll -- vor dem Senden
+        ergebnis = portal_mails.senden(db, art="portal_code", dokument_id=post_id, an=an, text=text_, dispatch_key=schluessel, user_name=NAME)
+    except (ValueError, DispatchConflict) as e:
+        db.rollback()
+        logger.warning("Postbote: Auftrag %s nicht gesendet (%s)", post_id, type(e).__name__)
+        db.execute(update(PortalCode).where(PortalCode.id == code_id, PortalCode.ersetzt_am.is_(None)).values(ersetzt_am=func.portal_jetzt())
+                   .execution_options(synchronize_session=False))  # nie hinausgegangen: der Code gilt nicht
+        dispatch_id = db.scalar(select(EmailDispatch.id).where(EmailDispatch.dispatch_key == schluessel))
+        _abschliessen(db, post_id, zugang_id, sitzung_id, "fehler", VERSAND, dispatch_id, "ungueltig")
+        return post_id
+    finally:
+        del text_
+    _abschliessen(db, post_id, zugang_id, sitzung_id, "gesendet", None, ergebnis.dispatch.id, "ok")
+    logger.info("Postbote: Auftrag %s gesendet", post_id)
+    return post_id
+
+
+def alle(db: Session) -> int:
+    """Alle wartenden Aufträge erledigen; ihre Zahl."""
+    n = 0
+    while naechster(db) is not None:
+        n += 1
+    return n
+
+
+def aufraeumen(db: Session) -> dict[str, int]:
+    """Löschen nach den Fristen (Bauplan P1, Abschnitt 6). Sitzungen gehen samt ihren Codes und Aufträgen (ON DELETE CASCADE); im Zugriffsprotokoll bleibt
+    der Eintrag ohne Sitzung (SET NULL). Das Versandprotokoll bleibt (Regel 21). Committet."""
+    j = jetzt(db)
+    zahlen = {
+        "codes": db.execute(delete(PortalCode).where(PortalCode.angelegt_am < j - timedelta(hours=24))).rowcount,
+        "sitzungen": db.execute(delete(PortalSitzung).where(
+            func.coalesce(PortalSitzung.beendet_am, PortalSitzung.laeuft_ab) < j - timedelta(days=30))).rowcount,
+        "bremsen": db.execute(delete(PortalBremse).where(PortalBremse.fenster_beginn < j - timedelta(hours=48))).rowcount,
+        "zugriffe": db.execute(delete(PortalZugriff).where(
+            PortalZugriff.zeitpunkt < func.portal_jetzt() - literal_column("interval '24 months'"))).rowcount,
+    }
+    db.commit()
+    return zahlen
+
+
+def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehen: float = NACHSEHEN_SEKUNDEN,
+           aufraeumen_alle: float = AUFRAEUMEN_SEKUNDEN) -> None:
+    """Die Schleife des Dienstes: Sperre nehmen (sonst AndererPostbote), LISTEN, dann je Weckruf oder spätestens nach `nachsehen` Sekunden alle
+    wartenden Aufträge, dazu das Aufräumen. Ein Fehler der Datenbank beendet die Schleife (systemd startet neu, Restart=always)."""
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as hoerer:
+        if not hoerer.scalar(text("SELECT pg_try_advisory_lock(:k, hashtext(current_schema()))"), {"k": SPERRE}):
+            raise AndererPostbote("Es läuft schon ein Postbote.")
+        hoerer.exec_driver_sql(f"LISTEN {KANAL}")
+        roh = hoerer.connection.driver_connection
+        logger.info("Postbote bereit (LISTEN %s)", KANAL)
+        zuletzt_aufgeraeumt = None
+        while not halt():
+            with Session(engine) as db:
+                n = alle(db)
+                if zuletzt_aufgeraeumt is None or time.monotonic() - zuletzt_aufgeraeumt >= aufraeumen_alle:
+                    zahlen = aufraeumen(db)
+                    zuletzt_aufgeraeumt = time.monotonic()
+                    logger.info("Postbote: aufgeräumt %s", zahlen)
+            if n:
+                logger.info("Postbote: %s Aufträge erledigt", n)
+            for _ in roh.notifies(timeout=nachsehen, stop_after=1):
+                pass
+
+

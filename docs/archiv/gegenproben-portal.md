@@ -185,3 +185,30 @@ Kommentar, ERROR beim Sammeln) -- neu mit dem Marker am Ende der Zeile, dann rot
 | Nr. 5 – Absender aus den Firmendaten | ohne Telefon (zweite Fassung) | 3 rot |
 | Nr. 5 – „gilt bis“ in Berlin | Tag in UTC | 3 rot |
 | Nr. 6 – Fehler nennt nichts vom Text | Fehlermeldung mit dem Text der Mail | 1 rot |
+
+## 1.11.6: der Postbote
+
+Probendatei `gp_1116.py`, Lauf mit `tests/test_v805_portal_postbote.py`; alle 19 beim ersten Anlauf rot aus dem geprüften Grund (FAILED, kein ERROR), alle
+Dateien byte-gleich zurück. Ohne eigene Gegenprobe: die Einheit außer Restart (MemoryHigh/Max, Benutzer, ExecStart prüft derselbe Test).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Einheit | Restart=on-failure | 1 rot |
+| Nr. 2 – genau ein Postbote | Sperre nicht geprüft | 2 rot |
+| Nr. 3 – Weckruf über LISTEN | kein LISTEN | 1 rot |
+| Nr. 3 – gehaltene Aufträge übersprungen | NOWAIT statt SKIP LOCKED | 1 rot |
+| Nr. 4 – höchstens 10 Minuten alt | Prüfung entfernt | 1 rot |
+| Nr. 4 – Zugang gilt | Prüfung entfernt | 6 rot |
+| Nr. 4 – Sitzung gültig | Ablauf nicht geprüft | 1 rot |
+| Nr. 4 – Grenzen | Prüfung entfernt | 3 rot |
+| Nr. 5 – 10 Minuten | 60 Minuten | 1 rot |
+| Nr. 5 – frühere Codes gelten nicht | nicht ersetzt | 1 rot |
+| Nr. 5 – gescheitert: der Code gilt nicht | nicht ersetzt | 1 rot |
+| Nr. 6 – nie zweimal | Versandschlüssel nicht gesucht | 2 rot |
+| Nr. 7 – Grund im Protokoll | immer „ungueltig“ | 6 rot |
+| Nr. 8 – Codes nach 24 Stunden | 48 Stunden | 1 rot |
+| Nr. 8 – Sitzungen nach 30 Tagen | 60 Tage | 1 rot |
+| Nr. 8 – Bremsen nach 48 Stunden | 72 Stunden | 1 rot |
+| Nr. 8 – Zugriffsprotokoll nach 24 Monaten | 36 Monate | 1 rot |
+| Nr. 9 – kein Code im Protokoll | Code ins Protokoll | 2 rot |
+| Nr. 1 – nur PostgreSQL | Prüfung entfernt | 1 rot |

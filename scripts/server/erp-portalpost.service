@@ -1,0 +1,26 @@
+# Postbote des Kundenportals (seit 1.11.6, Stufe P1c) -- schickt die Anmeldecodes, die das Portal anfordert, und räumt nach den Fristen auf.
+# Läuft dauerhaft unter dem Benutzer des ERP (der Zugang zu Microsoft 365 und das Geheimnis des ERP bleiben dort; das Portal kennt beides nicht).
+# Einrichten: docs/archiv/webseite-und-kundenportal.md, „Server-Schritte P1“ (S6). Lädt .env wie update.sh (set -a; source .env; set +a).
+# Läuft schon ein Postbote (Sperre der Datenbank), endet ein zweiter mit Rückgabe 3.
+[Unit]
+Description=ERP: Postbote des Kundenportals
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=tobias
+Group=tobias
+WorkingDirectory=/home/tobias/erp
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/bin/bash -c 'set -a; source .env; set +a; exec .venv/bin/python scripts/portal_postbote.py'
+Restart=always
+RestartSec=5
+MemoryHigh=200M
+MemoryMax=256M
+TasksMax=32
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
