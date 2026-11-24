@@ -404,3 +404,16 @@ die neue Zeile noch einmal (`gp_11114b.py`): rot.
 | Nr. 10 – keine 6 Ziffern | ohne Prüfung | Klicktest rot |
 | Nr. 11 – überall nur mit Rückfrage | ohne Dialog | Klicktest rot |
 | Nr. 11 – noscript | verborgen | 1 rot |
+
+## 1.11.15: „Gleich wieder da“ von nginx
+
+Probendatei `gp_11115.py`, Lauf mit `tests/test_v812_portal_wartung.py`; alle 6 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ohne Skript | ein script | 1 rot |
+| Nr. 1 – Wortlaut | anderer Satz | 1 rot |
+| Nr. 1 – hell und dunkel nach dem Gerät | andere Abfrage | 2 rot |
+| Nr. 2 – bei 502 und 504 | nur 502 | 1 rot |
+| Nr. 3 – Prüfsumme des Stils | Stil geändert | 1 rot |
+| Nr. 3 – Schutz-Kopfzeilen | ohne X-Frame-Options | 1 rot |

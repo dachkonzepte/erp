@@ -2195,3 +2195,28 @@ Die volle Suite fand vor dem Commit zwei rote Wächter: `tests/test_v406_dateien
 Stil liefen über eine gemeinsame Hilfe mit dem Typ als Variable; jetzt je Weg eine Antwort mit festem Typ) und `tests/test_v603_engines_aufraeumen.py` (die Engine
 der Testdaten legt `test_v811` jetzt über `wegwerf_engine()` an). Beide Wächter bleiben unverändert; die Gegenprobe zu Nr. 2 „Skript und Stil ein Jahr“ danach
 gegen die neue Zeile noch einmal rot.
+
+### Umsetzung 1.11.15: „Gleich wieder da“ von nginx (P1e, Bauplan P1, Abschnitt 5 E „Wartung“)
+
+- `scripts/server/portal-wartung.html`: die feste Seite „Gleich wieder da“ / „Das Kundenportal ist in wenigen Minuten wieder erreichbar.“ (Wortlaut der Tabelle im
+  Entwurf Portal-Handy) mit Bildmarke, „Kundenportal“ und dem Symbol der Fehlerseite -- ohne Skript, ohne Schrift, nichts von außen, ein `<style>` mit den Farben
+  des Design-Systems hell und dunkel (`prefers-color-scheme`, ohne Skript). Kein Name des Betriebs und kein Kontakt: die Datei ist fest, die Firmendaten liest
+  nur der Dienst (Frage im Bericht).
+- `scripts/server/nginx-kunde.conf`: `error_page 502 504 /_wartung.html;` mit einem internen Ort, die Datei aus `/etc/nginx/dk-portal/wartung.html`; dort die
+  Schutz-Kopfzeilen (CSP `default-src 'none'` und genau die SHA-256 des Stils -- wie der Server die Datei sieht, mit LF --, kein Einrahmen, nosniff, no-referrer,
+  no-store, HSTS). Antworten des Dienstes selbst (auch seine 503) gehen unverändert durch (`proxy_intercept_errors` bleibt aus). Für S7: `sudo install -D -m 644
+  -o root -g root scripts/server/portal-wartung.html /etc/nginx/dk-portal/wartung.html` vor `nginx -t`. Die Seite des Portals zeigt dieselbe Meldung, wenn eine
+  ihrer Anfragen 502 oder 504 bekommt (1.11.14).
+
+#### Festlegungen 1.11.15 (Bitte bestätigen)
+
+1. Antwortet der Dienst nicht (502/504), zeigt nginx die feste Seite „Gleich wieder da“ -- ohne Skript, ohne Schrift, nichts von außen, hell und dunkel nach dem
+   Gerät, ohne Name des Betriebs und ohne Kontakt.
+2. nginx zeigt sie nur für seine eigenen 502 und 504; Antworten des Dienstes gehen unverändert durch.
+3. Ihr Stil ist in der CSP über seine SHA-256 erlaubt, dazu kein Einrahmen, nosniff, no-referrer, no-store, HSTS; ein Test hält Prüfsumme und Datei gleich.
+
+#### Tests und Prüfung 1.11.15
+
+Neu `tests/test_v812_portal_wartung.py` (4): Seite ohne Skript und ohne Fremdes, Wortlaut, hell/dunkel; dieselbe Bildmarke wie die Seite des Portals; nginx
+mit `error_page 502 504` und internem Ort; CSP mit genau der Prüfsumme des Stils und die übrigen Kopfzeilen. Keine angepasste Erwartung. Gegenproben:
+`gegenproben-portal.md`, „1.11.15“. Bilder der Seite in 390 und 1280 px hell und dunkel und 360 px hell im Bericht 1.11.15.

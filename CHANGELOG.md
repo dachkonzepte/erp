@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.15 – Kundenportal: „Gleich wieder da“, solange der Dienst nicht antwortet
+
+Antwortet der Portal-Dienst nicht -- etwa während update.sh ihn neu startet --, zeigt nginx jetzt eine feste Seite „Gleich wieder da – Das Kundenportal ist in wenigen Minuten wieder erreichbar.“ statt seiner eigenen Fehlerseite: ohne Skript, ohne etwas von außen, hell oder dunkel nach dem Gerät, ihr Stil in der CSP über seine Prüfsumme erlaubt. Die Datei liegt unter scripts/server/ und kommt mit der Inbetriebnahme (S7) nach /etc/nginx/dk-portal/.
+
 ## 1.11.14 – Kundenportal: die Seiten (P1e)
 
 Das Kundenportal hat seine Seiten nach den freigegebenen Entwürfen: „Ihr Zugang wird geprüft …“, „Willkommen im Kundenportal“ mit „Code senden“, „Code eingeben“ (mit „Neuen Code senden“ nach 60 Sekunden, falscher Code, „Neuen Code anfordern“), „Willkommen“ mit Begrüßung, Kontakt des Betriebs und Abmelden (auch auf allen Geräten, mit Rückfrage) und eine Fehlerseite für alles, bei der nur der Text wechselt. Eine Seite unter „/“, Skript und Stil aus dem Dienst, Farben und Schriften aus dem Design-System, hell oder dunkel nach dem Gerät, ohne JavaScript ein Hinweis. Der Link verschwindet sofort aus der Adresszeile; die Seite setzt jeden Wert nur als Text. Ein neuer Klicktest prüft alles im Browser gegen den echten Portal-Dienst unter PostgreSQL und nimmt jeden Zustand in 390, 1280 und 360 px auf, hell und dunkel.
