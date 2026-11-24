@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import pruefwerte
 from .begruessung import begruessung
@@ -44,6 +44,9 @@ SITZUNG_SEKUNDEN = 30 * 24 * 3600
 CODE_SEKUNDEN = 15 * 60
 LINK_KOPF = "x-portal-link"
 MAX_WERT = 256  # ein echter Wert hat 43 Zeichen; was länger ist, geht gar nicht erst in die Rechnung
+# Seit 1.11.8: der Code darf Leerzeichen tragen („481 207“) -- entfernt werden nur diese, und nur aus einer kurzen Eingabe
+CODE_LEERZEICHEN = str.maketrans("", "", " \u00a0\u2009\u202f")
+CODE_EINGABE_HOECHSTENS = 20
 
 # Was jede Funktion der Datenbank antworten kann -- und hier behandelt wird. tests/test_v802_portal_sitzung.py vergleicht mit dem Text der Funktionen;
 # ein Wort, das hier fehlt, beantwortet der Dienst mit 500, statt es still als etwas anderes zu lesen.
@@ -112,7 +115,17 @@ class WillkommenOut(_Aus):
 
 
 class CodeIn(_Ein):
+    """Seit 1.11.8 auch mit Leerzeichen: die Mail zeigt den Code in Gruppen („481 207“, app/portal_mails.py::code_gruppen()). Entfernt werden nur
+    Leerzeichen (auch geschützte und schmale, wie sie beim Kopieren aus einer Mail entstehen), danach genau 6 Ziffern 0–9."""
+
     code: str = Field(pattern=r"^[0-9]{6}$")
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def _ohne_leerzeichen(cls, wert):
+        if isinstance(wert, str) and len(wert) <= CODE_EINGABE_HOECHSTENS:
+            return wert.translate(CODE_LEERZEICHEN)
+        return wert
 
 
 class AbmeldenIn(_Ein):

@@ -1629,7 +1629,7 @@ Zugriffsprotokoll ab Werk, UvicornWorker läuft. Danach ohne zu warten P1c.
 - Kommentare in Einheit, nginx-Block, `app/portal/routen.py` und `scripts/pruefe_portal_e4.py`: „vertraut nur 127.0.0.1“ -> „127.0.0.1 und ::1“; der
   Test hinter nginx in test_v802 übergibt uvicorn die Liste wie gunicorn.
 
-#### Festlegungen 1.11.4 (Bitte bestätigen)
+#### Festlegungen 1.11.4 (bestätigt am 24.11.2026)
 
 1. requirements.txt nennt gunicorn und uvicorn genau in der Version des Servers (heute 26.2.0 und 0.52.4); die Suite läuft mit genau diesen -- eine andere
    installierte Version ist rot. Ein Wechsel nur zusammen mit dem Server.
@@ -1700,7 +1700,7 @@ test_v803). Gegenproben: `gegenproben-portal.md`, „1.11.4“.
       Mit freundlichen Grüßen
       … (wie oben)
 
-#### Festlegungen 1.11.5 (Bitte bestätigen)
+#### Festlegungen 1.11.5 (bestätigt am 24.11.2026 außer Nr. 5 -- geändert: HTML nach dem Entwurf, siehe 1.11.8)
 
 1. Zwei Versandarten des Portals, `portal_link` und `portal_code`, ohne Dokument: kein PDF, keine Ablage, kein Versandergebnis; im Versandprotokoll Empfänger
    und fester Betreff.
@@ -1739,7 +1739,7 @@ Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.5“.
 - Speicher (lokal, Windows, Working Set nach 20 Aufträgen, zweimal gemessen): Python-Prozess 115 MB, mit dem Startprogramm von .venv 119 MB -- wie im
   Bauplan geschätzt (rund 120 MB), unter MemoryHigh 200M.
 
-#### Festlegungen 1.11.6 (Bitte bestätigen)
+#### Festlegungen 1.11.6 (bestätigt am 24.11.2026)
 
 1. Der Postbote ist ein eigener Dienst `erp-portalpost` unter dem Benutzer des ERP (lädt .env, Restart=always, MemoryHigh 200M, MemoryMax 256M), nur mit
    PostgreSQL, mit eigener Verbindung aus der geprüften DATABASE_URL.
@@ -1776,7 +1776,7 @@ SQLAlchemy); ohne Datenbank das Skript (nur PostgreSQL) und die Einheit. Keine a
 - „Start“ (`dashboard.html`): eine Karte über den Widgets mit dem Text vom Server (nur textContent), gefragt nur mit eingeschaltetem Modul; sonst keine
   Anfrage. Die Monteurin kommt nie auf „Start“ (Weiterleitung auf /mobil).
 
-#### Festlegungen 1.11.7 (Bitte bestätigen)
+#### Festlegungen 1.11.7 (Nr. 2 und 4 bestätigt am 24.11.2026; Nr. 1 und 3 geändert, siehe 1.11.9)
 
 1. Der Hinweis erscheint auf „Start“ für Admin, Büro – Finanzen und Büro – Auftrag, über den Widgets, nicht ausblendbar, solange der Stau besteht.
 2. „Wartet“: ein Auftrag wartet länger als 2 Minuten. „Fehler“: der zuletzt versuchte Versand scheiterte; ein späterer gesendeter beendet ihn, ein
@@ -1791,3 +1791,71 @@ Neu `tests/test_v806_portal_stau.py` (11): ohne Aufträge keiner; 119 und 121 Se
 Modul; die Seite fragt nur mit Modul und setzt nur Text. Neu `scripts/klicktest_portal_stau.py`: Modul aus (keine Anfrage), an ohne Aufträge, wartet (Büro –
 Finanzen und Büro – Auftrag), gescheitert (hell und dunkel), wieder gut, Monteurin (Weiterleitung, 403). Keine angepasste Erwartung. Gegenproben:
 `gegenproben-portal.md`, „1.11.7“.
+
+### Antworten des Betriebs zu den Berichten 1.11.4 und P1c (24.11.2026)
+
+- **Serverprüfung 1.11.4: alles wie erwartet.** ExecStart mit `-w 2 -k uvicorn.workers.UvicornWorker -b 127.0.0.1:8000 --timeout 120`, ohne
+  `--forwarded-allow-ips`, `--access-logfile` oder `-c`; EnvironmentFiles nur .env, Zähler 0; im Journal je Arbeitsprozess „Booting worker“ und „Application
+  startup complete“; Vorgaben von gunicorn `['127.0.0.1', '::1']` und `None`; FORWARDED_ALLOW_IPS in .env 0; keine gunicorn.conf.py. 4a518bb ist gepusht.
+- Bestätigt: 1.11.4-1 bis -5, 1.11.5-1 bis -4, 1.11.5-6, 1.11.6-1 bis -9, 1.11.7-2, 1.11.7-4.
+- **Geändert 1.11.5-5 (Mails):** die freigegebenen Entwürfe liegen in `bildgrundlage/entwurf-p1/` (Portal-Mails.dc.html und .png), ihr Wortlaut ist
+  verbindlich (die Sicherheitssätze sind eingearbeitet). HTML wie im Entwurf: Name des Betriebs als Text, grüne Linie, Knopf „Kundenportal öffnen“, Code in
+  Gruppen „481 207“ (das Portal nimmt ihn mit und ohne Leerzeichen); Tabellen und Stile in den Tags, höchstens 600 px, keine Bilder, keine Schriften, kein CSS,
+  nichts von außen. Dazu ein Textteil mit demselben Wortlaut, wenn Graph das ohne eigenen MIME-Bau zulässt, sonst nur HTML. Jeder eingesetzte Wert maskiert;
+  der Link nur nach strenger Prüfung (`https://kunde.dachkonzepte.gmbh/#z=<Wert>`) im Knopf; Angriffstest mit `<a href=…>`, `"><script>`, `&` und
+  Anführungszeichen im Kundennamen. Telefon, Fußzeile, Impressum und Datenschutz aus den Firmendaten; ohne Telefon fällt nur die Nummer weg, der Satz „rufen
+  Sie uns an“ bleibt. Bilder beider Mails in den Bericht.
+- **Geändert 1.11.7-1/-3 (Hinweis auf „Start“):** Gestaltung wie die übrigen Warnhinweise, mit Link „Versandprotokoll öffnen“ (gefiltert auf die
+  Anmeldecodes). Wartet ein Code, liest das Büro „… wartet seit über 2 Minuten auf den Versand – bitte den Administrator informieren.“; den Dienst
+  erp-portalpost nennt der Text nur dem Admin. Versand gescheitert: der Hinweis endet auch, wenn ein Admin auf „Erledigt“ klickt -- Name und Zeit ins
+  Protokoll, ein neuer Fehler zeigt ihn wieder (sonst stünde ein alter Fehler bei wenigen Portal-Kunden wochenlang auf „Start“).
+- Danach ohne Warten P1d nach Bauplan Abschnitt 4 (P1-10: nach dem Muster der Kundenakte), mit dem Filter „Art“ im Versandprotokoll für die zwei neuen
+  Versandarten; Bilder aller Zustände aus Abschnitt 4, Klicktest; ein Bericht je Version.
+
+### Umsetzung 1.11.8: Mails des Kundenportals als HTML nach dem Entwurf (Antwort 1.11.5-5)
+
+- `app/portal_mails.py`: `link_html()` und `code_html()` bauen die Mails nach `bildgrundlage/entwurf-p1/Portal-Mails.dc.html` -- äußere Tabelle in der
+  Fläche, innere Tabelle `width="600"` mit `width:100%;max-width:600px` (auf dem Handy so breit wie der Bildschirm), Kopf mit der Wortmarke als Text (erstes Wort
+  des Firmennamens fett, der Rest darunter) und der grünen Linie, Knopf als Tabellenzelle, Code in einem Kasten in Gruppen (`code_gruppen()`), Fußzeile aus den
+  Firmendaten. Nur Systemschriften (Arial/Helvetica, für den Code Consolas/Courier New), kein `<style>`, keine Bilder, nichts von außen. Jeder eingesetzte Wert
+  über `html.escape()`; der Link nur nach `link_pruefen()` -- genau `PORTAL_ADRESSE` + „/#z=“ + 43 Zeichen URL-sicher (die Form von
+  `app/portal/pruefwerte.py::neuer_wert()`, seit 1.11.1); `link_adresse()` baut ihn für P1d. Die Meldung einer falschen Form nennt den Link nicht.
+- `PORTAL_ADRESSE = "https://kunde.dachkonzepte.gmbh"` steht fest im Code (F1): der Satz „Unser Kundenportal finden Sie immer unter …“ und der Link können so
+  nicht auseinanderlaufen; ein Test vergleicht mit `PORTAL_HERKUNFT` in `scripts/server/portal.env.beispiel`.
+- Firmendaten (`firma()`): Anschrift „Name · Straße · PLZ Ort“, „Telefon … · Webseite“, darunter Impressum und Datenschutz als `https://<Webseite>/impressum`
+  bzw. `/datenschutz` -- so verlinkt die Webseite sie selbst (Paket webseite-2026-11-18a: `/impressum`, `/datenschutz`; Bauplan P1, Abschnitt 5: „Links auf die
+  Webseite“). Ein eigenes Feld dafür gibt es in den Firmendaten nicht. Die Webseite zählt nur als Host (auch mit `https://` oder „/“ am Ende eingetragen);
+  sonst fehlen Webseite und beide Links. Ohne Telefon fällt nur die Nummer weg („Dann rufen Sie uns bitte an.“, „Rufen Sie uns bitte trotzdem an – wir
+  sperren …“).
+- **Nur HTML, kein Textteil:** Graph `sendMail` nimmt genau einen Körper (`body` mit `contentType` Text oder HTML); einen Textteil daneben gäbe es nur mit
+  einer selbst gebauten MIME-Nachricht. Ob Exchange Online beim Versand selbst einen Textteil ergänzt, lässt sich hier nicht prüfen (nichts gegen den echten
+  Mandanten) -- das zeigt der Quelltext einer echten Mail im Rauchtest S9.
+- `app/email_dispatch.py::dispatch_email(body_html=…)`: als HTML genau die Mails des Portals und nur als HTML (`NUR_PORTAL_HTML`); alle anderen Mails bleiben
+  Text. `app/email_sending.py`: Graph mit `contentType` HTML, SMTP lehnt HTML ab (zweite Sicherung; das Portal sendet ohnehin nur über Microsoft 365).
+- Portal: `app/portal/routen.py::CodeIn` entfernt Leerzeichen (auch geschützte und schmale, `CODE_LEERZEICHEN`) aus einer Eingabe bis 20 Zeichen, danach
+  genau 6 Ziffern wie bisher. Der Postbote nimmt `code_html()`.
+
+#### Festlegungen 1.11.8 (Bitte bestätigen)
+
+1. Beide Mails als HTML nach dem Entwurf, Wortlaut wie dort: Tabellen und Stile in den Tags, höchstens 600 px (schmaler Bildschirm: volle Breite), keine
+   Bilder, kein `<style>`, nichts von außen; Systemschriften (Arial/Helvetica, Code Consolas/Courier New); Wortmarke = erstes Wort des Firmennamens, darunter
+   der Rest.
+2. Nur HTML ohne eigenen Textteil (Graph nimmt einen Körper); HTML gehen nur die Mails des Portals, alle anderen bleiben Text; SMTP sendet kein HTML.
+3. Jeder eingesetzte Wert maskiert; der Knopf nimmt nur `https://kunde.dachkonzepte.gmbh/#z=<Wert>` mit dem Wert in der Form seit 1.11.1 (43 Zeichen
+   URL-sicher, nicht hexadezimal); jede andere Form: nichts versendet, die Meldung nennt den Link nicht.
+4. Die Adresse des Portals steht fest im Code (F1), gleich PORTAL_HERKUNFT der Einheit.
+5. Fußzeile, Telefon, Impressum und Datenschutz aus den Firmendaten: Impressum und Datenschutz = `https://<Webseite>/impressum` bzw. `/datenschutz`; ohne
+   gültige Webseite keine Links; ohne Telefon fällt nur die Nummer weg.
+6. Code in Gruppen „481 207“; das Portal nimmt ihn mit und ohne Leerzeichen (auch geschützte), sonst genau 6 Ziffern 0–9.
+7. „Gilt bis“ ist der Tag in Berlin (wie 1.11.5).
+
+#### Tests und Prüfung 1.11.8
+
+Neu `tests/test_v807_portal_mails_html.py` (64): Wortlaut beider Mails Absatz für Absatz; ohne Telefon; Webseite in 12 Formen; Absender ohne leere Teile;
+Aufbau (Tags, Attribute, Stile, Schriften, Breiten, Links); Angriffe über Kundennamen und Firmendaten; Link in 20 falschen Formen; Link aus `neuer_wert()`;
+Adresse wie in der Einheit; HTML nur für das Portal; Graph bekommt genau das HTML; SMTP kein HTML; Code mit Leerzeichen 7 angenommen, 9 abgelehnt.
+`tests/test_v802_portal_sitzung.py`: neu `test_pg_code_mit_leerzeichen` (gegen PostgreSQL). Angepasste Erwartungen: `test_v802::test_eingaben_422_vor_der_datenbank`
+-- „ 123456“ war 422, ist jetzt eine gültige Eingabe; an seiner Stelle „123<Tab>456“ (422). `test_v804`: Körper „Text“ -> „HTML“, Code als „480 913“, Link als
+`href`; die beiden Texttests sind ein Test über die HTML-Fassung (Wortlaut in v807). `test_v805::_code_aus`: Code aus der Zelle „xxx xxx“ statt aus einer
+Zeile. `test_v440::KUNDENTEXTE`: `link_html`, `code_html`, `_anrufen`, `_rahmen` statt `schluss`, `link_text`, `code_text`. Gegenproben:
+`gegenproben-portal.md`, „1.11.8“. Bilder beider Mails (600 und 412 px, ohne Telefon) im Bericht 1.11.8.

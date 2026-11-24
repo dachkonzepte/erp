@@ -127,11 +127,11 @@ def naechster(db: Session) -> int | None:
     db.add(neu)
     db.flush()
     code_id, an = neu.id, zugang.email
-    text_ = portal_mails.code_text(db, kunde, code)
+    html_ = portal_mails.code_html(db, kunde, code)
     del code
     try:
         # senden() committet den Code zusammen mit dem Eintrag „in Arbeit“ im Versandprotokoll -- vor dem Senden
-        ergebnis = portal_mails.senden(db, art="portal_code", dokument_id=post_id, an=an, text=text_, dispatch_key=schluessel, user_name=NAME)
+        ergebnis = portal_mails.senden(db, art="portal_code", dokument_id=post_id, an=an, html_=html_, dispatch_key=schluessel, user_name=NAME)
     except (ValueError, DispatchConflict) as e:
         db.rollback()
         logger.warning("Postbote: Auftrag %s nicht gesendet (%s)", post_id, type(e).__name__)
@@ -141,7 +141,7 @@ def naechster(db: Session) -> int | None:
         _abschliessen(db, post_id, zugang_id, sitzung_id, "fehler", VERSAND, dispatch_id, "ungueltig")
         return post_id
     finally:
-        del text_
+        del html_
     _abschliessen(db, post_id, zugang_id, sitzung_id, "gesendet", None, ergebnis.dispatch.id, "ok")
     logger.info("Postbote: Auftrag %s gesendet", post_id)
     return post_id

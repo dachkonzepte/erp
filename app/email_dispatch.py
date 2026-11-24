@@ -81,6 +81,8 @@ PORTAL_TYPES = {"portal_link": "Link zum Kundenportal", "portal_code": "Anmeldec
 DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung", **PORTAL_TYPES}
 NUR_MICROSOFT_365 = ("Mails des Kundenportals gehen nur über Microsoft 365 -- über SMTP läge jede Kopie mit Link oder Code in „Gesendete Elemente“. "
                      "Stell den Versand unter Einstellungen → E-Mail-Versand auf Microsoft 365 um. Es wurde nichts versendet.")
+# Seit 1.11.8: die Mails des Kundenportals gehen als HTML (app/portal_mails.py, nach dem Entwurf), alle anderen weiter als Text.
+NUR_PORTAL_HTML = "Als HTML gehen nur die Mails des Kundenportals, und die nur als HTML -- es wurde nichts versendet."
 DISPATCH_ENTITY_TYPE = "Versand"  # Änderungshistorie (app/audit.py) für die Klärung eines Eintrags
 # Versandergebnis (seit 1.8.41, record_dispatch_outcome())
 OUTCOMES = {"empfangen": "Empfang bestätigt", "unzustellbar": "Unzustellbar"}
@@ -248,6 +250,7 @@ def dispatch_email(
     archived_document: SentDocument | None = None,
     user_id: int | None = None, user_name: str | None = None, block_parallel: bool = True,
     before_send: Callable[[Session, EmailDispatch], None] | None = None, gesendete_elemente: bool = True,
+    body_html: str | None = None,
 ) -> DispatchResult:
     """Siehe Moduldocstring. Wirft ValueError (Eingabe/Konfiguration/Versandfehler, Router 400)
     und DispatchConflict (Router 409). Committet selbst.
@@ -261,11 +264,16 @@ def dispatch_email(
     eine letzte Prüfung (Abnahmeprotokoll: Fassung noch gültig) -- ein ValueError von ihm geht mit seinem Text weiter.
 
     gesendete_elemente (seit 1.11.5): False nur für die Mails des Kundenportals (PORTAL_TYPES, app/portal_mails.py) -- keine Kopie in „Gesendete
-    Elemente“ (Graph: saveToSentItems false); über SMTP nicht steuerbar, dort abgelehnt, bevor etwas geschrieben wird (P1-3)."""
+    Elemente“ (Graph: saveToSentItems false); über SMTP nicht steuerbar, dort abgelehnt, bevor etwas geschrieben wird (P1-3).
+
+    body_html (seit 1.11.8): der Körper als HTML -- genau für die Mails des Kundenportals und nur für sie (NUR_PORTAL_HTML); body_text bleibt dann leer.
+    Graph nimmt genau einen Körper (Text oder HTML), ein Textteil daneben bräuchte einen eigenen MIME-Bau."""
     if document_type not in DISPATCH_TYPES:
         raise ValueError(f"Unbekannte Versandart: {document_type}")
     if (document_type in PORTAL_TYPES) == gesendete_elemente:
         raise ValueError("Mails des Kundenportals gehen nie in „Gesendete Elemente“, alle anderen immer -- es wurde nichts versendet.")
+    if (document_type in PORTAL_TYPES) != (body_html is not None) or (body_html is not None and body_text):
+        raise ValueError(NUR_PORTAL_HTML)
     key = (dispatch_key or "").strip()
     if not _KEY_RE.match(key):
         raise ValueError("Ungültiger Versandschlüssel. Bitte die Seite neu laden.")
@@ -354,7 +362,7 @@ def dispatch_email(
         send_message(
             settings, to=to_list, cc=cc_list, subject=subject, body_text=body_text,
             attachment_bytes=attachment_bytes, attachment_filename=attachment_filename,
-            headers={HEADER_NAME: dispatch.message_ref}, gesendete_elemente=gesendete_elemente,
+            headers={HEADER_NAME: dispatch.message_ref}, gesendete_elemente=gesendete_elemente, body_html=body_html,
         )
     except Exception as e:
         _finish(db, dispatch_id, "fehlgeschlagen", e)

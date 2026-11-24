@@ -180,7 +180,8 @@ def test_cookies_nur_an_einer_stelle():
 @pytest.mark.parametrize("pfad, koerper", [
     ("/api/link", None),
     ("/api/code/pruefen", {"code": "12345"}), ("/api/code/pruefen", {"code": "1234567"}), ("/api/code/pruefen", {"code": "12a456"}),
-    ("/api/code/pruefen", {"code": " 123456"}), ("/api/code/pruefen", {"code": 123456}), ("/api/code/pruefen", {"code": "１２３４５６"}),
+    # seit 1.11.8 nimmt das Portal den Code auch mit Leerzeichen (" 123456" bis 1.11.7 hier) -- ein Tab bleibt eine falsche Eingabe
+    ("/api/code/pruefen", {"code": "123\t456"}), ("/api/code/pruefen", {"code": 123456}), ("/api/code/pruefen", {"code": "１２３４５６"}),
     ("/api/code/pruefen", {"code": "123456", "zugang_id": 1}), ("/api/code/pruefen", {}),
     ("/api/abmelden", {"ueberall": "ja"}), ("/api/abmelden", {"ueberall": 1}), ("/api/abmelden", {}), ("/api/abmelden", {"ueberall": False, "x": 1}),
 ])
@@ -478,6 +479,17 @@ def test_pg_fuenf_versuche_dann_neu_anfordern(welt):
     assert [g.pruefen("000000").json()["rest"] for _ in range(5)] == [4, 3, 2, 1, 0]
     assert g.pruefen(CODE).json() == {"stand": "neu_anfordern", "rest": None}  # auch der richtige nicht mehr
     assert COOKIE not in g.kekse
+
+
+def test_pg_code_mit_leerzeichen(welt):
+    """Seit 1.11.8 zeigt die Mail den Code in Gruppen („604 213“) -- so eingegeben oder kopiert (geschützte Leerzeichen) passt er."""
+    _k, _z, link = welt.w.kunde()
+    g = Geraet(welt.app)
+    g.link(link)
+    g.code()
+    welt.w.code_anlegen(g.kekse[COOKIE_CODE], CODE)
+    assert g.pruefen(f"{CODE[:3]} 000").json() == {"stand": "falsch", "rest": 4}
+    assert g.pruefen(f" {CODE[:3]}\u00a0{CODE[3:]} ").json() == {"stand": "angemeldet", "rest": None}
 
 
 def test_pg_eine_sitzung_je_browser(welt):

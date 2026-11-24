@@ -23,7 +23,7 @@ from tests.test_v321_email_dispatch import FakeGraph, FakeSMTP, _configure_graph
 
 ROOT = Path(__file__).resolve().parents[1]
 CODE = "480913"
-LINK = "https://kunde.dachkonzepte.gmbh/#z=Testwert-nur-fuer-den-Test-aaaaaaaaaaaaaaaaaa"
+LINK = "https://kunde.dachkonzepte.gmbh/#z=" + "Testwert_nur-fuer-den-Test" + "a" * 17  # 43 Zeichen wie pruefwerte.neuer_wert()
 
 
 class GraphMitAnfrage(FakeGraph):
@@ -87,7 +87,7 @@ def test_code_ueber_graph_ohne_gesendete_elemente(db_session, graph):
     _configure_graph(db)
     _firma(db)
     kunde = _kunde(db)
-    ergebnis = portal_mails.senden(db, art="portal_code", dokument_id=7, an="max@example.invalid", text=portal_mails.code_text(db, kunde, CODE),
+    ergebnis = portal_mails.senden(db, art="portal_code", dokument_id=7, an="max@example.invalid", html_=portal_mails.code_html(db, kunde, CODE),
                                    dispatch_key="portal-code-7", user_name="Postbote")
     assert ergebnis.newly_sent
     [anfrage] = graph.anfragen
@@ -95,8 +95,8 @@ def test_code_ueber_graph_ohne_gesendete_elemente(db_session, graph):
     nachricht = anfrage["message"]
     assert nachricht["subject"] == "Ihr Anmeldecode für das Kundenportal"
     assert [r["emailAddress"]["address"] for r in nachricht["toRecipients"]] == ["max@example.invalid"] and "ccRecipients" not in nachricht
-    assert "attachments" not in nachricht and nachricht["body"]["contentType"] == "Text"
-    assert CODE in nachricht["body"]["content"]
+    assert "attachments" not in nachricht and nachricht["body"]["contentType"] == "HTML"  # seit 1.11.8 als HTML
+    assert portal_mails.code_gruppen(CODE) in nachricht["body"]["content"]
     [zeile] = db.scalars(select(EmailDispatch)).all()
     assert (zeile.document_type, zeile.document_id, zeile.status, zeile.channel) == ("portal_code", 7, "gesendet", "graph_oauth2")
     assert zeile.subject == "Ihr Anmeldecode für das Kundenportal" and zeile.created_by_name == "Postbote" and zeile.sent_document_id is None
@@ -107,11 +107,11 @@ def test_link_ueber_graph_ohne_gesendete_elemente(db_session, graph):
     db = db_session
     _configure_graph(db)
     kunde = _kunde(db)
-    text_ = portal_mails.link_text(db, kunde, LINK, datetime(2027, 11, 24, 10, 0))
-    portal_mails.senden(db, art="portal_link", dokument_id=3, an="max@example.invalid", text=text_, dispatch_key="portal-link-3-test")
+    html_ = portal_mails.link_html(db, kunde, LINK, datetime(2027, 11, 24, 10, 0))
+    portal_mails.senden(db, art="portal_link", dokument_id=3, an="max@example.invalid", html_=html_, dispatch_key="portal-link-3-test")
     [anfrage] = graph.anfragen
     assert anfrage["saveToSentItems"] == "false" and anfrage["message"]["subject"] == "Ihr Zugang zum Kundenportal"
-    assert LINK in anfrage["message"]["body"]["content"]
+    assert f'href="{LINK}"' in anfrage["message"]["body"]["content"] and anfrage["message"]["body"]["contentType"] == "HTML"
     assert "#z=" not in _alles_gespeicherte(db)
 
 
@@ -130,7 +130,7 @@ def test_smtp_lehnt_mails_des_portals_ab(db_session, smtp):
     _configure_smtp(db)
     kunde = _kunde(db)
     with pytest.raises(ValueError, match="nur über Microsoft 365"):
-        portal_mails.senden(db, art="portal_code", dokument_id=8, an="max@example.invalid", text=portal_mails.code_text(db, kunde, CODE),
+        portal_mails.senden(db, art="portal_code", dokument_id=8, an="max@example.invalid", html_=portal_mails.code_html(db, kunde, CODE),
                             dispatch_key="portal-code-8")
     assert smtp.sent == [] and db.scalars(select(EmailDispatch)).all() == []
 
@@ -150,7 +150,7 @@ def test_art_des_portals_nur_ohne_gesendete_elemente(db_session, graph):
     _configure_graph(db)
     with pytest.raises(ValueError, match="Gesendete Elemente"):
         dispatch_email(db, dispatch_key="portal-code-9", document_type="portal_code", document_id=9, document_number=None, to="a@example.invalid",
-                       cc=None, subject="Ihr Anmeldecode für das Kundenportal", body_text="x")
+                       cc=None, subject="Ihr Anmeldecode für das Kundenportal", body_text="", body_html="<p>x</p>")
     assert graph.anfragen == [] and db.scalars(select(EmailDispatch)).all() == []
 
 
@@ -162,9 +162,10 @@ def test_gescheitert_nennt_nichts_vom_text(db_session, monkeypatch, caplog):
     kunde = _kunde(db)
     caplog.set_level(logging.DEBUG)
     with pytest.raises(ValueError) as fehler:
-        portal_mails.senden(db, art="portal_code", dokument_id=10, an="max@example.invalid", text=portal_mails.code_text(db, kunde, CODE),
+        portal_mails.senden(db, art="portal_code", dokument_id=10, an="max@example.invalid", html_=portal_mails.code_html(db, kunde, CODE),
                             dispatch_key="portal-code-10")
-    assert CODE not in str(fehler.value) and CODE not in caplog.text
+    gruppen = portal_mails.code_gruppen(CODE)
+    assert CODE not in str(fehler.value) and CODE not in caplog.text and gruppen not in str(fehler.value) and gruppen not in caplog.text
     [zeile] = db.scalars(select(EmailDispatch)).all()
     assert zeile.status == "fehlgeschlagen" and zeile.error_class and CODE not in _alles_gespeicherte(db)
 
@@ -175,26 +176,20 @@ def test_gescheitert_nennt_nichts_vom_text(db_session, monkeypatch, caplog):
     ({"salutation": "Firma", "title": None, "first_name": None, "last_name": "Muster Dach GmbH", "name": "Muster Dach GmbH"},
      "Guten Tag, Muster Dach GmbH,"),
 ])
-def test_texte_gesiezt_mit_hinweis_und_absender(db_session, werte, erste_zeile):
+def test_mails_gesiezt_mit_hinweis_und_absender(db_session, werte, erste_zeile):
+    """Seit 1.11.8 als HTML -- den ganzen Wortlaut prüft tests/test_v807_portal_mails_html.py; hier Anrede, Hinweis und Absender je Art."""
+    from tests.test_v807_portal_mails_html import absaetze
     db = db_session
     _firma(db)
     kunde = _kunde(db, **werte)
-    code = portal_mails.code_text(db, kunde, CODE)
-    link = portal_mails.link_text(db, kunde, LINK, datetime(2027, 11, 23, 23, 30))  # in Berlin schon der 24.
+    code = absaetze(portal_mails.code_html(db, kunde, CODE))
+    link = absaetze(portal_mails.link_html(db, kunde, LINK, datetime(2027, 11, 23, 23, 30)))  # in Berlin schon der 24.
     for text_ in (code, link):
-        assert text_.splitlines()[0] == erste_zeile
-        assert "Wir fragen Sie nie" in text_ and "rufen Sie uns" in text_
-        assert text_.rstrip().endswith("Muster Bedachung GmbH\nDachweg 1\n12345 Musterstadt\nTelefon 0123 456789 · info@example.invalid · www.example.invalid")
-    assert f"\n\n{CODE}\n\n" in code and "10 Minuten" in code
-    assert f"\n\n{LINK}\n\n" in link and "gilt bis 24.11.2027" in link and "nicht weiter" in link
-
-
-def test_absender_ohne_leere_zeilen(db_session):
-    db = db_session
-    s = load_general_settings(db)
-    s.company_name, s.street, s.postal_code, s.city, s.phone, s.email, s.website = "Muster GmbH", None, None, None, None, None, None
-    db.commit()
-    assert portal_mails.schluss(db) == "Mit freundlichen Grüßen\n\nMuster GmbH"
+        assert erste_zeile in text_
+        assert any(a.startswith("Wir fragen Sie nie") for a in text_) and any("rufen Sie uns" in a or "Rufen Sie uns" in a for a in text_)
+        assert text_[-1] == "Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nTelefon 0123 456789 · www.example.invalid\nImpressum · Datenschutz"
+    assert "480 913" in code and any("10 Minuten" in a for a in code)
+    assert any("gilt bis 24.11.2027" in a and "nicht weiter" in a for a in link)
 
 
 # --- Wächter: nur senden() nimmt eine Art des Portals oder den Schalter ----------------------------------------------------------------------------

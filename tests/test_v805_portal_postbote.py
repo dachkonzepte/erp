@@ -88,8 +88,10 @@ def _db(w) -> Session:
 
 
 def _code_aus(anfrage) -> str:
-    [code] = re.findall(r"^(\d{6})$", anfrage["message"]["body"]["content"], flags=re.M)
-    return code
+    # seit 1.11.8 als HTML, der Code in Gruppen („481 207“, app/portal_mails.py::code_gruppen())
+    assert anfrage["message"]["body"]["contentType"] == "HTML"
+    [(vorne, hinten)] = re.findall(r">([0-9]{3}) ([0-9]{3})</td>", anfrage["message"]["body"]["content"])
+    return vorne + hinten
 
 
 def _angefordert(w):

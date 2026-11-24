@@ -256,9 +256,11 @@ def check_smtp_connection(db: Session) -> None:
 
 def _send_via_smtp(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str, gesendete_elemente: bool = True,
                     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
-                    headers: dict[str, str] | None = None) -> None:
+                    headers: dict[str, str] | None = None, body_html: str | None = None) -> None:
     if not gesendete_elemente:  # zweite Sicherung -- dispatch_email() lehnt vorher ab (NUR_MICROSOFT_365)
         raise ValueError("Über SMTP lässt sich „Gesendete Elemente“ nicht steuern -- es wurde nichts versendet.")
+    if body_html is not None:  # seit 1.11.8: HTML nur für die Mails des Kundenportals, und die gehen nur über Microsoft 365
+        raise ValueError("Über SMTP gehen keine Mails als HTML -- es wurde nichts versendet.")
     msg = MIMEMultipart()
     msg["From"] = formataddr((settings.sender_name or settings.sender_email, settings.sender_email))
     msg["To"] = ", ".join(to)
@@ -367,7 +369,7 @@ def graph_send_error_text(status: int, detail: str) -> str:
 
 def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str, gesendete_elemente: bool = True,
                      attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
-                     headers: dict[str, str] | None = None) -> None:
+                     headers: dict[str, str] | None = None, body_html: str | None = None) -> None:
     """sendMail mit Anhang inline (fileAttachment) -- der einzige Weg, der mit Mail.Send allein
     auskommt (Regel 17). Größere Anhänge bräuchten eine Upload-Sitzung an einem Entwurf, also
     Mail.ReadWrite; deshalb die Größengrenze in check_attachment_size(). Eigene Kopfzeilen gehen
@@ -378,7 +380,8 @@ def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], sub
     url = f"https://graph.microsoft.com/v1.0/users/{mailbox}/sendMail"
     message: dict = {
         "subject": subject,
-        "body": {"contentType": "Text", "content": body_text},
+        # seit 1.11.8 als HTML nur die Mails des Kundenportals (dispatch_email(body_html=…)); Graph nimmt genau einen Körper
+        "body": {"contentType": "HTML", "content": body_html} if body_html is not None else {"contentType": "Text", "content": body_text},
         "toRecipients": [{"emailAddress": {"address": address}} for address in to],
     }
     if cc:
@@ -429,7 +432,7 @@ def check_attachment_size(attachment_bytes: bytes | None, attachment_filename: s
 def send_message(
     settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
-    headers: dict[str, str] | None = None, gesendete_elemente: bool = True,
+    headers: dict[str, str] | None = None, gesendete_elemente: bool = True, body_html: str | None = None,
 ) -> None:
     """Der eigentliche Versand über den eingestellten Weg (SmtpSettings.send_method). NUR aus
     app/email_dispatch.py aufrufen -- jeder Versand geht durch Protokoll und Ablage
@@ -437,7 +440,7 @@ def send_message(
     Wirft ValueError bei Versandfehlern; Konfiguration und Größe prüft der Aufrufer vorher."""
     kwargs = dict(
         to=to, cc=cc, subject=subject, body_text=body_text, attachment_bytes=attachment_bytes,
-        attachment_filename=attachment_filename, headers=headers, gesendete_elemente=gesendete_elemente,
+        attachment_filename=attachment_filename, headers=headers, gesendete_elemente=gesendete_elemente, body_html=body_html,
     )
     if settings.send_method == "graph_oauth2":
         _send_via_graph(settings, **kwargs)

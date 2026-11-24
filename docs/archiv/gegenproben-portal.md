@@ -231,3 +231,32 @@ Dateien byte-gleich zurück. Drei Gegenproben in zweiter Fassung (zuerst falsch 
 | Nr. 4 – Schnittstelle nur mit Modul | Prüfung entfernt | 1 rot |
 | Nr. 4 – die Seite fragt nur mit Modul | immer an | 1 rot |
 | Nr. 4 – ohne Modul keine Anfrage | Abfrage der Seite entfernt | Klicktest: 1 rot |
+
+## 1.11.8: Mails des Kundenportals als HTML nach dem Entwurf
+
+Probendatei `gp_1118.py`, Lauf mit `tests/test_v807_portal_mails_html.py` (Nr. 7 mit `tests/test_v804_portal_mails.py`); alle 19 rot aus dem geprüften
+Grund, alle Dateien byte-gleich zurück. Der erste Lauf brach bei Nr. 6 („kein Tab“) ab: das Werkzeug hatte die Escape-Folgen für geschützte Leerzeichen als
+unsichtbare Zeichen in den Quelltext geschrieben, die Probe fand ihre Zeile nicht -- im Quelltext stehen sie jetzt als `\u00a0` usw.; die drei übrigen
+Proben liefen danach. Keine Probe für „die Prüfung des Links auch vor dem Bauen der Mail“: der Knopf prüft selbst, eine der beiden Prüfungen allein genügt.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – kein `<style>` | Stilblock im Kopf | 5 rot |
+| Nr. 1 – höchstens 600 px | max-width 640 px | 1 rot |
+| Nr. 1 – nur Systemschriften | IBM Plex Sans vorn | 1 rot |
+| Nr. 1 – Wortlaut wie im Entwurf | „Ihr Anmeldecode lautet:“ | 1 rot |
+| Nr. 1 – Wortmarke in zwei Zeilen | ganzer Name in einer Zeile | 2 rot |
+| Nr. 2 – HTML nur für die Mails des Portals | Prüfung entfernt | 1 rot |
+| Nr. 2 – Graph bekommt HTML | contentType Text | 1 rot |
+| Nr. 2 – SMTP sendet kein HTML | Prüfung entfernt | 1 rot |
+| Nr. 3 – jeder Wert maskiert | ohne html.escape | 1 rot |
+| Nr. 3 – Link nur in genau dieser Form | jedes http(s)-Ziel | 15 rot |
+| Nr. 4 – Adresse wie in der Einheit | portal.dachkonzepte.gmbh | 19 rot |
+| Nr. 5 – Impressum und Datenschutz wie die Webseite | /impressum.html | 5 rot |
+| Nr. 5 – nur eine gültige Webseite | jede Eingabe als Host | 5 rot |
+| Nr. 5 – ohne Telefon bleibt der Satz | Satz entfällt | 1 rot |
+| Nr. 6 – Code in Gruppen | ohne Leerzeichen | 1 rot |
+| Nr. 6 – Portal nimmt Leerzeichen | nichts entfernt | 6 rot |
+| Nr. 6 – nur Leerzeichen, kein Tab | Tab entfernt | 1 rot |
+| Nr. 6 – höchstens 20 Zeichen | 100 Zeichen | 1 rot |
+| Nr. 7 – „gilt bis“ in Berlin | Tag in UTC | 3 rot |
