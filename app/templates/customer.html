@@ -213,7 +213,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
         <button type="button" class="klein" id="portalLinkSenden" data-klick="portal-link-dialog" hidden>Link senden</button>
         <button type="button" class="secondary klein" id="portalVerlaengern" data-klick="portal-verlaengern" hidden>Verlängern</button>
         <button type="button" class="secondary klein" id="portalEntsperren" data-klick="portal-entsperren" hidden>Entsperren</button>
-        <button type="button" class="secondary klein" id="portalSperren" data-klick="portal-sperren-dialog" hidden>Sperren</button>
+        <button type="button" class="secondary klein" id="portalSperren" data-klick="portal-sperren-dialog" data-lesen hidden>Sperren</button>
         <button type="button" class="secondary klein" id="portalAus" data-klick="portal-schalter" data-an="0" hidden>Portal ausschalten</button>
         <button type="button" class="knopf-link sml" id="portalProtokoll" data-klick="portal-protokoll" data-lesen hidden>Protokoll</button>
       </div>
@@ -385,8 +385,8 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
   <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalLinkStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalLinkDialog">Abbrechen</button><button type="button" data-klick="portal-link-senden">Link senden</button></div>
 </div></dialog>
 <dialog id="portalSperrenDialog" aria-labelledby="portalSperrenTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalSperrenTitel">Zugang sperren</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog" aria-label="Schließen">✕</button></div>
-  <div class="field"><label for="portalSperrenGrund">Grund</label><textarea id="portalSperrenGrund" rows="3" maxlength="1000"></textarea><div class="hint">Alle Geräte des Kunden werden abgemeldet; der Link gilt erst nach „Entsperren“ wieder.</div></div>
-  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalSperrenStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog">Abbrechen</button><button type="button" class="danger" data-klick="portal-sperren">Sperren</button></div>
+  <div class="field"><label for="portalSperrenGrund">Grund</label><textarea id="portalSperrenGrund" rows="3" maxlength="1000" data-lesen></textarea><div class="hint">Alle Geräte des Kunden werden abgemeldet; der Link gilt erst nach „Entsperren“ wieder.</div></div>
+  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalSperrenStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog">Abbrechen</button><button type="button" class="danger" data-klick="portal-sperren" data-lesen>Sperren</button></div>
 </div></dialog>
 <dialog id="portalProtokollDialog" aria-labelledby="portalProtokollTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalProtokollTitel">Protokoll des Kundenportals</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalProtokollDialog" aria-label="Schließen" data-lesen>✕</button></div>
   <p class="mut sml" style="margin:0">Zugriffe im Portal, gesendete Links und Änderungen im ERP, neueste zuerst – ohne IP-Adressen.</p>
@@ -464,11 +464,13 @@ async function load(){
 aktion('kunde-zurueckholen',async()=>{const art='kunde';try{await speichern('kunde',()=>api(`/api/aufbewahrung/${art}/${customerId}/zurueckholen`,{method:'POST'}),{neuLaden:load});seitenStatus('Zurückgeholt – die 6 Monate zählen ab heute neu.')}catch(e){seitenStatus('Fehler: '+e.message)}});  // seit 1.10.12
 // --- Kundenportal (seit 1.11.11, Stufe P1d; Bauplan P1, Abschnitt 4) -------------------------------------------------------------------------
 // Stand nur vom Server (app/kundenportal.py::stand()), Texte nur über textContent bzw. esc(); jede Aktion antwortet mit dem neuen Stand. Ohne Modul gibt es
-// die Karte nicht (Jinja) und die Seite fragt nicht. Im Archiv blendet _nur_lesen.html die Knöpfe aus (außer „Protokoll“); der Server lehnt ab (409).
+// die Karte nicht (Jinja) und die Seite fragt nicht. Im Archiv blendet _nur_lesen.html die Knöpfe aus außer „Protokoll“ und -- seit 1.11.13 -- „Sperren“
+// (data-lesen, auch am Feld „Grund“: Sperren nimmt nur Zugang weg und geht auch im Archiv); alles andere lehnt der Server dort ab (409).
 // Abschließend (abschliessen()): Link senden und Sperren; alles andere über speichern().
 const PORTAL="{{ 'ja' if is_module_enabled('kundenportal') else 'nein' }}"==="ja";  // ungerendert gültiges JS (wie GELD), dort ohne Portal
 const PORTAL_CHIP={archiv:['chip-neutral','Im Archiv'],aus:['chip-neutral','Aus'],ohne_email:['chip-warn','Ohne E-Mail'],kein_zugang:['chip-neutral','Kein Zugang'],
-  ohne_link:['chip-info','Ohne Link'],aktiv:['chip-ok','Aktiv'],laeuft_ab:['chip-warn','Läuft bald ab'],abgelaufen:['chip-fehler','Abgelaufen'],gesperrt:['chip-fehler','Gesperrt']};
+  ohne_link:['chip-info','Ohne Link'],aktiv:['chip-ok','Aktiv'],laeuft_ab:['chip-warn','Läuft bald ab'],abgelaufen:['chip-fehler','Abgelaufen'],gesperrt:['chip-fehler','Gesperrt'],
+  gescheitert:['chip-warn','Versand gescheitert']};  // seit 1.11.13 ein eigener Zustand
 let portal=null,portalSeite=1;
 async function portalLaden(){if(!PORTAL)return;await lesen('portal',()=>api(`/api/customers/${customerId}/portal`),portalZeigen)}
 function portalZeigen(d){
@@ -480,21 +482,23 @@ function portalZeigen(d){
   if(z){
     zeilen.push(['E-Mail',z.email]);
     if(z.hat_link)zeilen.push(['Link gültig bis',berlinZeitpunkt(z.gueltig_bis,'datum')],['Link erzeugt',berlinZeitpunkt(z.link_erzeugt_am,'datum')]);
+    if(d.zustand==='gescheitert'&&d.versand)zeilen.push(['Versand gescheitert',`${berlinZeitpunkt(d.versand.am,'zeit')} an ${d.versand.an||'—'}`]);
     zeilen.push(['Zuletzt genutzt',z.zuletzt_genutzt_am?berlinZeitpunkt(z.zuletzt_genutzt_am,'datum'):'noch nie']);
     if(z.gesperrt_am)zeilen.push(['Gesperrt',`${berlinZeitpunkt(z.gesperrt_am,'datum')} von ${z.gesperrt_von||'—'}`],['Grund',z.gesperrt_grund||'—']);
   }
   el('portalDaten').hidden=!zeilen.length;
   el('portalDaten').innerHTML=zeilen.map(([k,w])=>`<dt>${esc(k)}</dt><dd>${esc(w)}</dd>`).join('');
-  const gescheitert=!!d.versand&&d.versand.status==='fehlgeschlagen'&&d.zustand!=='archiv';
-  const hinweis=gescheitert?`Der letzte Link ging nicht hinaus (${berlinZeitpunkt(d.versand.am,'zeit')}, an ${d.versand.an||'—'}) – bitte im Versandprotokoll nachsehen und noch einmal senden.`
-    :d.zustand==='laeuft_ab'?`Der Link läuft am ${berlinZeitpunkt(z.gueltig_bis,'datum')} ab – „Verlängern“ lässt denselben Link 12 weitere Monate gelten.`:'';
+  // seit 1.11.13 ist „Versand gescheitert“ ein Zustand (Kennzeichen, Satz, Angabe) -- der Hinweis bleibt für „läuft bald ab“
+  const hinweis=d.zustand==='laeuft_ab'?`Der Link läuft am ${berlinZeitpunkt(z.gueltig_bis,'datum')} ab – „Verlängern“ lässt denselben Link 12 weitere Monate gelten.`:'';
   el('portalHinweis').hidden=!hinweis;el('portalHinweis').textContent=hinweis;
   const offen=!d.nur_lesen&&d.zustand!=='gesperrt';
   const zeigen={portalEin:!d.nur_lesen&&!d.aktiv,portalAus:!d.nur_lesen&&d.aktiv,portalZugangNeu:d.zustand==='kein_zugang',
-    portalLinkSenden:offen&&!!z&&d.aktiv,portalVerlaengern:offen&&!!z&&d.aktiv&&z.hat_link,
-    portalSperren:offen&&!!z,portalEntsperren:!d.nur_lesen&&d.zustand==='gesperrt',portalProtokoll:!!z||d.aktiv};
+    portalLinkSenden:offen&&!!z&&d.aktiv,
+    portalVerlaengern:d.zustand==='aktiv'||d.zustand==='laeuft_ab',  // seit 1.11.13: nur, solange der Link gilt
+    portalSperren:!!z&&!z.gesperrt_am,  // seit 1.11.13 auch im Archiv
+    portalEntsperren:!d.nur_lesen&&d.zustand==='gesperrt',portalProtokoll:!!z||d.aktiv};
   Object.entries(zeigen).forEach(([id,an])=>{el(id).hidden=!an});
-  el('portalLinkSenden').textContent=z&&z.hat_link?'Neuen Link senden':'Link senden';
+  el('portalLinkSenden').textContent=d.zustand==='gescheitert'?'Link erneut senden':z&&z.hat_link?'Neuen Link senden':'Link senden';
 }
 function portalFehler(statusId,e){el(statusId).textContent=e.message;return portalLaden().catch(()=>{})}
 async function portalSchalten(an){
@@ -556,7 +560,10 @@ aktion('portal-schalter',b=>portalSchalten(b.dataset.an==='1'));
 aktion('portal-zugang-dialog',()=>{el('portalZugangEmail').value=(portal&&portal.kunde_email)||'';el('portalZugangStatus').textContent='';el('portalZugangDialog').showModal()});
 aktion('portal-zugang-anlegen',portalZugangAnlegen);
 aktion('portal-link-dialog',()=>{
-  el('portalLinkEmail').value=(portal&&portal.zugang&&portal.zugang.email)||'';el('portalLinkNeu').hidden=!(portal&&portal.zugang&&portal.zugang.hat_link);
+  // seit 1.11.13: „Link erneut senden“ ohne die Warnung -- der gescheiterte Link erreichte niemanden, die Geräte sind schon abgemeldet
+  const erneut=!!portal&&portal.zustand==='gescheitert';
+  el('portalLinkTitel').textContent=erneut?'Link erneut senden':'Link zum Kundenportal senden';
+  el('portalLinkEmail').value=(portal&&portal.zugang&&portal.zugang.email)||'';el('portalLinkNeu').hidden=erneut||!(portal&&portal.zugang&&portal.zugang.hat_link);
   el('portalLinkStatus').textContent='';el('portalLinkDialog').showModal();
 });
 aktion('portal-link-senden',portalLinkSenden);

@@ -349,3 +349,28 @@ ersten Lauf mit einem Syntaxfehler ab (der Marker stand mitten in der Zeile) -- 
 | Nr. 2 – „Sitz <Ort>“ | Ort ohne „Sitz“ | rot |
 | Nr. 3 – fehlt ein Feld, fällt nur dieses weg | Zeile nur mit allen Feldern | 5 rot |
 | Nr. 4 – Werte maskiert | ohne html.escape() | 1 rot |
+
+## 1.11.13: Karte nach den Antworten des Betriebs
+
+Probendateien `gp_11113.py` und `gp_11113b.py`, Lauf mit `tests/test_v809_kundenportal_karte_server.py`, `tests/test_v793_archivschutz.py`,
+`tests/test_v795_nur_lesen.py` bzw. `scripts/klicktest_kundenportal_karte.py`; alle 17 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück. Nr. 5 „eine
+Zeile je Aktion“ brach im ersten Lauf mit einem Einrückungsfehler ab (die Zeile darunter hing am ersetzten `if`) -- neu mit `if True:`, dann rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – „gescheitert“ ein eigener Zustand | Zweig entfernt | 3 rot |
+| Nr. 1 – gesperrt und abgelaufen gehen vor | „gescheitert“ zuerst | 1 rot |
+| Nr. 1 – Kennzeichen in Warnfarbe | chip-ok | Klicktest rot |
+| Nr. 2 – „Link erneut senden“ | Titel nie | Klicktest rot |
+| Nr. 2 – ohne Warnung | Warnung auch dort | Klicktest rot |
+| Nr. 3 – Verlängern nur, solange der Link gilt (Server) | auch abgelaufen und gescheitert | rot |
+| Nr. 3 – kein „Verlängern“ bei abgelaufen (Seite) | Knopf auch dort | Klicktest rot |
+| Nr. 4 – Sperren im Archiv: ohne Prüfung vorab | archiv_vorab() an der Route | 2 rot |
+| Nr. 4 – Sperren im Archiv: Geschäftslogik | Archiv geprüft | 1 rot |
+| Nr. 4 – Sperren im Archiv: Knopf bleibt | ohne data-lesen | 1 rot (test_v795) |
+| Nr. 4 – Feld „Grund“ im Archiv frei | ohne data-lesen | Klicktest rot |
+| Nr. 5 – eine Zeile je Aktion | nie zusammen | rot |
+| Nr. 5 – Felder einer Aktion der Reihe nach | Reihenfolge ungeprüft | 2 rot |
+| Nr. 5 – nur verträgliche Arten | jede Art zusammen | 2 rot |
+| Nr. 5 – der Link mit seinem Versand | nie zugeordnet | rot |
+| Nr. 6 – „Neuer Link“ aus dem Versandprotokoll | aus der Historie | 1 rot |

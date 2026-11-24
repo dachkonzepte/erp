@@ -11,10 +11,15 @@ senden, sperren, entsperren, verlängern, Protokoll. Die Karte „Kundenportal�
   sie zusammen mit dem Zugriffsprotokoll des Portals (portal_zugriffe), ohne Adressen (es gibt keine).
 
 Sperren in fester Reihenfolge wie der Postbote: Zeile des Zugangs, dann seine Sitzungen.
+
+Seit 1.11.13 (Antworten des Betriebs zu 1.11.10/1.11.11): „Versand gescheitert“ ist ein eigener Zustand (der letzte Link ging nicht hinaus); Verlängern nur,
+solange der Link gilt (aktiv, läuft bald ab) -- ein abgelaufener lebt nicht wieder auf; Sperren geht auch im Archiv (Festlegung 1.11.0: es nimmt nur Zugang
+weg); das Protokoll zeigt eine Zeile je Aktion statt je Feld.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -33,7 +38,7 @@ SEITE = 50                   # Einträge des Protokolls je Seite
 ZUGANG_ART = "Zugang zum Kundenportal"  # Art in der Änderungshistorie (app/audit.py)
 
 ZUSTAENDE = {
-    "archiv": "Der Kunde ist im Archiv – sein Zugang wirkt nicht; die Karte ist nur lesbar.",
+    "archiv": "Der Kunde ist im Archiv – sein Zugang wirkt nicht.",  # seit 1.11.13 ohne „nur lesbar“: Sperren geht auch hier
     "aus": "Das Kundenportal ist für diesen Kunden aus.",
     "ohne_email": "Erst eine E-Mail-Adresse beim Kunden eintragen.",
     "kein_zugang": "Noch kein Zugang.",
@@ -41,8 +46,10 @@ ZUSTAENDE = {
     "aktiv": "Link versendet.",
     "laeuft_ab": "Der Link läuft bald ab.",
     "abgelaufen": "Der Link ist abgelaufen.",
+    "gescheitert": "Der Link ging nicht hinaus.",  # seit 1.11.13 ein eigener Zustand
     "gesperrt": "Der Zugang ist gesperrt.",
 }
+LINK_GILT = ("aktiv", "laeuft_ab")  # seit 1.11.13: nur dann gibt es „Verlängern“
 
 # Zugriffsprotokoll des Portals in Worten (app/portal/werte.py::AKTIONEN, ERGEBNISSE)
 AKTION_TEXT = {
@@ -104,7 +111,8 @@ def _letzter_versand(db: Session, zugang_id: int) -> EmailDispatch | None:
                      .order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(1))
 
 
-def zustand(kunde: Customer, zugang: PortalZugang | None, jetzt_: datetime) -> str:
+def zustand(kunde: Customer, zugang: PortalZugang | None, jetzt_: datetime, versand: EmailDispatch | None = None) -> str:
+    """versand: der letzte Versand des Links (seit 1.11.13: ist er gescheitert, heißt der Zustand „gescheitert“ -- der Link ging nie hinaus)."""
     if kunde.archiviert_am is not None:  # im Archiv wirkt kein Zugang (portal_zugang_grund() -> „archiv“), gleich was sonst gilt
         return "archiv"
     if not kunde.portal_aktiv:
@@ -117,6 +125,8 @@ def zustand(kunde: Customer, zugang: PortalZugang | None, jetzt_: datetime) -> s
         return "ohne_link"
     if zugang.gueltig_bis <= jetzt_:
         return "abgelaufen"
+    if versand is not None and versand.status == "fehlgeschlagen":
+        return "gescheitert"
     if zugang.gueltig_bis - jetzt_ <= timedelta(days=HINWEIS_TAGE):
         return "laeuft_ab"
     return "aktiv"
@@ -126,8 +136,8 @@ def stand(db: Session, kunde: Customer, jetzt_: datetime) -> dict:
     """Alles, was die Karte zeigt -- liest nur."""
 
     zugang = zugang_von(db, kunde.id)
-    z = zustand(kunde, zugang, jetzt_)
     versand = _letzter_versand(db, zugang.id) if zugang is not None else None
+    z = zustand(kunde, zugang, jetzt_, versand)
     return {
         "aktiv": bool(kunde.portal_aktiv), "zustand": z, "zustand_text": ZUSTAENDE[z], "kunde_email": (kunde.email or "").strip() or None,
         "nur_lesen": kunde.archiviert_am is not None,
@@ -144,10 +154,10 @@ def stand(db: Session, kunde: Customer, jetzt_: datetime) -> dict:
     }
 
 
-# --- Aktionen (jede committet; der Router prüft Modul, Rolle und Archiv vorab) ---------------------------------------------------------------------
+# --- Aktionen (jede committet; der Router prüft Modul, Rolle und Archiv vorab -- Sperren geht seit 1.11.13 auch im Archiv) ---------------------------
 
 def _nicht_im_archiv(kunde: Customer) -> None:
-    if kunde.archiviert_am is not None:  # zweite Sicherung -- archiv_vorab() am Router lehnt vorher ab
+    if kunde.archiviert_am is not None:  # zweite Sicherung -- archiv_vorab() an der Route lehnt vorher ab
         raise PortalNicht("Der Kunde ist im Archiv -- erst zurückholen.")
 
 
@@ -228,7 +238,8 @@ def link_senden(db: Session, kunde: Customer, email: str, dispatch_key: str, jet
 
 
 def sperren(db: Session, kunde: Customer, grund: str, jetzt_: datetime, *, user_id: int | None, user_name: str | None) -> None:
-    _nicht_im_archiv(kunde)
+    """Seit 1.11.13 auch im Archiv (Festlegung 1.11.0, Antwort des Betriebs 24.11.2026): Sperren nimmt nur Zugang weg -- sonst wäre der Zugang nach dem
+    Zurückholen offen, bis jemand sperrt. Der Zugang zählt nicht zum Vorgang des Archivs (app/archivschutz.py, KEIN_TEIL)."""
     zugang = zugang_von(db, kunde.id, sperren=True)
     if zugang is None:
         raise ZugangFehlt("Der Kunde hat noch keinen Zugang.")
@@ -250,24 +261,37 @@ def entsperren(db: Session, kunde: Customer) -> None:
     db.commit()
 
 
+VERLAENGERN_NICHT = {  # seit 1.11.13: Verlängern nur, solange der Link gilt (LINK_GILT)
+    "aus": "Erst das Kundenportal für diesen Kunden einschalten.",
+    "ohne_link": "Es gibt noch keinen Link -- erst einen Link senden.",
+    "gesperrt": "Der Zugang ist gesperrt -- erst entsperren.",
+    "abgelaufen": "Der Link ist abgelaufen und lebt nicht wieder auf -- bitte einen neuen Link senden.",
+    "gescheitert": "Der Link ging nicht hinaus -- bitte den Link erneut senden.",
+}
+
+
 def verlaengern(db: Session, kunde: Customer, jetzt_: datetime) -> None:
-    """Gültig bis = heute + 12 Monate, derselbe Link."""
+    """Gültig bis = heute + 12 Monate, derselbe Link -- seit 1.11.13 nur, solange er gilt (aktiv, läuft bald ab)."""
     _nicht_im_archiv(kunde)
     zugang = zugang_von(db, kunde.id, sperren=True)
     if zugang is None:
         raise ZugangFehlt("Der Kunde hat noch keinen Zugang.")
-    if zugang.gesperrt_am is not None:
-        raise PortalNicht("Der Zugang ist gesperrt -- erst entsperren.")
-    if zugang.link_sha256 is None:
-        raise PortalNicht("Es gibt noch keinen Link -- erst einen Link senden.")
+    z = zustand(kunde, zugang, jetzt_, _letzter_versand(db, zugang.id))
+    if z not in LINK_GILT:
+        raise PortalNicht(VERLAENGERN_NICHT.get(z, ZUSTAENDE.get(z, z)))
     zugang.gueltig_bis = gueltig_bis_ab(jetzt_)
     db.commit()
 
 
-# --- Protokoll: Portal, Versand und Änderungshistorie zusammen ----------------------------------------------------------------------------------
+# --- Protokoll: Portal, Versand und Änderungshistorie zusammen -- seit 1.11.13 eine Zeile je Aktion --------------------------------------------------
 
-# Was das Protokoll aus der Änderungshistorie des Zugangs zeigt -- der Rest ist Buchhaltung des Zugangs (Konto-Kennungen, verdeckte Anzeige, angelegt von)
+# Was das Protokoll aus der Änderungshistorie des Zugangs liest -- der Rest ist Buchhaltung des Zugangs (Konto-Kennungen, verdeckte Anzeige, angelegt von)
 PROTOKOLL_FELDER = ("email", "link_erzeugt_am", "gueltig_bis", "gesperrt_am", "gesperrt_grund")
+# Welche Aktion ein Feld ändert: E-Mail und „Link erzeugt“ nur Link senden, „gültig bis“ Link senden oder Verlängern, die Sperre Sperren und Entsperren.
+FELD_ART = {"email": "link", "link_erzeugt_am": "link", "gueltig_bis": "frist", "gesperrt_am": "sperre", "gesperrt_grund": "sperre"}
+_SPALTEN = [c.key for c in PortalZugang.__table__.columns]  # in dieser Reihenfolge schreibt die Historie die Felder eines Flushs
+GRUPPE_SEKUNDEN = 5  # wie der Verlauf der Akte (app/akte_verlauf.py)
+ZEILEN_JE_AKTION = 8  # höchstens so viele Zeilen der Historie hat eine Aktion am Zugang (Link senden: 3)
 
 
 def _tag(wert: str | None) -> str:
@@ -279,32 +303,116 @@ def _tag(wert: str | None) -> str:
         return wert or "–"
 
 
-def _historie_text(a: AuditLog) -> str | None:
-    """Ein Eintrag der Änderungshistorie als Satz (seit 1.11.11); None = nicht zeigen."""
-    if a.entity_type != ZUGANG_ART:  # der Schalter am Kunden
-        return "Kundenportal eingeschaltet" if a.new_value == "Ja" else "Kundenportal ausgeschaltet"
-    if a.field_name is None:
-        return {"angelegt": "Zugang angelegt", "gelöscht": "Zugang gelöscht"}.get(a.action, a.action)
-    if a.field_name == "email":
-        return f"E-Mail des Zugangs: {a.old_value or '–'} → {a.new_value or '–'}"
-    if a.field_name == "link_erzeugt_am":
-        return "Neuer Link erzeugt" if a.new_value else None
-    if a.field_name == "gueltig_bis":
-        return f"Link gültig bis {_tag(a.new_value)}" if a.new_value else None
-    if a.field_name == "gesperrt_am":
-        return "Zugang gesperrt" if a.new_value else "Zugang entsperrt"
-    if a.field_name == "gesperrt_grund":
-        return f"Grund der Sperre: {a.new_value}" if a.new_value else None
+@dataclass
+class _Aktion:
+    """Die Zeilen der Historie, die eine Aktion am Zugang schrieb (ein Flush): dasselbe Konto, höchstens GRUPPE_SEKUNDEN auseinander, die Felder in der
+    Reihenfolge der Spalten, jedes höchstens einmal, nur verträgliche Arten (Link mit Frist; Sperre allein)."""
+    zeilen: dict
+    erste: AuditLog
+    letzte: AuditLog
+    versand: EmailDispatch | None = None
+
+    @property
+    def art(self) -> str:
+        if self.erste.field_name is None:
+            return "angelegt" if self.erste.action == "angelegt" else self.erste.action
+        if "link_erzeugt_am" in self.zeilen or "email" in self.zeilen:
+            return "link"
+        if "gesperrt_am" in self.zeilen:
+            return "gesperrt" if self.zeilen["gesperrt_am"].new_value else "entsperrt"
+        if "gueltig_bis" in self.zeilen:
+            return "verlaengert"
+        return "sperre"
+
+
+def _passt(g: _Aktion, a: AuditLog) -> bool:
+    if g.erste.field_name is None or a.field_name is None:  # Anlegen ist immer eine Aktion für sich
+        return False
+    if (a.actor_user_id, a.actor_name) != (g.letzte.actor_user_id, g.letzte.actor_name):
+        return False
+    if abs((a.occurred_at - g.letzte.occurred_at).total_seconds()) > GRUPPE_SEKUNDEN:
+        return False
+    if a.field_name in g.zeilen or _SPALTEN.index(a.field_name) < _SPALTEN.index(g.letzte.field_name):  # ein Flush schreibt jedes Feld einmal, der Reihe nach
+        return False
+    arten = {FELD_ART[f] for f in g.zeilen} | {FELD_ART[a.field_name]}
+    return arten <= {"link", "frist"} or arten == {"sperre"}
+
+
+def _aktionen(zeilen: list[AuditLog]) -> list[_Aktion]:
+    """zeilen: die Historie des Zugangs, älteste zuerst."""
+    gruppen: list[_Aktion] = []
+    for a in zeilen:
+        if gruppen and _passt(gruppen[-1], a):
+            gruppen[-1].zeilen[a.field_name] = a
+            gruppen[-1].letzte = a
+        else:
+            gruppen.append(_Aktion(zeilen={a.field_name: a} if a.field_name else {}, erste=a, letzte=a))
+    return gruppen
+
+
+def _versand_zuordnen(gruppen: list[_Aktion], versand: list[EmailDispatch]) -> list[EmailDispatch]:
+    """Jeder Link der Historie bekommt den Versand, den dieselbe Anfrage anlegte (der nächste in der Zeit, höchstens GRUPPE_SEKUNDEN entfernt); was übrig
+    bleibt, steht für sich (Rand einer Seite)."""
+    offen = [g for g in gruppen if g.art == "link"]
+    uebrig = []
+    for d in sorted(versand, key=lambda x: (x.created_at, x.id)):
+        nah = [g for g in offen if abs((d.created_at - g.letzte.occurred_at).total_seconds()) <= GRUPPE_SEKUNDEN]
+        vorher = [g for g in nah if g.letzte.occurred_at <= d.created_at]  # die Historie schreibt der Link vor dem Versand (link_html() flusht)
+        if nah:
+            g = (max(vorher, key=lambda x: (x.letzte.occurred_at, x.erste.id)) if vorher
+                 else min(nah, key=lambda x: (abs((d.created_at - x.letzte.occurred_at).total_seconds()), x.erste.id)))
+            g.versand = d
+            offen.remove(g)
+        else:
+            uebrig.append(d)
+    return uebrig
+
+
+def _link_text(neu: bool, versand: EmailDispatch | None, gueltig: str | None, vorher: str | None) -> str:
+    wort = "Neuer Link" if neu else "Link"
+    an = versand.to_recipients if versand is not None else None
+    if versand is None:
+        text = f"{wort} erzeugt" + (f" – gültig bis {gueltig}" if gueltig else "")
+    elif versand.status == "gesendet":
+        text = f"{wort} gesendet an {an}" + (f" – gültig bis {gueltig}" if gueltig else "")
+    elif versand.status == "fehlgeschlagen":
+        text = f"{wort} nicht gesendet – Versand an {an} gescheitert"
+    else:
+        text = f"{wort} wird gesendet an {an}"
+    return text + (f" (E-Mail vorher {vorher})" if vorher else "")
+
+
+def _aktion_text(g: _Aktion, erster_versand: int | None) -> str | None:
+    """Eine Aktion als Satz (seit 1.11.13) -- None = nicht zeigen. erster_versand: der erste Versand eines Links an diesen Zugang -- jeder spätere ist ein
+    neuer Link (jeder Link geht genau einmal hinaus; lehnt der Versand vorher ab, gibt es keinen Link)."""
+    art = g.art
+    if art == "angelegt":
+        try:
+            email = json.loads(g.erste.details or "{}").get("email")
+        except ValueError:
+            email = None
+        return f"Zugang angelegt für {email}" if email else "Zugang angelegt"
+    if art == "link":
+        erzeugt, email, frist = g.zeilen.get("link_erzeugt_am"), g.zeilen.get("email"), g.zeilen.get("gueltig_bis")
+        neu = g.versand.id != erster_versand if g.versand is not None else bool(erzeugt is not None and erzeugt.old_value)
+        vorher = email.old_value if email is not None and email.old_value and email.old_value != email.new_value else None
+        return _link_text(neu, g.versand, _tag(frist.new_value) if frist is not None and frist.new_value else None, vorher)
+    if art == "verlaengert":
+        return f"Link verlängert – gültig bis {_tag(g.zeilen['gueltig_bis'].new_value)}"
+    if art == "gesperrt":
+        grund = g.zeilen.get("gesperrt_grund")
+        return f"Zugang gesperrt – Grund: {grund.new_value}" if grund is not None and grund.new_value else "Zugang gesperrt"
+    if art == "entsperrt":
+        return "Zugang entsperrt"
+    if art == "gelöscht":
+        return "Zugang gelöscht"
     return None
 
 
-VERSAND_TEXT = {"gesendet": "Link gesendet an {an}", "fehlgeschlagen": "Link nicht gesendet (an {an})", "in_arbeit": "Link wird gesendet an {an}"}
-
-
 def protokoll(db: Session, kunde: Customer, seite: int = 1) -> dict:
-    """Je Seite SEITE Einträge, neueste zuerst: das Zugriffsprotokoll des Zugangs (Aktion und Ergebnis in Worten), die Mails mit dem Link
-    (Versandprotokoll) und die Änderungshistorie des Zugangs und des Schalters am Kunden als Sätze (seit 1.11.11; Konto, Zeit). Ohne IP-Adressen -- das
-    Zugriffsprotokoll hat keine."""
+    """Je Seite SEITE Einträge, neueste zuerst: das Zugriffsprotokoll des Zugangs (Aktion und Ergebnis in Worten), jede Aktion des Büros am Zugang als eine
+    Zeile (seit 1.11.13: die Felder der Änderungshistorie einer Aktion zusammen, der Link mit seinem Versand -- „Neuer Link gesendet an … – gültig bis …
+    (E-Mail vorher …)“) und der Schalter am Kunden; Konto, Zeit. Ohne IP-Adressen -- das Zugriffsprotokoll hat keine."""
     zugang = zugang_von(db, kunde.id)
     bis = seite * SEITE + 1
     zeilen = []
@@ -314,18 +422,31 @@ def protokoll(db: Session, kunde: Customer, seite: int = 1) -> dict:
             ergebnis = ERGEBNIS_TEXT.get(z.ergebnis, z.ergebnis)
             zeilen.append((z.zeitpunkt, 0, z.id, {"art": "portal", "text": AKTION_TEXT.get(z.aktion, z.aktion) + (f" – {ergebnis}" if ergebnis else ""),
                                                    "von": "Kundenportal"}))
-        for d in db.scalars(select(EmailDispatch).where(EmailDispatch.document_type == "portal_link", EmailDispatch.document_id == zugang.id)
-                            .order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(bis)):
-            text = VERSAND_TEXT.get(d.status, "Link: {an}").format(an=d.to_recipients)
-            zeilen.append((d.created_at, 2, d.id, {"art": "versand", "text": text, "von": d.created_by_name or "System"}))
-    bedingung = (AuditLog.entity_type == "Kunde") & (AuditLog.entity_id == str(kunde.id)) & (AuditLog.field_name == "portal_aktiv")
-    if zugang is not None:
-        bedingung = or_(bedingung, (AuditLog.entity_type == ZUGANG_ART) & (AuditLog.entity_id == str(zugang.id))
-                        & (AuditLog.field_name.is_(None) | AuditLog.field_name.in_(PROTOKOLL_FELDER)))
-    for a in db.scalars(select(AuditLog).where(bedingung).order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(bis)):
-        text = _historie_text(a)
-        if text:
-            zeilen.append((a.occurred_at, 1, a.id, {"art": "buero", "text": text, "von": a.actor_name or "System"}))
+        grenze = bis * ZEILEN_JE_AKTION
+        historie = list(db.scalars(select(AuditLog).where(AuditLog.entity_type == ZUGANG_ART, AuditLog.entity_id == str(zugang.id),
+                                                          AuditLog.field_name.is_(None) | AuditLog.field_name.in_(PROTOKOLL_FELDER))
+                                   .order_by(AuditLog.id.desc()).limit(grenze)))
+        abgeschnitten = len(historie) == grenze
+        gruppen = _aktionen(list(reversed(historie)))
+        if abgeschnitten and gruppen:  # die älteste Aktion kann unvollständig sein -- sie steht auf einer späteren Seite
+            gruppen = gruppen[1:]
+        versand = list(db.scalars(select(EmailDispatch).where(EmailDispatch.document_type == "portal_link", EmailDispatch.document_id == zugang.id)
+                                  .order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(bis)))
+        if abgeschnitten and gruppen:
+            versand = [d for d in versand if (d.created_at - gruppen[0].erste.occurred_at).total_seconds() >= -GRUPPE_SEKUNDEN]
+        erster = db.scalar(select(EmailDispatch.id).where(EmailDispatch.document_type == "portal_link", EmailDispatch.document_id == zugang.id)
+                           .order_by(EmailDispatch.created_at, EmailDispatch.id).limit(1))
+        for d in _versand_zuordnen(gruppen, versand):
+            zeilen.append((d.created_at, 2, d.id, {"art": "versand", "text": _link_text(d.id != erster, d, None, None), "von": d.created_by_name or "System"}))
+        for g in gruppen:
+            text = _aktion_text(g, erster)
+            if text:
+                von = g.versand.created_by_name if g.versand is not None and g.versand.created_by_name else (g.erste.actor_name or "System")
+                zeilen.append((g.erste.occurred_at, 1, g.erste.id, {"art": "buero", "text": text, "von": von}))
+    for a in db.scalars(select(AuditLog).where(AuditLog.entity_type == "Kunde", AuditLog.entity_id == str(kunde.id), AuditLog.field_name == "portal_aktiv")
+                        .order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(bis)):
+        zeilen.append((a.occurred_at, 1, a.id, {"art": "buero", "text": "Kundenportal eingeschaltet" if a.new_value == "Ja" else "Kundenportal ausgeschaltet",
+                                                 "von": a.actor_name or "System"}))
     zeilen.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     teil = zeilen[(seite - 1) * SEITE: seite * SEITE]
     return {"seite": seite, "weiter": len(zeilen) > seite * SEITE,

@@ -1,7 +1,8 @@
 """Router: das Kundenportal im ERP (seit 1.11.7, Stufe P1c; docs/archiv/webseite-und-kundenportal.md) -- der Stand des Postboten für den Hinweis auf
 „Start“ (seit 1.11.9 mit „Erledigt“ für den Admin) und seit 1.11.10 (P1d) die Karte „Kundenportal“ der Kundenakte (app/kundenportal.py). Rollen ab
 Büro – Auftrag (P1-4), die Monteurin nie. Ist das Modul „Kundenportal“ aus, antwortet jeder Weg 403 -- wie jedes Modul, auch für den Admin (die Seiten
-fragen dann gar nicht). Ein Kunde im Archiv: jede schreibende Anfrage an seiner Karte endet vor dem Endpunkt mit 409 (archiv_vorab()).
+fragen dann gar nicht). Ein Kunde im Archiv: jede schreibende Anfrage an seiner Karte endet vor dem Endpunkt mit 409 (archiv_vorab()) -- seit 1.11.13
+außer Sperren (Festlegung 1.11.0: es nimmt nur Zugang weg; tests/test_v793_archivschutz.py::OHNE_VORAB).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,8 +24,10 @@ from ..schemas import (
     PortalPostboteOut, PortalPostErledigtIn,
 )
 
-# seit 1.11.10: Kunde im Archiv -- jede schreibende Anfrage an seiner Karte endet vor dem Endpunkt mit 409 (Bauplan P1, Abschnitt 4: nur lesbar)
-router = APIRouter(dependencies=[archiv_vorab(customer_id="customers")])
+router = APIRouter()
+# seit 1.11.10: Kunde im Archiv -- jede schreibende Anfrage an seiner Karte endet vor dem Endpunkt mit 409; seit 1.11.13 je Route, damit Sperren auch im
+# Archiv geht (Festlegung 1.11.0, Antwort des Betriebs 24.11.2026)
+_nicht_im_archiv = [archiv_vorab(customer_id="customers")]
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _admin_dep = Depends(require_min_role(ROLE_ADMIN))
 MODUL = "kundenportal"
@@ -96,7 +99,7 @@ def get_portal(customer_id: Id, db: Session = Depends(get_db, scope="function"),
     return kp.stand(db, _kunde(db, customer_id), utc_jetzt())
 
 
-@router.post("/api/customers/{customer_id}/portal/schalter", response_model=KundenportalOut)
+@router.post("/api/customers/{customer_id}/portal/schalter", response_model=KundenportalOut, dependencies=_nicht_im_archiv)
 def post_schalter(customer_id: Id, eingabe: KundenportalSchalterIn, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _modul(db)
     kunde = _kunde(db, customer_id)
@@ -104,7 +107,7 @@ def post_schalter(customer_id: Id, eingabe: KundenportalSchalterIn, db: Session 
     return _antwort(db, kunde)
 
 
-@router.post("/api/customers/{customer_id}/portal/zugang", response_model=KundenportalOut)
+@router.post("/api/customers/{customer_id}/portal/zugang", response_model=KundenportalOut, dependencies=_nicht_im_archiv)
 def post_zugang(customer_id: Id, eingabe: KundenportalEmailIn, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _modul(db)
     kunde = _kunde(db, customer_id)
@@ -112,7 +115,7 @@ def post_zugang(customer_id: Id, eingabe: KundenportalEmailIn, db: Session = Dep
     return _antwort(db, kunde)
 
 
-@router.post("/api/customers/{customer_id}/portal/link", response_model=KundenportalOut)
+@router.post("/api/customers/{customer_id}/portal/link", response_model=KundenportalOut, dependencies=_nicht_im_archiv)
 def post_link(customer_id: Id, eingabe: KundenportalLinkIn, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Link senden (abschließend): neuer Link, Mail über Microsoft 365 ohne „Gesendete Elemente“. 400 bei einem Versandfehler (der neue Link gilt
     trotzdem, die Karte zeigt „Versand gescheitert“), 409 im falschen Zustand oder bei einem laufenden Versand."""
@@ -124,13 +127,14 @@ def post_link(customer_id: Id, eingabe: KundenportalLinkIn, db: Session = Depend
 
 @router.post("/api/customers/{customer_id}/portal/sperren", response_model=KundenportalOut)
 def post_sperren(customer_id: Id, eingabe: KundenportalSperrenIn, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.11.13 auch für einen Kunden im Archiv (ohne archiv_vorab()): Sperren nimmt nur Zugang weg."""
     _modul(db)
     kunde = _kunde(db, customer_id)
     _ausfuehren(lambda: kp.sperren(db, kunde, eingabe.grund, utc_jetzt(), user_id=_role.id, user_name=_role.display_name))
     return _antwort(db, kunde)
 
 
-@router.post("/api/customers/{customer_id}/portal/entsperren", response_model=KundenportalOut)
+@router.post("/api/customers/{customer_id}/portal/entsperren", response_model=KundenportalOut, dependencies=_nicht_im_archiv)
 def post_entsperren(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _modul(db)
     kunde = _kunde(db, customer_id)
@@ -138,7 +142,7 @@ def post_entsperren(customer_id: Id, db: Session = Depends(get_db, scope="functi
     return _antwort(db, kunde)
 
 
-@router.post("/api/customers/{customer_id}/portal/verlaengern", response_model=KundenportalOut)
+@router.post("/api/customers/{customer_id}/portal/verlaengern", response_model=KundenportalOut, dependencies=_nicht_im_archiv)
 def post_verlaengern(customer_id: Id, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _modul(db)
     kunde = _kunde(db, customer_id)

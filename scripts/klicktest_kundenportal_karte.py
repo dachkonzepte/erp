@@ -1,11 +1,13 @@
-"""Klicktest: Karte „Kundenportal“ in der Kundenakte (1.11.11, Stufe P1d; Bauplan P1, Abschnitt 4).
+"""Klicktest: Karte „Kundenportal“ in der Kundenakte (1.11.11, Stufe P1d; Bauplan P1, Abschnitt 4; seit 1.11.13 die Antworten des Betriebs).
 
     Zustände            je ein Kunde: Portal aus; an, kein Zugang; an, ohne E-Mail; Zugang ohne Link; Link versendet (gültig bis, zuletzt genutzt);
-                        läuft in 20 Tagen ab (Hinweis „Verlängern“); abgelaufen; gesperrt (Grund, von, am); Versand gescheitert; Kunde im Archiv (nur
-                        „Protokoll“, keine Aktion) -- je ein Bild der Karte
+                        läuft in 20 Tagen ab (Hinweis „Verlängern“); abgelaufen (kein „Verlängern“); gesperrt (Grund, von, am); Versand gescheitert
+                        (eigener Zustand, „Link erneut senden“ ohne Warnung, danach aktiv); Kunde im Archiv (nur „Protokoll“ und „Sperren“ -- Sperren
+                        geht dort, alles andere 409) -- je ein Bild der Karte
     Ablauf (Büro – Auftrag)   einschalten -> „Zugang anlegen“ (E-Mail des Kunden vorbelegt) -> „Link senden“ -> Mail an der Graph-Attrappe (ohne
                         „Gesendete Elemente“, HTML, Knopf mit dem Link) -> „Neuen Link senden“ mit Warnung und anderer Adresse -> Sperren ohne Grund
-                        (Meldung) und mit Grund -> Entsperren -> Verlängern -> Protokoll (Portal und ERP) -> ausschalten
+                        (Meldung) und mit Grund -> Entsperren -> Verlängern -> Protokoll (eine Zeile je Aktion, Portal und ERP) -> ausschalten; zwischen
+                        den Schritten geht die stehende Uhr eine Minute weiter (wie Klicks im Betrieb)
     Rechte              Monteurin: Seite und Schnittstelle 403; Modul aus: keine Karte, keine Anfrage
     412 px              die Karte ragt nicht über die Gerätebreite
 
@@ -133,7 +135,8 @@ def befuellen(db, k):
     s.send_method = "graph_oauth2"
     update_graph_settings(db, tenant_id="mandant-attrappe", client_id="anwendung-attrappe", sender_mailbox="buero@example.invalid",
                           client_secret="geheim-attrappe")
-    return {"adm": k.cookies(adm), "auf": k.cookies(auf), "mon": k.cookies(mon), "kunden": kunden, "db_url": os.environ["DATABASE_URL"]}
+    return {"adm": k.cookies(adm), "auf": k.cookies(auf), "mon": k.cookies(mon), "kunden": kunden, "db_url": os.environ["DATABASE_URL"],
+            "uhr_ms": k.uhr_ms()}
 
 
 def _abfrage(seed, sql: str, *werte):
@@ -175,6 +178,10 @@ async def _klick(tab, js):
     return await tab.warte_auf_neu_geladene_liste(js)
 
 
+PROTOKOLL_TEXTE = "[...document.querySelectorAll('#portalProtokollListe li')].map(li=>li.children.length>1?li.children[1].textContent:li.textContent)"
+PROTOKOLL_ZEILEN = "[...document.querySelectorAll('#portalProtokollListe li')].map(li=>[...li.children].map(s=>s.textContent))"
+
+
 async def pruefen(tab, seed, p):
     await tab.fenster(1440, 1000)
     await tab.anmelden(seed["auf"])
@@ -187,10 +194,10 @@ async def pruefen(tab, seed, p):
         "ohne_link": ("Ohne Link", ["Link senden", "Sperren", "Portal ausschalten"], ""),
         "aktiv": ("Aktiv", ["Neuen Link senden", "Verlängern", "Sperren", "Portal ausschalten"], ""),
         "laeuft_ab": ("Läuft bald ab", ["Neuen Link senden", "Verlängern", "Sperren", "Portal ausschalten"], f"Der Link läuft am {_tag(20)} ab"),
-        "abgelaufen": ("Abgelaufen", ["Neuen Link senden", "Verlängern", "Sperren", "Portal ausschalten"], ""),
+        "abgelaufen": ("Abgelaufen", ["Neuen Link senden", "Sperren", "Portal ausschalten"], ""),  # seit 1.11.13 ohne „Verlängern“
         "gesperrt": ("Gesperrt", ["Entsperren", "Portal ausschalten"], ""),
-        "gescheitert": ("Aktiv", ["Neuen Link senden", "Verlängern", "Sperren", "Portal ausschalten"], "Der letzte Link ging nicht hinaus"),
-        "archiv": ("Im Archiv", [], ""),
+        "gescheitert": ("Versand gescheitert", ["Link erneut senden", "Sperren", "Portal ausschalten"], ""),  # seit 1.11.13 ein eigener Zustand
+        "archiv": ("Im Archiv", ["Sperren"], ""),  # seit 1.11.13: Sperren geht auch im Archiv
     }
     for schluessel, (zustand, knoepfe, hinweis) in erwartet.items():
         await _kunde_oeffnen(tab, p, seed, schluessel)
@@ -202,15 +209,41 @@ async def pruefen(tab, seed, p):
     p.pruefe("gesperrt: Angaben", await tab.js(DATEN), ["E-Mail: max@example.invalid", f"Link gültig bis: {_tag(200)}", f"Link erzeugt: {_tag(-30)}",
                                                          f"Zuletzt genutzt: {_tag(-2)}", f"Gesperrt: {_tag(-1)} von Adri Admin",
                                                          "Grund: Kunde meldet ein verlorenes Handy"])
-    await _kunde_oeffnen(tab, p, seed, "archiv")
-    p.pruefe("archiv: nur „Protokoll“", await tab.js(SICHTBARE_KNOEPFE), ["Protokoll"])
-    antwort = await tab.js(f"fetch('/api/customers/{seed['kunden']['archiv']}/portal/sperren',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
-                           "body:JSON.stringify({grund:'x'})}).then(r=>r.status)")
-    p.pruefe("archiv: Server lehnt ab", antwort, 409)
+    await _kunde_oeffnen(tab, p, seed, "gescheitert")  # seit 1.11.13: Kennzeichen, Satz, Angabe, „Link erneut senden“ ohne Warnung
+    p.pruefe("gescheitert: Satz", await tab.js("document.getElementById('portalText').textContent"), "Der Link ging nicht hinaus.")
+    p.pruefe("gescheitert: Kennzeichen in Warnfarbe", await tab.js("document.getElementById('portalZustand').className"), "chip chip-warn")
+    p.pruefe("gescheitert: Angabe mit Zeit und Adresse", [d for d in await tab.js(DATEN) if d.startswith("Versand gescheitert")],
+             ["Versand gescheitert: 24.11.2026 09:30 an max@example.invalid"])
+    await tab.js("document.getElementById('portalLinkSenden').click()")
+    p.pruefe("gescheitert: Dialog „Link erneut senden“", await tab.js("document.getElementById('portalLinkTitel').textContent"), "Link erneut senden")
+    p.pruefe("gescheitert: ohne Warnung", await tab.js("document.getElementById('portalLinkNeu').hidden"), True)
+    await tab.bild("dialog_link_erneut")
+    p.pruefe("gescheitert: erneut gesendet", await _klick(tab, "document.querySelector('[data-klick=\"portal-link-senden\"]').click()"), True)
+    p.pruefe("gescheitert: danach aktiv", await tab.js(ZUSTAND), "Aktiv")
+    await _kunde_oeffnen(tab, p, seed, "abgelaufen")
+    antwort = await tab.js(f"fetch('/api/customers/{seed['kunden']['abgelaufen']}/portal/verlaengern',{{method:'POST'}}).then(r=>r.status)")
+    p.pruefe("abgelaufen: Verlängern lehnt der Server ab", antwort, 409)
+
+    await _kunde_oeffnen(tab, p, seed, "archiv")  # seit 1.11.13: Sperren geht auch im Archiv, alles andere 409
+    await tab.js("document.getElementById('portalSperren').click()")
+    p.pruefe("archiv: Feld „Grund“ frei", await tab.js("document.getElementById('portalSperrenGrund').disabled"), False)
+    await tab.js("document.getElementById('portalSperrenGrund').value='Kunde im Archiv – Zugang schließen'")
+    p.pruefe("archiv: gesperrt", await _klick(tab, "document.querySelector('[data-klick=\"portal-sperren\"]').click()"), True)
+    p.pruefe("archiv: Angaben der Sperre", [d for d in await tab.js(DATEN) if d.startswith("Grund")], ["Grund: Kunde im Archiv – Zugang schließen"])
+    p.pruefe("archiv: danach nur „Protokoll“", await tab.js(SICHTBARE_KNOEPFE), ["Protokoll"])
+    await _karte_bild(tab, "karte_archiv_gesperrt")
+    antwort = await tab.js(f"fetch('/api/customers/{seed['kunden']['archiv']}/portal/entsperren',{{method:'POST'}}).then(r=>r.status)")
+    p.pruefe("archiv: Entsperren lehnt der Server ab", antwort, 409)
 
     # --- Ablauf als Büro – Auftrag ---------------------------------------------------------------------------------------------------------
     await _kunde_oeffnen(tab, p, seed, "ablauf")
     await tab.js("window.confirm=()=>true")
+    minute = [0]
+    mails_vorher = len(MAILS)  # „Link erneut senden“ oben schickte schon eine
+
+    async def weiter():  # seit 1.11.13: wie Klicks im Betrieb -- jede Aktion eine Minute später (utc_jetzt() ist sekundengenau)
+        minute[0] += 1
+        await tab.uhr_stellen(seed["uhr_ms"] + minute[0] * 60_000)
     p.pruefe("Ablauf: einschalten", await _klick(tab, "document.getElementById('portalEin').click()"), True)
     p.pruefe("Ablauf: kein Zugang", await tab.js(ZUSTAND), "Kein Zugang")
     await tab.js("document.getElementById('portalZugangNeu').click()")
@@ -221,10 +254,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ablauf: ohne Link", await tab.js(ZUSTAND), "Ohne Link")
     await tab.js("document.getElementById('portalLinkSenden').click()")
     p.pruefe("Link senden: ohne Warnung beim ersten Link", await tab.js("document.getElementById('portalLinkNeu').hidden"), True)
+    await weiter()
     p.pruefe("Link senden: gesendet", await _klick(tab, "document.querySelector('[data-klick=\"portal-link-senden\"]').click()"), True)
     p.pruefe("Link senden: Zustand", await tab.js(ZUSTAND), "Aktiv")
     p.pruefe("Link senden: Meldung", await tab.js("document.getElementById('portalStatus').textContent"), "Link gesendet.")
-    p.pruefe("Mail: eine an der Attrappe", len(MAILS), 1)
+    p.pruefe("Mail: eine an der Attrappe", len(MAILS) - mails_vorher, 1)
     mail = MAILS[-1]
     p.pruefe("Mail: ohne „Gesendete Elemente“", mail.get("saveToSentItems"), "false")
     p.pruefe("Mail: HTML mit Knopf zum Portal", (mail["message"]["body"]["contentType"],
@@ -235,6 +269,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Neuer Link: Warnung", await tab.js("document.getElementById('portalLinkNeu').hidden"), False)
     await tab.js("document.getElementById('portalLinkEmail').value='neu@example.invalid'")
     await tab.bild("dialog_neuer_link")
+    await weiter()
     p.pruefe("Neuer Link: gesendet", await _klick(tab, "document.querySelector('[data-klick=\"portal-link-senden\"]').click()"), True)
     p.pruefe("Neuer Link: an die neue Adresse", [r["emailAddress"]["address"] for r in MAILS[-1]["message"]["toRecipients"]], ["neu@example.invalid"])
     p.pruefe("Neuer Link: E-Mail in der Karte", (await tab.js(DATEN))[0], "E-Mail: neu@example.invalid")
@@ -243,18 +278,27 @@ async def pruefen(tab, seed, p):
     p.pruefe("Sperren ohne Grund: Meldung", await tab.js("document.getElementById('portalSperrenStatus').textContent"), "Bitte einen Grund angeben.")
     await tab.js("document.getElementById('portalSperrenGrund').value='Kunde bittet darum'")
     await tab.bild("dialog_sperren")
+    await weiter()
     p.pruefe("Sperren: gesperrt", await _klick(tab, "document.querySelector('[data-klick=\"portal-sperren\"]').click()"), True)
     p.pruefe("Sperren: Zustand", await tab.js(ZUSTAND), "Gesperrt")
+    await weiter()
     p.pruefe("Entsperren", await _klick(tab, "document.getElementById('portalEntsperren').click()"), True)
     p.pruefe("Entsperren: Zustand", await tab.js(ZUSTAND), "Aktiv")
+    await weiter()
     p.pruefe("Verlängern", await _klick(tab, "document.getElementById('portalVerlaengern').click()"), True)
     p.pruefe("Verlängern: gültig bis in 12 Monaten", [d for d in await tab.js(DATEN) if d.startswith("Link gültig bis")], ["Link gültig bis: 24.11.2027"])
     await tab.js("document.getElementById('portalProtokoll').click()")
     await tab.warte_auf_ruhe()
-    eintraege = await tab.js("[...document.querySelectorAll('#portalProtokollListe li')].map(li=>li.textContent)")
-    p.pruefe("Protokoll: Einträge aus dem ERP mit Namen", any("Auri Auftrag" in e and "Zugang gesperrt" in e for e in eintraege), True)
-    p.pruefe("Protokoll: Link gesendet an die neue Adresse", any("Link gesendet an neu@example.invalid" in e for e in eintraege), True)
-    p.pruefe("Protokoll: Schalter", any("Kundenportal eingeschaltet" in e for e in eintraege), True)
+    zeilen = await tab.js(PROTOKOLL_ZEILEN)
+    p.pruefe("Protokoll: eine Zeile je Aktion, mit Konto (seit 1.11.13)", [z[1:] for z in zeilen], [
+        ["Link verlängert – gültig bis 24.11.2027", "Auri Auftrag"],
+        ["Zugang entsperrt", "Auri Auftrag"],
+        ["Zugang gesperrt – Grund: Kunde bittet darum", "Auri Auftrag"],
+        ["Neuer Link gesendet an neu@example.invalid – gültig bis 24.11.2027 (E-Mail vorher max@example.invalid)", "Auri Auftrag"],
+        ["Link gesendet an max@example.invalid – gültig bis 24.11.2027", "Auri Auftrag"],
+        ["Zugang angelegt für max@example.invalid", "Auri Auftrag"],
+        ["Kundenportal eingeschaltet", "Auri Auftrag"],
+    ])
     await tab.bild("dialog_protokoll")
     await tab.js("document.querySelector('#portalProtokollDialog [data-klick=\"dialog-zu\"]').click()")
     p.pruefe("Ausschalten", await _klick(tab, "document.getElementById('portalAus').click()"), True)

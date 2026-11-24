@@ -69,6 +69,8 @@ OHNE_VORAB = {
     "/api/customers/{customer_id}/refunds": "Erstattung eines Guthabens -- ein Kunde mit Zahlung geht nie ins Archiv; die Sitzung lehnt die Zahlung ab",
     "/api/maintenance-contracts/from-project/{project_id}": "liest das Projekt und legt einen neuen Mustervorgang an; den Vertrag eines Kunden im Archiv lehnt "
                                                            "die Sitzung ab",
+    "/api/customers/{customer_id}/portal/sperren": "seit 1.11.13: Sperren des Kundenportals nimmt nur Zugang weg und geht auch im Archiv (Festlegung 1.11.0; "
+                                                   "der Zugang ist kein Teil, KEIN_TEIL); schreibt keine Datei und keine Mail",
 }
 # Pfadparameter, die einen Teil nennen (in jedem Router dieselbe Bedeutung)
 NAMEN = {"customer_id", "property_id", "roof_area_id", "project_id", "quote_id", "inquiry_id", "participant_id"}

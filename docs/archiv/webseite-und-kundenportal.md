@@ -2060,3 +2060,53 @@ Zeile `PFLICHT`; `test_ohne_telefon_faellt_nur_die_nummer_weg` und `test_impress
 `test_absender_ohne_leere_teile` -- auch ohne Register und Geschäftsführer, dann keine Zeile; `test_v804::test_mails_gesiezt_mit_hinweis_und_absender` --
 letzter Absatz „Sitz Musterstadt“ (dort ist nur der Ort gepflegt), die Fußzeile davor. Gegenproben: `gegenproben-portal.md`, „1.11.12“. Bilder beider Mails
 mit der Zeile im Bericht 1.11.12.
+
+### Umsetzung 1.11.13: Karte nach den Antworten (Verlängern, „Versand gescheitert“, Sperren im Archiv, Protokoll je Aktion)
+
+- **„Versand gescheitert“ ist ein Zustand** (`app/kundenportal.py::zustand()`, Antwort 1.11.10-7): ist der letzte Versand des Links gescheitert und der Link
+  weder gesperrt noch abgelaufen, heißt der Zustand `gescheitert` -- Kennzeichen „Versand gescheitert“ (`chip-warn`), Satz „Der Link ging nicht hinaus.“, in
+  den Angaben „Versand gescheitert: <Zeit> an <Adresse>“, Knopf „Link erneut senden“. Der Warnhinweis dafür entfällt (er bleibt für „läuft bald ab“). Vorrang:
+  gesperrt, dann abgelaufen, dann gescheitert, dann läuft bald ab. „Link erneut senden“ öffnet den Dialog „Link erneut senden“ ohne die Warnung „Der bisherige
+  Link gilt danach nicht mehr …“ -- der gescheiterte Link erreichte niemanden, die Geräte sind seit seinem Erzeugen abgemeldet.
+- **Verlängern nur, solange der Link gilt** (Antwort 1.11.10-6 / 1.11.11-2): Knopf nur bei „aktiv“ und „läuft bald ab“ (`LINK_GILT`); der Server lehnt jeden
+  anderen Zustand mit 409 und dem Grund ab (`VERLAENGERN_NICHT`: abgelaufen „lebt nicht wieder auf -- bitte einen neuen Link senden“, gescheitert „bitte den
+  Link erneut senden“, gesperrt, ohne Link, Portal aus). Bei „abgelaufen“ bleibt „Neuen Link senden“.
+- **Sperren auch im Archiv** (Antwort 1.11.10-8 / 1.11.11-6; Festlegung 1.11.0): `archiv_vorab()` steht seit 1.11.13 an jeder Route der Karte einzeln, nur nicht
+  an `POST …/portal/sperren` (`tests/test_v793_archivschutz.py::OHNE_VORAB` mit Grund); `kundenportal.sperren()` prüft das Archiv nicht mehr. Auf der Seite
+  tragen der Knopf „Sperren“, das Feld „Grund“ und der Knopf im Dialog `data-lesen` (wie „Zurückholen“: bleibt im Archiv, das Feld frei). Im Archiv also
+  „Protokoll“ und -- solange der Zugang nicht gesperrt ist -- „Sperren“; alles andere 409. Satz im Archiv: „Der Kunde ist im Archiv – sein Zugang wirkt nicht.“
+- **Protokoll eine Zeile je Aktion** (Antwort 1.11.11-7, `protokoll()`): die Zeilen der Historie, die eine Aktion am Zugang schrieb, werden eine Zeile
+  (`_aktionen()`): dasselbe Konto, höchstens 5 Sekunden auseinander, die Felder in der Reihenfolge der Spalten und jedes höchstens einmal (so schreibt ein Flush
+  sie), nur verträgliche Arten (Link mit Frist; Sperre allein); Anlegen steht immer für sich. Der Link bekommt seinen Versand (`_versand_zuordnen()`: der letzte
+  Link davor, höchstens 5 Sekunden). Sätze: „Link gesendet an <Adresse> – gültig bis <Tag>“, „Neuer Link gesendet an … – gültig bis … (E-Mail vorher …)“ (die
+  Klammer nur bei geänderter E-Mail), „Neuer Link nicht gesendet – Versand an … gescheitert“, „Link verlängert – gültig bis …“, „Zugang gesperrt – Grund: …“,
+  „Zugang entsperrt“, „Zugang angelegt für <Adresse>“, „Kundenportal eingeschaltet/ausgeschaltet“; dazu wie bisher die Zugriffe des Portals. „Neuer Link“ heißt:
+  an diesen Zugang ging vorher schon ein Link hinaus (aus dem Versandprotokoll -- jeder Link hat genau einen Versand; zwei Links in derselben Sekunde hätten
+  dasselbe „Link erzeugt“ und schrieben dafür keine Zeile der Historie). Die Abfrage liest höchstens 8 Zeilen der Historie je Eintrag der Seite; die älteste
+  Aktion einer abgeschnittenen Abfrage steht erst auf der nächsten Seite.
+
+#### Festlegungen 1.11.13 (Bitte bestätigen)
+
+1. „Versand gescheitert“ ist ein Zustand: der letzte Versand des Links scheiterte, der Link ist weder gesperrt noch abgelaufen (die gehen vor); Kennzeichen in
+   der Warnfarbe, Satz „Der Link ging nicht hinaus.“, Angabe mit Zeit und Adresse, Knopf „Link erneut senden“; kein Warnhinweis dazu.
+2. „Link erneut senden“ öffnet den Dialog unter diesem Titel ohne die Warnung zum bisherigen Link.
+3. Verlängern nur bei „aktiv“ und „läuft bald ab“; sonst kein Knopf und 409 mit dem Grund; bei „abgelaufen“ nur „Neuen Link senden“.
+4. Sperren geht auch im Archiv (Server ohne Prüfung vorab, Knopf, Dialog und Feld bleiben); alles andere im Archiv 409; im Archiv der Satz „Der Kunde ist im
+   Archiv – sein Zugang wirkt nicht.“
+5. Das Protokoll zeigt eine Zeile je Aktion (Zeilen eines Flushs zusammen, der Link mit seinem Versand) in den Sätzen oben.
+6. „Neuer Link“ = an diesen Zugang ging vorher schon ein Link (Versandprotokoll).
+
+#### Tests und Prüfung 1.11.13
+
+`tests/test_v809_kundenportal_karte_server.py` (36): neu `test_verlaengern_nur_solange_der_link_gilt` (7 Zustände), `test_gescheitert_nach_gesperrt_und_abgelaufen`,
+`test_sperren_geht_auch_im_archiv`, `test_protokoll_eine_zeile_je_aktion` (neun Aktionen desselben Kontos, Uhr je Aufruf eine Sekunde weiter -- `uhr`),
+`test_protokoll_versand_beim_richtigen_link` (Versand nach und vor der Historie), `test_protokoll_neuer_link_auch_in_derselben_sekunde`. Angepasste Erwartungen:
+`test_zustaende_der_reihe_nach` -- bis 1.11.12 machte „Verlängern“ einen abgelaufenen Link wieder aktiv, jetzt 409 und „Neuen Link senden“; `test_versand_gescheitert`
+-- Zustand „aktiv“ -> „gescheitert“; `test_kunde_im_archiv_nur_lesen` -- Sperren im Archiv 409 -> eigener Test, 200; `test_archiv_auch_in_der_geschaeftslogik` --
+ohne Sperren; `test_protokoll_portal_und_historie_zusammen` -- „Grund der Sperre: Test“, „Zugang gesperrt“, „Neuer Link erzeugt“, „Link gesendet an …“ (je Feld)
+-> „Zugang gesperrt – Grund: Test“, „Zugang angelegt für …“, „Link gesendet an … – gültig bis …“ (je Aktion); `test_buchhaltung_des_zugangs…` -- „Zugang
+angelegt“ -> „Zugang angelegt für max@example.invalid“. Neue Einträge: `test_v793::OHNE_VORAB` (Sperren), `test_v795::LESEN` (`portal-sperren-dialog`,
+`portal-sperren`). `scripts/klicktest_kundenportal_karte.py` (99 Prüfungen, bis 1.11.12 88): angepasst „abgelaufen: Knöpfe“ (ohne „Verlängern“),
+„gescheitert“ (Zustand „Aktiv“ mit Hinweis -> „Versand gescheitert“, „Link erneut senden“), „archiv“ (nur „Protokoll“ und Server 409 auf Sperren -> „Sperren“
+geht, danach nur „Protokoll“, Entsperren 409), „Mail: eine an der Attrappe“ (gezählt ab dem Ablauf), „Protokoll“ (je Feld -> je Aktion mit Konto); neu der
+gescheiterte Versand erneut gesendet, Verlängern bei „abgelaufen“ 409, die Uhr eine Minute weiter je Schritt. Gegenproben: `gegenproben-portal.md`, „1.11.13“.

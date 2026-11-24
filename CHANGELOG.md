@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.13 – Kundenportal: Karte nach den Antworten des Betriebs
+
+Die Karte „Kundenportal“ der Kundenakte folgt den Antworten zu 1.11.10 und 1.11.11: „Versand gescheitert“ ist ein eigener Zustand mit Kennzeichen in der Warnfarbe, dem Satz „Der Link ging nicht hinaus.“ und dem Knopf „Link erneut senden“ (bisher stand „Aktiv – Link versendet.“ über einer Warnung). Verlängern geht nur noch, solange der Link gilt (aktiv, läuft bald ab) -- ein abgelaufener Link lebt nicht wieder auf, dort bleibt „Neuen Link senden“; der Server lehnt sonst mit dem Grund ab. Sperren geht wie in Festlegung 1.11.0 auch im Archiv (es nimmt nur Zugang weg); alles andere bleibt dort gesperrt. Das Protokoll zeigt eine Zeile je Aktion statt je Feld, der Link zusammen mit seinem Versand: „Neuer Link gesendet an … – gültig bis … (E-Mail vorher …)“, „Zugang gesperrt – Grund: …“.
+
 ## 1.11.12 – Kundenportal: Pflichtangaben in der Fußzeile der Mails
 
 Beide Mails des Kundenportals (Link und Anmeldecode) tragen zuletzt in der Fußzeile eine kleine Zeile mit den Pflichtangaben einer GmbH nach § 35a GmbHG: „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“, alles aus den Firmendaten der Einstellungen (Sitz ist der Ort der Anschrift). Fehlt ein Feld, fällt nur dieses weg; fehlen alle, fehlt die Zeile. Dazu ein Befund, nur gemeldet: die übrigen Mails des ERP tragen diese Angaben nicht -- weder im Text noch als Platzhalter oder angehängte Fußzeile; die PDFs nur, soweit das hochgeladene Briefpapier sie enthält.
