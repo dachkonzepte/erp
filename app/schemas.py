@@ -1218,9 +1218,18 @@ class WebanfragenNichtAbgeholtOut(BaseModel):
 
 
 class PortalPostboteOut(BaseModel):
-    """Seit 1.11.7: Stau des Postboten des Kundenportals für den Hinweis auf „Start“ -- „wartet“, „fehler“ oder keiner, mit festem Text."""
+    """Seit 1.11.7: Stau des Postboten des Kundenportals für den Hinweis auf „Start“ -- „wartet“, „fehler“ oder keiner, mit festem Text (seit 1.11.9 je
+    Rolle); bei „fehler“ der Auftrag und, ob das Konto ihn erledigen darf (nur der Admin)."""
     stau: str | None = None
     text: str | None = None
+    post_id: int | None = None
+    erledigen: bool = False
+
+
+class PortalPostErledigtIn(BaseModel):
+    """Seit 1.11.9: „Erledigt“ an dem gescheiterten Versand, den der Hinweis zeigt."""
+    model_config = ConfigDict(extra="forbid")
+    post_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
 class WebanfragenStandOut(BaseModel):

@@ -74,6 +74,8 @@ VOM_SERVER = {"recorded_by_employee_id", "closed_by_employee_id"}
 _MENGE = "set(ordered_ids)!=set("  # Reihenfolge: genau die vorhandenen Einträge
 
 GEPRUEFT = {
+    # --- Kundenportal (seit 1.11.9): „Erledigt“ nur an dem gescheiterten Versand, den der Hinweis auf „Start“ gerade zeigt ---
+    "POST /api/kundenportal/postbote/erledigt post_id": ("portal_postbote.erledigen", 'grund != "fehler" or fehler_id != post_id'),
     # --- Einsatzbericht (Befund 2a–2e, app/zugehoerigkeit.py) ---
     "POST /api/orders/{order_id}/service-reports roof_area_ids":
         ("zugehoerigkeit.require_in_order_property", "area is None or area.property_id != property_id"),

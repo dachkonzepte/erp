@@ -6737,6 +6737,11 @@ class PortalPost(Base):
     erledigt_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     email_dispatch_id: Mapped[int | None] = mapped_column(ForeignKey("email_dispatches.id"), nullable=True)
     fehler: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Seit 1.11.9 (Antwort 1.11.7-1/-3): ein Admin schließt einen gescheiterten Versand mit „Erledigt“ ab -- der Hinweis auf „Start“ endet, bis ein neuer
+    # Fehler kommt (app/portal_postbote.py::erledigen()). Leer = nicht erledigt; Name und Zeit stehen dazu in der Änderungshistorie.
+    quittiert_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    quittiert_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    quittiert_von_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
 
 
 class PortalZugriff(Base):

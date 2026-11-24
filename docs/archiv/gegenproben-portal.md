@@ -260,3 +260,23 @@ Proben liefen danach. Keine Probe für „die Prüfung des Links auch vor dem Ba
 | Nr. 6 – nur Leerzeichen, kein Tab | Tab entfernt | 1 rot |
 | Nr. 6 – höchstens 20 Zeichen | 100 Zeichen | 1 rot |
 | Nr. 7 – „gilt bis“ in Berlin | Tag in UTC | 3 rot |
+
+## 1.11.9: Stau-Hinweis wie die übrigen Warnhinweise, mit „Erledigt“
+
+Probendatei `gp_1119.py`, Lauf mit `tests/test_v808_portal_stau_erledigt.py`; alle 13 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Warnhinweis mit Rand | Rand entfernt | 1 rot |
+| Nr. 1 – Link auf die Anmeldecodes | ohne Filter | 1 rot |
+| Nr. 2 – Büro ohne den Dienst | Text des Admins fürs Büro | 1 rot |
+| Nr. 2 – Admin mit dem Dienst | Text des Büros für alle | 1 rot |
+| Nr. 3 – nur der Admin | ab Büro – Auftrag | 1 rot |
+| Nr. 3 – „erledigen“ nur für den Admin | für jede Rolle | 1 rot |
+| Nr. 3 – nur der gezeigte Fehler | jeder Fehler | 1 rot |
+| Nr. 4 – Erledigt beendet den Hinweis | Vermerk nicht gelesen | 2 rot |
+| Nr. 4 – ein neuer Fehler zeigt ihn wieder | einmal erledigt, nie wieder | 1 rot |
+| Nr. 4 – Name am Auftrag | ohne Name | 1 rot |
+| Nr. 4 – Eintrag in der Änderungshistorie | ohne Eintrag | 1 rot |
+| Nr. 5 – Filter nur mit Modul | immer | 1 rot |
+| Nr. 6 – Migration wie das Modell | Länge 120 statt 160 | 1 rot |

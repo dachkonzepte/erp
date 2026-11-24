@@ -1859,3 +1859,43 @@ Adresse wie in der Einheit; HTML nur für das Portal; Graph bekommt genau das HT
 `href`; die beiden Texttests sind ein Test über die HTML-Fassung (Wortlaut in v807). `test_v805::_code_aus`: Code aus der Zelle „xxx xxx“ statt aus einer
 Zeile. `test_v440::KUNDENTEXTE`: `link_html`, `code_html`, `_anrufen`, `_rahmen` statt `schluss`, `link_text`, `code_text`. Gegenproben:
 `gegenproben-portal.md`, „1.11.8“. Bilder beider Mails (600 und 412 px, ohne Telefon) im Bericht 1.11.8.
+
+### Umsetzung 1.11.9: Stau-Hinweis wie die übrigen Warnhinweise, mit „Erledigt“ (Antwort 1.11.7-1/-3)
+
+- „Start“ (`dashboard.html`): der Hinweis ist ein Warnhinweis wie `.notice.warning` der Akten und `.archiv-hinweis` (Fläche `--ds-warn-hell`, Rand links 4 px
+  `--ds-warn-text`), mit dem Link „Versandprotokoll öffnen“ (`/versandprotokoll?typ=portal_code`) in beiden Zuständen und -- nur für den Admin bei einem
+  gescheiterten Versand -- dem Knopf „Erledigt“ (`portalStauErledigen()`, abschließend über `abschliessen()`).
+- Text je Rolle (`app/portal_postbote.py::STAU_TEXTE` für das Büro, `STAU_TEXTE_ADMIN`): „… wartet seit über 2 Minuten auf den Versand – bitte den
+  Administrator informieren.“; nur der Admin liest „… bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost).“ „Ging nicht hinaus“ ist für alle gleich.
+- „Erledigt“ (`erledigen()`, `POST /api/kundenportal/postbote/erledigt`, nur Admin, nur mit Modul): die Seite schickt den Auftrag mit, den sie zeigt
+  (`stau_stand()` liefert ihn); ist inzwischen ein anderer der letzte Versand oder wartet einer, 409 und der Hinweis zeigt den neuen Stand. Am Auftrag
+  `quittiert_am`, `quittiert_von_user_id`, `quittiert_von_name` (Migration `c8e2f5a1d394`, Bestand leer), in der Änderungshistorie „Versandfehler erledigt“ unter
+  der Art „Kundenportal-Versand“ mit Konto und Zeit -- in einer Transaktion. Ein neuer gescheiterter Versand ist ein neuer Auftrag ohne Vermerk: der Hinweis
+  ist wieder da; ein späterer gesendeter beendet ihn wie bisher.
+- Versandprotokoll: der Filter „Art“ kennt „Link zum Kundenportal“ und „Anmeldecode des Kundenportals“, nur mit eingeschaltetem Modul (für P1d vorgezogen --
+  der Link des Hinweises braucht ihn).
+
+#### Festlegungen 1.11.9 (Bitte bestätigen)
+
+1. Der Hinweis ist ein Warnhinweis wie die übrigen (Fläche und Rand der Warnfarbe), mit dem Link „Versandprotokoll öffnen“ auf die Anmeldecodes -- in beiden
+   Zuständen.
+2. „Wartet“: das Büro liest „… – bitte den Administrator informieren.“, nur der Admin den Satz mit dem Dienst erp-portalpost; „ging nicht hinaus“ für alle
+   gleich.
+3. „Erledigt“ nur der Admin, nur an einem gescheiterten Versand und nur an dem, den der Hinweis zeigt (sonst 409); bei „wartet“ gibt es kein „Erledigt“.
+4. Erledigt: Name und Zeit am Auftrag und in der Änderungshistorie („Versandfehler erledigt“, Art „Kundenportal-Versand“); der Hinweis endet; ein neuer
+   Fehler zeigt ihn wieder, ein späterer gesendeter beendet ihn wie bisher.
+5. Der Filter „Art“ im Versandprotokoll kennt die beiden Arten des Portals, nur mit eingeschaltetem Modul.
+6. Migration `c8e2f5a1d394`: drei leere Spalten an `portal_post`, der Bestand bleibt leer (ein alter Fehler zeigt den Hinweis, bis er erledigt ist oder ein
+   Versand gelingt); `downgrade()` nimmt sie weg.
+
+#### Tests und Prüfung 1.11.9
+
+Neu `tests/test_v808_portal_stau_erledigt.py` (9): Texte je Rolle; Erledigt beendet den Hinweis, ein neuer Fehler zeigt ihn wieder, ein gesendeter beendet ihn;
+nur am gezeigten Fehler (zwei Fehler, zweimal, unbekannt, gesendet); bei „wartet“ nicht; Schnittstelle je Rolle (Text, „erledigen“, 403 für Büro – Auftrag und
+Büro – Finanzen, 409, Antwort, Änderungshistorie); nur mit Modul; die Seite (Warnhinweis, Link, Knopf, abschließend); Filter im Versandprotokoll; die Migration
+gegen das Modell (vor und zurück). Migration zusätzlich von Hand unter SQLite und PostgreSQL (Wegwerf-Schema): ganze Kette, Abgleich mit dem Modell ohne
+Abweichung, `downgrade -1`, wieder `upgrade head`. `scripts/klicktest_portal_stau.py` neu gefasst (42 Prüfungen: Texte je Rolle, Gestalt, Link mit Filter,
+„Erledigt“ mit Historie, neuer Fehler, Monteurin 403 auch für „Erledigt“). Angepasste Erwartungen: `test_v806::test_schnittstelle_nur_mit_modul` -- Antwort
+`{stau, text}` -> `{stau, text, post_id, erledigen}`; `klicktest_portal_stau` -- Text „wartet“ für Büro – Finanzen bis 1.11.8 mit dem Dienst, jetzt „bitte den
+Administrator informieren“; Bilder `stau_wartet`, `stau_gescheitert_light/dark` -> `stau_wartet_buero`, `stau_wartet_admin`, `stau_gescheitert_admin_light/dark`.
+Neue Einträge: `test_v373::GEPRUEFT` (post_id), `test_v399::ABSCHLIESSEND` (`portalStauErledigen`). Gegenproben: `gegenproben-portal.md`, „1.11.9“.

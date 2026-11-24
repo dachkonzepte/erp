@@ -1,11 +1,16 @@
-"""Klicktest: der Stau-Hinweis des Postboten auf „Start“ (1.11.7, Stufe P1c; Bauplan P1, Abschnitt 4).
+"""Klicktest: der Stau-Hinweis des Postboten auf „Start“ (1.11.7, Stufe P1c; Bauplan P1, Abschnitt 4; seit 1.11.9 überarbeitet, Antwort 1.11.7-1/-3).
 
     Modul aus           kein Hinweis, keine Anfrage an /api/kundenportal/postbote
     Modul an            ohne Aufträge kein Hinweis
-    wartet              ein Auftrag wartet seit 3 Minuten -> Hinweis „wartet seit über 2 Minuten“ (Büro – Finanzen und Büro – Auftrag)
-    gescheitert         der zuletzt erledigte Auftrag scheiterte -> Hinweis „ging nicht hinaus“
+    wartet              ein Auftrag wartet seit 3 Minuten -> Hinweis „wartet seit über 2 Minuten“: Büro „bitte den Administrator informieren“ (Büro –
+                        Finanzen und Büro – Auftrag), der Admin mit dem Dienst; Warnhinweis (Fläche und Rand) mit Link „Versandprotokoll öffnen“,
+                        kein „Erledigt“
+    gescheitert         der zuletzt erledigte Auftrag scheiterte -> „ging nicht hinaus“; „Erledigt“ nur beim Admin
+    Link                „Versandprotokoll öffnen“ führt ins Versandprotokoll, Filter „Art“ = Anmeldecode des Kundenportals
+    Erledigt            der Admin klickt -> Hinweis weg, auch nach dem Neuladen; Eintrag in der Änderungshistorie mit seinem Namen
+    neuer Fehler        ein weiterer gescheiterter Versand -> Hinweis wieder da
     wieder gut          danach ein gesendeter -> kein Hinweis
-    Monteurin           landet auf /mobil, die Schnittstelle antwortet ihr 403
+    Monteurin           landet auf /mobil, die Schnittstelle antwortet ihr 403 (lesen und erledigen)
 
 Die Aufträge schreibt der Test direkt in die Wegwerf-SQLite dieses Laufs (Regel 16: cdp_klicktest.py setzt DATABASE_URL auf den markierten
 Arbeitsordner). Stehende Uhr 24.11.2026 10:00 (09:00 UTC).
@@ -28,7 +33,16 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 BOX = "document.getElementById('portalStau')"
 SICHTBAR = f"(()=>{{const b={BOX};return !!b&&!b.classList.contains('hidden')&&b.offsetParent!==null}})()"
 TEXT = "document.getElementById('portalStauText').textContent"
+ERLEDIGT_SICHTBAR = "(()=>{const b=document.getElementById('portalStauErledigt');return !!b&&!b.hidden&&b.offsetParent!==null})()"
+LINK = "(()=>{const a=document.querySelector('#portalStau a');return a?[a.textContent,a.getAttribute('href')]:null})()"
+GESTALT = ("(()=>{const s=getComputedStyle(document.getElementById('portalStau'));const r=getComputedStyle(document.documentElement);"
+           "const f=(n)=>{const d=document.createElement('div');d.style.color=r.getPropertyValue(n);document.body.append(d);"
+           "const c=getComputedStyle(d).color;d.remove();return c};"
+           "return [s.backgroundColor===f('--ds-warn-hell'),s.borderLeftColor===f('--ds-warn-text'),s.borderLeftWidth]})()")
 GELADEN = "document.querySelector('#widgets .widget-card')"
+WARTET_BUERO = "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte den Administrator informieren."
+WARTET_ADMIN = "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost)."
+FEHLER = "Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen."
 
 
 def befuellen(db, k):
@@ -36,10 +50,11 @@ def befuellen(db, k):
 
     from app.models import AppUser, Customer, PortalSitzung, PortalZugang
 
+    adm = AppUser(username="adri", display_name="Adri Admin", role="admin", password_hash=k.passwort())
     fin = AppUser(username="fina", display_name="Fina Finanzen", role="buero_finanzen", password_hash=k.passwort())
     auf = AppUser(username="auri", display_name="Auri Auftrag", role="buero_auftrag", password_hash=k.passwort())
     mon = AppUser(username="moni", display_name="Moni Monteurin", role="field", password_hash=k.passwort())
-    db.add_all([fin, auf, mon])
+    db.add_all([adm, fin, auf, mon])
     kunde = Customer(name="Herr Max Muster", salutation="Herr", first_name="Max", last_name="Muster", portal_aktiv=True)
     db.add(kunde)
     db.flush()
@@ -50,7 +65,7 @@ def befuellen(db, k):
     sitzung = PortalSitzung(zugang_id=zugang.id, wert_sha256="b" * 64, angelegt_am=datetime(2026, 11, 24, 8, 55), laeuft_ab=datetime(2026, 11, 24, 9, 10))
     db.add(sitzung)
     db.flush()
-    return {"fin": k.cookies(fin), "auf": k.cookies(auf), "mon": k.cookies(mon), "zugang": zugang.id, "sitzung": sitzung.id,
+    return {"adm": k.cookies(adm), "fin": k.cookies(fin), "auf": k.cookies(auf), "mon": k.cookies(mon), "zugang": zugang.id, "sitzung": sitzung.id,
             "db_url": os.environ["DATABASE_URL"]}
 
 
@@ -59,6 +74,13 @@ def _sql(seed, sql: str, *werte) -> int:
     assert Path(pfad).parent.joinpath(".klicktest").exists(), pfad
     with sqlite3.connect(pfad) as c:
         return c.execute(sql, werte).rowcount
+
+
+def _abfrage(seed, sql: str, *werte):
+    pfad = seed["db_url"].removeprefix("sqlite:///")
+    assert Path(pfad).parent.joinpath(".klicktest").exists(), pfad
+    with sqlite3.connect(pfad) as c:
+        return c.execute(sql, werte).fetchall()
 
 
 def _anfragen(tab) -> int:
@@ -84,22 +106,57 @@ async def pruefen(tab, seed, p):
     _sql(seed, "INSERT INTO portal_post (art, zugang_id, sitzung_id, angefordert_am, status) VALUES ('code', ?, ?, '2026-11-24 08:57:00', 'wartet')",
          seed["zugang"], seed["sitzung"])
     await _start(tab, p, "wartet")
-    p.pruefe("wartet: Hinweis sichtbar", await tab.js(SICHTBAR), True)
-    p.pruefe("wartet: Text", await tab.js(TEXT), "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – "
-                                                 "bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost).")
-    await tab.bild("stau_wartet")
+    p.pruefe("wartet, Büro – Finanzen: Hinweis sichtbar", await tab.js(SICHTBAR), True)
+    p.pruefe("wartet, Büro – Finanzen: Text ohne den Dienst", await tab.js(TEXT), WARTET_BUERO)
+    p.pruefe("wartet: Link ins Versandprotokoll", await tab.js(LINK), ["Versandprotokoll öffnen", "/versandprotokoll?typ=portal_code"])
+    p.pruefe("wartet: kein „Erledigt“", await tab.js(ERLEDIGT_SICHTBAR), False)
+    p.pruefe("Warnhinweis: Fläche und Rand wie die übrigen", await tab.js(GESTALT), [True, True, "4px"])
+    await tab.bild("stau_wartet_buero")
     await tab.anmelden(seed["auf"])
     await _start(tab, p, "wartet_auftrag")
-    p.pruefe("wartet, Büro – Auftrag: Hinweis sichtbar", await tab.js(SICHTBAR), True)
+    p.pruefe("wartet, Büro – Auftrag: Text ohne den Dienst", await tab.js(TEXT), WARTET_BUERO)
+    await tab.anmelden(seed["adm"])
+    await _start(tab, p, "wartet_admin")
+    p.pruefe("wartet, Admin: Text mit dem Dienst", await tab.js(TEXT), WARTET_ADMIN)
+    p.pruefe("wartet, Admin: kein „Erledigt“", await tab.js(ERLEDIGT_SICHTBAR), False)
+    await tab.bild("stau_wartet_admin")
 
     _sql(seed, "UPDATE portal_post SET status = 'fehler', fehler = 'Versand gescheitert', erledigt_am = '2026-11-24 08:58:00'")
-    await _start(tab, p, "gescheitert")
-    p.pruefe("gescheitert: Hinweis sichtbar", await tab.js(SICHTBAR), True)
-    p.pruefe("gescheitert: Text", await tab.js(TEXT), "Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen.")
+    await tab.anmelden(seed["auf"])
+    await _start(tab, p, "gescheitert_auftrag")
+    p.pruefe("gescheitert, Büro – Auftrag: Text", await tab.js(TEXT), FEHLER)
+    p.pruefe("gescheitert, Büro – Auftrag: kein „Erledigt“", await tab.js(ERLEDIGT_SICHTBAR), False)
+    await tab.anmelden(seed["adm"])
     for thema in ("light", "dark"):
         await tab.js(f"localStorage.setItem('erp_theme','{thema}')")
         await _start(tab, p, f"gescheitert_{thema}")
-        await tab.bild(f"stau_gescheitert_{thema}")
+        p.pruefe(f"gescheitert, Admin ({thema}): „Erledigt“ sichtbar", await tab.js(ERLEDIGT_SICHTBAR), True)
+        await tab.bild(f"stau_gescheitert_admin_{thema}")
+    await tab.js("localStorage.setItem('erp_theme','light')")
+
+    p.pruefe("Link: Versandprotokoll geöffnet",
+             await tab.oeffnen("/versandprotokoll?typ=portal_code", "document.getElementById('filterType')"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Link: Filter „Art“ = Anmeldecode", await tab.js("document.getElementById('filterType').value"), "portal_code")
+    p.pruefe("Filter „Art“ kennt beide Arten des Portals",
+             await tab.js("[...document.querySelectorAll('#filterType option')].map(o=>o.value).filter(v=>v.startsWith('portal_'))"),
+             ["portal_link", "portal_code"])
+
+    await _start(tab, p, "erledigen")
+    p.pruefe("Erledigt: geklickt und geladen", await tab.warte_auf_neu_geladene_liste("document.getElementById('portalStauErledigt').click()"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Erledigt: Hinweis weg", await tab.js(SICHTBAR), False)
+    await _start(tab, p, "erledigt_neu_geladen")
+    p.pruefe("Erledigt: nach dem Neuladen weg", await tab.js(SICHTBAR), False)
+    p.pruefe("Erledigt: Änderungshistorie mit Name",
+             _abfrage(seed, "SELECT action, actor_name FROM audit_logs WHERE entity_type = 'Kundenportal-Versand'"),
+             [("Versandfehler erledigt", "Adri Admin")])
+    p.pruefe("Erledigt: am Auftrag vermerkt", _abfrage(seed, "SELECT quittiert_von_name FROM portal_post WHERE status = 'fehler'"), [("Adri Admin",)])
+
+    _sql(seed, "INSERT INTO portal_post (art, zugang_id, sitzung_id, angefordert_am, status, fehler, erledigt_am) VALUES ('code', ?, ?, "
+               "'2026-11-24 08:58:30', 'fehler', 'Versand gescheitert', '2026-11-24 08:58:40')", seed["zugang"], seed["sitzung"])
+    await _start(tab, p, "neuer_fehler")
+    p.pruefe("neuer Fehler: Hinweis wieder da", await tab.js(SICHTBAR), True)
 
     _sql(seed, "INSERT INTO portal_post (art, zugang_id, sitzung_id, angefordert_am, status, erledigt_am) VALUES ('code', ?, ?, '2026-11-24 08:59:00', "
                "'gesendet', '2026-11-24 08:59:10')", seed["zugang"], seed["sitzung"])
@@ -110,6 +167,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Monteurin: Start leitet auf /mobil", await tab.oeffnen("/", "location.pathname==='/mobil'"), True)
     antwort = await tab.js("fetch('/api/kundenportal/postbote').then(r=>r.status)")
     p.pruefe("Monteurin: Schnittstelle 403", antwort, 403)
+    antwort = await tab.js("fetch('/api/kundenportal/postbote/erledigt',{method:'POST',headers:{'Content-Type':'application/json'},"
+                           "body:JSON.stringify({post_id:1})}).then(r=>r.status)")
+    p.pruefe("Monteurin: Erledigt 403", antwort, 403)
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

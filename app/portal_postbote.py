@@ -31,6 +31,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from . import portal_mails
+from .audit import record_audit_entry
 from .email_dispatch import DispatchConflict
 from .models import Customer, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang, PortalZugriff
 from .portal import pruefwerte
@@ -196,20 +197,58 @@ def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehe
 
 
 # Seit 1.11.7: der Hinweis auf „Start“ (fester Text, die Oberfläche setzt ihn nur als Text)
-STAU_TEXTE = {
-    "wartet": "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost).",
+STAU_TEXTE = {  # seit 1.11.9 (Antwort 1.11.7-3) für das Büro: den Dienst nennt nur der Text für den Admin
+    "wartet": "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte den Administrator informieren.",
     "fehler": "Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen.",
 }
+STAU_TEXTE_ADMIN = {
+    **STAU_TEXTE,
+    "wartet": "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost).",
+}
+# „Erledigt“ in der Änderungshistorie (seit 1.11.9; erledigen() schreibt die Aktion wörtlich -- test_v732 prüft ihre Länge)
+ERLEDIGT_AKTION = "Versandfehler erledigt"
+ERLEDIGT_ART = "Kundenportal-Versand"
+VERALTET = "Der Hinweis ist nicht mehr aktuell -- bitte die Seite neu laden."
 
 
-def stau(db: Session, jetzt_: datetime) -> str | None:
-    """Für den Hinweis auf „Start“ (seit 1.11.7, Bauplan P1, Abschnitt 4): „wartet“, wenn ein Auftrag länger als 2 Minuten wartet; „fehler“, wenn der
-    zuletzt versuchte Versand scheiterte -- ein verworfener Auftrag ist kein Versand und ändert daran nichts; sonst None. jetzt_ in naivem UTC
-    (app/berlin_time.py::utc_jetzt()). Liest nur."""
+class StauVeraltet(Exception):
+    """„Erledigt“ an einem Auftrag, der nicht (mehr) der gezeigte Fehler ist (Router 409)."""
+
+
+def stau_stand(db: Session, jetzt_: datetime) -> tuple[str | None, int | None]:
+    """Für den Hinweis auf „Start“ (seit 1.11.7, Bauplan P1, Abschnitt 4): („wartet“, None), wenn ein Auftrag länger als 2 Minuten wartet; („fehler“,
+    Auftrag), wenn der zuletzt versuchte Versand scheiterte und (seit 1.11.9) noch nicht erledigt ist -- ein verworfener Auftrag ist kein Versand und
+    ändert daran nichts; sonst (None, None). jetzt_ in naivem UTC (app/berlin_time.py::utc_jetzt()). Liest nur."""
     wartet = db.scalar(select(PortalPost.id).where(PortalPost.status == "wartet", PortalPost.angefordert_am < jetzt_ - STAU_NACH)
                        .order_by(PortalPost.id).limit(1))
     if wartet is not None:
-        return "wartet"
-    letzter = db.scalar(select(PortalPost.status).where(PortalPost.status.in_(("gesendet", "fehler")), PortalPost.erledigt_am.is_not(None))
-                        .order_by(PortalPost.erledigt_am.desc().nulls_last(), PortalPost.id.desc()).limit(1))
-    return "fehler" if letzter == "fehler" else None
+        return "wartet", None
+    letzter = db.execute(select(PortalPost.id, PortalPost.status, PortalPost.quittiert_am)
+                         .where(PortalPost.status.in_(("gesendet", "fehler")), PortalPost.erledigt_am.is_not(None))
+                         .order_by(PortalPost.erledigt_am.desc().nulls_last(), PortalPost.id.desc()).limit(1)).first()
+    if letzter is not None and letzter.status == "fehler" and letzter.quittiert_am is None:
+        return "fehler", letzter.id
+    return None, None
+
+
+def stau(db: Session, jetzt_: datetime) -> str | None:
+    """Nur der Grund aus stau_stand()."""
+    return stau_stand(db, jetzt_)[0]
+
+
+def erledigen(db: Session, post_id: int, *, jetzt_: datetime, user_id: int | None, user_name: str | None) -> None:
+    """„Erledigt“ an dem gescheiterten Versand, den der Hinweis gerade zeigt (seit 1.11.9, Antwort 1.11.7-1): der Hinweis endet, bis ein neuer Fehler
+    kommt. Nur dieser eine Auftrag -- ist inzwischen ein anderer der letzte Versand (oder wartet einer), StauVeraltet (die Seite zeigte einen alten
+    Stand). Name und Zeit am Auftrag und in der Änderungshistorie, in einer Transaktion; committet."""
+    grund, fehler_id = stau_stand(db, jetzt_)
+    if grund != "fehler" or fehler_id != post_id:
+        raise StauVeraltet(VERALTET)
+    geaendert = db.execute(update(PortalPost).where(PortalPost.id == post_id, PortalPost.status == "fehler", PortalPost.quittiert_am.is_(None))
+                           .values(quittiert_am=jetzt_, quittiert_von_user_id=user_id, quittiert_von_name=user_name or "System")
+                           .execution_options(synchronize_session=False)).rowcount
+    if geaendert != 1:  # zwei Klicks zugleich: nur einer erledigt
+        db.rollback()
+        raise StauVeraltet(VERALTET)
+    record_audit_entry(db, action="Versandfehler erledigt", entity_type=ERLEDIGT_ART, entity_id=post_id, entity_label=f"Anmeldecode (Auftrag {post_id})",
+                       actor_user_id=user_id, actor_name=user_name)
+    db.commit()

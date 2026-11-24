@@ -74,7 +74,8 @@ def test_schnittstelle_nur_mit_modul(router_test_client, threaded_db_session):
     assert client.get("/api/kundenportal/postbote").status_code == 403  # ab Werk aus (AB_WERK_AUS)
     db.add(EnabledModule(module_key="kundenportal", enabled=True))
     db.commit()
-    assert client.get("/api/kundenportal/postbote").json() == {"stau": None, "text": None}
+    # seit 1.11.9 mit Auftrag und „erledigen“ (Antwort 1.11.7-1)
+    assert client.get("/api/kundenportal/postbote").json() == {"stau": None, "text": None, "post_id": None, "erledigen": False}
 
 
 def test_startseite_fragt_nur_mit_modul():
