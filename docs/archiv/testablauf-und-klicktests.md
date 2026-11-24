@@ -1467,8 +1467,8 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
 - **`test_v800_portal_funktionen.py::test_pg_code_anfordern_auftrag_und_notify_beim_commit`** -- 24.11.2026, zweiter voller Lauf vor dem Commit von 1.11.17
   (Arbeitskopie, gw5): `[m.channel for m in meldungen] == ['portal_post']` bekam drei Weckrufe. Ursache: NOTIFY gilt für die ganze Datenbank, nicht je Schema;
   `test_v802_portal_sitzung.py` und `test_v805_portal_postbote.py` fordern in ihren eigenen Wegwerf-Schemas derselben Spielwiese zugleich Codes an, und
-  `notifies(stop_after=1)` liefert alles, was in einem Schub ankommt. Im ersten Lauf desselben Stands grün. Behoben in 1.11.18 (Abschnitt unten). Stand:
-  behoben.
+  `notifies(stop_after=1)` liefert alles, was in einem Schub ankommt. Grün im ersten Lauf (vor der Anpassung von `test_v393`) und im dritten Lauf (derselbe
+  Stand wie im zweiten). Behoben in 1.11.18 (Abschnitt unten). Stand: behoben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 
