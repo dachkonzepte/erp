@@ -116,6 +116,10 @@ input[type=checkbox],input[type=radio]{width:auto!important;min-height:0!importa
 .small{font-size:13px}.muted{color:var(--ds-text-2)}
 .notice{background:var(--ds-flaeche-2);border-left:4px solid var(--ds-aktion);border-radius:var(--ds-ecke-feld);padding:10px 12px;font-size:13px;color:var(--ds-text)}
 .notice.warning{background:var(--ds-warn-hell);border-left-color:var(--ds-warn-text)}
+/* seit 1.11.11: Protokoll des Kundenportals -- Zeit, Text, wer */
+.portal-protokoll{list-style:none;margin:0;padding:0;max-height:min(420px,60vh);overflow:auto;border-top:1px solid var(--ds-linie);font-size:14px}
+.portal-protokoll li{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--ds-linie)}
+@media(max-width:560px){.portal-protokoll li{grid-template-columns:1fr}}
 .empty{padding:28px;text-align:center;color:var(--ds-text-2);border:1px dashed var(--ds-linie);border-radius:var(--ds-ecke-karte)}
 .btn{height:40px;padding:0 16px;border-radius:var(--ds-ecke-feld);font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
 .btn.secondary{background:var(--ds-flaeche);color:var(--ds-stark);border:1px solid var(--ds-linie-stark)}
@@ -197,6 +201,25 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
       <div class="karte-kopf"><h2 class="h2" id="uStTitel">Stammdaten</h2><button type="button" class="secondary klein" data-klick="stammdaten-bearbeiten">Bearbeiten</button></div>
       <dl class="daten-liste" id="stammdatenListe"></dl>
     </section>
+    {% if is_module_enabled('kundenportal') %}{# seit 1.11.11 (Stufe P1d): Karte „Kundenportal“ -- ohne Modul gar nicht da #}
+    <section class="karte" id="uPortal" aria-labelledby="uPoTitel" style="gap:10px">
+      <div class="karte-kopf"><h2 class="h2" id="uPoTitel">Kundenportal</h2><span class="chip chip-neutral" id="portalZustand">Lädt …</span></div>
+      <p class="sml" id="portalText" style="margin:0"></p>
+      <dl class="daten-liste" id="portalDaten" hidden></dl>
+      <div class="notice warning" id="portalHinweis" role="status" hidden></div>
+      <div class="zeile-flex" id="portalKnoepfe" style="gap:8px;flex-wrap:wrap">
+        <button type="button" class="secondary klein" id="portalEin" data-klick="portal-schalter" data-an="1" hidden>Portal einschalten</button>
+        <button type="button" class="klein" id="portalZugangNeu" data-klick="portal-zugang-dialog" hidden>Zugang anlegen</button>
+        <button type="button" class="klein" id="portalLinkSenden" data-klick="portal-link-dialog" hidden>Link senden</button>
+        <button type="button" class="secondary klein" id="portalVerlaengern" data-klick="portal-verlaengern" hidden>Verlängern</button>
+        <button type="button" class="secondary klein" id="portalEntsperren" data-klick="portal-entsperren" hidden>Entsperren</button>
+        <button type="button" class="secondary klein" id="portalSperren" data-klick="portal-sperren-dialog" hidden>Sperren</button>
+        <button type="button" class="secondary klein" id="portalAus" data-klick="portal-schalter" data-an="0" hidden>Portal ausschalten</button>
+        <button type="button" class="knopf-link sml" id="portalProtokoll" data-klick="portal-protokoll" data-lesen hidden>Protokoll</button>
+      </div>
+      <p class="sml" id="portalStatus" role="status" style="margin:0"></p>
+    </section>
+    {% endif %}
     <section class="karte" id="uKontakte" aria-labelledby="uKoTitel" style="gap:2px">
       <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uKoTitel">Kontakte &amp; Kundenwissen</h2><button type="button" class="knopf-link sml" data-klick="eintrag-neu">+ Eintrag</button></div>
       <div id="uKontakteListe"></div>
@@ -351,6 +374,26 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 <div id="zuruecknehmenStatus" class="status"></div>
 <div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zuruecknehmenDialog">Abbrechen</button><button type="button" class="danger" id="zuruecknehmenKnopf" data-klick="zuruecknehmen">Zurücknahme bestätigen</button></div></div></dialog>
 {% endif %}
+{% if is_module_enabled('kundenportal') %}{# seit 1.11.11 (Stufe P1d): Dialoge der Karte „Kundenportal“ #}
+<dialog id="portalZugangDialog" aria-labelledby="portalZugangTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalZugangTitel">Zugang zum Kundenportal anlegen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalZugangDialog" aria-label="Schließen">✕</button></div>
+  <div class="field"><label for="portalZugangEmail">E-Mail-Adresse des Zugangs</label><input id="portalZugangEmail" type="email" maxlength="255" autocomplete="off"><div class="hint">Dorthin gehen der Link und die Anmeldecodes. Vorbelegt mit der E-Mail-Adresse des Kunden.</div></div>
+  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalZugangStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalZugangDialog">Abbrechen</button><button type="button" data-klick="portal-zugang-anlegen">Zugang anlegen</button></div>
+</div></dialog>
+<dialog id="portalLinkDialog" aria-labelledby="portalLinkTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalLinkTitel">Link zum Kundenportal senden</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalLinkDialog" aria-label="Schließen">✕</button></div>
+  <div class="field"><label for="portalLinkEmail">An</label><input id="portalLinkEmail" type="email" maxlength="255" autocomplete="off"><div class="hint">Der Link gilt 12 Monate. Die Mail geht über Microsoft 365 und liegt nicht in „Gesendete Elemente“. Eine geänderte Adresse gilt ab diesem Link, auch für die Anmeldecodes.</div></div>
+  <div class="notice warning" id="portalLinkNeu" hidden>Der bisherige Link gilt danach nicht mehr, alle Geräte des Kunden werden abgemeldet.</div>
+  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalLinkStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalLinkDialog">Abbrechen</button><button type="button" data-klick="portal-link-senden">Link senden</button></div>
+</div></dialog>
+<dialog id="portalSperrenDialog" aria-labelledby="portalSperrenTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalSperrenTitel">Zugang sperren</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog" aria-label="Schließen">✕</button></div>
+  <div class="field"><label for="portalSperrenGrund">Grund</label><textarea id="portalSperrenGrund" rows="3" maxlength="1000"></textarea><div class="hint">Alle Geräte des Kunden werden abgemeldet; der Link gilt erst nach „Entsperren“ wieder.</div></div>
+  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalSperrenStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog">Abbrechen</button><button type="button" class="danger" data-klick="portal-sperren">Sperren</button></div>
+</div></dialog>
+<dialog id="portalProtokollDialog" aria-labelledby="portalProtokollTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalProtokollTitel">Protokoll des Kundenportals</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalProtokollDialog" aria-label="Schließen" data-lesen>✕</button></div>
+  <p class="mut sml" style="margin:0">Zugriffe im Portal, gesendete Links und Änderungen im ERP, neueste zuerst – ohne IP-Adressen.</p>
+  <ul class="portal-protokoll" id="portalProtokollListe"></ul>
+  <div class="zeile-flex" style="justify-content:space-between;gap:8px"><span class="sml" id="portalProtokollStatus" role="status"></span><button type="button" class="secondary" id="portalProtokollMehr" data-klick="portal-protokoll-mehr" data-lesen hidden>Weitere laden</button></div>
+</div></dialog>
+{% endif %}
 <dialog id="zustellungDialog"><div class="dialog"><div class="dialog-head"><h3 id="zustellungTitel">Zustellung nachtragen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zustellungDialog" aria-label="Schließen">✕</button></div><div id="zustellungVerlauf"></div></div></dialog>
 </div>
 </div>
@@ -416,9 +459,113 @@ async function load(){
     [customer,properties,inquiries,customerCategoryGroup,customerSalutationGroup,paymentTerms,docCategoryGroup]=daten;
     roofAreas=flaechen;
     render();
-  }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden()]);
+  }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden(),portalLaden()]);
 }
 aktion('kunde-zurueckholen',async()=>{const art='kunde';try{await speichern('kunde',()=>api(`/api/aufbewahrung/${art}/${customerId}/zurueckholen`,{method:'POST'}),{neuLaden:load});seitenStatus('Zurückgeholt – die 6 Monate zählen ab heute neu.')}catch(e){seitenStatus('Fehler: '+e.message)}});  // seit 1.10.12
+// --- Kundenportal (seit 1.11.11, Stufe P1d; Bauplan P1, Abschnitt 4) -------------------------------------------------------------------------
+// Stand nur vom Server (app/kundenportal.py::stand()), Texte nur über textContent bzw. esc(); jede Aktion antwortet mit dem neuen Stand. Ohne Modul gibt es
+// die Karte nicht (Jinja) und die Seite fragt nicht. Im Archiv blendet _nur_lesen.html die Knöpfe aus (außer „Protokoll“); der Server lehnt ab (409).
+// Abschließend (abschliessen()): Link senden und Sperren; alles andere über speichern().
+const PORTAL="{{ 'ja' if is_module_enabled('kundenportal') else 'nein' }}"==="ja";  // ungerendert gültiges JS (wie GELD), dort ohne Portal
+const PORTAL_CHIP={archiv:['chip-neutral','Im Archiv'],aus:['chip-neutral','Aus'],ohne_email:['chip-warn','Ohne E-Mail'],kein_zugang:['chip-neutral','Kein Zugang'],
+  ohne_link:['chip-info','Ohne Link'],aktiv:['chip-ok','Aktiv'],laeuft_ab:['chip-warn','Läuft bald ab'],abgelaufen:['chip-fehler','Abgelaufen'],gesperrt:['chip-fehler','Gesperrt']};
+let portal=null,portalSeite=1;
+async function portalLaden(){if(!PORTAL)return;await lesen('portal',()=>api(`/api/customers/${customerId}/portal`),portalZeigen)}
+function portalZeigen(d){
+  portal=d;
+  const [klasse,wort]=PORTAL_CHIP[d.zustand]||['chip-neutral',d.zustand];
+  const chip=el('portalZustand');chip.className='chip '+klasse;chip.textContent=wort;
+  el('portalText').textContent=d.zustand_text;
+  const z=d.zugang, zeilen=[];
+  if(z){
+    zeilen.push(['E-Mail',z.email]);
+    if(z.hat_link)zeilen.push(['Link gültig bis',berlinZeitpunkt(z.gueltig_bis,'datum')],['Link erzeugt',berlinZeitpunkt(z.link_erzeugt_am,'datum')]);
+    zeilen.push(['Zuletzt genutzt',z.zuletzt_genutzt_am?berlinZeitpunkt(z.zuletzt_genutzt_am,'datum'):'noch nie']);
+    if(z.gesperrt_am)zeilen.push(['Gesperrt',`${berlinZeitpunkt(z.gesperrt_am,'datum')} von ${z.gesperrt_von||'—'}`],['Grund',z.gesperrt_grund||'—']);
+  }
+  el('portalDaten').hidden=!zeilen.length;
+  el('portalDaten').innerHTML=zeilen.map(([k,w])=>`<dt>${esc(k)}</dt><dd>${esc(w)}</dd>`).join('');
+  const gescheitert=!!d.versand&&d.versand.status==='fehlgeschlagen'&&d.zustand!=='archiv';
+  const hinweis=gescheitert?`Der letzte Link ging nicht hinaus (${berlinZeitpunkt(d.versand.am,'zeit')}, an ${d.versand.an||'—'}) – bitte im Versandprotokoll nachsehen und noch einmal senden.`
+    :d.zustand==='laeuft_ab'?`Der Link läuft am ${berlinZeitpunkt(z.gueltig_bis,'datum')} ab – „Verlängern“ lässt denselben Link 12 weitere Monate gelten.`:'';
+  el('portalHinweis').hidden=!hinweis;el('portalHinweis').textContent=hinweis;
+  const offen=!d.nur_lesen&&d.zustand!=='gesperrt';
+  const zeigen={portalEin:!d.nur_lesen&&!d.aktiv,portalAus:!d.nur_lesen&&d.aktiv,portalZugangNeu:d.zustand==='kein_zugang',
+    portalLinkSenden:offen&&!!z&&d.aktiv,portalVerlaengern:offen&&!!z&&d.aktiv&&z.hat_link,
+    portalSperren:offen&&!!z,portalEntsperren:!d.nur_lesen&&d.zustand==='gesperrt',portalProtokoll:!!z||d.aktiv};
+  Object.entries(zeigen).forEach(([id,an])=>{el(id).hidden=!an});
+  el('portalLinkSenden').textContent=z&&z.hat_link?'Neuen Link senden':'Link senden';
+}
+function portalFehler(statusId,e){el(statusId).textContent=e.message;return portalLaden().catch(()=>{})}
+async function portalSchalten(an){
+  el('portalStatus').textContent='';
+  if(!an&&portal&&portal.zugang&&!confirm('Kundenportal für diesen Kunden ausschalten? Alle Geräte werden abgemeldet; der Link gilt erst wieder, wenn das Portal an ist.'))return;
+  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/schalter`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({an})}),{anwenden:portalZeigen})}catch(e){await portalFehler('portalStatus',e)}
+}
+async function portalZugangAnlegen(){
+  const email=el('portalZugangEmail').value.trim();
+  if(!email){el('portalZugangStatus').textContent='Bitte eine E-Mail-Adresse angeben.';return}
+  el('portalZugangStatus').textContent='';
+  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/zugang`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}),{anwenden:portalZeigen});el('portalZugangDialog').close()}
+  catch(e){await portalFehler('portalZugangStatus',e)}
+}
+async function portalLinkSenden(){
+  const email=el('portalLinkEmail').value.trim();
+  if(!email){el('portalLinkStatus').textContent='Bitte eine E-Mail-Adresse angeben.';return}
+  el('portalLinkStatus').textContent='';
+  const body={email,dispatch_key:newDispatchKey('portal-link')};
+  try{
+    await abschliessen('portal',()=>api(`/api/customers/${customerId}/portal/link`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{anwenden:portalZeigen});
+    el('portalLinkDialog').close();el('portalStatus').textContent='Link gesendet.';
+  }catch(e){await portalFehler('portalLinkStatus',e)}
+}
+async function portalSperren(){
+  const grund=el('portalSperrenGrund').value.trim();
+  if(!grund){el('portalSperrenStatus').textContent='Bitte einen Grund angeben.';return}
+  el('portalSperrenStatus').textContent='';
+  try{await abschliessen('portal',()=>api(`/api/customers/${customerId}/portal/sperren`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grund})}),{anwenden:portalZeigen});el('portalSperrenDialog').close()}
+  catch(e){await portalFehler('portalSperrenStatus',e)}
+}
+async function portalEntsperren(){
+  if(!confirm('Zugang entsperren? Der bisherige Link gilt dann wieder (bis zu seinem Ablauf).'))return;
+  el('portalStatus').textContent='';
+  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/entsperren`,{method:'POST'}),{anwenden:portalZeigen})}catch(e){await portalFehler('portalStatus',e)}
+}
+async function portalVerlaengern(){
+  if(!confirm('Den Link ab heute 12 Monate gelten lassen?'))return;
+  el('portalStatus').textContent='';
+  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/verlaengern`,{method:'POST'}),{anwenden:portalZeigen})}catch(e){await portalFehler('portalStatus',e)}
+}
+async function portalProtokollLaden(seite){
+  await lesen('portal-protokoll',()=>api(`/api/customers/${customerId}/portal/protokoll?seite=${seite}`),d=>{
+    portalSeite=d.seite;
+    const liste=el('portalProtokollListe');
+    if(d.seite===1)liste.textContent='';
+    for(const e of d.eintraege){
+      const li=document.createElement('li');
+      const zeit=document.createElement('span');zeit.className='mut';zeit.textContent=berlinZeitpunkt(e.zeitpunkt,'zeit');
+      const text=document.createElement('span');text.textContent=e.text;
+      const von=document.createElement('span');von.className='mut';von.textContent=e.von;
+      li.append(zeit,text,von);liste.append(li);
+    }
+    if(d.seite===1&&!d.eintraege.length){const li=document.createElement('li');li.className='mut';li.textContent='Noch keine Einträge.';liste.append(li)}
+    el('portalProtokollMehr').hidden=!d.weiter;
+  });
+}
+aktion('portal-schalter',b=>portalSchalten(b.dataset.an==='1'));
+aktion('portal-zugang-dialog',()=>{el('portalZugangEmail').value=(portal&&portal.kunde_email)||'';el('portalZugangStatus').textContent='';el('portalZugangDialog').showModal()});
+aktion('portal-zugang-anlegen',portalZugangAnlegen);
+aktion('portal-link-dialog',()=>{
+  el('portalLinkEmail').value=(portal&&portal.zugang&&portal.zugang.email)||'';el('portalLinkNeu').hidden=!(portal&&portal.zugang&&portal.zugang.hat_link);
+  el('portalLinkStatus').textContent='';el('portalLinkDialog').showModal();
+});
+aktion('portal-link-senden',portalLinkSenden);
+aktion('portal-sperren-dialog',()=>{el('portalSperrenGrund').value='';el('portalSperrenStatus').textContent='';el('portalSperrenDialog').showModal()});
+aktion('portal-sperren',portalSperren);
+aktion('portal-entsperren',portalEntsperren);
+aktion('portal-verlaengern',portalVerlaengern);
+aktion('portal-protokoll',async()=>{el('portalProtokollStatus').textContent='';el('portalProtokollDialog').showModal();try{await portalProtokollLaden(1)}catch(e){el('portalProtokollStatus').textContent=e.message}});
+aktion('portal-protokoll-mehr',async()=>{try{await portalProtokollLaden(portalSeite+1)}catch(e){el('portalProtokollStatus').textContent=e.message}});
 aktion('kontakt-kunde',()=>kontaktDialogOeffnen('kunde',customerId,customer?`${customer.customer_number||''} · ${customer.name}`.replace(/^ · /,''):''));  // seit 1.10.10
 async function akteLaden(){await lesen('akte',()=>api(`/api/customers/${customerId}/akte`),d=>{akte=d;akteZeichnen()})}
 // Nach einer Buchung: Zahlungen, Zahlen und Verlauf neu (jeder in seinem Bereich)

@@ -135,6 +135,22 @@ FUNKTIONEN = [
     # Verlauf
     ("Verlauf des Kunden: Filter nach Art, „Ältere laden“, Ziel je Zeile", "Anzeige", [("GET", "/api/customers/{customer_id}/verlauf")], "Au",
      "verlauf", ['id="verlaufListe"', 'data-klick="verlauf-art"', 'data-klick="verlauf-weiter"', "`/api/customers/${customerId}/verlauf`"]),
+    # Kundenportal (seit 1.11.11, Stufe P1d) -- nur mit eingeschaltetem Modul; im Archiv nur „Protokoll“
+    ("Karte „Kundenportal“: Zustand, Angaben, Hinweise (läuft bald ab, Versand gescheitert, im Archiv)", "Anzeige",
+     [("GET", "/api/customers/{customer_id}/portal")], "Au", "uebersicht", ['id="uPortal"', "api(`/api/customers/${customerId}/portal`)", 'id="portalHinweis"']),
+    ("Kundenportal: einschalten, ausschalten (Rückfrage)", "Knopf", [("POST", "/api/customers/{customer_id}/portal/schalter")], "Au", "uebersicht",
+     ['id="portalEin"', 'id="portalAus"', 'data-klick="portal-schalter"']),
+    ("Kundenportal: Zugang anlegen (E-Mail des Kunden vorbelegt)", "Dialog", [("POST", "/api/customers/{customer_id}/portal/zugang")], "Au",
+     "uebersicht", ['id="portalZugangDialog"', 'data-klick="portal-zugang-anlegen"']),
+    ("Kundenportal: Link senden bzw. neuen Link senden (Warnung, Adresse änderbar)", "Dialog", [("POST", "/api/customers/{customer_id}/portal/link")],
+     "Au", "uebersicht", ['id="portalLinkDialog"', 'id="portalLinkNeu"', 'data-klick="portal-link-senden"']),
+    ("Kundenportal: sperren mit Grund, entsperren (Rückfrage)", "Dialog",
+     [("POST", "/api/customers/{customer_id}/portal/sperren"), ("POST", "/api/customers/{customer_id}/portal/entsperren")], "Au", "uebersicht",
+     ['id="portalSperrenDialog"', 'data-klick="portal-sperren"', 'data-klick="portal-entsperren"']),
+    ("Kundenportal: verlängern (Rückfrage)", "Knopf", [("POST", "/api/customers/{customer_id}/portal/verlaengern")], "Au", "uebersicht",
+     ['data-klick="portal-verlaengern"']),
+    ("Kundenportal: Protokoll (Portal und ERP, seitenweise)", "Dialog", [("GET", "/api/customers/{customer_id}/portal/protokoll")], "Au", "uebersicht",
+     ['id="portalProtokollDialog"', 'data-klick="portal-protokoll-mehr"']),
     ("Versand des Kunden (bis 1.9.136 Karte „Versand“): Filter „Versand“, „Zustellung nachtragen“ samt Empfang bestätigt / unzustellbar im "
      "Dialog, „Versandprotokoll des Kunden“, Anker #versand", "Anzeige", [("GET", "/api/email-dispatches")], "Au", "verlauf",
      ['data-art="versand"', "renderDispatchHistory('zustellungVerlauf'", 'id="versandprotokollLink"', "ALTE_ANKER={versand:'verlauf'}"]),

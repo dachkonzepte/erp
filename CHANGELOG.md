@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.11 – Kundenportal: Karte in der Kundenakte
+
+In der Übersicht der Kundenakte steht unter den Stammdaten die Karte „Kundenportal“: Zustand mit Kennzeichen, E-Mail des Zugangs, gültig bis, zuletzt genutzt, Sperre mit Grund, Hinweise bei „läuft bald ab“ und „Versand gescheitert“. Von dort schaltet das Büro das Portal je Kunde ein und aus, legt den Zugang an, sendet den Link (ein neuer Link mit Warnung), sperrt mit Grund, entsperrt, verlängert und liest das Protokoll -- als Sätze, mit den gesendeten Links. Im Archiv bleibt nur das Protokoll. Die Karte gibt es nur mit eingeschaltetem Modul „Kundenportal“. Für den Klicktest lässt sich Microsoft 365 in Test-Instanzen durch eine Attrappe auf 127.0.0.1 ersetzen. Damit ist P1d fertig.
+
 ## 1.11.10 – Kundenportal am Kunden: Schalter, Zugang, Link, Sperren, Protokoll
 
 Die Serverseite der Karte „Kundenportal“ in der Kundenakte (P1d): Portal je Kunde ein- und ausschalten, einen Zugang mit eigener E-Mail anlegen, den Link senden (ein zweiter Link ersetzt den ersten und meldet alle Geräte ab), sperren mit Grund, entsperren, verlängern und ein Protokoll aus Zugriffen im Portal und Änderungen im ERP. Der Link steht nur in der Mail, gespeichert ist sein Prüfwert -- auch die Änderungshistorie nennt ihn nicht. Bei einem Kunden im Archiv ist alles nur lesbar. Die Karte selbst folgt mit 1.11.11.

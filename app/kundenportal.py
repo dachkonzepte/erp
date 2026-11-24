@@ -264,12 +264,47 @@ def verlaengern(db: Session, kunde: Customer, jetzt_: datetime) -> None:
     db.commit()
 
 
-# --- Protokoll: Portal und Änderungshistorie zusammen -------------------------------------------------------------------------------------------
+# --- Protokoll: Portal, Versand und Änderungshistorie zusammen ----------------------------------------------------------------------------------
+
+# Was das Protokoll aus der Änderungshistorie des Zugangs zeigt -- der Rest ist Buchhaltung des Zugangs (Konto-Kennungen, verdeckte Anzeige, angelegt von)
+PROTOKOLL_FELDER = ("email", "link_erzeugt_am", "gueltig_bis", "gesperrt_am", "gesperrt_grund")
+
+
+def _tag(wert: str | None) -> str:
+    """Ein Zeitpunkt aus der Historie (naives UTC, isoformat) als Tag in Berlin."""
+    from .berlin_time import to_berlin
+    try:
+        return to_berlin(datetime.fromisoformat(wert)).strftime("%d.%m.%Y")
+    except (TypeError, ValueError):
+        return wert or "–"
+
+
+def _historie_text(a: AuditLog) -> str | None:
+    """Ein Eintrag der Änderungshistorie als Satz (seit 1.11.11); None = nicht zeigen."""
+    if a.entity_type != ZUGANG_ART:  # der Schalter am Kunden
+        return "Kundenportal eingeschaltet" if a.new_value == "Ja" else "Kundenportal ausgeschaltet"
+    if a.field_name is None:
+        return {"angelegt": "Zugang angelegt", "gelöscht": "Zugang gelöscht"}.get(a.action, a.action)
+    if a.field_name == "email":
+        return f"E-Mail des Zugangs: {a.old_value or '–'} → {a.new_value or '–'}"
+    if a.field_name == "link_erzeugt_am":
+        return "Neuer Link erzeugt" if a.new_value else None
+    if a.field_name == "gueltig_bis":
+        return f"Link gültig bis {_tag(a.new_value)}" if a.new_value else None
+    if a.field_name == "gesperrt_am":
+        return "Zugang gesperrt" if a.new_value else "Zugang entsperrt"
+    if a.field_name == "gesperrt_grund":
+        return f"Grund der Sperre: {a.new_value}" if a.new_value else None
+    return None
+
+
+VERSAND_TEXT = {"gesendet": "Link gesendet an {an}", "fehlgeschlagen": "Link nicht gesendet (an {an})", "in_arbeit": "Link wird gesendet an {an}"}
+
 
 def protokoll(db: Session, kunde: Customer, seite: int = 1) -> dict:
-    """Je Seite SEITE Einträge, neueste zuerst: das Zugriffsprotokoll des Zugangs (Aktion und Ergebnis in Worten) und die Änderungshistorie des Zugangs
-    und des Schalters am Kunden (Konto, Feld, alt -> neu). Ohne Adressen -- das Zugriffsprotokoll hat keine, die Historie nur die E-Mail des Zugangs."""
-
+    """Je Seite SEITE Einträge, neueste zuerst: das Zugriffsprotokoll des Zugangs (Aktion und Ergebnis in Worten), die Mails mit dem Link
+    (Versandprotokoll) und die Änderungshistorie des Zugangs und des Schalters am Kunden als Sätze (seit 1.11.11; Konto, Zeit). Ohne IP-Adressen -- das
+    Zugriffsprotokoll hat keine."""
     zugang = zugang_von(db, kunde.id)
     bis = seite * SEITE + 1
     zeilen = []
@@ -279,14 +314,18 @@ def protokoll(db: Session, kunde: Customer, seite: int = 1) -> dict:
             ergebnis = ERGEBNIS_TEXT.get(z.ergebnis, z.ergebnis)
             zeilen.append((z.zeitpunkt, 0, z.id, {"art": "portal", "text": AKTION_TEXT.get(z.aktion, z.aktion) + (f" – {ergebnis}" if ergebnis else ""),
                                                    "von": "Kundenportal"}))
+        for d in db.scalars(select(EmailDispatch).where(EmailDispatch.document_type == "portal_link", EmailDispatch.document_id == zugang.id)
+                            .order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(bis)):
+            text = VERSAND_TEXT.get(d.status, "Link: {an}").format(an=d.to_recipients)
+            zeilen.append((d.created_at, 2, d.id, {"art": "versand", "text": text, "von": d.created_by_name or "System"}))
     bedingung = (AuditLog.entity_type == "Kunde") & (AuditLog.entity_id == str(kunde.id)) & (AuditLog.field_name == "portal_aktiv")
     if zugang is not None:
-        bedingung = or_(bedingung, (AuditLog.entity_type == ZUGANG_ART) & (AuditLog.entity_id == str(zugang.id)))
+        bedingung = or_(bedingung, (AuditLog.entity_type == ZUGANG_ART) & (AuditLog.entity_id == str(zugang.id))
+                        & (AuditLog.field_name.is_(None) | AuditLog.field_name.in_(PROTOKOLL_FELDER)))
     for a in db.scalars(select(AuditLog).where(bedingung).order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(bis)):
-        text = a.field_label or a.action
-        if a.field_name:
-            text = f"{a.field_label or a.field_name}: {a.old_value or '–'} → {a.new_value or '–'}"
-        zeilen.append((a.occurred_at, 1, a.id, {"art": "buero", "text": text, "von": a.actor_name or "System"}))
+        text = _historie_text(a)
+        if text:
+            zeilen.append((a.occurred_at, 1, a.id, {"art": "buero", "text": text, "von": a.actor_name or "System"}))
     zeilen.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     teil = zeilen[(seite - 1) * SEITE: seite * SEITE]
     return {"seite": seite, "weiter": len(zeilen) > seite * SEITE,

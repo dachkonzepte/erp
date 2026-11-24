@@ -1944,3 +1944,53 @@ und nur einer; Link nur als Prüfwert und genau dieser in der Mail; zweiter Link
 ändert sich; Versand gescheitert; Sperren (Sitzungen, Grund Pflicht, gesperrte Aktionen); Portal aus; Archiv (Router und Geschäftslogik); Rollen und Modul;
 unbekannter Kunde; Protokoll (zusammen, seitenweise); Texte für jede Aktion; verdeckte Anzeige; 12 Monate; Verlängern nur mit Link. Neuer Eintrag
 `test_v761::KEINE_ID` (`seite`). Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.10“.
+
+### Umsetzung 1.11.11: Karte „Kundenportal“ in der Kundenakte (P1d, Teil 2; P1-10 nach dem Muster der Kundenakte)
+
+- `customer.html`, Übersicht, rechte Spalte unter „Stammdaten“: Karte mit Kopf und Kennzeichen des Zustands (Farben der Kennzeichen der Kundenakte: Im Archiv, Aus, Ohne
+  E-Mail, Kein Zugang, Ohne Link, Aktiv, Läuft bald ab, Abgelaufen, Gesperrt), Satz zum Zustand, Angaben als Liste (E-Mail, Link gültig bis, Link erzeugt,
+  zuletzt genutzt, gesperrt von/am, Grund), Hinweis (`.notice.warning`) bei „läuft bald ab“ (mit dem Weg „Verlängern“) und „Versand gescheitert“, Knöpfe je
+  Zustand: Portal einschalten / ausschalten, Zugang anlegen, Link senden bzw. „Neuen Link senden“, Verlängern, Sperren, Entsperren, Protokoll. Ohne Modul gibt
+  es Karte und Dialoge nicht (Jinja), die Seite fragt nicht; ungerendert (node-Tests) ebenso nicht.
+- Dialoge statt prompt() (Regel 4): „Zugang anlegen“ (E-Mail des Kunden vorbelegt), „Link senden“ (Adresse änderbar; bei einem schon gesendeten Link die
+  Warnung „Der bisherige Link gilt danach nicht mehr, alle Geräte des Kunden werden abgemeldet.“), „Zugang sperren“ (Grund Pflicht), „Protokoll“ (seitenweise,
+  „Weitere laden“). Rückfrage (confirm) vor dem Ausschalten mit Zugang, dem Entsperren und dem Verlängern.
+- Link senden und Sperren sind abschließend (`abschliessen()`, `ABSCHLIESSEND`), alles andere `speichern()`; jede Aktion zeichnet die Karte aus der Antwort,
+  ein Fehler steht am Dialog bzw. unter der Karte und lädt den Stand neu (ein gescheiterter Versand zeigt dann den Hinweis).
+- Im Archiv: Zustand „Im Archiv“, nur „Protokoll“ (`data-lesen`; dazu „Weitere laden“ und das Schließen des Dialogs), alle anderen Knöpfe aus -- doppelt: der
+  Zustand der Karte und `_nur_lesen.html`; der Server lehnt ab (409, 1.11.10).
+- Protokoll lesbar (`app/kundenportal.py::protokoll()`, `_historie_text()`): je Eintrag ein Satz -- Zugang angelegt, Neuer Link erzeugt, Link gültig bis
+  <Tag>, E-Mail des Zugangs alt -> neu, Zugang gesperrt/entsperrt, Grund der Sperre, Kundenportal ein-/ausgeschaltet; dazu „Link gesendet an …“ / „Link nicht
+  gesendet (an …)“ aus dem Versandprotokoll; nicht gezeigt: Konto-Kennungen, verdeckte Anzeige, „angelegt von“ (Buchhaltung des Zugangs).
+- Testschalter `ERP_TEST_GRAPH=http://127.0.0.1:<Port>` (`app/email_sending.py::graph_attrappe()`): Anmeldung und sendMail an eine Attrappe -- nur mit
+  `ERP_ENV` development oder test und nur an 127.0.0.1 (wie `ERP_TEST_FREMDSCHLUESSEL`); der Kalender-Abgleich bleibt unberührt. Ohne ihn ließe sich „Link
+  senden“ im Klicktest nicht bis zum Versand prüfen (die Mails des Portals gehen nur über Microsoft 365).
+
+#### Festlegungen 1.11.11 (Bitte bestätigen)
+
+1. Die Karte steht in der Übersicht der Kundenakte unter „Stammdaten“, nach dem Muster der Kundenakte (Kopf mit Kennzeichen, Angaben als Liste, Hinweis als
+   Warnhinweis, Knöpfe darunter); ohne Modul gibt es sie nicht.
+2. Knöpfe je Zustand: aus -> „Portal einschalten“; kein Zugang -> „Zugang anlegen“; mit Zugang -> „(Neuen) Link senden“, „Verlängern“ (nur mit Link),
+   „Sperren“; gesperrt -> nur „Entsperren“; immer „Portal ausschalten“, wenn an, und „Protokoll“, sobald es einen Zugang gibt oder das Portal an ist.
+3. Dialoge: Zugang anlegen mit der E-Mail des Kunden vorbelegt; Link senden mit änderbarer Adresse und der Warnung bei einem schon gesendeten Link; Sperren mit
+   Pflichtgrund.
+4. Abschließend: Link senden und Sperren; alles andere über speichern().
+5. Rückfrage vor dem Ausschalten (nur mit Zugang), dem Entsperren und dem Verlängern.
+6. Im Archiv nur „Protokoll“ (lesend), sonst keine Aktion.
+7. Protokoll als Sätze, mit den gesendeten Links aus dem Versandprotokoll, ohne die Buchhaltung des Zugangs; seitenweise mit „Weitere laden“.
+8. Testschalter ERP_TEST_GRAPH nur für Test-Instanzen und nur an 127.0.0.1.
+9. Werte vom Server nur als Text (textContent, esc(), createElement).
+
+#### Tests und Prüfung 1.11.11
+
+Neu `tests/test_v810_kundenportal_karte_seite.py` (14): Karte und Dialoge nur mit Modul, ungerendert ohne Portal; nur als Text; abschließend nur Link und Sperren;
+Rückfragen, kein prompt(); Testschalter in 9 Formen; Umleitung von Anmeldung und Versand nur mit dem Schalter. `tests/test_v809_kundenportal_karte_server.py`:
+das Protokoll als Sätze, mit gesendeten Links, ohne Buchhaltung; neu
+`test_buchhaltung_des_zugangs_verdraengt_im_protokoll_nichts` (23 Tests). Neu `scripts/klicktest_kundenportal_karte.py` (88 Prüfungen): zehn Zustände mit Bild der Karte,
+Angaben am gesperrten Zugang, Archiv (nur „Protokoll“, Server 409), Ablauf als Büro – Auftrag (einschalten, Zugang anlegen, Link senden an die
+Graph-Attrappe -- ohne „Gesendete Elemente“, HTML, Knopf mit dem Link, fester Betreff --, neuer Link mit Warnung an eine andere Adresse, Sperren ohne und mit
+Grund, Entsperren, Verlängern, Protokoll, Ausschalten, Prüfwert nie in der Historie), dunkel, 412 px ohne Überlauf, Admin, Monteurin 403, Modul aus (keine
+Karte, keine Anfrage). Neue Einträge: `test_v554::FUNKTIONEN` (7 Funktionen der Karte), `test_v399::ABSCHLIESSEND` (`portalLinkSenden`, `portalSperren`),
+`test_v795::LESEN` (`portal-protokoll`, `portal-protokoll-mehr`, `dialog-zu`). Angepasste Erwartung: `test_v809::test_protokoll_portal_und_historie_zusammen`
+-- „Grund der Sperre: – → Test“ und „Kundenportal an“ (Feld alt -> neu, 1.11.10) sind jetzt die Sätze „Grund der Sperre: Test“ und „Kundenportal
+eingeschaltet“. Gegenproben: `gegenproben-portal.md`, „1.11.11“.

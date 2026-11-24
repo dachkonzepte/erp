@@ -244,8 +244,11 @@ def test_protokoll_portal_und_historie_zusammen(welt):
     texte = [e["text"] for e in eintraege]
     assert "Link geöffnet – neues Gerät, Code nötig" in texte
     # das Konto setzt im Betrieb die Middleware (der Test-Client hat sie nicht) -- Name im Klicktest klicktest_kundenportal_karte
-    assert any(e["art"] == "buero" and e["text"].startswith("Grund der Sperre: – → Test") for e in eintraege)
-    assert any("Kundenportal an" in t for t in texte)
+    assert any(e["art"] == "buero" and e["text"] == "Grund der Sperre: Test" for e in eintraege)  # seit 1.11.11 als Satz
+    assert "Zugang gesperrt" in texte and "Zugang angelegt" in texte and "Neuer Link erzeugt" in texte
+    assert "Link gesendet an max@example.invalid" in texte  # aus dem Versandprotokoll
+    assert not any("Konto" in t or "verdeckt" in t for t in texte)  # keine Buchhaltung des Zugangs
+    assert "Kundenportal eingeschaltet" in texte
     assert all(zugang.link_sha256 not in t for t in texte)
 
 
@@ -300,3 +303,19 @@ def test_archiv_auch_in_der_geschaeftslogik(welt):
                    lambda: kp.link_senden(db, kunde, "max@example.invalid", "portal-link-test-0012", jetzt, user_id=None, user_name=None)):
         with pytest.raises(kp.PortalNicht, match="im Archiv"):
             aktion()
+
+
+def test_buchhaltung_des_zugangs_verdraengt_im_protokoll_nichts(welt):
+    """Seit 1.11.11: Felder, die das Protokoll nicht zeigt (Konto-Kennungen, verdeckte Anzeige), zählen schon in der Abfrage nicht mit -- sonst drängten
+    viele neuere solche Einträge die sichtbaren aus der Seite."""
+    db, kunde, client, _g = welt
+    _an_mit_zugang(client, kunde)
+    zugang = db.scalar(select(PortalZugang))
+    spaeter = utc_jetzt() + timedelta(hours=1)
+    db.add_all([AuditLog(occurred_at=spaeter + timedelta(seconds=i), actor_name="System", action="geändert", entity_type=kp.ZUGANG_ART,
+                         entity_id=str(zugang.id), field_name="gesperrt_von_user_id", field_label="Gesperrt von (Konto)", new_value=str(i))
+                for i in range(kp.SEITE + 10)])
+    db.commit()
+    seite = client.get(_url(kunde, "/protokoll")).json()
+    texte = [e["text"] for e in seite["eintraege"]]
+    assert "Zugang angelegt" in texte and "Kundenportal eingeschaltet" in texte and seite["weiter"] is False

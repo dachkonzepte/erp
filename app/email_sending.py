@@ -40,6 +40,8 @@ SmtpSettings.send_method (Klärung: "zusätzlich als wählbare Alternative"):
 
 import base64
 import json
+import os
+import re
 import smtplib
 import urllib.error
 import urllib.parse
@@ -179,7 +181,7 @@ def get_graph_access_token(settings: SmtpSettings) -> str:
     ausschließlich aus der Exchange-RBAC-Rollenzuweisung (Scope ERP-Zugriff), nicht aus dem Token
     und nicht aus Entra ID -- ein und dasselbe Token gilt für beide Zwecke, app/outlook_calendar_sync.py ruft
     deshalb GENAU diese Funktion erneut auf, statt eine zweite Token-Beschaffung zu bauen."""
-    token_url = f"https://login.microsoftonline.com/{settings.graph_tenant_id}/oauth2/v2.0/token"
+    token_url = f"{graph_attrappe() or 'https://login.microsoftonline.com'}/{settings.graph_tenant_id}/oauth2/v2.0/token"
     data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
         "client_id": settings.graph_client_id,
@@ -367,6 +369,17 @@ def graph_send_error_text(status: int, detail: str) -> str:
     return f"{text} Es wurde nichts versendet. ({code + ', ' if code else ''}HTTP {status})"
 
 
+def graph_attrappe() -> str | None:
+    """Seit 1.11.11 (Stufe P1d): ERP_TEST_GRAPH=http://127.0.0.1:<Port> lenkt Anmeldung und sendMail an eine Attrappe -- nur für Test-Instanzen
+    (ERP_ENV development oder test: Klicktests), nie im Betrieb (production, ohne ERP_ENV), und nur an 127.0.0.1. Die Mails des Kundenportals gehen nur
+    über Microsoft 365; ohne diesen Schalter ließe sich „Link senden“ im Klicktest nicht bis zum Versand prüfen. Der Abgleich des Kalenders bleibt
+    unberührt (eigene Adressen in app/outlook_calendar_sync.py)."""
+    wert = os.getenv("ERP_TEST_GRAPH", "")
+    if os.getenv("ERP_ENV") in ("development", "test") and re.fullmatch(r"http://127\.0\.0\.1:[0-9]{1,5}", wert):
+        return wert
+    return None
+
+
 def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str, gesendete_elemente: bool = True,
                      attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
                      headers: dict[str, str] | None = None, body_html: str | None = None) -> None:
@@ -377,7 +390,7 @@ def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], sub
     Inhalt -- es gibt nichts zu lesen außer dem leeren Körper."""
     token = get_graph_access_token(settings)
     mailbox = urllib.parse.quote(settings.graph_sender_mailbox)
-    url = f"https://graph.microsoft.com/v1.0/users/{mailbox}/sendMail"
+    url = f"{graph_attrappe() or 'https://graph.microsoft.com'}/v1.0/users/{mailbox}/sendMail"
     message: dict = {
         "subject": subject,
         # seit 1.11.8 als HTML nur die Mails des Kundenportals (dispatch_email(body_html=…)); Graph nimmt genau einen Körper

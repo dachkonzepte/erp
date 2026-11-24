@@ -311,3 +311,28 @@ selbst; nachgezogen auf die feste Zahl, dieselbe Probe danach rot.
 | Nr. 9 – Prüfwert nie in der Historie | Prüfwert protokolliert | 2 rot |
 | Nr. 9 – jede Aktion in Worten | ein Text fehlt | 1 rot |
 | Nr. 9 – 50 je Seite | 500 je Seite (zweite Fassung des Tests) | 1 rot |
+
+## 1.11.11: Karte „Kundenportal“ in der Kundenakte (P1d, Teil 2)
+
+Probendatei `gp_11111.py`, Lauf mit `tests/test_v810_kundenportal_karte_seite.py`, `tests/test_v809_kundenportal_karte_server.py`, `tests/test_v795_nur_lesen.py`
+bzw. `scripts/klicktest_kundenportal_karte.py`; alle 14 rot aus dem geprüften Grund, alle Dateien byte-gleich zurück. Ohne eigene Probe: Nr. 6 „im Archiv keine
+Aktion“ -- zwei Sicherungen auf der Seite (Zustand der Karte und `_nur_lesen.html`), je eine allein entfernt bleibt der Klicktest grün; geprüft sind das
+Lesen (unten) und der Server (409, 1.11.10 Nr. 8). Eine Probe blieb zuerst grün: „ohne Buchhaltung des Zugangs“ ist doppelt gesichert (in der Abfrage
+und im Satz); die Abfrage verhindert, dass viele neuere solche Einträge die sichtbaren aus der Seite drängen -- dafür ein neuer Test, dieselbe Probe danach rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Karte nur mit Modul | Bedingung entfernt | 1 rot |
+| Nr. 1 – ungerendert ohne Portal | „!== nein“ | 1 rot |
+| Nr. 2 – gesperrt: kein „Sperren“ | „Sperren“ auch gesperrt | Klicktest rot |
+| Nr. 3 – E-Mail des Kunden vorbelegt | leer | Klicktest rot |
+| Nr. 3 – Warnung beim neuen Link | nie | Klicktest rot |
+| Nr. 4 – Sperren abschließend | speichern() | 1 rot |
+| Nr. 5 – Rückfrage vor dem Verlängern | ohne confirm() | 1 rot |
+| Nr. 6 – im Archiv bleibt „Protokoll“ | ohne data-lesen | 1 rot (test_v795) |
+| Nr. 7 – Protokoll als Sätze | Feldname statt Satz | 1 rot |
+| Nr. 7 – gesendete Links im Protokoll | ohne Versand | 1 rot |
+| Nr. 7 – ohne Buchhaltung des Zugangs | alle Felder in der Abfrage (zweite Fassung des Tests) | 1 rot |
+| Nr. 8 – Attrappe nur für Test-Instanzen | ohne ERP_ENV | 1 rot |
+| Nr. 8 – Attrappe nur auf 127.0.0.1 | jede Adresse | 1 rot |
+| Nr. 9 – nur als Text | innerHTML | 1 rot |

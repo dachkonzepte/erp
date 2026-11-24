@@ -30,7 +30,8 @@ SEITEN = {
 }
 # je Seite die lesenden Knöpfe (data-lesen): ihr data-klick, onclick oder id -- nur Zurückholen, Filter, „Ältere laden“, Wege zum Lesen
 LESEN = {
-    "customer.html": {"kunde-zurueckholen", "verlauf-art", "verlauf-weiter", "dokumentkategorie", "dokumentunterordner", "href=/properties/${p.id}"},
+    "customer.html": {"kunde-zurueckholen", "verlauf-art", "verlauf-weiter", "dokumentkategorie", "dokumentunterordner", "href=/properties/${p.id}",
+                      "portal-protokoll", "portal-protokoll-mehr", "dialog-zu"},  # seit 1.11.11: Protokoll des Kundenportals lesen, auch im Archiv
     "akte.html": {"projekt-zurueckholen", "verlauf-art", "verlauf-weiter", "dateikategorie", "dateiunterordner", "filterCategory('')",
                   "filterSubfolder('')"},
     "property.html": set(),
