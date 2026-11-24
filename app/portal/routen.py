@@ -127,7 +127,7 @@ def _db(request: Request):
 
 def _anschluss(request: Request) -> str:
     """Der Anschluss als HMAC (F14). request.client ist hinter nginx die rechteste fremde Adresse aus X-Forwarded-For -- gunicorn/uvicorn vertrauen der
-    Kopfzeile nur von 127.0.0.1 (E4); eine vom Besucher vorangestellte Adresse ändert nichts."""
+    Kopfzeile nur von 127.0.0.1 und ::1 (E4); eine vom Besucher vorangestellte Adresse ändert nichts."""
     adresse = request.client.host if request.client else ""
     return pruefwerte.anschluss(adresse, request.app.state.einstellungen.bremse_schluessel)
 

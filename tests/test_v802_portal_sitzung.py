@@ -614,11 +614,12 @@ def test_pg_link_code_und_cookie_nie_in_protokoll_oder_antwort(welt, caplog):
 
 
 def _hinter_nginx(app):
-    """uvicorn wie unter gunicorn mit UvicornWorker: X-Forwarded-For nur von 127.0.0.1 (Vorgabe von gunicorn, die Einheit setzt nichts anderes)."""
+    """uvicorn wie unter gunicorn mit UvicornWorker: X-Forwarded-For nur von 127.0.0.1 und ::1 (Vorgabe von gunicorn 26, die Einheit setzt nichts
+    anderes -- test_v803)."""
     import uvicorn
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
-    server = uvicorn.Server(uvicorn.Config(app, http="h11", log_level="warning", lifespan="on", proxy_headers=True, forwarded_allow_ips="127.0.0.1"))
+    server = uvicorn.Server(uvicorn.Config(app, http="h11", log_level="warning", lifespan="on", proxy_headers=True, forwarded_allow_ips=["127.0.0.1", "::1"]))
     faden = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     faden.start()
     ende = time.monotonic() + 15

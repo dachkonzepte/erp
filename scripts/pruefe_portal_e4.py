@@ -4,7 +4,7 @@ Das Portal zählt jedes Öffnen eines Links je Anschluss (portal_bremsen, Schlü
 die Adresse von nginx (127.0.0.1 -- X-Forwarded-For nicht weitergereicht oder nicht ausgewertet), haben alle Aufrufe denselben Anschluss. Vorgehen (S8):
 von zwei Anschlüssen (Handy im Mobilnetz, Büro) je zweimal einen erfundenen Link öffnen, dann dieses Skript: es zählt die Anschlüsse im laufenden und im
 vorigen Stundenfenster. Erwartet: 2. Steht dort 1, wertet das Portal X-Forwarded-For nicht aus -- nginx (proxy_set_header) und gunicorn
-(--forwarded-allow-ips, Vorgabe 127.0.0.1) prüfen.
+(--forwarded-allow-ips, Vorgabe 127.0.0.1 und ::1) prüfen.
 
 Läuft als Benutzer des ERP (seit dem Nachtrag N1 liest der Benutzer des Portals keine Tabelle):
 

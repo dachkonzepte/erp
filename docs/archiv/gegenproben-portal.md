@@ -141,3 +141,23 @@ schreibt (STABLE), kann in PostgreSQL nicht schreiben; geprüft ist der Weg (ein
 | Nr. 14 – Verlängern setzt das Cookie | setzt nicht | 1 rot |
 | Nr. 15 – Prüfskript nur Zahlen | nennt die Prüfwerte | 1 rot |
 | Nr. 15 – erst zwei Anschlüsse sind gut | einer reicht | 1 rot |
+
+## 1.11.4: gunicorn und uvicorn in den Versionen des Servers
+
+Probendatei `gp_1114.py`, Lauf mit `tests/test_v803_gunicorn_server.py`; alle 11 beim ersten Anlauf rot aus dem geprüften Grund (FAILED, kein ERROR), alle
+Dateien byte-gleich zurück -- auch die drei Dateien von gunicorn und uvicorn unter `.venv` (dort zeigt die Gegenprobe, dass der Test die echte Vorgabe der
+installierten Pakete sieht, nicht eine Kopie). Ohne eigene Gegenprobe: Nr. 5 (Arbeitsweise der Prüfung) -- die Platzhalter prüft der Test selbst.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – gunicorn genau 26.2.0 | requirements.txt auf 23.0.0 | 1 rot |
+| Nr. 1 – uvicorn genau 0.52.4 | requirements.txt auf den Bereich | 1 rot |
+| Nr. 2 – Vorgabe von gunicorn gesehen | Vorgabe in gunicorn/config.py nur 127.0.0.1 | 2 rot (vertraut, ::1 nicht genommen) |
+| Nr. 2 – nichts in der Umgebung | FORWARDED_ALLOW_IPS=* im Muster | 3 rot |
+| Nr. 2 – nichts in ExecStart | --forwarded-allow-ips * | 3 rot |
+| Nr. 2 – an uvicorn weitergereicht | Übergabe im UvicornWorker entfernt | 2 rot |
+| Nr. 3 – Vorgabe gesehen | Vorgabe accesslog „-“ in gunicorn/config.py | 1 rot |
+| Nr. 3 – nichts in ExecStart | --access-logfile - | 2 rot |
+| Nr. 3 – uvicorn ohne eigenes Protokoll | eigener Handler am Logger uvicorn.access | 1 rot |
+| Nr. 4 – UvicornWorker | --worker-class asgi (Arbeitsprozess von gunicorn) | 3 rot |
+| Nr. 4 – vorangestellte Adresse hilft nicht | uvicorn liest X-Forwarded-For von links | 1 rot |

@@ -1,6 +1,7 @@
 fastapi>=0.121,<1.0  # seit 1.8.114: Depends(get_db, scope="function") -- die Sitzung schließt vor dem Senden (app/database.py)
-uvicorn[standard]>=0.30,<1.0
-gunicorn>=22.0,<24.0  # seit 1.11.2 (P1-12): Server-Prozesse von ERP und Kundenportal mit UvicornWorker -- nur unter Linux; lokal startet uvicorn
+uvicorn[standard]==0.52.4  # seit 1.11.4 genau die Version des Servers (Betreiberangabe 24.11.2026) -- E4 hängt an der Auswertung von X-Forwarded-For
+gunicorn==26.2.0  # seit 1.11.2 (P1-12): Server-Prozesse von ERP und Kundenportal mit UvicornWorker -- nur unter Linux; lokal startet uvicorn;
+                  # seit 1.11.4 genau die Version des Servers (tests/test_v803_gunicorn_server.py)
 sqlalchemy>=2.0,<3.0
 pydantic>=2.10,<3.0
 python-multipart>=0.0.20,<1.0

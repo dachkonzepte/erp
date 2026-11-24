@@ -2,7 +2,8 @@
 # Einrichten: docs/archiv/webseite-und-kundenportal.md, „Server-Schritte P1“ (S0–S10); vorher /srv/erp-code anlegen (sudo mkdir -p /srv/erp-code).
 # Der Dienst sieht vom Repo nur app/, alembic/, alembic.ini und .venv -- nur lesend; .env, .git, data/, docs/, tests/, bildgrundlage/ sind gar nicht da,
 # /home ist leer (ProtectHome=tmpfs). Liegt in app/, alembic/ oder .venv ein Geheimnis (S0: git status --ignored), kommt es vor dem Start in
-# InaccessiblePaths= (unten). Kein --forwarded-allow-ips: gunicorn vertraut X-Forwarded-For nur von 127.0.0.1 (nginx) -- E4.
+# InaccessiblePaths= (unten). Kein --forwarded-allow-ips: gunicorn vertraut X-Forwarded-For ab Werk nur von 127.0.0.1 und ::1, gebunden ist der Dienst
+# nur an 127.0.0.1 (nginx) -- E4; FORWARDED_ALLOW_IPS und GUNICORN_CMD_ARGS gehören nicht in die Umgebung (tests/test_v803_gunicorn_server.py).
 [Unit]
 Description=ERP: Kundenportal (kunde.dachkonzepte.gmbh)
 After=network.target postgresql.service

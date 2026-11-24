@@ -1369,6 +1369,7 @@ Was gilt (Kurzfassung des Bauplans):
 - **Datenschutzerklärung (für den Webseiten-Chat):** Zweck, Rechtsgrundlagen, Daten (Name, E-Mail des Zugangs, Sitzungen, Zugriffsprotokoll, Codes nur als
   Prüfwert, Anschluss nur als HMAC, Protokoll von nginx ohne IP), ein notwendiges Cookie, Mails über Microsoft 365, Fristen (Code 10 Minuten / Prüfwert 24
   Stunden, Sitzung 30 Tage nach letzter Nutzung + 30 Tage, Bremsen 48 Stunden, Zugriffsprotokoll 24 Monate, nginx höchstens 15 Tage, Journal 14 Tage).
+  Ergänzt 24.11.2026 (Antwort P1b-1): „Bei technischen Fehlern kann das Fehlerprotokoll des Servers die IP-Adresse enthalten, höchstens 15 Tage.“
 - **Runden:** P1a Daten, Rechte, Wächter (1.11.0) und Funktionen der Datenbank (1.11.1); P1b Dienst ohne Oberfläche; P1c Postbote und Mails; P1d Karte
   „Kundenportal“; P1e Seiten nach den Entwürfen des Betriebs; P1f Inbetriebnahme. Für die Stufe 2 der Aufbewahrung vermerkt: die E-Mail am Zugang
   (`portal_zugaenge.email`) gehört zu den Daten, die beim Löschen bzw. Anonymisieren eines Kunden mitgehen.
@@ -1505,7 +1506,7 @@ requirements.txt).
 - Speichermessung lokal (Windows, Working Set des Prozessbaums nach 50 Anfragen): Portal 90 MB, ERP 189 MB je Prozess -- passt zur Betreiberangabe (ERP
   rund 380 MB mit zwei Prozessen); Grenze des Portals MemoryHigh 200M / MemoryMax 256M.
 
-#### Festlegungen 1.11.2 (Bitte bestätigen)
+#### Festlegungen 1.11.2 (bestätigt am 24.11.2026)
 
 1. Der Portal-Dienst ist eine eigene App nur mit den Wegen des Portals; jeder Weg steht in genau einer Liste (öffentlich, Vorstufe, Sitzung); kein Weg des
    ERP, keine Schnittstellen-Doku.
@@ -1566,7 +1567,7 @@ Gegenproben zu Nr. 8 danach noch einmal rot.
   Prüfwert von 127.0.0.1 rechnete nur, wer den Schlüssel der Bremsen hat (er liegt nur in /etc/dk-portal/portal.env). Das Skript läuft deshalb als
   Benutzer des ERP und vergleicht die Zahl der Anschlüsse mit der Zahl der Geräte (zwei Geräte -> 2; sieht das Portal nur nginx -> 1).
 
-#### Festlegungen 1.11.3 (Bitte bestätigen)
+#### Festlegungen 1.11.3 (bestätigt am 24.11.2026)
 
 1. Der Link kommt nur per POST in der Kopfzeile X-Portal-Link (fehlt sie oder ist sie länger als 256 Zeichen: 422); an die Datenbank geht nur sein
    Prüfwert. Ein Link, der nicht gilt, ist außen dieselbe Antwort (200, gleicher Text, kein Cookie), gleich aus welchem Grund.
@@ -1599,3 +1600,53 @@ Browser, abmelden (dieses Gerät, überall, nicht mehr gültig), verlängern, ke
 auch SQLAlchemy), Anschluss hinter nginx (echter uvicorn mit X-Forwarded-For: 30 Aufrufe mit wechselnder vorangestellter Adresse -> der 31. gebremst, eine
 andere Adresse nicht), Angriffe auf die neuen Wege (neun Methoden, sieben Wege, sechs Kopf-Varianten, h11 und httptools: nichts erreicht, kein Protokoll).
 Jede Antwort jedes Tests geht durch die Positivliste (`ERWARTET`). Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.3“.
+
+### Antworten des Betriebs zum Bericht P1b (24.11.2026)
+
+Festlegungen 1.11.2-1 bis 1.11.3-15 bestätigt, auch die Abweichung beim Prüfskript für S8 (1.11.3-15: als Benutzer des ERP, Vergleich mit der Zahl der
+Geräte). P1b-1 ja: in die Stichpunkte zur Datenschutzerklärung (oben, „Datenschutzerklärung (für den Webseiten-Chat)“). P1b-2: auf dem Server laufen
+gunicorn 26.2.0 und uvicorn 0.52.4 -- nicht mit 22–23 pushen; als 1.11.4 requirements.txt genau auf diese Versionen, lokal dieselben, volle Suite und die
+Angriffstests des Portals mit echtem uvicorn darauf; für gunicorn 26 ausdrücklich prüfen: Vorgabe von forwarded_allow_ips (nur 127.0.0.1 bzw. ::1, E4), kein
+Zugriffsprotokoll ab Werk, UvicornWorker läuft. Danach ohne zu warten P1c.
+
+### Umsetzung 1.11.4: gunicorn und uvicorn in den Versionen des Servers
+
+- `requirements.txt`: `gunicorn==26.2.0` und `uvicorn[standard]==0.52.4` -- genau die Versionen des Servers (ersetzt den Bereich `>=22.0,<24.0` aus 1.11.2,
+  Festlegung 1.11.2-14; mit ihm hätte `update.sh` den gunicorn des ERP auf 23 zurückgesetzt). Lokal installiert; die Suite läuft damit.
+- Gelesen im Quelltext von gunicorn 26.2.0: `forwarded_allow_ips` hat die Vorgabe `os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")` (seit gunicorn 22
+  mit ::1); `accesslog` die Vorgabe `None` -- ein Zugriffs-Handler entsteht nur mit `--access-logfile`, Syslog oder einer Logkonfiguration
+  (`glogging.Logger.setup`, `access_log_enabled`). uvicorn 0.52.4 (`uvicorn/workers.py`): der UvicornWorker übergibt `forwarded_allow_ips` aus gunicorn an
+  uvicorn (proxy_headers ab Werk an) und hängt den Logger `uvicorn.access` an die Handler von gunicorn -- ohne Zugriffs-Handler keine Zeile je Anfrage.
+  Seit gunicorn 25 gibt es einen eigenen ASGI-Arbeitsprozess (`-k asgi`); Portal und ERP bleiben beim UvicornWorker (uvicorn markiert `uvicorn.workers` als
+  veraltet, Ersatz wäre das Paket `uvicorn-worker`) -- ein Wechsel nur für beide gemeinsam.
+- gunicorn läuft unter Windows nicht (es braucht fcntl, grp, pwd, fork; WSL ist nicht installiert). Geprüft wird deshalb der echte Weg von gunicorn bis
+  zum Arbeitsprozess in einem eigenen Prozess (`tests/gunicorn_wie_auf_dem_server.py`): die Argumente aus ExecStart der Einheit durch den Parser von gunicorn
+  (`WSGIApplication`, auch Umgebung und eine gunicorn.conf.py im Arbeitsordner), mit der Umgebung der Einheit (Environment= und das Muster der
+  EnvironmentFile, ohne DATABASE_URL), der Logger von gunicorn, die geladene Klasse des Arbeitsprozesses mit denselben Argumenten wie im Hauptprozess; sie
+  bedient eine kleine App, die die Adresse der Verbindung zurückgibt, über 127.0.0.1 und ::1. Unter Windows mit leeren Platzhaltern (fcntl, grp, pwd,
+  fehlende Signale, AF_UNIX, Herzschlag-Datei, SIGQUIT-Handler) -- nur in diesem Prozess, nie im Testprozess. Den Hauptprozess (fork, Signale) belegt der
+  ERP-Dienst auf dem Server mit denselben Versionen; Befehl im Bericht 1.11.4.
+- Kommentare in Einheit, nginx-Block, `app/portal/routen.py` und `scripts/pruefe_portal_e4.py`: „vertraut nur 127.0.0.1“ -> „127.0.0.1 und ::1“; der
+  Test hinter nginx in test_v802 übergibt uvicorn die Liste wie gunicorn.
+
+#### Festlegungen 1.11.4 (Bitte bestätigen)
+
+1. requirements.txt nennt gunicorn und uvicorn genau in der Version des Servers (heute 26.2.0 und 0.52.4); die Suite läuft mit genau diesen -- eine andere
+   installierte Version ist rot. Ein Wechsel nur zusammen mit dem Server.
+2. X-Forwarded-For gilt nur von 127.0.0.1 und ::1 (Vorgabe von gunicorn 26, an uvicorn weitergereicht); weder ExecStart noch die Umgebung der Einheit setzen
+   FORWARDED_ALLOW_IPS, GUNICORN_CMD_ARGS oder --forwarded-allow-ips; gebunden ist der Dienst nur an 127.0.0.1.
+3. Ab Werk kein Zugriffsprotokoll: kein --access-logfile, kein Syslog, keine Logkonfiguration; uvicorn schreibt in die Handler von gunicorn; Start und Fehler
+   gehen ins Fehlerprotokoll (Journal).
+4. Arbeitsprozess bleibt uvicorn.workers.UvicornWorker wie im ERP; ein Wechsel (uvicorn-worker oder gunicorn asgi) nur für beide gemeinsam, mit eigener
+   Prüfung von E4.
+5. Geprüft wird gunicorn in einem eigenen Prozess bis zum Arbeitsprozess, unter Windows mit leeren Platzhaltern nur dort; den Hauptprozess belegt der Server.
+
+#### Tests und Prüfung 1.11.4
+
+Neu `tests/test_v803_gunicorn_server.py` (6): Versionen in requirements.txt und installiert gleich denen des Servers; Umgebung und ExecStart der Einheit
+ohne FORWARDED_ALLOW_IPS, GUNICORN_CMD_ARGS und die Optionen für Vertrauen und Protokoll; im eigenen Prozess (`tests/gunicorn_wie_auf_dem_server.py`):
+vertraute Adressen in gunicorn und uvicorn genau 127.0.0.1 und ::1, gebunden an 127.0.0.1:8010; kein Zugriffs-Handler, kein Pfad einer Anfrage in der
+Ausgabe, Start im Fehlerprotokoll; der UvicornWorker bedient Anfragen -- ohne Kopfzeile die Adresse der Verbindung, mit X-Forwarded-For von 127.0.0.1 und
+von ::1 die angehängte Adresse, eine vorangestellte hilft nicht; Platzhalter nur unter Windows. Angepasste Erwartung: test_v801
+`test_gunicorn_in_den_abhaengigkeiten` -- alt „eine Zeile beginnt mit gunicorn>=“, neu „eine Zeile beginnt mit gunicorn==“ (die Version selbst prüft
+test_v803). Gegenproben: `gegenproben-portal.md`, „1.11.4“.

@@ -372,7 +372,7 @@ def test_muster_der_umgebung_ohne_werte():
 
 def test_gunicorn_in_den_abhaengigkeiten():
     zeilen = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
-    assert any(z.startswith("gunicorn>=") for z in zeilen)
+    assert any(z.startswith("gunicorn==") for z in zeilen)  # seit 1.11.4 genau die Version des Servers (test_v803)
 
 
 # --- Angriffe gegen einen echten uvicorn ---------------------------------------------------------------------------------------------------------
