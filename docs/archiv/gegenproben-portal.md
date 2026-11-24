@@ -374,3 +374,33 @@ Zeile je Aktion“ brach im ersten Lauf mit einem Einrückungsfehler ab (die Zei
 | Nr. 5 – nur verträgliche Arten | jede Art zusammen | 2 rot |
 | Nr. 5 – der Link mit seinem Versand | nie zugeordnet | rot |
 | Nr. 6 – „Neuer Link“ aus dem Versandprotokoll | aus der Historie | 1 rot |
+
+## 1.11.14: die Seiten des Kundenportals (P1e)
+
+Probendatei `gp_11114.py`, Lauf mit `tests/test_v811_portal_seiten.py` bzw. `scripts/klicktest_portal_seiten.py`; alle 20 rot aus dem geprüften Grund, alle Dateien
+byte-gleich zurück. Nr. 7 lief danach ins Zeitlimit der Gegenprobe (jede Ansicht wartet bis 5 s auf das dunkle Thema) -- die geprüfte Zeile war vorher rot.
+Ohne eigene Probe: Nr. 12 (nur Anordnung, gezeigt in den Bildern). Nach dem Fix für `test_v406` (fester Typ je Weg) Nr. 2 „Skript und Stil ein Jahr“ gegen
+die neue Zeile noch einmal (`gp_11114b.py`): rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Wortlaut der Entwürfe | ein Satz anders | 1 rot |
+| Nr. 2 – kein style-Attribut | style an einem span | 1 rot |
+| Nr. 2 – Skript und Stil ein Jahr | ohne Cache-Control | 1 rot |
+| Nr. 2 – Design-Dateien ein Jahr | Zweig der Schranke aus | 1 rot |
+| Nr. 2 – ?v= aus dem Inhalt | fester Wert | 2 rot |
+| Nr. 3 – nur Text | innerHTML | 1 rot |
+| Nr. 4 – Link aus der Adresse | ohne replaceState | 1 rot |
+| Nr. 5 – Telefon international | ohne +49 | rot |
+| Nr. 5 – nur gültige E-Mail | jede Angabe als mailto: | 2 rot |
+| Nr. 5 – jeder Wert maskiert | autoescape aus | rot |
+| Nr. 5 – Handy angemeldet: nur „Kundenportal“ | Regel aus | Klicktest rot |
+| Nr. 6 – 404 als Fehlerseite | Zweig aus | 1 rot |
+| Nr. 6 – ohne Firmendaten „technisch“ | Ausnahme weiter | 1 rot |
+| Nr. 6 – 502: Gleich wieder da | „technisch“ | Klicktest rot |
+| Nr. 7 – hell oder dunkel nach dem Gerät | immer hell | Klicktest rot |
+| Nr. 8 – Neuladen setzt fort | nichts gemerkt | Klicktest rot |
+| Nr. 9 – 60 Sekunden bis „Neuen Code senden“ | kein Zähler | Klicktest rot |
+| Nr. 10 – keine 6 Ziffern | ohne Prüfung | Klicktest rot |
+| Nr. 11 – überall nur mit Rückfrage | ohne Dialog | Klicktest rot |
+| Nr. 11 – noscript | verborgen | 1 rot |

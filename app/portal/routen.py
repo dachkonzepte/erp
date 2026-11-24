@@ -16,24 +16,32 @@ Ablauf (Bauplan P1, 3.1–3.3; alles Prüfen in den Funktionen der Datenbank, ap
     GET  /api/willkommen      Begrüßung des Kunden der Sitzung
 Ohne gültige Sitzung 401 {"fehler": "sitzung"} (ein POST löscht dabei das Cookie), eine Bremse 429 {"fehler": "bremse", "minuten": n} mit Retry-After.
 Kein Weg nimmt eine ID: der Kunde kommt nur aus der Sitzung.
+
+Seit 1.11.14 (Stufe P1e) die Seite selbst (app/portal/seiten.py): GET / (eine Seite für A–E, mit den öffentlichen Firmendaten), /s/portal.js und
+/s/portal.css (fester Typ, ein Jahr im Speicher des Browsers -- die Seite nennt sie mit ?v=<Prüfsumme>); dazu die Design-Dateien unter /static
+(app/design_dateien.py, in main.py eingebunden -- kein Weg dieses Routers).
 """
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import pruefwerte
 from .begruessung import begruessung
+from .seiten import DAUERHAFT
 from .werte import POST_STATUS
 
 router = APIRouter()
+logger = logging.getLogger("dk_portal")
 
 LESEN_METHODEN = ["GET", "HEAD"]
 
 # Pfad -> Art; jede Route steht in genau einer (Wächter)
-OEFFENTLICH = {"/health", "/api/kontakt", "/api/link"}
+OEFFENTLICH = {"/health", "/api/kontakt", "/api/link", "/", "/s/portal.js", "/s/portal.css"}  # die Seite seit 1.11.14
 VORSTUFE = {"/api/code", "/api/code/stand", "/api/code/pruefen"}
 SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen"}
 
@@ -207,6 +215,38 @@ def link(request: Request):
         _setzen(antwort, COOKIE_CODE, neu, CODE_SEKUNDEN)
         return antwort
     return {"stand": ergebnis, "email_anzeige": None}
+
+
+# --- Die Seite (seit 1.11.14, Stufe P1e) ---------------------------------------------------------------------------------------------------------
+
+def seite_antwort(request: Request, fall: str = "", status: int = 200) -> HTMLResponse:
+    """Die Seite mit den öffentlichen Firmendaten; liest sie die Datenbank nicht, die Fehlerseite „technisch“ ohne Kontakt (500). Nie im Speicher
+    des Browsers (no-store, setzt die Schranke)."""
+    seiten = request.app.state.seiten
+    try:
+        kontakt = _db(request).kontakt()
+    except Exception as exc:  # noqa: BLE001 -- die Ursache gehört ins Journal (nur die Klasse), nicht in die Seite
+        logger.error("Seite ohne Firmendaten: %s", type(exc).__name__)
+        return HTMLResponse(seiten.seite(None, "technisch"), status_code=500, headers={"X-Robots-Tag": "noindex"})
+    return HTMLResponse(seiten.seite(kontakt, fall), status_code=status, headers={"X-Robots-Tag": "noindex"})
+
+
+@router.api_route("/", methods=LESEN_METHODEN, response_class=HTMLResponse)
+def startseite(request: Request):
+    """Die Seite des Portals (Bauplan P1, Abschnitt 5) -- A bis E wählt das Skript; der Link kommt im #-Fragment und nie zum Server."""
+    return seite_antwort(request)
+
+
+@router.api_route("/s/portal.js", methods=LESEN_METHODEN, response_class=Response)
+def skript(request: Request):
+    """Das Skript der Seite -- Typ fest (tests/test_v406_dateien_nie_aktiv.py), ein Jahr im Speicher (die Seite nennt es mit ?v=)."""
+    return Response(request.app.state.seiten.datei("portal.js"), media_type="text/javascript; charset=utf-8", headers={"Cache-Control": DAUERHAFT})
+
+
+@router.api_route("/s/portal.css", methods=LESEN_METHODEN, response_class=Response)
+def stil(request: Request):
+    """Der Stil der Seite -- Typ fest, ein Jahr im Speicher."""
+    return Response(request.app.state.seiten.datei("portal.css"), media_type="text/css; charset=utf-8", headers={"Cache-Control": DAUERHAFT})
 
 
 # --- Vorstufe (unbestätigte Sitzung) ---------------------------------------------------------------------------------------------------------------

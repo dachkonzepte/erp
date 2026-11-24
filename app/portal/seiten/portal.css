@@ -1,0 +1,192 @@
+/* Kundenportal (seit 1.11.14, Stufe P1e) -- nach den Entwürfen bildgrundlage/entwurf-p1/Portal-Anmelden, -Willkommen, -Handy. Farben, Schriften und
+   Abstände aus dem Design-System (/static/ds/ds.css, --ds-*): hell und dunkel nach dem Gerät (portal.js setzt data-theme). Schmal (Handy, ab 360 px)
+   wie die Entwürfe für 390 px; breit ab 900 px wie „Willkommen“ (1280 px). Kein style-Attribut in der Seite (CSP). */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--ds-grund); -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--ds-grund); color: var(--ds-text); font-family: var(--ds-schrift-text); font-size: 16px; line-height: 1.5;
+}
+[hidden] { display: none !important; }
+a { color: var(--ds-link); }
+a:hover { color: var(--ds-link-hover); }
+:focus-visible { outline: 2px solid var(--ds-fokus); outline-offset: 2px; }
+h1 { margin: 0; font-family: var(--ds-schrift-titel); font-weight: 700; font-size: 26px; line-height: 1.2; overflow-wrap: anywhere; }
+h1:focus { outline: none; }
+h2 { margin: 0; font-family: var(--ds-schrift-titel); font-weight: 600; font-size: 18px; line-height: 1.3; }
+.mono { font-family: var(--ds-schrift-mono); }
+.text { margin: 0; font-size: 16px; line-height: 1.55; color: var(--ds-stark); }
+.leise { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ds-text-2); }
+.leise.klein { font-size: 13px; }
+.symbol { width: 18px; height: 18px; flex: none; }
+.symbol.klein { width: 16px; height: 16px; }
+
+/* --- Kopf ------------------------------------------------------------------------------------------------------------------------------- */
+.kopf { background: var(--ds-flaeche); border-bottom: 1px solid var(--ds-linie); }
+.kopf-innen { max-width: 1040px; margin: 0 auto; height: 64px; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 10px; }
+.bildmarke-kachel { display: inline-flex; flex: none; border-radius: 8px; }
+.bildmarke { width: 30px; height: 25px; display: block; }
+:root[data-theme="dark"] .bildmarke-kachel { background: #FFFFFF; padding: 4px 3px; }  /* die Marke wie im ERP auf Weiß (_bildmarke.html) */
+.marke { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.marke-name { font-family: var(--ds-schrift-titel); font-weight: 700; font-size: 14px; letter-spacing: 0.07em; color: var(--ds-text); }
+.marke-zusatz { font-size: 12px; color: var(--ds-text-3); }
+.kopf-innen .kopf-abmelden { margin-left: auto; width: auto; flex: none; height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; gap: 8px; }
+@media (max-width: 599.98px) { body.angemeldet .marke-rest { display: none; } }  /* Handy angemeldet: nur „Kundenportal“ (Entwurf Portal-Handy, D) */
+.kopf-abmelden .symbol { display: none; }
+
+/* --- Abschnitte ------------------------------------------------------------------------------------------------------------------------- */
+.inhalt { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; }
+.seite { width: 100%; margin: 0 auto; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.seite.schmal { max-width: 440px; }
+.seite.mitte { flex: 1; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.seite.breit { max-width: 1040px; padding: 24px 16px 24px; }
+#seite-e { padding-top: 40px; }
+
+.karte { background: var(--ds-flaeche); border: 1px solid var(--ds-linie); border-radius: 16px; }
+.kachel { width: 40px; height: 40px; flex: none; border-radius: 10px; background: var(--ds-aktion-hell); color: var(--ds-aktion);
+          display: inline-flex; align-items: center; justify-content: center; }
+.kachel .symbol { width: 20px; height: 20px; }
+.kachel.gross { width: 56px; height: 56px; border-radius: 16px; background: var(--ds-flaeche-2); color: var(--ds-text-2); }
+.kachel.gross .symbol { width: 26px; height: 26px; }
+
+/* A */
+.kreisel { width: 44px; height: 44px; animation: dk-drehen 1s linear infinite; }
+.kreisel-grund { stroke: var(--ds-linie); }
+.kreisel-bogen { stroke: var(--ds-aktion); }
+@keyframes dk-drehen { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .kreisel { animation: none; } }
+.pruefen-titel { margin: 0; font-size: 17px; font-weight: 600; color: var(--ds-text); }
+
+/* B */
+.ziel { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 14px; }
+.ziel-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.adresse { font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.sicher { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; color: var(--ds-stark); }
+.sicher .symbol { color: var(--ds-aktion); margin-top: 2px; }
+#seite-b { flex: 1 0 auto; }
+#seite-b .sicher { margin-top: auto; }  /* unten wie im Entwurf */
+
+/* Knöpfe */
+.knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 52px; padding: 0 16px; border: 0;
+  border-radius: 12px; font-family: var(--ds-schrift-text); font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.knopf.haupt { background: var(--ds-aktion); color: var(--ds-auf-aktion); }
+.knopf.dunkel { background: var(--ds-stark); color: var(--ds-auf-stark); }
+.knopf.zweit { background: var(--ds-flaeche); color: var(--ds-stark); border: 1px solid var(--ds-linie-stark); font-size: 15px; }
+.knopf.klein { height: 44px; border-radius: 10px; font-size: 14px; }
+.knopf:disabled { cursor: not-allowed; }
+.knopf.haupt:disabled { opacity: 0.72; }
+.knopf.zweit:disabled { background: var(--ds-flaeche-2); color: var(--ds-text-3); border-color: var(--ds-linie); font-weight: 500; }
+.knopf-link {
+  align-self: flex-start; height: 44px; padding: 0 2px; border: 0; background: transparent; color: var(--ds-link); font-family: var(--ds-schrift-text);
+  font-size: 14px; font-weight: 600; text-decoration: underline; cursor: pointer;
+}
+
+/* Hinweise */
+.hinweis { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+.hinweis .symbol { margin-top: 2px; stroke-width: 2.6; }
+.hinweis.ok { background: var(--ds-aktion-hell); border: 1px solid var(--ds-aktion-rand); color: var(--ds-aktion-text); }
+.hinweis.ok strong { font-weight: 500; overflow-wrap: anywhere; }
+.hinweis.signal { flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--ds-signal-hell); border: 1px solid var(--ds-signal-rand); color: var(--ds-stark); }
+.hinweis.signal strong { font-size: 15px; font-weight: 600; color: var(--ds-signal-text); }
+.meldung-telefon { font-weight: 600; }
+.fehler-satz { margin: 0; display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; color: var(--ds-fehler-text); }
+
+/* C: Eingabe */
+.feld { display: flex; flex-direction: column; gap: 8px; }
+.feld label { font-size: 15px; font-weight: 600; }
+input.code {
+  width: 100%; height: 64px; padding: 0 16px; border: 1px solid var(--ds-feld-rand); border-radius: 12px; background: var(--ds-flaeche);
+  font-family: var(--ds-schrift-mono); font-size: 28px; letter-spacing: 0.3em; text-align: center; color: var(--ds-text);
+}
+input.code::placeholder { font-family: var(--ds-schrift-text); font-size: 16px; letter-spacing: 0; color: var(--ds-text-3); opacity: 1; }
+input.code[aria-invalid="true"] { border: 2px solid var(--ds-fehler); }
+
+/* D */
+.gruss { display: flex; flex-direction: column; gap: 6px; padding: 0 4px; }
+.gruss-satz { font-size: 15px; color: var(--ds-text-2); max-width: 640px; }
+.d-raster { display: flex; flex-direction: column; gap: 16px; }
+.d-seite { display: contents; }
+.bald { order: 2; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+.kontakt { order: 1; }
+.anmeldung { order: 3; }
+.bald-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kennzeichen { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-ecke-rund);
+               background: var(--ds-flaeche-2); color: var(--ds-text-2); font-size: 12px; font-weight: 600; text-align: center; }
+.kennzeichen svg { width: 10px; height: 10px; flex: none; }
+.bald-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; font-size: 15px; }
+.bald-liste li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid var(--ds-linie); }
+.bald-liste li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bald-titel { font-weight: 400; }
+.bald-fuss { padding-top: 12px; border-top: 1px solid var(--ds-linie); }
+.kontakt { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.anschrift { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ds-stark); }
+.kontakt-knopf {
+  margin: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 1px solid var(--ds-linie-stark);
+  border-radius: 10px; text-decoration: none; color: var(--ds-text); font-size: 15px; font-weight: 600; overflow-wrap: anywhere;
+}
+a.kontakt-knopf:hover { color: var(--ds-text); background: var(--ds-flaeche-2); }
+.kontakt-knopf .symbol { color: var(--ds-aktion); }
+.kontakt-knopf.telefon { justify-content: center; gap: 10px; min-height: 52px; border: 0; border-radius: 12px; background: var(--ds-aktion);
+                         color: var(--ds-auf-aktion); font-size: 16px; }
+a.kontakt-knopf.telefon:hover { background: var(--ds-aktion); color: var(--ds-auf-aktion); }
+.kontakt-knopf.telefon .symbol { color: currentColor; }
+.anmeldung { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+
+/* E */
+#seite-e .kontakt { margin-top: 8px; }
+
+/* Fuß */
+.fuss-innen { max-width: 1040px; margin: 0 auto; padding: 14px 20px 18px; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ds-text-2); }
+.fuss-copy { display: none; }
+
+/* Dialog „Auf allen Geräten abmelden?“ -- schmal als Blatt unten */
+dialog.blatt {
+  width: calc(100% - 32px); max-width: 440px; margin: auto auto 16px; padding: 24px 20px 20px; border: 0; border-radius: 20px;
+  background: var(--ds-flaeche); color: var(--ds-text);
+}
+dialog.blatt[open] { display: flex; flex-direction: column; gap: 14px; }
+dialog.blatt::backdrop { background: rgba(23, 28, 31, 0.55); }
+dialog.blatt h2 { font-family: var(--ds-schrift-titel); font-weight: 700; font-size: 21px; line-height: 1.25; }
+dialog.blatt .text { font-size: 15px; }
+
+/* nur-breit: erst ab 900 px; nur-schmal: nur darunter */
+@media (max-width: 899.98px) { .nur-breit { display: none !important; } }
+
+/* --- breit (ab 900 px, „Willkommen“ wie der Entwurf für 1280 px) ---------------------------------------------------------------------- */
+@media (min-width: 900px) {
+  .kopf-innen { height: 72px; padding: 0 24px; gap: 12px; }
+  .bildmarke { width: 36px; height: 30px; }
+  .marke-name { font-size: 16px; }
+  .marke-zusatz { font-size: 13px; }
+  .kopf-innen .kopf-abmelden { padding: 0 16px; }
+  .kopf-abmelden .symbol { display: block; }
+  .seite.schmal { padding-top: 48px; }
+  .seite.breit { padding: 40px 24px 48px; gap: 28px; }
+  #seite-d h1 { font-size: 36px; line-height: 1.15; letter-spacing: -0.01em; }
+  .gruss { gap: 8px; padding: 0; }
+  .gruss-satz { font-size: 17px; color: var(--ds-stark); }
+  .d-raster { flex-direction: row; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .d-seite { display: flex; flex-direction: column; gap: 24px; flex: 1 1 300px; min-width: 0; }
+  .bald { flex: 999 1 520px; min-width: 0; padding: 24px 28px; gap: 12px; }
+  .bald, .kontakt, .anmeldung { order: 0; }  /* breit: die Liste links, Kontakt und Anmeldung rechts */
+  .bald h2, .kontakt h2, .anmeldung h2 { font-size: 20px; }
+  .kennzeichen { height: 28px; padding: 0 11px; font-size: 13px; }
+  .bald-liste { font-size: 16px; }
+  .bald-liste li { padding: 12px 0; }
+  .bald-liste .bald-titel { font-weight: 600; }
+  .kontakt, .anmeldung { padding: 24px; gap: 12px; }
+  .kontakt-d .kontakt-knopf.telefon { justify-content: flex-start; gap: 12px; min-height: 44px; border: 1px solid var(--ds-linie-stark); border-radius: 10px;
+                                      background: var(--ds-flaeche); color: var(--ds-text); font-size: 15px; }
+  .kontakt-d a.kontakt-knopf.telefon:hover { background: var(--ds-flaeche-2); color: var(--ds-text); }
+  .kontakt-d .kontakt-knopf.telefon .symbol { color: var(--ds-aktion); }
+  .kontakt-d .anrufen { display: none; }
+  .anmeldung .leise { color: var(--ds-stark); line-height: 1.55; }
+  .nur-schmal { display: none !important; }
+  .fuss { background: var(--ds-flaeche); border-top: 1px solid var(--ds-linie); }
+  .fuss-innen { padding: 18px 24px; }
+  .fuss-copy { display: inline; }
+  dialog.blatt { margin: auto; }
+}

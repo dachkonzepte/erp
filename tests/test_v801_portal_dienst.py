@@ -419,8 +419,10 @@ def test_angriffe_gegen_einen_echten_uvicorn(dienst, http_art):
                     status = _roh(port, methode, pfad, kopf)
                     if status < 400:
                         erreicht.append((methode, pfad, kopf.get("Host"), status))
-        # erreicht wird nur, was offen gedacht ist: GET/HEAD auf /health und /api/kontakt mit dem eigenen Host
-        assert sorted(erreicht) == sorted((m, p, "kunde.test", 200) for m in ("GET", "HEAD") for p in ("/health", "/api/kontakt") for _ in range(2))
+        # erreicht wird nur, was offen gedacht ist: GET/HEAD auf /health, /api/kontakt und seit 1.11.14 die Design-Datei (die Seite braucht ds.css)
+        # mit dem eigenen Host
+        assert sorted(erreicht) == sorted((m, p, "kunde.test", 200) for m in ("GET", "HEAD") for p in ("/health", "/api/kontakt", "/static/ds/ds.css")
+                                          for _ in range(2))
     finally:
         server.should_exit = True
         faden.join(15)

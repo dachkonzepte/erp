@@ -1,0 +1,172 @@
+{#- Die Seite des Kundenportals (seit 1.11.14, Stufe P1e; Bauplan P1, Abschnitt 5) nach den Entwürfen bildgrundlage/entwurf-p1/Portal-Anmelden,
+    -Willkommen und -Handy (Wortlaut wie dort). Gerendert von app/portal/seiten.py mit autoescape -- jeder Wert aus den Firmendaten ist Text.
+    Kein Inline-Skript, kein style-Attribut, kein on…-Attribut (CSP). Alle Abschnitte stehen verborgen in der Seite; das Skript zeigt je Zustand einen.
+    Ohne Skript zeigt <noscript> die Fehlerseite „JavaScript ist ausgeschaltet“. -#}
+{% macro bildmarke() %}<span class="bildmarke-kachel"><svg class="bildmarke" viewBox="240 47 1441 1184" aria-hidden="true" focusable="false"><polygon fill="#A7CD5D" points="240,402 972,47 972,316 240,670"/><polygon fill="#A7CD5D" points="240,962 972,607 972,877 240,1231"/><polygon fill="#367337" points="972,47 1681,390 1681,1220 972,877 972,607 1438,832 1438,542 972,316"/></svg></span>{% endmacro %}
+{% macro symbol(name) %}<svg class="symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "telefon" %}<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>
+{%- elif name == "mail" %}<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+{%- elif name == "web" %}<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+{%- elif name == "schild" %}<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>
+{%- elif name == "haken" %}<path d="M5 12l5 5 9-10"/>
+{%- elif name == "link" %}<path d="M10 14a4 4 0 0 1 0-5.6l2.8-2.8a4 4 0 0 1 5.6 5.6l-1.4 1.4"/><path d="M14 10a4 4 0 0 1 0 5.6l-2.8 2.8a4 4 0 0 1-5.6-5.6l1.4-1.4"/>
+{%- elif name == "abmelden" %}<path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/>
+{%- elif name == "stift" %}<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>
+{%- elif name == "vertrag" %}<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/>
+{%- elif name == "rechnung" %}<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>
+{%- elif name == "kalender" %}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>
+{%- elif name == "protokoll" %}<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 14l2 2 4-4"/>
+{%- elif name == "ordner" %}<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+{%- endif %}</svg>{% endmacro %}
+{% macro warnzeichen() %}<svg class="symbol klein" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2l11 20H1z" fill="currentColor"/></svg>{% endmacro %}
+{#- Kontakt des Betriebs: art "d" (Willkommen: breit Anschrift oben und drei Knöpfe, schmal Anrufen grün, E-Mail, Anschrift unten), art "e"
+    (Fehlerseite: Anrufen grün und E-Mail, wie im Entwurf). Ohne Telefon und ohne E-Mail fehlt die Karte ganz. -#}
+{% macro kontakt(f, art, kennung) %}
+{% if f.hat_kontakt %}
+<section class="karte kontakt kontakt-{{ art }}" aria-labelledby="{{ kennung }}">
+  <h2 id="{{ kennung }}">So erreichen Sie uns</h2>
+  {% if art == "d" and (f.name or f.strasse or f.ort) %}
+  <p class="anschrift nur-breit">{% if f.name %}{{ f.name }}<br>{% endif %}{% if f.strasse %}{{ f.strasse }}<br>{% endif %}{{ f.ort or "" }}</p>
+  {% endif %}
+  {% if f.telefon %}
+    {% if f.tel %}<a class="kontakt-knopf telefon" href="tel:{{ f.tel }}">{{ symbol("telefon") }}<span>{{ f.telefon }}<span class="anrufen"> anrufen</span></span></a>
+    {% else %}<p class="kontakt-knopf telefon">{{ symbol("telefon") }}<span>{{ f.telefon }}</span></p>{% endif %}
+  {% endif %}
+  {% if f.email %}<a class="kontakt-knopf" href="mailto:{{ f.email }}">{{ symbol("mail") }}<span>{{ f.email }}</span></a>{% endif %}
+  {% if art == "d" and f.webseite %}<a class="kontakt-knopf nur-breit" href="https://{{ f.webseite }}">{{ symbol("web") }}<span>{{ f.webseite }}</span></a>{% endif %}
+  {% if art == "d" and (f.strasse or f.ort) %}<p class="leise nur-schmal">{{ [f.strasse, f.ort] | select | join(", ") }}</p>{% endif %}
+</section>
+{% endif %}
+{% endmacro %}
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>{{ portal }}{% if firma.name %} – {{ firma.name }}{% endif %}</title>
+<link rel="stylesheet" href="/static/ds/ds.css?v={{ v['ds.css'] }}">
+<link rel="stylesheet" href="/s/portal.css?v={{ v['portal.css'] }}">
+<script src="/s/portal.js?v={{ v['portal.js'] }}"></script>
+</head>
+<body data-fall="{{ fall }}">
+<header class="kopf">
+  <div class="kopf-innen">
+    {{ bildmarke() }}
+    <div class="marke">
+      <span class="marke-name">{{ firma.marke or portal }}</span>
+      <span class="marke-zusatz">{% if firma.marke %}{% if firma.rest %}<span class="marke-rest">{{ firma.rest }} · </span>{% endif %}{{ portal }}{% endif %}</span>
+    </div>
+    <button type="button" class="knopf zweit kopf-abmelden" id="kopf-abmelden" hidden>{{ symbol("abmelden") }}<span>Abmelden</span></button>
+  </div>
+</header>
+
+<main class="inhalt">
+<noscript>
+  <section class="seite schmal">
+    <span class="kachel gross">{{ symbol("link") }}</span>
+    <h1>JavaScript ist ausgeschaltet</h1>
+    <p class="text">Bitte schalten Sie JavaScript ein, um das Kundenportal zu nutzen.</p>
+    {{ kontakt(firma, "e", "js-kontakt") }}
+  </section>
+</noscript>
+
+{#- A „Link wird geprüft“ -#}
+<section class="seite schmal mitte" id="seite-a" hidden>
+  <svg class="kreisel" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle class="kreisel-grund" cx="12" cy="12" r="9"/><path class="kreisel-bogen" d="M21 12a9 9 0 0 0-9-9"/></svg>
+  <p class="pruefen-titel" role="status">Ihr Zugang wird geprüft …</p>
+  <p class="leise">Einen Moment bitte.</p>
+</section>
+
+{#- B „Neues Gerät: Code senden“ -#}
+<section class="seite schmal" id="seite-b" hidden>
+  <h1 tabindex="-1">Willkommen im Kundenportal</h1>
+  <p class="text">Zum Schutz Ihrer Unterlagen senden wir Ihnen beim ersten Öffnen auf einem Gerät einen Code per E-Mail.</p>
+  <div class="karte ziel">
+    <span class="kachel">{{ symbol("mail") }}</span>
+    <div class="ziel-text"><span class="leise klein">Der Code geht an</span><span class="mono adresse" id="b-adresse"></span></div>
+  </div>
+  <button type="button" class="knopf haupt" id="b-senden">Code senden</button>
+  <div class="hinweis signal" id="b-meldung" role="alert" hidden><span id="b-meldung-text"></span>{% if firma.telefon %}{% if firma.tel %}<a class="meldung-telefon" id="b-telefon" href="tel:{{ firma.tel }}" hidden>{{ firma.telefon }}</a>{% else %}<span class="meldung-telefon" id="b-telefon" hidden>{{ firma.telefon }}</span>{% endif %}{% endif %}</div>
+  <p class="leise">Danach bleiben Sie auf diesem Gerät 30 Tage angemeldet.</p>
+  <div class="karte sicher">{{ symbol("schild") }}<span>Wir fragen Sie nie nach einem Passwort oder nach Bankdaten.</span></div>
+</section>
+
+{#- C „Code eingeben“ und „Neuen Code anfordern“ -#}
+<section class="seite schmal" id="seite-c" hidden>
+  <div class="hinweis ok" id="c-gesendet" role="status" hidden>{{ symbol("haken") }}<span>Code gesendet an <strong class="mono" id="c-adresse"></strong>. Sehen Sie bitte auch im Spam-Ordner nach.</span></div>
+  <h1 tabindex="-1" id="c-titel">Code eingeben</h1>
+  <div class="feld" id="c-feld">
+    <label for="c-code">Code aus der E-Mail</label>
+    <input id="c-code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 Ziffern" maxlength="20" spellcheck="false" aria-describedby="c-gilt">
+    <p class="fehler-satz" id="c-fehler" hidden>{{ warnzeichen() }}<span id="c-fehler-text"></span></p>
+    <span class="leise" id="c-gilt">Der Code gilt 10 Minuten.</span>
+  </div>
+  <div class="hinweis signal" id="c-abgelaufen" hidden><strong>Dieser Code gilt nicht mehr.</strong><span>Er ist abgelaufen, wurde schon benutzt oder zu oft falsch eingegeben. Der neue Code geht wieder an <span class="mono" id="c-adresse-2"></span>.</span></div>
+  <button type="button" class="knopf haupt" id="c-anmelden">Anmelden</button>
+  <button type="button" class="knopf haupt" id="c-neu-haupt" hidden>Neuen Code senden</button>
+  <button type="button" class="knopf zweit" id="c-neu" disabled>Neuen Code senden</button>
+  <div class="hinweis signal" id="c-meldung" role="alert" hidden><span id="c-meldung-text"></span>{% if firma.telefon %}{% if firma.tel %}<a class="meldung-telefon" id="c-telefon" href="tel:{{ firma.tel }}" hidden>{{ firma.telefon }}</a>{% else %}<span class="meldung-telefon" id="c-telefon" hidden>{{ firma.telefon }}</span>{% endif %}{% endif %}</div>
+  <p class="leise" id="c-neu-gilt" hidden>Der neue Code gilt wieder 10 Minuten.</p>
+</section>
+
+{#- D „Willkommen“ -#}
+<section class="seite breit" id="seite-d" hidden>
+  <div class="gruss">
+    <h1 tabindex="-1" id="d-gruss"></h1>
+    <p class="text gruss-satz">Schön, dass Sie da sind. Hier finden Sie bald alle Unterlagen zu Ihren Aufträgen an einem Ort.</p>
+  </div>
+  <div class="d-raster">
+    <section class="karte bald" aria-labelledby="d-bald">
+      <div class="bald-kopf">
+        <h2 id="d-bald">Was Sie hier bald finden</h2>
+        <span class="kennzeichen"><svg class="nur-breit" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 1.6"/></svg>In Vorbereitung</span>
+      </div>
+      <ul class="bald-liste">
+        <li><span class="kachel nur-breit">{{ symbol("stift") }}</span><div><span class="bald-titel">Angebote ansehen und digital annehmen</span><span class="leise nur-breit">Mit Unterschrift am Handy oder am Rechner.</span></div></li>
+        <li><span class="kachel nur-breit">{{ symbol("vertrag") }}</span><div><span class="bald-titel">Auftragsbestätigungen und Verträge</span><span class="leise nur-breit">Immer die gültige Fassung.</span></div></li>
+        <li><span class="kachel nur-breit">{{ symbol("rechnung") }}</span><div><span class="bald-titel">Rechnungen mit Zahlungsstand</span><span class="leise nur-breit">Auf einen Blick: offen oder bezahlt.</span></div></li>
+        <li><span class="kachel nur-breit">{{ symbol("kalender") }}</span><div><span class="bald-titel">Termine für Ihre Baustelle</span><span class="leise nur-breit">Wann wir bei Ihnen sind.</span></div></li>
+        <li><span class="kachel nur-breit">{{ symbol("protokoll") }}</span><div><span class="bald-titel">Abnahme- und Wartungsprotokolle</span><span class="leise nur-breit">Zum Nachlesen und Herunterladen.</span></div></li>
+        <li><span class="kachel nur-breit">{{ symbol("ordner") }}</span><div><span class="bald-titel">Dokumente und Fotos<span class="nur-schmal"> Ihrer Baustelle</span></span><span class="leise nur-breit">Datenblätter der verbauten Produkte, Bilder Ihrer Baustelle und weitere Unterlagen.</span></div></li>
+      </ul>
+      <p class="leise bald-fuss nur-breit">Bis dahin erhalten Sie Ihre Unterlagen wie gewohnt per E-Mail oder Post.</p>
+    </section>
+    <div class="d-seite">
+      {{ kontakt(firma, "d", "d-kontakt") }}
+      <section class="karte anmeldung" aria-labelledby="d-anmeldung">
+        <h2 id="d-anmeldung">Ihre Anmeldung</h2>
+        <p class="leise">Sie bleiben auf diesem Gerät angemeldet, solange Sie das Kundenportal mindestens alle 30 Tage öffnen.</p>
+        <button type="button" class="knopf zweit klein" id="d-abmelden">Abmelden</button>
+        <button type="button" class="knopf-link" id="d-ueberall">Auf allen Geräten abmelden</button>
+      </section>
+    </div>
+  </div>
+</section>
+
+{#- E „Fehlerseite“ -- eine für alles, nur der Text wechselt; nie ein Hinweis, warum ein Link nicht gilt -#}
+<section class="seite schmal" id="seite-e" hidden>
+  <span class="kachel gross">{{ symbol("link") }}</span>
+  <h1 tabindex="-1" id="e-titel"></h1>
+  <p class="text" id="e-satz"></p>
+  {{ kontakt(firma, "e", "e-kontakt") }}
+</section>
+</main>
+
+<footer class="fuss">
+  <div class="fuss-innen">
+    {% if firma.name %}<span class="fuss-copy">© {{ jahr }} {{ firma.name }}</span>{% endif %}
+    {% if firma.impressum and firma.datenschutz %}<a href="{{ firma.impressum }}">Impressum</a><a href="{{ firma.datenschutz }}">Datenschutz</a>{% endif %}
+  </div>
+</footer>
+
+<dialog class="blatt" id="dialog-ueberall" aria-labelledby="dialog-ueberall-titel">
+  <h2 id="dialog-ueberall-titel">Auf allen Geräten abmelden?</h2>
+  <p class="text">Sie werden auf diesem und allen anderen Geräten abgemeldet. Zum erneuten Anmelden öffnen Sie den Link aus unserer E-Mail und fordern einen neuen Code an.</p>
+  <button type="button" class="knopf dunkel" id="dialog-ueberall-ja">Überall abmelden</button>
+  <button type="button" class="knopf zweit" id="dialog-ueberall-nein">Abbrechen</button>
+</dialog>
+</body>
+</html>

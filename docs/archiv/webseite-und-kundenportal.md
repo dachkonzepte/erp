@@ -2110,3 +2110,88 @@ angelegt“ -> „Zugang angelegt für max@example.invalid“. Neue Einträge: `
 „gescheitert“ (Zustand „Aktiv“ mit Hinweis -> „Versand gescheitert“, „Link erneut senden“), „archiv“ (nur „Protokoll“ und Server 409 auf Sperren -> „Sperren“
 geht, danach nur „Protokoll“, Entsperren 409), „Mail: eine an der Attrappe“ (gezählt ab dem Ablauf), „Protokoll“ (je Feld -> je Aktion mit Konto); neu der
 gescheiterte Versand erneut gesendet, Verlängern bei „abgelaufen“ 409, die Uhr eine Minute weiter je Schritt. Gegenproben: `gegenproben-portal.md`, „1.11.13“.
+
+### Umsetzung 1.11.14: die Seiten des Kundenportals (P1e)
+
+Nach den Entwürfen `bildgrundlage/entwurf-p1/Portal-Anmelden`, `-Willkommen` und `-Handy` (Wortlaut wie dort) und Bauplan P1, Abschnitt 5.
+
+- **Eine Seite für alles** (`app/portal/seiten/portal.html`, gerendert von `app/portal/seiten.py` mit Jinja und autoescape): unter `GET /` stehen die Abschnitte
+  A „Ihr Zugang wird geprüft …“, B „Willkommen im Kundenportal“ / „Code senden“, C „Code eingeben“ und „Neuen Code anfordern“, D „Willkommen“ und E „Fehlerseite“
+  verborgen in der Seite; das Skript (`seiten/portal.js`) zeigt je Zustand einen und füllt nur Text (`textContent`; die Seite verlangt Trusted Types). Der Server
+  setzt nur, was ohne Sitzung öffentlich ist: Name des Betriebs (Kopf: erstes Wort fett, darunter der Rest „· Kundenportal“; auf dem Handy angemeldet nur
+  „Kundenportal“ wie im Entwurf), Kontakt (Telefon als `tel:+49…`, E-Mail als `mailto:` nur bei gültiger Adresse, Webseite nur als gültiger Host), Fuß
+  (© Jahr und Name breit, Impressum und Datenschutz als `https://<Webseite>/impressum` bzw. `/datenschutz` wie in den Mails) -- jeder Wert maskiert.
+  Begrüßung und verdeckte Adresse kommen nur aus den Wegen mit Sitzung bzw. Vorstufe.
+- **CSP:** kein Inline-Skript, kein `style`- und kein `on…`-Attribut. Skript und Stil des Portals unter `/s/portal.js` und `/s/portal.css` (fester Typ), in der Seite
+  mit `?v=<Prüfsumme des Inhalts>` und deshalb ein Jahr im Speicher des Browsers; die Seite selbst no-store. Farben, Schriften und hell/dunkel aus dem
+  Design-System: `/static` (ds.css und die Schriften) bindet der Dienst über `app/design_dateien.py` ein, nur GET/HEAD, fester Typ; die Schranke gibt einer
+  Design-Datei mit 200 ein Jahr, sonst no-store (wie das ERP). Hell oder dunkel nach dem Gerät: das Skript setzt `data-theme` wie im ERP; im Dunkeln steht die
+  Bildmarke auf einer weißen Kachel (wie `_bildmarke.html`).
+- **Abläufe** (alles Prüfen bleibt in den Funktionen der Datenbank): mit `#z=<Wert>` nimmt das Skript den Link sofort aus Adresszeile und Verlauf
+  (`history.replaceState`) und schickt ihn einmal in der Kopfzeile X-Portal-Link -- angemeldet: D; neues Gerät: B mit verdeckter Adresse; sonst E „Dieser Link
+  funktioniert nicht“ (gleich aus welchem Grund). Ohne Link: `POST /api/sitzung/weiter` -- angemeldet: D; sonst setzt der Tab eine laufende Anmeldung fort
+  (im `sessionStorage` nur Schritt und verdeckte Adresse; Neuladen nach dem Wechsel in die Mail-App führt zurück zu C), sonst E „Bitte über den Link anmelden“.
+  B: „Code senden“ -> „Wird gesendet …“ -> der Stand des Versands je Sekunde -> C mit „Code gesendet an …“ und „Neuen Code senden · in 1:00“ (Zähler bis 60
+  Sekunden); gescheitert, verworfen oder nach 30 Sekunden noch nicht gesendet: „Der Code konnte gerade nicht gesendet werden. Bitte versuchen Sie es gleich
+  noch einmal oder rufen Sie uns an.“ mit der Telefonnummer; Bremse: „Ein neuer Code ist in n Minuten wieder möglich.“, der Knopf bis dahin gesperrt. C: der
+  Code mit und ohne Leerzeichen; keine 6 Ziffern: „Bitte geben Sie die 6 Ziffern aus der E-Mail ein.“ ohne Anfrage; falsch: „Dieser Code stimmt nicht. Noch n
+  Versuche.“ (Einzahl „Noch 1 Versuch.“); abgelaufen, verbraucht oder 5 Fehlversuche: „Neuen Code anfordern“. D: Begrüßung, Kontakt, „Was Sie hier bald
+  finden“, „Ihre Anmeldung“; „Abmelden“ (oben und in der Karte) ohne Rückfrage, „Auf allen Geräten abmelden“ mit dem Dialog des Entwurfs; danach E „Sie sind
+  abgemeldet“. Antworten ohne passenden Ablauf: 401 -> „Bitte über den Link anmelden“, 429 -> „Zu viele Versuche“, 502/504 (nginx während eines Neustarts) ->
+  „Gleich wieder da“, sonst „Gerade klappt etwas nicht“.
+- **Vom Server gesetzte Fehlerseite:** eine Adresse, die es nicht gibt (GET/HEAD außerhalb von `/api/`), ist die Seite mit `data-fall="nicht_gefunden"` und 404
+  („Diese Seite gibt es nicht“); liest die Seite die Firmendaten nicht, `data-fall="technisch"` ohne Kontakt mit 500 (im Journal nur die Klasse). Unter `/api/`
+  bleibt es JSON. Ohne JavaScript zeigt `<noscript>` „JavaScript ist ausgeschaltet“ samt Kontakt (hell -- hell oder dunkel setzt das Skript).
+- **Breite Ansicht:** „Willkommen“ ab 900 px wie der Entwurf für 1280 px (Liste links, Kontakt und Anmeldung rechts); A–C und E -- in den Entwürfen nur für das
+  Handy -- als Spalte von 440 px in der Mitte, mit Kopf und Fuß wie „Willkommen“ (Frage im Bericht).
+
+#### Festlegungen 1.11.14 (Bitte bestätigen)
+
+1. Eine Seite unter `/` für A–E, die Abschnitte verborgen, das Skript wählt; Wortlaut der Entwürfe.
+2. Kein Inline-Skript, kein `style`- oder `on…`-Attribut; Skript und Stil des Portals unter `/s/` mit `?v=<Prüfsumme>`, ein Jahr im Speicher; die Seite no-store;
+   ds.css und die Schriften aus `/static` wie im ERP (200 ein Jahr, sonst no-store).
+3. Das Skript setzt nur Text (`textContent`) -- kein innerHTML, eval, document.write, kein Cookie-Zugriff.
+4. Der Link geht sofort aus Adresszeile und Verlauf und nur in der Kopfzeile X-Portal-Link zum Server.
+5. Öffentliche Firmendaten in Kopf, Kontakt und Fuß, jeder Wert maskiert; Telefon als `tel:+49…` (ohne erkennbare Vorwahl nur als Text), E-Mail nur gültig als
+   `mailto:`, Webseite, Impressum und Datenschutz nur bei gültigem Host; ohne Telefon und E-Mail keine Kontaktkarte; auf dem Handy angemeldet im Kopf nur
+   „Kundenportal“.
+6. Fehlerseite: unbekannte Adresse 404 als Seite, ohne Firmendaten „technisch“ 500; 401 -> „Bitte über den Link anmelden“, 429 -> „Zu viele Versuche“, 502/504 ->
+   „Gleich wieder da“, sonst „Gerade klappt etwas nicht“; immer dasselbe Link-Symbol, nur der Text wechselt.
+7. Hell oder dunkel nach dem Gerät (`data-theme` wie im ERP), die Bildmarke im Dunkeln auf weißer Kachel; ohne JavaScript hell.
+8. Neuladen während der Anmeldung setzt sie fort (im Speicher des Tabs nur Schritt und verdeckte Adresse).
+9. „Neuen Code senden“ erst nach 60 Sekunden (Zähler); der Stand des Versands je Sekunde, nach 30 Sekunden ohne Versand die Meldung „Der Code konnte gerade nicht
+   gesendet werden …“ mit Telefon.
+10. Ohne 6 Ziffern: „Bitte geben Sie die 6 Ziffern aus der E-Mail ein.“, keine Anfrage.
+11. Abmelden auf diesem Gerät ohne Rückfrage, auf allen Geräten mit Dialog; ohne JavaScript die Fehlerseite „JavaScript ist ausgeschaltet“ mit Kontakt.
+12. Breit: „Willkommen“ wie der Entwurf; A–C und E als Spalte von 440 px in der Mitte mit Kopf und Fuß wie „Willkommen“.
+
+#### Fragen (die Entwürfe decken es nicht ab -- so gebaut, Antwort offen)
+
+1. A–C und E am Rechner (1280 px): die Handy-Spalte in der Mitte mit dem Kopf und Fuß von „Willkommen“ -- so, oder ein eigener Entwurf?
+2. B „Versand gescheitert“ und „zu viele Anforderungen“: als oranger Kasten wie „Dieser Code gilt nicht mehr“, die Telefonnummer darunter als Link -- so?
+3. Weniger oder mehr als 6 Ziffern: „Bitte geben Sie die 6 Ziffern aus der E-Mail ein.“ -- Wortlaut?
+4. Wartet ein Code nach 30 Sekunden noch auf den Versand, zeigt B die Meldung „Der Code konnte gerade nicht gesendet werden …“ -- so, oder länger warten?
+5. „Abmelden“ auf diesem Gerät ohne Rückfrage (der Entwurf zeigt den Dialog nur für „überall“; der Bauplan nannte „mit Bestätigung“) -- so?
+6. Dauert die Anmeldung länger als 15 Minuten (die vorläufige Sitzung läuft ab), zeigt die Seite „Bitte über den Link anmelden“ -- so?
+7. Neuladen während der Anmeldung setzt sie fort (statt „Bitte über den Link anmelden“) -- so?
+8. Dunkelmodus: Farben aus dem Design-System, Bildmarke auf weißer Kachel -- so (die Entwürfe zeigen nur hell)?
+9. Fuß: breit „© Jahr Name · Impressum · Datenschutz“ auf weißem Band, auf dem Handy nur die beiden Links (wie die Entwürfe) -- auch für A–C und E so?
+10. Titel des Tabs „Kundenportal – <Name des Betriebs>“ -- so?
+
+#### Tests und Prüfung 1.11.14
+
+Neu `tests/test_v811_portal_seiten.py` (45): Wege, Typen und Speicher (Seite, Skript, Stil, ds.css, Schrift, fehlende Design-Datei), 404 als Seite (unter `/api/`
+JSON), ohne Firmendaten „technisch“ ohne Details, Aufbau der Seite (ein Skript ohne Inhalt, kein `style`-/`on…`-Attribut, kein `javascript:`, nur die erwarteten
+Links), noscript, Angriff über jedes Feld der Firmendaten, Telefon (11 Fälle), Webseite wie in den Mails (12), ungültige E-Mail und Webseite ohne Links, Firma mit
+einem Wort und ohne Namen, das Skript (keine gefährlichen Aufrufe, nur Wege des Portals, Link aus der Adresse vor der ersten Anfrage, Fälle der Fehlerseite),
+Wortlaut der Entwürfe (67 Sätze), Stil ohne fremde Quellen. Neu `scripts/klicktest_portal_seiten.py` (111 Prüfungen) gegen den echten Dienst unter PostgreSQL
+(Wegwerf-Schema `pgklick_…`, Testrolle `dkportal_test`, Postbote und Attrappe von Microsoft 365 im Testprozess, der Code aus der Mail eingetippt): vier Abläufe,
+jede Fehlerseite (429, 500, 502 über eine Ersatz-Antwort im Browser), ohne JavaScript; jeder Zustand als Bild in 390 und 1280 px hell und dunkel und 360 px hell
+(95 Bilder), schmal ohne Überlauf, keine Verletzung der CSP, kein JS-Fehler; unter einer Gegenprobe ohne Bilder. Angepasste Erwartung:
+`test_v801::test_angriffe_gegen_einen_echten_uvicorn` -- erreicht wurden bis 1.11.13 nur GET/HEAD auf `/health` und `/api/kontakt`, jetzt auch auf
+`/static/ds/ds.css` (die Seite braucht es). Gegenproben: `gegenproben-portal.md`, „1.11.14“.
+
+Die volle Suite fand vor dem Commit zwei rote Wächter: `tests/test_v406_dateien_nie_aktiv.py` (eine Antwort mit Inhalt braucht einen festen Typ -- Skript und
+Stil liefen über eine gemeinsame Hilfe mit dem Typ als Variable; jetzt je Weg eine Antwort mit festem Typ) und `tests/test_v603_engines_aufraeumen.py` (die Engine
+der Testdaten legt `test_v811` jetzt über `wegwerf_engine()` an). Beide Wächter bleiben unverändert; die Gegenprobe zu Nr. 2 „Skript und Stil ein Jahr“ danach
+gegen die neue Zeile noch einmal rot.

@@ -22,10 +22,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.design_dateien import einbinden as design_einbinden
+
 from . import routen
 from .datenbank import Datenbank, engine_erzeugen
 from .einstellungen import Einstellungen, EinstellungFalsch, aus_umgebung
 from .schranke import Schranke
+from .seiten import Seiten
 
 logger = logging.getLogger("dk_portal")
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,10 +74,16 @@ def erzeugen(einstellungen: Einstellungen | None = None, *, engine=None, pruefen
     api = FastAPI(title="Kundenportal", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lebensdauer)
     api.state.db = db
     api.state.einstellungen = einstellungen
+    api.state.seiten = Seiten()  # seit 1.11.14: Vorlage, Skript und Stil der Seite (beim Start gelesen)
     api.include_router(routen.router)
+    design_einbinden(api)  # seit 1.11.14: /static -- ds.css und die Schriften (nur GET/HEAD, fester Typ, app/design_dateien.py)
 
     @api.exception_handler(StarletteHTTPException)
-    async def _http(_request: Request, exc: StarletteHTTPException):
+    async def _http(request: Request, exc: StarletteHTTPException):
+        # seit 1.11.14: eine Adresse, die es nicht gibt, ist für den Browser die Fehlerseite „Diese Seite gibt es nicht“ -- außer unter /api/ (JSON)
+        if exc.status_code == 404 and request.method in ("GET", "HEAD") and not request.url.path.startswith("/api/"):
+            from starlette.concurrency import run_in_threadpool  # die Firmendaten liest die Datenbank -- nie auf der Event-Loop
+            return await run_in_threadpool(routen.seite_antwort, request, "nicht_gefunden", 404)
         return _fehler(exc.status_code, FEHLER_JE_STATUS.get(exc.status_code, "anfrage"), getattr(exc, "headers", None))
 
     @api.exception_handler(RequestValidationError)

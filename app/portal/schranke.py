@@ -11,12 +11,17 @@ Nach der App, an JEDER Antwort: Content-Security-Policy ohne Inline-Skript, Trus
 Geräte-APIs, Cache-Control no-store (wenn die Antwort keins setzt), HSTS (außer lokal und in Tests).
 
 Antworten der Schranke selbst sind JSON {"fehler": <festes Wort>} -- nie ein Wert aus der Anfrage.
+
+Seit 1.11.14: eine Design-Datei unter /static (app/design_dateien.py::ist_design_pfad(), wie im ERP) bekommt mit 200 „public, max-age=31536000,
+immutable“ -- die Seite nennt ds.css mit ?v=<Prüfsumme>, die Schriften ändern sich nur mit neuem Namen; jede andere Antwort dort no-store.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+
+from app.design_dateien import DAUERHAFT, ist_design_pfad
 
 logger = logging.getLogger("dk_portal")
 
@@ -114,12 +119,16 @@ class Schranke:
             return await receive()
 
         begonnen = False
+        design = ist_design_pfad(scope)
 
         async def mit_kopfzeilen(nachricht):
             nonlocal begonnen
             if nachricht["type"] == "http.response.start":
                 begonnen = True
                 kopf = [(k, v) for k, v in nachricht.get("headers", []) if k.lower() not in {name for name, _ in self._kopf}]
+                if design:  # seit 1.11.14: Design-Dateien wie im ERP -- 200 ein Jahr, sonst no-store
+                    kopf = [(k, v) for k, v in kopf if k.lower() != b"cache-control"]
+                    kopf.append((b"cache-control", DAUERHAFT.encode() if nachricht.get("status") == 200 else b"no-store"))
                 if not any(k.lower() == b"cache-control" for k, _ in kopf):
                     kopf.append((b"cache-control", b"no-store"))
                 nachricht = {**nachricht, "headers": kopf + self._kopf}
