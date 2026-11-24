@@ -10,7 +10,7 @@ from .spaltenlaenge import laenge
 from .suchmuster import passt
 
 from .models import (
-    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Kontaktvermerk,
+    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Kontaktvermerk, PortalZugang,
     Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, OperationalAssetInspection, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, Urlaubsanspruch, LohnStartwert, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
@@ -43,6 +43,7 @@ TYPE_LABELS = {
     LaborRateSettings: "Verrechnungssatz-Grundlage", LaborRateOverheadSettings: "Gemeinkosten-Grundlage",
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
     SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage", Kontaktvermerk: "Kontakt",
+    PortalZugang: "Zugang zum Kundenportal",  # seit 1.11.10 (app/kundenportal.py::ZUGANG_ART)
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
@@ -108,6 +109,9 @@ AUDITED_TYPES = (
     Finding,
     # Seit 1.10.10 (Stufe W1c): Kontaktvermerke -- nur Tag und Weg, ein Inhalt steht nirgends.
     Kontaktvermerk,
+    # Seit 1.11.10 (Stufe P1d): der Zugang zum Kundenportal -- Anlegen, Link erzeugt (Zeitpunkt, gültig bis, E-Mail), Sperren, Entsperren, Verlängern.
+    # Ohne den Prüfwert des Links und ohne „zuletzt genutzt“ (schreibt das Portal; STILL_JE_ART).
+    PortalZugang,
 )
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
@@ -118,6 +122,8 @@ STILL_JE_ART = {
     ServiceReport: {"time_rows_json"},  # eingefrorene Zeiten, stehen am Bericht
     # Seit 1.9.140: die Kennung läuft mit dem Namen (category) mit, sonst stehen zwei gleiche Zeilen „Kategorie“ im Verlauf
     ProjectDocument: {"category_id"}, CustomerDocument: {"category_id"},
+    # Seit 1.11.10: der Prüfwert des Links nie in der Historie (Regel 18 sinngemäß), die verdeckte Anzeige läuft mit der E-Mail mit
+    PortalZugang: {"link_sha256", "email_anzeige", "zuletzt_genutzt_am"},
 }
 # Seit 1.9.115: Inhalte eines privaten Termins nie in der Historie (sie liest jedes Büro) -- nur, dass sich etwas geändert hat.
 PRIVATE_TERMINFELDER = {"title", "location", "notes"}
@@ -274,6 +280,11 @@ FIELD_LABELS = {
     "is_primary_address": "Hauptadresse",
     "is_template": "Mustervorgang",
     "portal_aktiv": "Kundenportal an",  # 1.11.0
+    # seit 1.11.10: Zugang zum Kundenportal
+    "email_anzeige": "E-Mail (verdeckt)", "link_sha256": "Link (Prüfwert)", "link_erzeugt_am": "Link erzeugt am", "gueltig_bis": "Link gültig bis",
+    "gesperrt_am": "Zugang gesperrt am", "gesperrt_grund": "Grund der Sperre", "gesperrt_von_user_id": "Gesperrt von (Konto)",
+    "gesperrt_von_name": "Gesperrt von", "angelegt_von_user_id": "Angelegt von (Konto)", "angelegt_von_name": "Angelegt von",
+    "zuletzt_genutzt_am": "Zuletzt genutzt am", "angelegt_am": "Angelegt am",
     "job_title": "Berufsbezeichnung",
     "labor_rate_override": "Verrechnungssatz (abweichend)",
     "last_year": "Letztes Jahr",

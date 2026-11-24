@@ -1899,3 +1899,48 @@ Abweichung, `downgrade -1`, wieder `upgrade head`. `scripts/klicktest_portal_sta
 `{stau, text}` -> `{stau, text, post_id, erledigen}`; `klicktest_portal_stau` -- Text „wartet“ für Büro – Finanzen bis 1.11.8 mit dem Dienst, jetzt „bitte den
 Administrator informieren“; Bilder `stau_wartet`, `stau_gescheitert_light/dark` -> `stau_wartet_buero`, `stau_wartet_admin`, `stau_gescheitert_admin_light/dark`.
 Neue Einträge: `test_v373::GEPRUEFT` (post_id), `test_v399::ABSCHLIESSEND` (`portalStauErledigen`). Gegenproben: `gegenproben-portal.md`, „1.11.9“.
+
+### Umsetzung 1.11.10: Kundenportal am Kunden -- Schalter, Zugang, Link, Sperren, Protokoll (P1d, Teil 1)
+
+- `app/kundenportal.py` (neu): `stand()` (alles, was die Karte zeigt; liest nur), `schalten()`, `zugang_anlegen()`, `link_senden()`, `sperren()`,
+  `entsperren()`, `verlaengern()`, `protokoll()`. Router `app/routers/kundenportal.py`: `GET /api/customers/{id}/portal`, `POST …/schalter`, `…/zugang`, `…/link`,
+  `…/sperren`, `…/entsperren`, `…/verlaengern`, `GET …/protokoll?seite=`; ab Büro – Auftrag, die Monteurin nie, ohne Modul 403, unbekannter Kunde 404. Jeder Weg
+  nennt nur den Kunden im Pfad -- den Zugang findet der Server über den Kunden (Regel 25: keine ID eines Zugangs aus der Anfrage). Jede Aktion antwortet mit
+  dem neuen Stand.
+- Zustände (`zustand()`): im Archiv, aus, ohne E-Mail, kein Zugang, ohne Link, aktiv, läuft bald ab (höchstens 30 Tage), abgelaufen, gesperrt; „Versand
+  gescheitert“ als Hinweis aus dem letzten Versand des Links (Versandprotokoll, Art `portal_link`, Dokument = Zugang).
+- Link senden: neuer Wert (`pruefwerte.neuer_wert()`) nur in der Mail, gespeichert sein Prüfwert; gültig 12 Kalendermonate (29.02. -> 28.02.); ein zweiter Link
+  ist „neu erzeugen“ -- der alte gilt nicht mehr, alle Sitzungen enden (`neu_erzeugt`); die E-Mail ändert sich nur beim Senden (P1-15: wirkt ab diesem Link,
+  auch für die Codes). Derselbe Klick (`dispatch_key`) erzeugt nichts; lehnt der Versand vor dem Eintrag im Versandprotokoll ab (SMTP, Adresse), bleibt alles,
+  wie es war (ausdrückliches Rollback); scheitert erst der Versand, gilt der neue Link und die Karte zeigt „Versand gescheitert“.
+- Sperren mit Grund (Pflicht) beendet alle Sitzungen (`gesperrt`), Portal aus ebenso (`portal_aus`); gesperrt: kein neuer Link, kein Verlängern; Entsperren:
+  der bisherige Link gilt wieder bis zu seinem Ablauf. Verlängern: derselbe Link, gültig bis = jetzt + 12 Monate.
+- Kunde im Archiv: Zustand „Im Archiv“ (dort wirkt kein Zugang), jede Aktion 409 -- am Router (`archiv_vorab()`) und in der Geschäftslogik. Festlegung 1.11.0
+  („Sperren muss auch im Archiv gehen“) meinte die Daten: der Archivschutz hält das Sperren nicht auf (`KEIN_TEIL`); die Karte folgt Bauplan Abschnitt 4 (nur
+  lesbar).
+- Änderungshistorie: `PortalZugang` in `AUDITED_TYPES` („Zugang zum Kundenportal“), ohne Prüfwert des Links, verdeckte Anzeige und „zuletzt genutzt“
+  (`STILL_JE_ART`); Feldnamen in `FIELD_LABELS`. Protokoll: Zugriffe des Portals (Aktion und Ergebnis in Worten, `AKTION_TEXT`, `ERGEBNIS_TEXT`) und die
+  Historie des Zugangs und des Schalters am Kunden, neueste zuerst, 50 je Seite.
+
+#### Festlegungen 1.11.10 (Bitte bestätigen)
+
+1. Die Wege der Karte nennen nur den Kunden; ab Büro – Auftrag, die Monteurin nie; ohne Modul 403.
+2. Portal aus beendet alle Sitzungen; ohne Portal an kein Zugang und kein Link.
+3. Ein Zugang je Kunde, nur mit E-Mail am Kunden; seine E-Mail vorbelegt mit der des Kunden, genau eine gültige Adresse; verdeckte Anzeige „erstes Zeichen,
+   ***, Domain“.
+4. Link senden: Wert nur in der Mail, gespeichert der Prüfwert; 12 Kalendermonate; ein zweiter Link macht den ersten ungültig und meldet alle Geräte ab; die
+   E-Mail ändert sich nur beim Senden; derselbe Klick erzeugt nichts; eine Ablehnung vor dem Versand ändert nichts; ein gescheiterter Versand lässt den neuen
+   Link gelten.
+5. Sperren nur mit Grund, meldet alle Geräte ab; gesperrt kein neuer Link und kein Verlängern; Entsperren lässt den bisherigen Link wieder gelten.
+6. Verlängern: derselbe Link, ab jetzt 12 Monate; nur mit Link.
+7. Zustände wie oben; „läuft bald ab“ ab 30 Tagen vor dem Ablauf; „Versand gescheitert“ aus dem letzten Versand des Links.
+8. Kunde im Archiv: Zustand „Im Archiv“, jede Aktion 409 (Router und Geschäftslogik) -- auch Sperren (Bauplan Abschnitt 4 vor Festlegung 1.11.0, siehe oben).
+9. Historie des Zugangs ohne Prüfwert; Protokoll aus Portal und Historie, neueste zuerst, 50 je Seite, ohne Adressen.
+
+#### Tests und Prüfung 1.11.10
+
+Neu `tests/test_v809_kundenportal_karte_server.py` (22) über `router_test_client` mit der Graph-Attrappe: Zustände der Reihe nach; ohne E-Mail; nur mit Portal an
+und nur einer; Link nur als Prüfwert und genau dieser in der Mail; zweiter Link (ungültig, abgemeldet, neue Adresse); derselbe Klick; SMTP lehnt ab und nichts
+ändert sich; Versand gescheitert; Sperren (Sitzungen, Grund Pflicht, gesperrte Aktionen); Portal aus; Archiv (Router und Geschäftslogik); Rollen und Modul;
+unbekannter Kunde; Protokoll (zusammen, seitenweise); Texte für jede Aktion; verdeckte Anzeige; 12 Monate; Verlängern nur mit Link. Neuer Eintrag
+`test_v761::KEINE_ID` (`seite`). Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.10“.

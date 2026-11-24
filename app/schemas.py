@@ -1226,6 +1226,73 @@ class PortalPostboteOut(BaseModel):
     erledigen: bool = False
 
 
+# --- Kundenportal am Kunden (seit 1.11.10, Stufe P1d) -----------------------------------------------------------------------------------------------
+
+class KundenportalZugangOut(BaseModel):
+    email: str
+    link_erzeugt_am: datetime | None = None
+    gueltig_bis: datetime | None = None
+    zuletzt_genutzt_am: datetime | None = None
+    angelegt_am: datetime | None = None
+    angelegt_von: str | None = None
+    gesperrt_am: datetime | None = None
+    gesperrt_grund: str | None = None
+    gesperrt_von: str | None = None
+    hat_link: bool
+
+
+class KundenportalVersandOut(BaseModel):
+    status: str
+    am: datetime | None = None
+    von: str | None = None
+    an: str | None = None
+
+
+class KundenportalOut(BaseModel):
+    """Seit 1.11.10: was die Karte „Kundenportal“ der Kundenakte zeigt (app/kundenportal.py::stand()) -- nie der Link oder sein Prüfwert."""
+    aktiv: bool
+    zustand: str
+    zustand_text: str
+    kunde_email: str | None = None
+    nur_lesen: bool
+    zugang: KundenportalZugangOut | None = None
+    versand: KundenportalVersandOut | None = None
+
+
+class KundenportalSchalterIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    an: StrictBool
+
+
+class KundenportalEmailIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Pflichttext = Field(min_length=1, max_length=255)
+
+
+class KundenportalLinkIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Pflichttext = Field(min_length=1, max_length=255)
+    dispatch_key: Pflichttext = Field(min_length=8, max_length=80)  # Schlüssel des Versandauftrags (Regel 21)
+
+
+class KundenportalSperrenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    grund: Pflichttext = Field(min_length=1, max_length=1000)
+
+
+class KundenportalProtokollEintragOut(BaseModel):
+    zeitpunkt: datetime | None = None
+    art: str
+    text: str
+    von: str
+
+
+class KundenportalProtokollOut(BaseModel):
+    seite: int
+    weiter: bool
+    eintraege: list[KundenportalProtokollEintragOut]
+
+
 class PortalPostErledigtIn(BaseModel):
     """Seit 1.11.9: „Erledigt“ an dem gescheiterten Versand, den der Hinweis zeigt."""
     model_config = ConfigDict(extra="forbid")

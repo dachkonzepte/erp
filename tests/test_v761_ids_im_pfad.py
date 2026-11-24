@@ -38,6 +38,7 @@ KEINE_ID = {
     ("/api/time-backoffice/konten/{employee_id}/anspruch/{jahr}/verfall", "path", "jahr"): (G, (2027, 2100), "Jahr des Urlaubskontos (seit 1.9.368)"),
     ("/api/mobile-icon/{size}.png", "path", "size"): (P, None, "Größe des App-Symbols, 16–1024, sonst 404"),
     ("/api/webanfragen", "query", "anzahl"): (G, (1, 500), "Zeilen der Liste des Eingangs (seit 1.10.2, die Startseite nimmt fünf)"),
+    ("/api/customers/{customer_id}/portal/protokoll", "query", "seite"): (G, (1, 1000), "Seite des Protokolls des Kundenportals (seit 1.11.10)"),
     ("/api/time-entries/dauer-vorschau", "query", "break_minutes"): (G, (0, 720), "Pause in Minuten"),
     ("/api/time-entry-groups/dauer-vorschau", "query", "break_minutes"): (G, (0, 720), "Pause in Minuten"),
     ("/api/time-entries/nachtrag-vorschau", "query", "pause_minuten"): (G, (0, 720), "Pause in Minuten"),

@@ -280,3 +280,34 @@ Probendatei `gp_1119.py`, Lauf mit `tests/test_v808_portal_stau_erledigt.py`; al
 | Nr. 4 – Eintrag in der Änderungshistorie | ohne Eintrag | 1 rot |
 | Nr. 5 – Filter nur mit Modul | immer | 1 rot |
 | Nr. 6 – Migration wie das Modell | Länge 120 statt 160 | 1 rot |
+
+## 1.11.10: Kundenportal am Kunden (P1d, Teil 1)
+
+Probendatei `gp_11110.py`, Lauf mit `tests/test_v809_kundenportal_karte_server.py` (Nr. 8 „Router“ mit `tests/test_v793_archivschutz.py`); alle 22 rot aus dem
+geprüften Grund, alle Dateien byte-gleich zurück. Eine Probe blieb zuerst grün: „50 je Seite“ -- der Test rechnete mit `kp.SEITE` wie der Code und prüfte sich
+selbst; nachgezogen auf die feste Zahl, dieselbe Probe danach rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Monteurin nie | Rolle „field“ am Lesen | 1 rot |
+| Nr. 1 – nur mit Modul | Prüfung entfernt | 1 rot |
+| Nr. 2 – aus beendet die Sitzungen | nicht beendet | 1 rot |
+| Nr. 2 – Zugang nur mit Portal an | Prüfung entfernt | 1 rot |
+| Nr. 3 – nur mit E-Mail am Kunden | Prüfung entfernt | 1 rot |
+| Nr. 3 – verdeckte Anzeige | zwei Zeichen | 5 rot |
+| Nr. 4 – nur der Prüfwert | Wert selbst gespeichert | 1 rot |
+| Nr. 4 – 12 Monate | 6 Monate | 1 rot |
+| Nr. 4 – neuer Link meldet alle Geräte ab | nicht abgemeldet | 1 rot |
+| Nr. 4 – derselbe Klick erzeugt nichts | Prüfung entfernt | 1 rot |
+| Nr. 4 – Ablehnung vor dem Versand ändert nichts | ohne Rollback | 1 rot |
+| Nr. 5 – Sperren meldet alle Geräte ab | nicht abgemeldet | 1 rot |
+| Nr. 5 – Grund Pflicht | Leerzeichen zählen | 1 rot |
+| Nr. 5 – gesperrt: kein neuer Link | Prüfung entfernt | 1 rot |
+| Nr. 6 – Verlängern nur mit Link | Prüfung entfernt | 1 rot |
+| Nr. 7 – läuft in 30 Tagen ab | 10 Tage | 1 rot |
+| Nr. 8 – Zustand „Im Archiv“ | Zweig entfernt | 1 rot |
+| Nr. 8 – auch die Geschäftslogik lehnt ab | Prüfung entfernt | 1 rot |
+| Nr. 8 – der Router lehnt vorab ab | ohne archiv_vorab() | 1 rot (test_v793) |
+| Nr. 9 – Prüfwert nie in der Historie | Prüfwert protokolliert | 2 rot |
+| Nr. 9 – jede Aktion in Worten | ein Text fehlt | 1 rot |
+| Nr. 9 – 50 je Seite | 500 je Seite (zweite Fassung des Tests) | 1 rot |
