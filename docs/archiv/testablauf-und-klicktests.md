@@ -1464,6 +1464,11 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   zurück im Dialog“ wurde das zweite `saveNew()` („Trotzdem planen“) in 15 s nicht fertig, ohne offene Anfrage im Netzprotokoll; die übrigen zehn Abweichungen
   folgten daraus (die Tafel blieb einen Einsatz zurück). Einzeln auf demselben Stand 58 von 58; die Version änderte an Plantafel und Planung nichts (Suche,
   Akte, Objekt, Angebot, Anfragen). Stand: Wackler.
+- **`test_v800_portal_funktionen.py::test_pg_code_anfordern_auftrag_und_notify_beim_commit`** -- 24.11.2026, zweiter voller Lauf vor dem Commit von 1.11.17
+  (Arbeitskopie, gw5): `[m.channel for m in meldungen] == ['portal_post']` bekam drei Weckrufe. Ursache: NOTIFY gilt für die ganze Datenbank, nicht je Schema;
+  `test_v802_portal_sitzung.py` und `test_v805_portal_postbote.py` fordern in ihren eigenen Wegwerf-Schemas derselben Spielwiese zugleich Codes an, und
+  `notifies(stop_after=1)` liefert alles, was in einem Schub ankommt. Im ersten Lauf desselben Stands grün. Behoben in 1.11.18 (Abschnitt unten). Stand:
+  behoben.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 
@@ -1670,3 +1675,16 @@ v365::test_postgresql_follow_up_waits_for_the_discard_and_creates_nothing, v368:
 v369::test_postgresql_send_waits_for_a_running_discard_and_sends_nothing. Gegenprobe (`348_1a`, `348_1b`): `_run` gibt frei, ohne zu warten -- alle sieben
 rot („die zweite Aktion hat nicht auf die Sperre der ersten gewartet“), Dateien danach byte-gleich. Unter Last: vier Läufe der vier Dateien nebeneinander,
 je fünfmal hintereinander -- 20 von 20 grün (8 Tests je Lauf, 44–55 s).
+
+## Weckrufe in Tests gegen PostgreSQL nur von der eigenen Verbindung (1.11.18)
+
+NOTIFY/LISTEN wirkt je Datenbank, nicht je Schema: ein Test, der in seinem Wegwerf-Schema auf einen Weckruf wartet, hört im parallelen Lauf auch die Weckrufe
+anderer Testprozesse derselben Spielwiese (Wackler oben, `test_v800`). `test_pg_code_anfordern_auftrag_und_notify_beim_commit` fordert den Code jetzt auf einer
+eigenen Verbindung an, merkt deren `pg_backend_pid()` und zählt nur die Weckrufe mit dieser `pid` (genau einer, ohne Inhalt); zur Probe schickt der Test vorher
+selbst einen fremden Weckruf (`NOTIFY portal_post` auf der hörenden Verbindung) und prüft, dass er ankam. Andere Tests mit `notifies(` gibt es nicht
+(gesucht über `tests/`); der Postbote selbst nimmt jeden Weckruf nur als Anlass nachzusehen, ein fremder schadet dort nicht.
+
+Festlegung 1.11.18 (Bitte bestätigen): Ein Test, der auf einen Weckruf von PostgreSQL wartet, zählt nur die Weckrufe der Verbindung, die er selbst auslöst
+(über `pg_backend_pid()`), und prüft mit einem fremden Weckruf, dass er filtert.
+
+Gegenprobe: der Filter nach `pid` heraus -- `test_pg_code_anfordern_auftrag_und_notify_beim_commit` rot (zwei Weckrufe: der fremde und der eigene).

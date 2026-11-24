@@ -258,10 +258,22 @@ def test_pg_code_anfordern_auftrag_und_notify_beim_commit(pg):
     try:
         roh.driver_connection.autocommit = True
         roh.driver_connection.execute("LISTEN portal_post")
+        # Seit 1.11.18: NOTIFY gilt für die ganze Datenbank, nicht je Schema -- im parallelen Lauf fordern andere Testprozesse in ihren Wegwerf-Schemas
+        # zugleich Codes an (test_v802, test_v805), ihre Weckrufe kommen hier mit an. Gezählt wird nur der Weckruf der Verbindung, die anfordert (pid);
+        # ein fremder Weckruf steht zur Probe immer mit dabei.
+        roh.driver_connection.execute("NOTIFY portal_post")
         assert pg.als_portal("SELECT portal_post_stand(:s)", s=pruefwerte.sitzung(wert))[0][0] == "keiner"
-        assert pg.anfordern(wert) == ("angefordert", None)
-        meldungen = list(roh.driver_connection.notifies(timeout=5, stop_after=1))
-        assert [m.channel for m in meldungen] == ["portal_post"] and meldungen[0].payload == ""  # nur ein Weckruf, kein Inhalt
+        with pg.engine.connect() as c:
+            pid = c.execute(text("SELECT pg_backend_pid()")).scalar()
+            c.execute(text(f"SET ROLE {TESTROLLE}"))
+            ergebnis = tuple(c.execute(text("SELECT * FROM portal_code_anfordern(:s, :a)"), {"s": pruefwerte.sitzung(wert), "a": HIER}).fetchall()[0])
+            c.commit()
+            c.execute(text("RESET ROLE"))
+            c.commit()
+        assert ergebnis == ("angefordert", None)
+        meldungen = list(roh.driver_connection.notifies(timeout=2))
+        assert any(m.pid != pid for m in meldungen)  # der fremde Weckruf kam an
+        assert [(m.channel, m.payload) for m in meldungen if m.pid == pid] == [("portal_post", "")]  # nur ein Weckruf, kein Inhalt
     finally:
         roh.close()
     assert pg.erp("SELECT art, zugang_id, status FROM portal_post") == [("code", zid, "wartet")]

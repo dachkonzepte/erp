@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.18 – Test: Weckruf des Postboten im parallelen Lauf
+
+Ein Test des Kundenportals zählte im parallelen Lauf gelegentlich drei Weckrufe statt einem: NOTIFY gilt für die ganze Datenbank, nicht je Schema, und andere Testprozesse fordern in ihren eigenen Wegwerf-Schemas zugleich Codes an. Er zählt jetzt nur den Weckruf der Verbindung, die den Code anfordert, und schickt zur Probe selbst einen fremden mit. Am Portal ändert sich nichts: auf dem Server hat jede Datenbank nur ein Schema, und der Postbote nimmt jeden Weckruf ohnehin nur als Anlass nachzusehen.
+
 ## 1.11.17 – Name, Anschrift und Pflichtangaben unter jeder Mail an Kunden
 
 Unter jede Mail an Kunden und Beteiligte -- Angebot, Auftrag, Rechnung und Storno, Mahnung, Vertrag, Checkliste und Abnahmeprotokoll, die Briefe zu Behinderung, Wiederaufnahme und Bedenken -- setzt das ERP beim Senden nach einer Leerzeile Name und Anschrift des Betriebs und darunter die Pflichtangaben nach § 35a GmbHG (Sitz, Registergericht und -nummer, Geschäftsführer) aus den Firmendaten. Fehlt ein Feld, fällt nur dieses weg. Die Aufgaben-Mails an Mitarbeiter bleiben ohne. Die Zeilen kommen aus derselben Quelle wie die Fußzeile der Mails des Kundenportals; die Vorlagen und das Textfeld vor dem Versand bleiben, wie sie sind.
