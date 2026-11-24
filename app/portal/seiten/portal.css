@@ -89,6 +89,7 @@ h2 { margin: 0; font-family: var(--ds-schrift-titel); font-weight: 600; font-siz
 .hinweis .symbol { margin-top: 2px; stroke-width: 2.6; }
 .hinweis.ok { background: var(--ds-aktion-hell); border: 1px solid var(--ds-aktion-rand); color: var(--ds-aktion-text); }
 .hinweis.ok strong { font-weight: 500; overflow-wrap: anywhere; }
+.hinweis.info { background: var(--ds-info-hell); border: 1px solid var(--ds-linie); color: var(--ds-info-text); }  /* seit 1.11.16: der Versand dauert */
 .hinweis.signal { flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--ds-signal-hell); border: 1px solid var(--ds-signal-rand); color: var(--ds-stark); }
 .hinweis.signal strong { font-size: 15px; font-weight: 600; color: var(--ds-signal-text); }
 .meldung-telefon { font-weight: 600; }
@@ -164,6 +165,8 @@ dialog.blatt .text { font-size: 15px; }
   .kopf-innen .kopf-abmelden { padding: 0 16px; }
   .kopf-abmelden .symbol { display: block; }
   .seite.schmal { padding-top: 48px; }
+  #seite-b { flex: none; }
+  #seite-b .sicher { margin-top: 0; }  /* seit 1.11.16: breit direkt unter dem Inhalt, nicht unten am Fuß */
   .seite.breit { padding: 40px 24px 48px; gap: 28px; }
   #seite-d h1 { font-size: 36px; line-height: 1.15; letter-spacing: -0.01em; }
   .gruss { gap: 8px; padding: 0; }

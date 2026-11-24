@@ -417,3 +417,19 @@ Probendatei `gp_11115.py`, Lauf mit `tests/test_v812_portal_wartung.py`; alle 6 
 | Nr. 2 – bei 502 und 504 | nur 502 | 1 rot |
 | Nr. 3 – Prüfsumme des Stils | Stil geändert | 1 rot |
 | Nr. 3 – Schutz-Kopfzeilen | ohne X-Frame-Options | 1 rot |
+
+## 1.11.16: der Versand des Codes dauert länger
+
+Probendateien `gp_11116.py` und `gp_11116b.py`, Lauf mit `tests/test_v811_portal_seiten.py` bzw. `scripts/klicktest_portal_seiten.py`; alle 7 rot aus dem geprüften
+Grund, alle Dateien byte-gleich zurück. Nr. 4 blieb zuerst grün: ohne die Abzweigung beim Neuladen kommt die Schleife beim ersten Nachfragen zum selben Ergebnis
+(die Abzweigung spart nur das kurze Aufblitzen von B) -- die Probe trifft jetzt den gemerkten Zeitpunkt der Anforderung, rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nach 30 Sekunden weiter zu C | 3000 Sekunden | Klicktest rot |
+| Nr. 2 – nach 10 Minuten gescheitert | 100 Minuten | Klicktest rot |
+| Nr. 3 – 60 Sekunden ab der Anforderung | ab jetzt | Klicktest rot |
+| Nr. 4 – Neuladen setzt das Warten fort | Zeitpunkt nicht gemerkt | Klicktest rot |
+| Nr. 5 – die Eingabe bleibt stehen | C neu gezeichnet | Klicktest rot |
+| Nr. 6 – breit direkt unter dem Inhalt | wie auf dem Handy | Klicktest rot |
+| Nr. 7 – Hinweis in den Farben für Fortschritt | grün | 1 rot |

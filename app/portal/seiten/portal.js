@@ -5,7 +5,12 @@
      (history.replaceState) und schickt ihn einmal in der Kopfzeile X-Portal-Link (POST /api/link).
    - Was der Server antwortet, entscheidet; jeder Grund, aus dem ein Link nicht gilt, ist dieselbe Fehlerseite (nie ein Hinweis auf den Grund).
    - Die Sitzung liegt nur in Cookies (HttpOnly) -- das Skript sieht sie nicht. Im Speicher dieses Tabs (sessionStorage) steht während der Anmeldung
-     nur der Schritt und die verdeckte Adresse („m***@…“), damit ein Neuladen (etwa nach dem Wechsel in die Mail-App) beim Code weitermacht.
+     nur der Schritt, die verdeckte Adresse („m***@…“) und wann der Code angefordert wurde, damit ein Neuladen (etwa nach dem Wechsel in die Mail-App)
+     beim Code weitermacht.
+   - Seit 1.11.16 (Antwort P1e-4): wartet ein Code nach 30 Sekunden noch auf den Postboten, geht die Seite weiter zu C mit dem Hinweis „Der Versand
+     dauert länger als sonst …“ und fragt weiter nach dem Stand (alle 5 Sekunden) -- ein Auftrag gilt 10 Minuten; „gescheitert“ erst, wenn der Postbote
+     gescheitert oder verworfen meldet oder nach 10 Minuten nichts ging (sonst forderte der Kunde neu an, und der erste Code käme danach und gälte nicht
+     mehr). „Neuen Code senden“ bleibt erst 60 Sekunden nach der Anforderung.
    - Hell oder dunkel nach dem Gerät: data-theme an <html> wie im ERP (ds.css), auch wenn das Gerät umschaltet. */
 (function () {
   'use strict';
@@ -17,7 +22,10 @@
   if (dunkel && dunkel.addEventListener) dunkel.addEventListener('change', thema);
 
   var CODE_SEKUNDEN = 60;      // ein neuer Code frühestens nach 60 Sekunden (portal_code_anfordern())
-  var STAND_VERSUCHE = 30;     // so oft (je 1 s) fragt die Seite nach dem Versand des Codes
+  var LANGSAM_MS = 30000;      // seit 1.11.16: wartet der Code so lange, weiter zu C mit dem Hinweis „Der Versand dauert länger als sonst …“
+  var AUFTRAG_MS = 600000;     // ein Auftrag an den Postboten gilt 10 Minuten -- danach gilt der Versand als gescheitert
+  var STAND_MS = 1000;         // so oft fragt die Seite nach dem Stand, bis 30 Sekunden um sind …
+  var STAND_LANGSAM_MS = 5000; // … danach so oft
   var SPEICHER = 'dkportal';
   var LEERZEICHEN = /[    ]/g;  // wie der Server (app/portal/routen.py::CODE_LEERZEICHEN)
 
@@ -44,16 +52,18 @@
   var adresse = '';          // verdeckte Adresse („m***@beispiel.de“) aus POST /api/link
   var uhr = null;            // Zähler bis „Neuen Code senden“
   var sperreBis = 0;         // Zeitpunkt (ms), bis „Code senden“ gesperrt bleibt (Bremse)
+  var angefordert = 0;       // Zeitpunkt (ms), zu dem der letzte Code angefordert wurde
+  var versandLauf = 0;       // nur die jüngste Frage nach dem Stand läuft weiter (ein neuer Code beendet die alte)
 
   // --- Speicher dieses Tabs (nur Schritt und verdeckte Adresse) ---------------------------------------------------------------------------
   function merken(schritt) {
-    try { window.sessionStorage.setItem(SPEICHER, JSON.stringify({ schritt: schritt, adresse: adresse })); } catch (e) { /* ohne Speicher geht es auch */ }
+    try { window.sessionStorage.setItem(SPEICHER, JSON.stringify({ schritt: schritt, adresse: adresse, seit: angefordert })); } catch (e) { /* ohne Speicher geht es auch */ }
   }
   function vergessen() { try { window.sessionStorage.removeItem(SPEICHER); } catch (e) { /* nichts */ } }
   function gemerkt() {
     try {
       var d = JSON.parse(window.sessionStorage.getItem(SPEICHER) || 'null');
-      return d && (d.schritt === 'b' || d.schritt === 'c') && typeof d.adresse === 'string' ? d : null;
+      return d && (d.schritt === 'b' || d.schritt === 'c') && typeof d.adresse === 'string' && typeof d.seit === 'number' ? d : null;
     } catch (e) { return null; }
   }
 
@@ -138,9 +148,11 @@
       var g = gemerkt();
       if (!g) return fehler('lesezeichen');
       adresse = g.adresse;
+      angefordert = g.seit;
       return anfrage('GET', '/api/code/stand').then(function (s) {
         if (s.status !== 200) return fehler(fallVon(s.status));
-        if (s.daten.stand === 'gesendet') return zeigeC(true);
+        if (s.daten.stand === 'gesendet') return zeigeC('gesendet');
+        if (s.daten.stand === 'wartet' && angefordert && Date.now() - angefordert >= LANGSAM_MS) { zeigeC('dauert'); return warteAufVersand('c', true); }
         if (s.daten.stand === 'wartet') { zeigeB(); knopf('b-senden', TEXT.wird_gesendet, true); return warteAufVersand('b'); }
         zeigeB();
         if (s.daten.stand === 'fehler' || s.daten.stand === 'verworfen') meldung('b', TEXT.gesendet_fehler, true);
@@ -162,7 +174,7 @@
     meldung(seite, '');
     knopf(k, TEXT.wird_gesendet, true);
     return anfrage('POST', '/api/code').then(function (r) {
-      if (r.status === 200) return warteAufVersand(seite);
+      if (r.status === 200) { angefordert = Date.now(); merken(seite); return warteAufVersand(seite); }
       if (r.status === 429) {
         var n = Math.max(1, parseInt(r.daten.minuten, 10) || 1);
         sperreBis = Date.now() + n * 60000;
@@ -175,32 +187,53 @@
     });
   }
 
-  // der Postbote schickt den Code; die Seite fragt den Stand (wartet, gesendet, fehler, verworfen)
-  function warteAufVersand(seite) {
-    var versuche = 0;
+  // der Postbote schickt den Code; die Seite fragt den Stand (wartet, gesendet, fehler, verworfen). Seit 1.11.16: nach 30 Sekunden weiter zu C mit dem
+  // Hinweis, weiter fragen; gescheitert nur auf Meldung des Postboten oder nach 10 Minuten.
+  function warteAufVersand(seite, schonLangsam) {
+    var langsam = !!schonLangsam;
+    var lauf = ++versandLauf;
     function nochmal() {
-      return new Promise(function (ok) { window.setTimeout(ok, 1000); }).then(frage);
+      return new Promise(function (ok) { window.setTimeout(ok, langsam ? STAND_LANGSAM_MS : STAND_MS); }).then(frage);
     }
     function frage() {
-      versuche += 1;
+      if (lauf !== versandLauf) return null;
       return anfrage('GET', '/api/code/stand').then(function (s) {
+        if (lauf !== versandLauf) return null;
         if (s.status !== 200) return fehler(fallVon(s.status));
-        if (s.daten.stand === 'gesendet') { merken('c'); return zeigeC(true); }
-        if (s.daten.stand === 'wartet' && versuche < STAND_VERSUCHE) return nochmal();
-        // gescheitert, verworfen, keiner -- oder nach 30 Sekunden noch nicht hinaus
-        if (seite === 'b') { knopf('b-senden', TEXT.senden, false); meldung('b', TEXT.gesendet_fehler, true); }
-        else { neuKnoepfe(false); meldung('c', TEXT.gesendet_fehler, true); }
+        var alter = Date.now() - angefordert;
+        if (s.daten.stand === 'gesendet') {
+          merken('c');
+          if (langsam) { el('c-dauert').hidden = true; el('c-gesendet').hidden = false; return null; }  // die Eingabe bleibt stehen
+          return zeigeC('gesendet');
+        }
+        if (s.daten.stand === 'wartet' && alter < AUFTRAG_MS) {
+          if (!langsam && alter >= LANGSAM_MS) { langsam = true; merken('c'); zeigeC('dauert'); }
+          return nochmal();
+        }
+        // gescheitert, verworfen, keiner -- oder nach 10 Minuten nichts
+        versandGescheitert(langsam ? 'c' : seite);
         return null;
       });
     }
     return frage();
   }
 
+  function versandGescheitert(seite) {
+    if (seite === 'b') { knopf('b-senden', TEXT.senden, false); meldung('b', TEXT.gesendet_fehler, true); return; }
+    el('c-dauert').hidden = true;
+    el('c-gesendet').hidden = true;
+    anhalten();
+    neuKnoepfe(false);
+    meldung('c', TEXT.gesendet_fehler, true);
+  }
+
   // --- C: Code eingeben -------------------------------------------------------------------------------------------------------------------
-  function zeigeC(frischGesendet) {
+  // art: 'gesendet' (Hinweis „Code gesendet an …“), 'dauert' (seit 1.11.16: „Der Versand dauert länger als sonst …“) oder leer
+  function zeigeC(art) {
     el('c-adresse').textContent = adresse;
     el('c-adresse-2').textContent = adresse;
-    el('c-gesendet').hidden = !frischGesendet;
+    el('c-gesendet').hidden = art !== 'gesendet';
+    el('c-dauert').hidden = art !== 'dauert';
     el('c-titel').textContent = 'Code eingeben';
     el('c-feld').hidden = false;
     el('c-abgelaufen').hidden = true;
@@ -215,7 +248,8 @@
     var feld = el('c-code');
     feld.value = '';
     zeigen('seite-c');
-    if (frischGesendet) zaehlen(CODE_SEKUNDEN);
+    var rest = angefordert ? Math.ceil((angefordert + CODE_SEKUNDEN * 1000 - Date.now()) / 1000) : 0;  // 60 Sekunden ab der Anforderung
+    if (rest > 0) zaehlen(rest);
     else neuKnoepfe(false);
     feld.focus({ preventScroll: true });
   }
@@ -251,6 +285,7 @@
 
   function zeigeNeuAnfordern() {
     el('c-gesendet').hidden = true;
+    el('c-dauert').hidden = true;
     el('c-titel').textContent = 'Neuen Code anfordern';
     el('c-feld').hidden = true;
     el('c-abgelaufen').hidden = false;
@@ -270,10 +305,11 @@
     if (!/^[0-9]{6}$/.test(code)) { feldFehler(TEXT.sechs); feld.focus(); return null; }
     feldFehler('');
     el('c-gesendet').hidden = true;
+    el('c-dauert').hidden = true;
     knopf('c-anmelden', TEXT.wird_geprueft, true);
     return anfrage('POST', '/api/code/pruefen', { code: code }).then(function (r) {
       knopf('c-anmelden', TEXT.anmelden, false);
-      if (r.status === 200 && r.daten.stand === 'angemeldet') { vergessen(); anhalten(); return willkommen(); }
+      if (r.status === 200 && r.daten.stand === 'angemeldet') { vergessen(); anhalten(); versandLauf += 1; return willkommen(); }
       if (r.status === 200 && r.daten.stand === 'falsch' && r.daten.rest > 0) {
         el('c-gilt').hidden = true;
         feldFehler(TEXT.falsch(r.daten.rest));

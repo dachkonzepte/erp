@@ -2043,7 +2043,7 @@ Bedenkenanzeige, Abnahmeprotokoll, Aufgaben; dazu die Mails des Portals):
 - Möglicher Weg, falls gewünscht (nicht gebaut): dieselbe Zeile zentral unter jede Mail an Kunden und Beteiligte (in `dispatch_email()` je Versandart), oder
   ein Platzhalter `{pflichtangaben}` für die Vorlagen.
 
-#### Festlegungen 1.11.12 (Bitte bestätigen)
+#### Festlegungen 1.11.12 (bestätigt am 24.11.2026)
 
 1. Beide Mails des Portals tragen zuletzt in der Fußzeile eine kleine Zeile (11 px) „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer:
    <Name(n)>“ aus den Firmendaten.
@@ -2085,7 +2085,7 @@ mit der Zeile im Bericht 1.11.12.
   dasselbe „Link erzeugt“ und schrieben dafür keine Zeile der Historie). Die Abfrage liest höchstens 8 Zeilen der Historie je Eintrag der Seite; die älteste
   Aktion einer abgeschnittenen Abfrage steht erst auf der nächsten Seite.
 
-#### Festlegungen 1.11.13 (Bitte bestätigen)
+#### Festlegungen 1.11.13 (bestätigt am 24.11.2026)
 
 1. „Versand gescheitert“ ist ein Zustand: der letzte Versand des Links scheiterte, der Link ist weder gesperrt noch abgelaufen (die gehen vor); Kennzeichen in
    der Warnfarbe, Satz „Der Link ging nicht hinaus.“, Angabe mit Zeit und Adresse, Knopf „Link erneut senden“; kein Warnhinweis dazu.
@@ -2145,7 +2145,7 @@ Nach den Entwürfen `bildgrundlage/entwurf-p1/Portal-Anmelden`, `-Willkommen` un
 - **Breite Ansicht:** „Willkommen“ ab 900 px wie der Entwurf für 1280 px (Liste links, Kontakt und Anmeldung rechts); A–C und E -- in den Entwürfen nur für das
   Handy -- als Spalte von 440 px in der Mitte, mit Kopf und Fuß wie „Willkommen“ (Frage im Bericht).
 
-#### Festlegungen 1.11.14 (Bitte bestätigen)
+#### Festlegungen 1.11.14 (bestätigt am 24.11.2026 außer 9 -- geändert, siehe „Antworten des Betriebs zu den Berichten 1.11.12 bis 1.11.15“)
 
 1. Eine Seite unter `/` für A–E, die Abschnitte verborgen, das Skript wählt; Wortlaut der Entwürfe.
 2. Kein Inline-Skript, kein `style`- oder `on…`-Attribut; Skript und Stil des Portals unter `/s/` mit `?v=<Prüfsumme>`, ein Jahr im Speicher; die Seite no-store;
@@ -2165,7 +2165,7 @@ Nach den Entwürfen `bildgrundlage/entwurf-p1/Portal-Anmelden`, `-Willkommen` un
 11. Abmelden auf diesem Gerät ohne Rückfrage, auf allen Geräten mit Dialog; ohne JavaScript die Fehlerseite „JavaScript ist ausgeschaltet“ mit Kontakt.
 12. Breit: „Willkommen“ wie der Entwurf; A–C und E als Spalte von 440 px in der Mitte mit Kopf und Fuß wie „Willkommen“.
 
-#### Fragen (die Entwürfe decken es nicht ab -- so gebaut, Antwort offen)
+#### Fragen (die Entwürfe decken es nicht ab; beantwortet am 24.11.2026: alle wie gebaut außer 4, siehe unten)
 
 1. A–C und E am Rechner (1280 px): die Handy-Spalte in der Mitte mit dem Kopf und Fuß von „Willkommen“ -- so, oder ein eigener Entwurf?
 2. B „Versand gescheitert“ und „zu viele Anforderungen“: als oranger Kasten wie „Dieser Code gilt nicht mehr“, die Telefonnummer darunter als Link -- so?
@@ -2208,7 +2208,7 @@ gegen die neue Zeile noch einmal rot.
   -o root -g root scripts/server/portal-wartung.html /etc/nginx/dk-portal/wartung.html` vor `nginx -t`. Die Seite des Portals zeigt dieselbe Meldung, wenn eine
   ihrer Anfragen 502 oder 504 bekommt (1.11.14).
 
-#### Festlegungen 1.11.15 (Bitte bestätigen)
+#### Festlegungen 1.11.15 (bestätigt am 24.11.2026)
 
 1. Antwortet der Dienst nicht (502/504), zeigt nginx die feste Seite „Gleich wieder da“ -- ohne Skript, ohne Schrift, nichts von außen, hell und dunkel nach dem
    Gerät, ohne Name des Betriebs und ohne Kontakt.
@@ -2220,3 +2220,53 @@ gegen die neue Zeile noch einmal rot.
 Neu `tests/test_v812_portal_wartung.py` (4): Seite ohne Skript und ohne Fremdes, Wortlaut, hell/dunkel; dieselbe Bildmarke wie die Seite des Portals; nginx
 mit `error_page 502 504` und internem Ort; CSP mit genau der Prüfsumme des Stils und die übrigen Kopfzeilen. Keine angepasste Erwartung. Gegenproben:
 `gegenproben-portal.md`, „1.11.15“. Bilder der Seite in 390 und 1280 px hell und dunkel und 360 px hell im Bericht 1.11.15.
+
+### Antworten des Betriebs zu den Berichten 1.11.12 bis 1.11.15 (24.11.2026)
+
+- Gelesen, alle Bilder angesehen (sehr nah an den Entwürfen); fc8b758 ist gepusht und auf dem Server. Bestätigt: 1.11.12-1 bis -4, 1.11.13-1 bis -6, 1.11.14-1
+  bis -8, -10 bis -12, 1.11.15-1 bis -3. Fragen P1e-1, -2, -3, -5 bis -10 wie gebaut; P1e-11 (feste Seite ohne Name und Kontakt): so lassen.
+- **Geändert P1e-4 / 1.11.14-9:** nach 30 Sekunden ist der Versand nicht gescheitert (der Auftrag gilt 10 Minuten) -- sonst fordert der Kunde neu an, und der
+  erste Code kommt danach und gilt nicht mehr. Nach 30 Sekunden weiter zu C mit dem Hinweis „Der Versand dauert länger als sonst. Der Code kann noch einige
+  Minuten brauchen – sehen Sie bitte auch im Spam-Ordner nach.“, die Seite fragt weiter nach dem Stand; „Der Code konnte gerade nicht gesendet werden …“ mit
+  Telefon nur, wenn der Postbote gescheitert oder verworfen meldet oder nach 10 Minuten nichts ging; „Neuen Code senden“ bleibt erst nach 60 Sekunden.
+  Kleinigkeit: in B steht am Rechner „Wir fragen Sie nie …“ weit unten am Fuß -- breit direkt unter den Inhalt.
+- **§ 35a, neue Version:** dieselbe Zeile zentral unter jede Mail an Kunden und Beteiligte (Text: nach einer Leerzeile Name, Anschrift und Pflichtangaben aus
+  den Firmendaten), eine Quelle für Portal und ERP; Aufgaben-Mails an Mitarbeiter ohne. Beispiel einer Angebotsmail in den Bericht.
+- Danach P1f vorbereiten, nichts auf dem Server: (1) „Server-Schritte P1“ auf den Stand von fc8b758 -- je Schritt S0–S10 die Befehle zum Kopieren, was zu sehen
+  sein soll und wann abzubrechen ist, Geheimnisse nie angezeigt; (2) Stichpunkte für die Datenschutzerklärung (Portal) als eigene Datei für den
+  Webseiten-Chat, Stand heute. Beides als Dateien in `bildgrundlage/`, mit Bericht.
+
+### Umsetzung 1.11.16: der Versand des Codes dauert länger (Antwort P1e-4)
+
+- `app/portal/seiten/portal.js`: nach „Code senden“ (bzw. „Neuen Code senden“) merkt sich die Seite den Zeitpunkt der Anforderung (auch im Speicher des Tabs,
+  `seit`) und fragt nach dem Stand -- je Sekunde, bis 30 Sekunden um sind (`LANGSAM_MS`), dann alle 5 Sekunden (`STAND_LANGSAM_MS`). Wartet der Code nach 30
+  Sekunden noch, geht sie weiter zu C mit dem Hinweis „Der Versand dauert länger als sonst …“ (`c-dauert`, Info-Farben des Design-Systems -- „läuft,
+  Fortschritt“ -- mit Uhr). Kommt der Code danach, wechselt der Hinweis auf „Code gesendet an …“, eine angefangene Eingabe bleibt stehen. Gescheitert
+  („Der Code konnte gerade nicht gesendet werden …“ mit Telefon) nur, wenn der Postbote `fehler` oder `verworfen` meldet (oder keinen Auftrag kennt) oder
+  nach 10 Minuten (`AUFTRAG_MS`) nichts ging -- vor den 30 Sekunden in B, danach in C. Nur die jüngste Frage nach dem Stand läuft weiter (ein neuer Code
+  beendet die alte).
+- „Neuen Code senden“ zählt die 60 Sekunden ab der Anforderung (nicht mehr ab dem Versand) -- auch nach dem Wechsel zu C nach 30 Sekunden („in 0:29“) und nach
+  einem Neuladen (der Zeitpunkt steht im Speicher des Tabs; ein Neuladen nach mehr als 30 Sekunden zeigt C mit dem Hinweis).
+- `portal.css`: breit (ab 900 px) steht „Wir fragen Sie nie …“ in B direkt unter dem Inhalt; auf dem Handy weiter unten wie im Entwurf.
+
+#### Festlegungen 1.11.16 (Bitte bestätigen)
+
+1. Wartet der Code nach 30 Sekunden noch, weiter zu C mit dem Hinweis „Der Versand dauert länger als sonst. Der Code kann noch einige Minuten brauchen – sehen Sie
+   bitte auch im Spam-Ordner nach.“; die Seite fragt weiter nach dem Stand, dann alle 5 Sekunden.
+2. „Der Code konnte gerade nicht gesendet werden …“ mit Telefon nur, wenn der Postbote gescheitert oder verworfen meldet oder nach 10 Minuten nichts ging (vor 30
+   Sekunden in B, danach in C).
+3. „Neuen Code senden“ erst 60 Sekunden nach der Anforderung (Zähler ab der Anforderung).
+4. Ein Neuladen setzt das Warten fort (im Speicher des Tabs zusätzlich der Zeitpunkt der Anforderung).
+5. Kommt der Code nach dem Hinweis, steht dort „Code gesendet an …“; eine angefangene Eingabe bleibt.
+6. Am Rechner steht „Wir fragen Sie nie …“ in B direkt unter dem Inhalt.
+7. Der Hinweis in den Info-Farben des Design-Systems mit Uhr.
+
+#### Tests und Prüfung 1.11.16
+
+`tests/test_v811_portal_seiten.py` (47): neu `test_versand_dauert_laenger_zeiten` (die Zeiten, kein „nach 30 Versuchen gescheitert“ mehr) und
+`test_hinweis_versand_dauert_in_den_farben_fuer_fortschritt`; der Wortlaut kennt den neuen Satz. `scripts/klicktest_portal_seiten.py` (132 Prüfungen): der
+Postbote lässt sich anhalten, die Uhr der Seite (`Date.now`) vorstellen; neu Ablauf 5 (31 Sekunden: C mit Hinweis und „in 0:2x“, neu laden: wieder C mit Hinweis,
+der Postbote sendet: „Code gesendet an …“, die Eingabe bleibt, angemeldet) und Ablauf 6 (31 Sekunden, dann 10 Minuten: gescheitert mit Telefon, „Neuen Code
+senden“ frei); B breit mit dem Hinweis direkt unter dem Inhalt; Bilder `c_versand_dauert`, `c_versand_gescheitert`. Angepasste Erwartung:
+`test_v811::test_link_aus_der_adresse_bevor_eine_anfrage_hinausgeht` -- im Speicher des Tabs bis 1.11.15 Schritt und Anzeige, jetzt dazu `seit`. Gegenproben:
+`gegenproben-portal.md`, „1.11.16“.

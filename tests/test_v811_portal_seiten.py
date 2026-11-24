@@ -258,7 +258,8 @@ def test_link_aus_der_adresse_bevor_eine_anfrage_hinausgeht():
     start = JS[JS.index("function start()"):]
     assert start.index("history.replaceState") < start.index("linkPruefen(wert)") < start.index("ohneLink()")
     assert "'X-Portal-Link': wert" in JS  # der Link nur in der Kopfzeile, nie in Adresse oder Körper
-    assert "sessionStorage" in JS and re.search(r"JSON\.stringify\(\{ schritt: schritt, adresse: adresse \}\)", JS)  # im Speicher nur Schritt und Anzeige
+    # im Speicher nur Schritt, Anzeige und seit 1.11.16 der Zeitpunkt der Anforderung (für die 30 Sekunden und die 60 Sekunden nach einem Neuladen)
+    assert "sessionStorage" in JS and re.search(r"JSON\.stringify\(\{ schritt: schritt, adresse: adresse, seit: angefordert \}\)", JS)
 
 
 def test_faelle_der_fehlerseite():
@@ -292,6 +293,7 @@ WORTLAUT = [
     "Diese Seite gibt es nicht", "Gerade klappt etwas nicht", "Bitte versuchen Sie es später erneut oder rufen Sie uns an.", "Gleich wieder da",
     "Das Kundenportal ist in wenigen Minuten wieder erreichbar.", "JavaScript ist ausgeschaltet", "Bitte schalten Sie JavaScript ein, um das Kundenportal zu nutzen.",
     "Impressum", "Datenschutz", " anrufen",
+    "Der Versand dauert länger als sonst. Der Code kann noch einige Minuten brauchen – sehen Sie bitte auch im Spam-Ordner nach.",  # seit 1.11.16
 ]
 
 
@@ -305,3 +307,21 @@ def test_wortlaut_der_entwuerfe(dienst):
 def test_stil_ohne_fremde_quellen():
     assert "@import" not in CSS and "url(" not in CSS and "expression(" not in CSS
     assert "prefers-reduced-motion" in CSS
+
+
+def test_versand_dauert_laenger_zeiten():
+    """Seit 1.11.16 (Antwort P1e-4): nach 30 Sekunden weiter zu C mit Hinweis, weiter fragen (alle 5 Sekunden), gescheitert erst nach 10 Minuten oder auf
+    Meldung des Postboten; „Neuen Code senden“ 60 Sekunden nach der Anforderung. Das Verhalten prüft scripts/klicktest_portal_seiten.py mit vorgestellter Uhr."""
+    for zeile in ("var LANGSAM_MS = 30000;", "var AUFTRAG_MS = 600000;", "var STAND_MS = 1000;", "var STAND_LANGSAM_MS = 5000;", "var CODE_SEKUNDEN = 60;"):
+        assert zeile in JS, zeile
+    assert "STAND_VERSUCHE" not in JS  # bis 1.11.15: nach 30 Versuchen „gescheitert“
+    assert "angefordert + CODE_SEKUNDEN * 1000 - Date.now()" in JS
+
+
+def test_hinweis_versand_dauert_in_den_farben_fuer_fortschritt(dienst):
+    """Seit 1.11.16: der Hinweis in den Info-Farben des Design-Systems (--ds-info: „läuft, Fortschritt“) mit Uhr, verborgen bis das Skript ihn zeigt."""
+    client, _a, _e = dienst
+    html_ = client.get("/").text
+    assert re.search(r'<div class="hinweis info" id="c-dauert" role="status" hidden><svg', html_)
+    regel = re.search(r"\.hinweis\.info \{([^}]*)\}", CSS).group(1)
+    assert "var(--ds-info-hell)" in regel and "var(--ds-info-text)" in regel

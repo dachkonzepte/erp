@@ -16,6 +16,9 @@ Der Postbote (app/portal_postbote.py) läuft in diesem Prozess als Benutzer des 
     Ablauf 3 (Firma)            Versand scheitert (Attrappe antwortet 403) -> B „Der Code konnte gerade nicht gesendet werden …“ mit Telefon;
                                 Bremse (Ersatz-Antwort 429): „Ein neuer Code ist in 12 Minuten wieder möglich.“, Knopf gesperrt
     Ablauf 4 (ohne Anrede)      bis D „Guten Tag, Alex Beispiel“ -> „Abmelden“ oben -> E „Sie sind abgemeldet“
+    Ablauf 5 (seit 1.11.16)     der Postbote hält an: B „Wird gesendet …“ -> die Uhr des Browsers 31 s weiter -> C „Der Versand dauert länger als sonst …“,
+                                „Neuen Code senden · in 0:29“ -> neu laden: wieder C mit dem Hinweis -> der Postbote sendet: „Code gesendet an …“
+    Ablauf 6 (seit 1.11.16)     der Postbote hält an, die Uhr 31 s und dann 10 Minuten weiter: C „Der Code konnte gerade nicht gesendet werden …“ mit Telefon
     Fehlerseite E               unbekannter, gesperrter und abgelaufener Link: dieselbe Seite; 429, 500, 502 (Ersatz-Antwort im Browser -- die
                                 echten liefern test_v802 bzw. nginx); /gibt-es-nicht (404 vom Dienst); ohne JavaScript (noscript)
     Bilder                      jeder Zustand in 390 px hell und dunkel, 1280 px hell und dunkel, 360 px hell (Ordner der Screenshots, Namen
@@ -57,7 +60,8 @@ if str(ROOT) not in sys.path:  # auch im Kindprozess (--portal-server): das Pake
 TESTROLLE = "dkportal_test"
 MAILS: list[dict] = []
 GRAPH = {"fehler": False}  # True: sendMail antwortet 403 (Versand scheitert)
-LINKS = {name: secrets.token_urlsafe(32) for name in ("muster", "erika", "firma", "alex", "bremse", "gesperrt", "alt")}
+POSTBOTE_HAELT = threading.Event()  # seit 1.11.16: gesetzt erledigt der Postbote nichts (der Code wartet)
+LINKS = {name: secrets.token_urlsafe(32) for name in ("muster", "erika", "firma", "alex", "bremse", "gesperrt", "alt", "langsam", "zehn")}
 UNBEKANNT = secrets.token_urlsafe(32)
 BILDER = {"an": True}  # unter einer Gegenprobe (Regel 24: höchstens 2 min) ohne Bilder -- die Prüfungen bleiben
 ANSICHTEN = [(390, 844, True, "light"), (390, 844, True, "dark"), (1280, 900, False, "light"), (1280, 900, False, "dark"), (360, 740, True, "light")]
@@ -148,6 +152,8 @@ def befuellen(erp) -> dict:
             "bremse": dict(name="Herr Bernd Bremse", salutation="Herr", first_name="Bernd", last_name="Bremse", email="bernd@example.invalid"),
             "gesperrt": dict(name="Herr Gerd Gesperrt", salutation="Herr", first_name="Gerd", last_name="Gesperrt", email="gerd@example.invalid"),
             "alt": dict(name="Frau Alma Alt", salutation="Frau", first_name="Alma", last_name="Alt", email="alma@example.invalid"),
+            "langsam": dict(name="Herr Lars Langsam", salutation="Herr", first_name="Lars", last_name="Langsam", email="lars@example.invalid"),
+            "zehn": dict(name="Frau Zoe Zehn", salutation="Frau", first_name="Zoe", last_name="Zehn", email="zoe@example.invalid"),
         }
         for name, werte in kunden.items():
             k = Customer(portal_aktiv=True, **werte)
@@ -177,6 +183,8 @@ class Postbote:
 
         from app import portal_postbote
         while not self.halt.wait(0.3):
+            if POSTBOTE_HAELT.is_set():
+                continue
             try:
                 with Session(self.erp) as db:
                     portal_postbote.alle(db)
@@ -224,6 +232,11 @@ window.fetch=function(input,init){
   r.anzahl--;
   return Promise.resolve(new Response(JSON.stringify(r.koerper||{}),{status:r.status,headers:{'Content-Type':'application/json'}}));
 };})()"""
+
+# seit 1.11.16: die Uhr der Seite (Date.now -- damit rechnet das Skript des Portals die 30 Sekunden, 10 Minuten und 60 Sekunden) lässt sich vorstellen;
+# der Versatz bleibt über ein Neuladen im Speicher des Tabs
+ZEIT = """(()=>{if(window.__dkZeit)return;const e=Date.now.bind(Date);let v=0;try{v=+(sessionStorage.getItem('__dkVersatz')||0)}catch(x){}
+window.__dkZeit={weiter(ms){v+=ms;try{sessionStorage.setItem('__dkVersatz',String(v))}catch(x){}return v}};Date.now=()=>e()+v;})()"""
 
 SICHTBAR = "(id=>{const e=document.getElementById(id);return !!e&&!e.hidden&&e.offsetParent!==null})"
 
@@ -318,6 +331,7 @@ async def eintippen(tab, wert: str) -> None:
 
 
 async def pruefen(tab, seed, p):
+    await _vorab(tab, ZEIT)
     await _vorab(tab, ERSATZ)
     await ansicht(tab, 390, 844, True, "light")
     L = seed["links"]
@@ -336,6 +350,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("B: verdeckte Adresse", await tab.js(text_von("b-adresse")), "m***@example.invalid")
     p.pruefe("B: kein Cookie im Skript lesbar", await tab.js("document.cookie"), "")
     await bilder(tab, p, "b_bereit")
+    await ansicht(tab, 1280, 900, False, "light")  # seit 1.11.16: breit „Wir fragen Sie nie …“ direkt unter dem Inhalt
+    abstand = await tab.js("(()=>{const s=document.querySelector('#seite-b .sicher').getBoundingClientRect().top;"
+                           "const d=[...document.querySelectorAll('#seite-b p.leise')].pop().getBoundingClientRect().bottom;return Math.round(s-d)})()")
+    p.pruefe("B breit: „Wir fragen Sie nie …“ direkt unter dem Inhalt", 0 <= abstand <= 24, True)
+    await ansicht(tab, 390, 844, True, "light")
     for thema in ("dark", "light"):  # hell oder dunkel nach dem Gerät (data-theme wie im ERP)
         await ansicht(tab, 390, 844, True, thema)
         p.pruefe(f"B: Gerät {thema}", (await tab.js("document.documentElement.getAttribute('data-theme')"),
@@ -452,6 +471,49 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ablauf 4: Guten Tag ohne Anrede", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag, Alex Beispiel")
     await tab.js("document.getElementById('kopf-abmelden').click()")
     p.pruefe("Ablauf 4: Abmelden oben", await tab.warten(sichtbar("seite-e"), 15) and await tab.js(text_von("e-titel")), "Sie sind abgemeldet")
+
+    # --- Ablauf 5: der Versand dauert länger (seit 1.11.16) -------------------------------------------------------------------------------
+    await frisch(tab)
+    POSTBOTE_HAELT.set()
+    p.pruefe("Ablauf 5: B", await laden(tab, f"/#z={L['langsam']}", sichtbar("seite-b")), True)
+    await tab.js("document.getElementById('b-senden').click()")
+    await asyncio.sleep(2.5)
+    p.pruefe("Ablauf 5: nach 2 s noch B „Wird gesendet …“", (await tab.js(sichtbar("seite-b")), await tab.js(text_von("b-senden"))), (True, "Wird gesendet …"))
+    await tab.js("window.__dkZeit.weiter(31000)")
+    p.pruefe("C: der Versand dauert länger", await tab.warten(sichtbar("c-dauert"), 8) and await tab.js(text_von("c-dauert") + ".trim()"),
+             "Der Versand dauert länger als sonst. Der Code kann noch einige Minuten brauchen – sehen Sie bitte auch im Spam-Ordner nach.")
+    p.pruefe("C: dabei kein „Code gesendet“ und keine Meldung", (await tab.js(sichtbar("c-gesendet")), await tab.js(sichtbar("c-meldung"))), (False, False))
+    p.pruefe("C: „Neuen Code senden“ 60 Sekunden ab der Anforderung",
+             bool(re.fullmatch(r"Neuen Code senden · in 0:(2\d|30)", await tab.js(text_von("c-neu")))) and await tab.js("document.getElementById('c-neu').disabled"), True)
+    await bilder(tab, p, "c_versand_dauert")
+    p.pruefe("Ablauf 5: neu laden -- C mit dem Hinweis", await laden(tab, "/", sichtbar("c-dauert")), True)
+    vorher = len(MAILS)
+    await eintippen(tab, "12")  # angefangene Eingabe
+    POSTBOTE_HAELT.clear()
+    p.pruefe("C: danach „Code gesendet an …“", await tab.warten(f"{sichtbar('c-gesendet')}&&!{sichtbar('c-dauert')}", 15), True)
+    p.pruefe("C: die angefangene Eingabe bleibt stehen", await tab.js("document.getElementById('c-code').value"), "12")
+    p.pruefe("Ablauf 5: Mail an lars@", await warte_auf_mail(vorher + 1) and [r["emailAddress"]["address"] for r in MAILS[-1]["message"]["toRecipients"]],
+             ["lars@example.invalid"])
+    await eintippen(tab, code_aus_mail(MAILS[-1]) or "")
+    await tab.js("document.getElementById('c-anmelden').click()")
+    p.pruefe("Ablauf 5: angemeldet", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag, Herr Langsam")
+
+    # --- Ablauf 6: nach 10 Minuten nichts (seit 1.11.16) ----------------------------------------------------------------------------------
+    await frisch(tab)
+    POSTBOTE_HAELT.set()
+    p.pruefe("Ablauf 6: B", await laden(tab, f"/#z={L['zehn']}", sichtbar("seite-b")), True)
+    await tab.js("document.getElementById('b-senden').click()")
+    await asyncio.sleep(1.5)
+    await tab.js("window.__dkZeit.weiter(31000)")
+    p.pruefe("Ablauf 6: nach 30 Sekunden C mit Hinweis", await tab.warten(sichtbar("c-dauert"), 8), True)
+    await tab.js("window.__dkZeit.weiter(600000)")
+    p.pruefe("C: nach 10 Minuten gescheitert", await tab.warten(sichtbar("c-meldung"), 12) and await tab.js(text_von("c-meldung-text")),
+             "Der Code konnte gerade nicht gesendet werden. Bitte versuchen Sie es gleich noch einmal oder rufen Sie uns an.")
+    p.pruefe("C: mit Telefon, ohne Hinweis, „Neuen Code senden“ frei",
+             (await tab.js(sichtbar("c-telefon")), await tab.js(sichtbar("c-dauert")), await tab.js("document.getElementById('c-neu').disabled"),
+              await tab.js(text_von("c-neu"))), (True, False, False, "Neuen Code senden"))
+    await bilder(tab, p, "c_versand_gescheitert")
+    POSTBOTE_HAELT.clear()
 
     # --- Fehlerseite ----------------------------------------------------------------------------------------------------------------------
     await frisch(tab)
