@@ -187,7 +187,8 @@ def test_mails_gesiezt_mit_hinweis_und_absender(db_session, werte, erste_zeile):
     for text_ in (code, link):
         assert erste_zeile in text_
         assert any(a.startswith("Wir fragen Sie nie") for a in text_) and any("rufen Sie uns" in a or "Rufen Sie uns" in a for a in text_)
-        assert text_[-1] == "Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nTelefon 0123 456789 · www.example.invalid\nImpressum · Datenschutz"
+        assert text_[-2:] == ["Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nTelefon 0123 456789 · www.example.invalid\nImpressum · Datenschutz",
+                              "Sitz Musterstadt"]  # seit 1.11.12 die Zeile nach § 35a GmbHG (hier ist nur der Ort gepflegt)
     assert "480 913" in code and any("10 Minuten" in a for a in code)
     assert any("gilt bis 24.11.2027" in a and "nicht weiter" in a for a in link)
 

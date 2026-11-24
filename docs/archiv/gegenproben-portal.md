@@ -336,3 +336,16 @@ und im Satz); die Abfrage verhindert, dass viele neuere solche Einträge die sic
 | Nr. 8 – Attrappe nur für Test-Instanzen | ohne ERP_ENV | 1 rot |
 | Nr. 8 – Attrappe nur auf 127.0.0.1 | jede Adresse | 1 rot |
 | Nr. 9 – nur als Text | innerHTML | 1 rot |
+
+## 1.11.12: Pflichtangaben in der Fußzeile der Mails
+
+Probendatei `gp_11112.py`, Lauf mit `tests/test_v807_portal_mails_html.py`; alle 5 rot aus dem geprüften Grund, die Datei byte-gleich zurück. Nr. 2 brach im
+ersten Lauf mit einem Syntaxfehler ab (der Marker stand mitten in der Zeile) -- neu mit der ganzen Zeile, dann rot.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Zeile in beiden Mails | nie | 23 rot |
+| Nr. 1 – klein und zuletzt | vor der Fußzeile | 23 rot |
+| Nr. 2 – „Sitz <Ort>“ | Ort ohne „Sitz“ | rot |
+| Nr. 3 – fehlt ein Feld, fällt nur dieses weg | Zeile nur mit allen Feldern | 5 rot |
+| Nr. 4 – Werte maskiert | ohne html.escape() | 1 rot |

@@ -1835,7 +1835,7 @@ Finanzen und Büro – Auftrag), gescheitert (hell und dunkel), wieder gut, Mont
 - Portal: `app/portal/routen.py::CodeIn` entfernt Leerzeichen (auch geschützte und schmale, `CODE_LEERZEICHEN`) aus einer Eingabe bis 20 Zeichen, danach
   genau 6 Ziffern wie bisher. Der Postbote nimmt `code_html()`.
 
-#### Festlegungen 1.11.8 (Bitte bestätigen)
+#### Festlegungen 1.11.8 (bestätigt am 24.11.2026)
 
 1. Beide Mails als HTML nach dem Entwurf, Wortlaut wie dort: Tabellen und Stile in den Tags, höchstens 600 px (schmaler Bildschirm: volle Breite), keine
    Bilder, kein `<style>`, nichts von außen; Systemschriften (Arial/Helvetica, Code Consolas/Courier New); Wortmarke = erstes Wort des Firmennamens, darunter
@@ -1875,7 +1875,7 @@ Zeile. `test_v440::KUNDENTEXTE`: `link_html`, `code_html`, `_anrufen`, `_rahmen`
 - Versandprotokoll: der Filter „Art“ kennt „Link zum Kundenportal“ und „Anmeldecode des Kundenportals“, nur mit eingeschaltetem Modul (für P1d vorgezogen --
   der Link des Hinweises braucht ihn).
 
-#### Festlegungen 1.11.9 (Bitte bestätigen)
+#### Festlegungen 1.11.9 (bestätigt am 24.11.2026)
 
 1. Der Hinweis ist ein Warnhinweis wie die übrigen (Fläche und Rand der Warnfarbe), mit dem Link „Versandprotokoll öffnen“ auf die Anmeldecodes -- in beiden
    Zuständen.
@@ -1922,7 +1922,7 @@ Neue Einträge: `test_v373::GEPRUEFT` (post_id), `test_v399::ABSCHLIESSEND` (`po
   (`STILL_JE_ART`); Feldnamen in `FIELD_LABELS`. Protokoll: Zugriffe des Portals (Aktion und Ergebnis in Worten, `AKTION_TEXT`, `ERGEBNIS_TEXT`) und die
   Historie des Zugangs und des Schalters am Kunden, neueste zuerst, 50 je Seite.
 
-#### Festlegungen 1.11.10 (Bitte bestätigen)
+#### Festlegungen 1.11.10 (bestätigt am 24.11.2026 außer 6, 7 und 8 -- geändert, siehe „Antworten des Betriebs zu den Berichten 1.11.8 bis 1.11.11“)
 
 1. Die Wege der Karte nennen nur den Kunden; ab Büro – Auftrag, die Monteurin nie; ohne Modul 403.
 2. Portal aus beendet alle Sitzungen; ohne Portal an kein Zugang und kein Link.
@@ -1966,7 +1966,7 @@ unbekannter Kunde; Protokoll (zusammen, seitenweise); Texte für jede Aktion; ve
   `ERP_ENV` development oder test und nur an 127.0.0.1 (wie `ERP_TEST_FREMDSCHLUESSEL`); der Kalender-Abgleich bleibt unberührt. Ohne ihn ließe sich „Link
   senden“ im Klicktest nicht bis zum Versand prüfen (die Mails des Portals gehen nur über Microsoft 365).
 
-#### Festlegungen 1.11.11 (Bitte bestätigen)
+#### Festlegungen 1.11.11 (bestätigt am 24.11.2026 außer 2, 6 und 7 -- geändert, siehe „Antworten des Betriebs zu den Berichten 1.11.8 bis 1.11.11“)
 
 1. Die Karte steht in der Übersicht der Kundenakte unter „Stammdaten“, nach dem Muster der Kundenakte (Kopf mit Kennzeichen, Angaben als Liste, Hinweis als
    Warnhinweis, Knöpfe darunter); ohne Modul gibt es sie nicht.
@@ -1994,3 +1994,69 @@ Karte, keine Anfrage). Neue Einträge: `test_v554::FUNKTIONEN` (7 Funktionen der
 `test_v795::LESEN` (`portal-protokoll`, `portal-protokoll-mehr`, `dialog-zu`). Angepasste Erwartung: `test_v809::test_protokoll_portal_und_historie_zusammen`
 -- „Grund der Sperre: – → Test“ und „Kundenportal an“ (Feld alt -> neu, 1.11.10) sind jetzt die Sätze „Grund der Sperre: Test“ und „Kundenportal
 eingeschaltet“. Gegenproben: `gegenproben-portal.md`, „1.11.11“.
+
+### Antworten des Betriebs zu den Berichten 1.11.8 bis 1.11.11 (24.11.2026)
+
+- Gelesen, Bilder angesehen; df8154f ist gepusht und auf dem Server. Bestätigt: 1.11.8-1 bis -7, 1.11.9-1 bis -6, 1.11.10-1 bis -5, -7 (als Zustände; „Versand
+  gescheitert“ geändert, unten), -9, 1.11.11-1, -3, -4, -5, -8, -9.
+- Fragen: der Link bleibt 43 Zeichen URL-sicher wie 1.11.1 („<hex>“ war ein Schreibfehler); Impressum und Datenschutz aus der Webseite der Firmendaten: so; nur
+  HTML: so, den Textteil prüft der Rauchtest S9. **§ 35a GmbHG:** in die Fußzeile beider Mails eine kleine Zeile aus den Firmendaten „Sitz <Ort> ·
+  <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“; fehlt ein Feld, fällt nur dieses weg. Dazu ein Befund, nur melden: tragen die übrigen
+  Mails des ERP diese Angaben?
+- **Geändert 1.11.10-6 / 1.11.11-2:** Verlängern nur, solange der Link gilt (aktiv, läuft bald ab) -- nicht bei abgelaufen, gesperrt oder Versand
+  gescheitert. Ein abgelaufener Link lebt nicht wieder auf; dort nur „Neuen Link senden“.
+- **Geändert 1.11.10-7:** „Versand gescheitert“ ist ein eigener Zustand: Kennzeichen „Versand gescheitert“ (Warnfarbe), Satz „Der Link ging nicht hinaus.“,
+  Knopf „Link erneut senden“ (bis 1.11.11 stand „Aktiv – Link versendet.“ über der Warnung).
+- **Geändert 1.11.10-8 / 1.11.11-6:** Festlegung 1.11.0 gilt -- Sperren geht auch im Archiv (es nimmt nur Zugang weg; sonst wäre der Zugang nach dem
+  Zurückholen offen, bis jemand sperrt). Im Archiv also „Protokoll“ und „Sperren“, alles andere 409.
+- **Geändert 1.11.11-7:** Protokoll eine Zeile je Aktion statt je Feld, z. B. „Neuer Link gesendet an neu@… – gültig bis 24.11.2027 (E-Mail vorher max@…)“
+  (Klammer nur bei geänderter E-Mail), „Zugang gesperrt – Grund: Kunde bittet darum“.
+- Bilder der geänderten Zustände (gescheitert, abgelaufen, Archiv, Protokoll) und beider Mails mit der neuen Zeile. Danach ohne Warten P1e nach
+  `bildgrundlage/entwurf-p1/` (Anmelden, Willkommen, Handy) und Bauplan Abschnitt 5; was die Entwürfe nicht abdecken, als Frage in den Bericht statt
+  erfinden; Bilder aller Zustände, hell und dunkel, 390 und 1280 px, dazu 360 px.
+
+### Umsetzung 1.11.12: Pflichtangaben in der Fußzeile der Mails (Antwort § 35a GmbHG)
+
+- `app/portal_mails.py::pflichtangaben()`: „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“ aus den Firmendaten
+  (`city`, `register_court`, `register_number`, `managing_director` -- Feld „Geschäftsführer / Inhaber“). Sitz ist der Ort der Anschrift: ein eigenes Feld
+  „Sitz“ gibt es nicht. Fehlt ein Feld, fällt nur dieses weg (Gericht ohne Nummer und Nummer ohne Gericht bleiben stehen), fehlen alle, gibt es keine Zeile;
+  Leerraum innerhalb eines Werts wird zu einem Leerzeichen. `Firma.pflichtangaben`.
+- Die Zeile steht zuletzt in der Fußzeile, unter „Impressum · Datenschutz“, in 11 px (die Fußzeile 12 px); allein in der Fußzeile ohne Abstand nach oben. Wie
+  jeder eingesetzte Wert über `html.escape()`.
+
+#### Befund (nur gemeldet): tragen die übrigen Mails des ERP die Pflichtangaben?
+
+Nein. Geprüft an jedem Aufrufer von `dispatch_email()` (Angebot, Auftrag, Rechnung, Mahnung, Vertrag, Checkliste, Behinderungs-, Wiederaufnahme- und
+Bedenkenanzeige, Abnahmeprotokoll, Aufgaben; dazu die Mails des Portals):
+
+- **Text der Mail:** die Vorlagen (`app/document_email_templates.py`, Mahnstufen `ReminderLevel`) und ihre eingebauten Vorgaben (`projects.py`, `orders.py`,
+  `invoices.py`, `reminders.py`, `contract_versions.py`, `checklist_email.py`, `notice_letters.py`) enden mit „Mit freundlichen Grüßen“ -- ohne Firmennamen,
+  ohne Sitz, Registergericht, Registernummer oder Geschäftsführer. Einen Platzhalter dafür gibt es in keiner Mail-Vorlage (`{firmenname}` nur in den
+  Vertragsvorlagen, also im Vertrags-PDF). Die Vorlagen sind freier Text -- der Betrieb könnte die Angaben heute von Hand eintragen.
+- **Angehängte Fußzeile:** keine. `dispatch_email()` reicht Text bzw. HTML unverändert an `send_message()` weiter, SMTP wie Graph senden ihn so. Ob Exchange
+  Online eine eigene Regel mit Fußzeile hat, liegt außerhalb des Codes.
+- **PDF im Anhang:** der Code druckt nur die Absenderzeile (Name, Straße, PLZ Ort -- den Namen mit „GmbH“, den Ort ohne „Sitz“); der Baustein „Firmenkopf“
+  (Name, Anschrift, Telefon, E-Mail, Webseite, kein Register, kein Geschäftsführer) ist ab Werk aus, die Fußzeile nur „Seite X von Y“ und ebenfalls aus.
+  Registergericht und Geschäftsführer stehen auf dem PDF nur, wenn das hochgeladene Briefpapier sie trägt (`app/document_layout.py`, Kommentar zu 1.3.8: dort
+  stehen „Anschrift, Kontakt, Registergericht, Bankverbindung“) -- geprüft ist das hier nicht.
+- **Aufgaben-Mails** gehen nur an Mitarbeiter des Betriebs (keine Geschäftsbriefe nach außen).
+- Möglicher Weg, falls gewünscht (nicht gebaut): dieselbe Zeile zentral unter jede Mail an Kunden und Beteiligte (in `dispatch_email()` je Versandart), oder
+  ein Platzhalter `{pflichtangaben}` für die Vorlagen.
+
+#### Festlegungen 1.11.12 (Bitte bestätigen)
+
+1. Beide Mails des Portals tragen zuletzt in der Fußzeile eine kleine Zeile (11 px) „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer:
+   <Name(n)>“ aus den Firmendaten.
+2. Sitz ist der Ort der Anschrift der Firmendaten (es gibt kein eigenes Feld „Sitz“); Geschäftsführer ist das Feld „Geschäftsführer / Inhaber“, wie eingetragen.
+3. Fehlt ein Feld, fällt nur dieses weg (Gericht und Nummer je für sich); fehlen alle, fehlt die Zeile.
+4. Jeder Wert maskiert, Leerraum innerhalb eines Werts zu einem Leerzeichen.
+
+#### Tests und Prüfung 1.11.12
+
+`tests/test_v807_portal_mails_html.py`: neu `test_pflichtangaben_fehlt_ein_feld_faellt_nur_dieses_weg` (9 Fälle) und
+`test_pflichtangaben_klein_und_zuletzt_in_der_fusszeile`; die Firmendaten der Testdaten tragen jetzt Registergericht, -nummer und Geschäftsführer; Angriff
+auch über diese Felder. Angepasste Erwartungen: `test_v807::LINK_WORTLAUT`/`CODE_WORTLAUT` -- letzter Absatz bis 1.11.11 die Fußzeile, jetzt danach die
+Zeile `PFLICHT`; `test_ohne_telefon_faellt_nur_die_nummer_weg` und `test_impressum_und_datenschutz_aus_der_webseite` -- die Fußzeile ist der vorletzte Absatz;
+`test_absender_ohne_leere_teile` -- auch ohne Register und Geschäftsführer, dann keine Zeile; `test_v804::test_mails_gesiezt_mit_hinweis_und_absender` --
+letzter Absatz „Sitz Musterstadt“ (dort ist nur der Ort gepflegt), die Fußzeile davor. Gegenproben: `gegenproben-portal.md`, „1.11.12“. Bilder beider Mails
+mit der Zeile im Bericht 1.11.12.

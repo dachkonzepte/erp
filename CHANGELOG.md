@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.12 – Kundenportal: Pflichtangaben in der Fußzeile der Mails
+
+Beide Mails des Kundenportals (Link und Anmeldecode) tragen zuletzt in der Fußzeile eine kleine Zeile mit den Pflichtangaben einer GmbH nach § 35a GmbHG: „Sitz <Ort> · <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“, alles aus den Firmendaten der Einstellungen (Sitz ist der Ort der Anschrift). Fehlt ein Feld, fällt nur dieses weg; fehlen alle, fehlt die Zeile. Dazu ein Befund, nur gemeldet: die übrigen Mails des ERP tragen diese Angaben nicht -- weder im Text noch als Platzhalter oder angehängte Fußzeile; die PDFs nur, soweit das hochgeladene Briefpapier sie enthält.
+
 ## 1.11.11 – Kundenportal: Karte in der Kundenakte
 
 In der Übersicht der Kundenakte steht unter den Stammdaten die Karte „Kundenportal“: Zustand mit Kennzeichen, E-Mail des Zugangs, gültig bis, zuletzt genutzt, Sperre mit Grund, Hinweise bei „läuft bald ab“ und „Versand gescheitert“. Von dort schaltet das Büro das Portal je Kunde ein und aus, legt den Zugang an, sendet den Link (ein neuer Link mit Warnung), sperrt mit Grund, entsperrt, verlängert und liest das Protokoll -- als Sätze, mit den gesendeten Links. Im Archiv bleibt nur das Protokoll. Die Karte gibt es nur mit eingeschaltetem Modul „Kundenportal“. Für den Klicktest lässt sich Microsoft 365 in Test-Instanzen durch eine Attrappe auf 127.0.0.1 ersetzen. Damit ist P1d fertig.

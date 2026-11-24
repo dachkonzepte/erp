@@ -3,7 +3,8 @@
 Geprüft: der Wortlaut beider Mails Absatz für Absatz; der Aufbau (Tabellen und Stile in den Tags, höchstens 600 px, keine Bilder, keine Schriften, kein
 <style>, nichts von außen, genau die erlaubten Links); jeder eingesetzte Wert maskiert (Angriffe über Kundennamen und Firmendaten); der Link nur in genau
 der Form PORTAL_ADRESSE/#z=<Wert>; ohne Telefon fällt nur die Nummer weg; ohne Webseite keine Links auf Impressum und Datenschutz; HTML nur für die Mails des
-Portals; das Portal nimmt den Code mit und ohne Leerzeichen.
+Portals; das Portal nimmt den Code mit und ohne Leerzeichen. Seit 1.11.12 die kleine Zeile mit den Pflichtangaben nach § 35a GmbHG (Sitz,
+Registergericht und -nummer, Geschäftsführer) zuletzt in der Fußzeile -- fehlt ein Feld, fällt nur dieses weg.
 """
 
 from __future__ import annotations
@@ -94,7 +95,8 @@ def _kunde(db, **werte) -> Customer:
 def _firma(db, **werte):
     s = load_general_settings(db)
     felder = dict(company_name="Muster Bedachung GmbH", street="Dachweg 1", postal_code="12345", city="Musterstadt", phone="0123 456789",
-                  email="info@example.invalid", website="www.example.invalid")
+                  email="info@example.invalid", website="www.example.invalid", register_court="Amtsgericht Musterstadt", register_number="HRB 99999",
+                  managing_director="Erika Beispiel, Max Beispiel")
     felder.update(werte)
     for k, v in felder.items():
         setattr(s, k, v)
@@ -102,6 +104,7 @@ def _firma(db, **werte):
 
 
 FUSS = "Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nTelefon 0123 456789 · www.example.invalid\nImpressum · Datenschutz"
+PFLICHT = "Sitz Musterstadt · Amtsgericht Musterstadt HRB 99999 · Geschäftsführer: Erika Beispiel, Max Beispiel"  # seit 1.11.12, § 35a GmbHG
 GRUSS = "Mit freundlichen Grüßen\nIhr Team der Muster Bedachung GmbH"
 
 LINK_WORTLAUT = [
@@ -117,6 +120,7 @@ LINK_WORTLAUT = [
     "E-Mail nicht erwartet? Dann rufen Sie uns bitte an: 0123 456789.",
     GRUSS,
     FUSS,
+    PFLICHT,
 ]
 
 CODE_WORTLAUT = [
@@ -131,6 +135,7 @@ CODE_WORTLAUT = [
     "Wir fragen Sie nie nach diesem Code, einem Passwort oder Bankdaten. Geben Sie den Code nur im Kundenportal ein, nie am Telefon.",
     GRUSS,
     FUSS,
+    PFLICHT,
 ]
 
 
@@ -158,8 +163,8 @@ def test_ohne_telefon_faellt_nur_die_nummer_weg(db_session):
     assert a_link[8].endswith("Haben Sie diese E-Mail nicht erwartet? Dann rufen Sie uns bitte an.")
     assert a_code[7].endswith("Rufen Sie uns bitte trotzdem an – wir sperren den Link und schicken Ihnen einen neuen.")
     for a in (a_link, a_code):
-        assert a[-1] == "Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nwww.example.invalid\nImpressum · Datenschutz"
-        assert "Telefon" not in a[-1]
+        assert a[-2:] == ["Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nwww.example.invalid\nImpressum · Datenschutz", PFLICHT]
+        assert "Telefon" not in a[-2]
 
 
 @pytest.mark.parametrize("webseite, host", [
@@ -176,19 +181,58 @@ def test_impressum_und_datenschutz_aus_der_webseite(db_session, webseite, host):
     links = [a.get("href") for tag, a in lesen(_mails(db)[1]).tags if tag == "a"]
     if host:
         assert links == [f"https://{host}/impressum", f"https://{host}/datenschutz"]
-        assert absaetze(_mails(db)[1])[-1].endswith(f"{host}\nImpressum · Datenschutz")
+        assert absaetze(_mails(db)[1])[-2:] == [f"Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt\nTelefon 0123 456789 · {host}\n"
+                                                 "Impressum · Datenschutz", PFLICHT]
     else:
-        assert links == [] and "Impressum" not in absaetze(_mails(db)[1])[-1]
+        assert links == [] and "Impressum" not in absaetze(_mails(db)[1])[-2] and absaetze(_mails(db)[1])[-1] == PFLICHT
 
 
 def test_absender_ohne_leere_teile(db_session):
     db = db_session
-    _firma(db, company_name="Muster", street=None, postal_code=None, city=" ", phone=None, website=None)
+    _firma(db, company_name="Muster", street=None, postal_code=None, city=" ", phone=None, website=None, register_court=None, register_number="",
+           managing_director="  ")
     link, code = _mails(db)
     for html_ in (link, code):
         a = absaetze(html_)
         assert a[0] == "Muster" and a[1] != "Bedachung GmbH"  # ein Wort: die Wortmarke hat nur eine Zeile
-        assert a[-2:] == ["Mit freundlichen Grüßen\nIhr Team der Muster", "Muster"]
+        assert a[-2:] == ["Mit freundlichen Grüßen\nIhr Team der Muster", "Muster"]  # ohne Pflichtangaben keine Zeile (1.11.12)
+        assert "Sitz" not in html_ and "Geschäftsführer" not in html_
+
+
+# --- Pflichtangaben (seit 1.11.12, § 35a GmbHG) ----------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("felder, zeile", [
+    ({}, PFLICHT),
+    ({"city": None}, "Amtsgericht Musterstadt HRB 99999 · Geschäftsführer: Erika Beispiel, Max Beispiel"),
+    ({"register_court": " "}, "Sitz Musterstadt · HRB 99999 · Geschäftsführer: Erika Beispiel, Max Beispiel"),
+    ({"register_number": None}, "Sitz Musterstadt · Amtsgericht Musterstadt · Geschäftsführer: Erika Beispiel, Max Beispiel"),
+    ({"register_court": None, "register_number": ""}, "Sitz Musterstadt · Geschäftsführer: Erika Beispiel, Max Beispiel"),
+    ({"managing_director": ""}, "Sitz Musterstadt · Amtsgericht Musterstadt HRB 99999"),
+    ({"city": "", "register_court": None, "register_number": None}, "Geschäftsführer: Erika Beispiel, Max Beispiel"),
+    ({"city": "  Muster  stadt ", "managing_director": " Erika\n Beispiel "}, "Sitz Muster stadt · Amtsgericht Musterstadt HRB 99999 · Geschäftsführer: "
+                                                                            "Erika Beispiel"),
+    ({"city": None, "register_court": None, "register_number": None, "managing_director": None}, None),
+])
+def test_pflichtangaben_fehlt_ein_feld_faellt_nur_dieses_weg(db_session, felder, zeile):
+    db = db_session
+    _firma(db, **felder)
+    for html_ in _mails(db):
+        a = absaetze(html_)
+        if zeile:
+            assert a[-1] == zeile and a[-2].endswith("Impressum · Datenschutz")  # die Fußzeile davor bleibt
+        else:
+            assert a[-1].endswith("Impressum · Datenschutz") and "Sitz" not in html_ and "Geschäftsführer" not in html_
+
+
+def test_pflichtangaben_klein_und_zuletzt_in_der_fusszeile(db_session):
+    db = db_session
+    _firma(db)
+    for html_ in _mails(db):
+        teil = html_.split("Datenschutz</a>", 1)[1]
+        assert teil.startswith('<div style="margin:8px 0 0 0;font-size:11px;line-height:1.5;">' + PFLICHT + "</div></td></tr>")
+    _firma(db, street=None, postal_code=None, city=None, phone=None, website=None, company_name="")
+    for html_ in _mails(db):  # die Zeile allein in der Fußzeile: ohne Abstand nach oben
+        assert '<div style="margin:0;font-size:11px;line-height:1.5;">Amtsgericht Musterstadt HRB 99999 · ' in html_
 
 
 # --- Aufbau -----------------------------------------------------------------------------------------------------------------------------------------
@@ -233,7 +277,8 @@ BOESE = '<a href="https://boese.invalid">x</a> "><script>alert(1)</script> & \'A
 
 def test_jeder_eingesetzte_wert_ist_text(db_session):
     db = db_session
-    _firma(db, company_name=f"Muster {BOESE}", street=BOESE, city=BOESE, phone=BOESE)
+    _firma(db, company_name=f"Muster {BOESE}", street=BOESE, city=BOESE, phone=BOESE, register_court=BOESE, register_number=BOESE,
+           managing_director=BOESE)
     for werte in ({"salutation": "Herr", "title": BOESE, "last_name": BOESE},
                   {"salutation": "Firma", "title": None, "first_name": None, "last_name": BOESE, "name": BOESE},
                   {"salutation": None, "title": None, "first_name": BOESE, "last_name": "", "name": BOESE}):
