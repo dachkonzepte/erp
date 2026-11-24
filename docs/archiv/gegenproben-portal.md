@@ -212,3 +212,22 @@ Dateien byte-gleich zurück. Ohne eigene Gegenprobe: die Einheit außer Restart 
 | Nr. 8 – Zugriffsprotokoll nach 24 Monaten | 36 Monate | 1 rot |
 | Nr. 9 – kein Code im Protokoll | Code ins Protokoll | 2 rot |
 | Nr. 1 – nur PostgreSQL | Prüfung entfernt | 1 rot |
+
+## 1.11.7: Stau-Hinweis des Postboten auf „Start“
+
+Probendatei `gp_1117.py`, Lauf mit `tests/test_v806_portal_stau.py` bzw. `scripts/klicktest_portal_stau.py`; alle 10 rot aus dem geprüften Grund, alle
+Dateien byte-gleich zurück. Drei Gegenproben in zweiter Fassung (zuerst falsch gebaut, nicht der Code): zweimal stand der Marker mitten in der Zeile
+(ERROR beim Sammeln), einmal fehlte er (der Läufer brach vor der Änderung ab).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Monteurin nie | Rolle „field“ an der Schnittstelle | Klicktest: 1 rot (Monteurin bekommt 200) |
+| Nr. 1 – ab Büro – Auftrag | erst ab Büro – Finanzen | Klicktest: 3 rot |
+| Nr. 2 – länger als 2 Minuten | 1 Minute | 1 rot |
+| Nr. 2 – verworfen ist kein Versand | verworfen zählt mit (zweite Fassung) | 1 rot |
+| Nr. 2 – ein späterer gesendeter beendet ihn | nur „fehler“ gezählt (zweite Fassung) | 1 rot |
+| Nr. 3 – feste Texte | ohne „Kundenportal:“ (zweite Fassung) | 1 rot |
+| Nr. 3 – nur als Text | innerHTML | 1 rot |
+| Nr. 4 – Schnittstelle nur mit Modul | Prüfung entfernt | 1 rot |
+| Nr. 4 – die Seite fragt nur mit Modul | immer an | 1 rot |
+| Nr. 4 – ohne Modul keine Anfrage | Abfrage der Seite entfernt | Klicktest: 1 rot |

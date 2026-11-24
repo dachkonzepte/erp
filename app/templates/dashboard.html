@@ -58,6 +58,7 @@ a.link{color:var(--ds-link);font-weight:650;text-decoration:none}
 <main>
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {{ seitenkopf("Start", untertitel='Aufgaben, Kennzahlen und laufende Projekte auf einen Blick. Über „+ Widget hinzufügen" lässt sich das Dashboard anpassen.') }}
+<div class="widget-card hidden" id="portalStau" role="status" style="margin-bottom:14px"><div class="status err" id="portalStauText"></div></div>
 <div class="widgets" id="widgets"></div>
 <div class="widget-card" style="margin-top:14px">
   <button class="secondary" onclick="toggleAddWidgetPanel()">+ Widget hinzufügen</button>
@@ -383,12 +384,24 @@ function renderGreeting(){  // seit 1.9.7 der Titel des gemeinsamen Seitenkopfs 
   }
 }
 
+/* Seit 1.11.7 (Stufe P1c): Stau des Postboten des Kundenportals -- fester Text vom Server (nur über textContent), gefragt nur mit eingeschaltetem
+   Modul; die Monteurin kommt nie hierher (Weiterleitung auf /mobil). */
+const KUNDENPORTAL={{ is_module_enabled('kundenportal')|tojson }};
+async function portalStau(){
+  if(!KUNDENPORTAL)return;
+  await lesen('portal-stau',()=>api('/api/kundenportal/postbote').catch(()=>({stau:null,text:null})),d=>{
+    document.getElementById('portalStauText').textContent=d.text||'';
+    document.getElementById('portalStau').classList.toggle('hidden',!d.stau);
+  });
+}
+
 async function init(){
   // Seit 1.8.97 über lesen() (_speichern.html): Anmeldestatus (eigener Bereich), Layout der Widgets samt Mitarbeitern im Bereich
   // "layout" wie persistLayout() -- weiter nacheinander, gezeichnet wird erst beim Anwenden.
   await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d;renderGreeting()});
   if(authStatus.authenticated){
     await lesen('layout',async()=>[await api('/api/dashboard/widgets').catch(()=>DEFAULT_LAYOUT.map(w=>({...w}))),await api('/api/employees').catch(()=>[])],([l,e])=>{layout=l;employees=e;renderShell()});
+    await portalStau();
   }else{
     layout=DEFAULT_LAYOUT.map(w=>({...w}));
     renderShell();

@@ -1217,6 +1217,12 @@ class WebanfragenNichtAbgeholtOut(BaseModel):
     grund: str
 
 
+class PortalPostboteOut(BaseModel):
+    """Seit 1.11.7: Stau des Postboten des Kundenportals für den Hinweis auf „Start“ -- „wartet“, „fehler“ oder keiner, mit festem Text."""
+    stau: str | None = None
+    text: str | None = None
+
+
 class WebanfragenStandOut(BaseModel):
     """Stand des Abholens -- ohne Schlüssel und ohne Adresse der Schnittstelle."""
     eingerichtet: bool

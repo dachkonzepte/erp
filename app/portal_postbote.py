@@ -45,6 +45,7 @@ CODE_GUELTIG = timedelta(minutes=portal_mails.CODE_MINUTEN)
 # (Fenster, Grenze, je Zugang) -- gezählt an den gesendeten Codes; dieselben Zahlen prüft portal_code_anfordern() an den Anforderungen
 GRENZEN = ((timedelta(minutes=15), 3, True), (timedelta(days=1), 10, True), (timedelta(hours=1), 200, False))
 NACHSEHEN_SEKUNDEN = 60
+STAU_NACH = timedelta(minutes=2)  # Hinweis auf „Start“ (seit 1.11.7)
 AUFRAEUMEN_SEKUNDEN = 3600
 
 # Fester Text am Auftrag (portal_post.fehler, höchstens 60 Zeichen) -> Ergebnis im Zugriffsprotokoll
@@ -194,3 +195,21 @@ def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehe
                 pass
 
 
+# Seit 1.11.7: der Hinweis auf „Start“ (fester Text, die Oberfläche setzt ihn nur als Text)
+STAU_TEXTE = {
+    "wartet": "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost).",
+    "fehler": "Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen.",
+}
+
+
+def stau(db: Session, jetzt_: datetime) -> str | None:
+    """Für den Hinweis auf „Start“ (seit 1.11.7, Bauplan P1, Abschnitt 4): „wartet“, wenn ein Auftrag länger als 2 Minuten wartet; „fehler“, wenn der
+    zuletzt versuchte Versand scheiterte -- ein verworfener Auftrag ist kein Versand und ändert daran nichts; sonst None. jetzt_ in naivem UTC
+    (app/berlin_time.py::utc_jetzt()). Liest nur."""
+    wartet = db.scalar(select(PortalPost.id).where(PortalPost.status == "wartet", PortalPost.angefordert_am < jetzt_ - STAU_NACH)
+                       .order_by(PortalPost.id).limit(1))
+    if wartet is not None:
+        return "wartet"
+    letzter = db.scalar(select(PortalPost.status).where(PortalPost.status.in_(("gesendet", "fehler")), PortalPost.erledigt_am.is_not(None))
+                        .order_by(PortalPost.erledigt_am.desc().nulls_last(), PortalPost.id.desc()).limit(1))
+    return "fehler" if letzter == "fehler" else None

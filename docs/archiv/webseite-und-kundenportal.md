@@ -1767,3 +1767,27 @@ Versand (Code gilt nicht, kein Code im Protokoll); SMTP (kein Eintrag, kein Code
 gehaltener Auftrag wird übersprungen; genau ein Postbote und Weckruf über LISTEN (Schleife in einem Faden, zweiter Postbote abgelehnt, Code ohne Warten);
 Aufräumen nach den Fristen (Sitzung samt Code und Auftrag, Protokoll ohne Sitzung, Versandprotokoll bleibt); kein Code im Protokoll (mit der Ausgabe von
 SQLAlchemy); ohne Datenbank das Skript (nur PostgreSQL) und die Einheit. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.6“.
+
+### Umsetzung 1.11.7: Stau-Hinweis des Postboten auf „Start“ (P1c, Teil 3)
+
+- `app/portal_postbote.py::stau()`: „wartet“, wenn ein Auftrag länger als 2 Minuten wartet; „fehler“, wenn der zuletzt versuchte Versand scheiterte
+  (gesendet oder gescheitert -- ein verworfener Auftrag ist kein Versand und ändert daran nichts); sonst keiner. Feste Texte in `STAU_TEXTE`.
+- `app/routers/kundenportal.py` (neu, ab P1d auch die Karte): `GET /api/kundenportal/postbote` ab Büro – Auftrag; Modul „Kundenportal“ aus: 403.
+- „Start“ (`dashboard.html`): eine Karte über den Widgets mit dem Text vom Server (nur textContent), gefragt nur mit eingeschaltetem Modul; sonst keine
+  Anfrage. Die Monteurin kommt nie auf „Start“ (Weiterleitung auf /mobil).
+
+#### Festlegungen 1.11.7 (Bitte bestätigen)
+
+1. Der Hinweis erscheint auf „Start“ für Admin, Büro – Finanzen und Büro – Auftrag, über den Widgets, nicht ausblendbar, solange der Stau besteht.
+2. „Wartet“: ein Auftrag wartet länger als 2 Minuten. „Fehler“: der zuletzt versuchte Versand scheiterte; ein späterer gesendeter beendet ihn, ein
+   verworfener nicht.
+3. Feste Texte: „Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst
+   erp-portalpost).“ und „Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen.“
+4. Nur mit eingeschaltetem Modul: sonst fragt die Seite nicht, und die Schnittstelle antwortet 403.
+
+#### Tests und Prüfung 1.11.7
+
+Neu `tests/test_v806_portal_stau.py` (11): ohne Aufträge keiner; 119 und 121 Sekunden; fünf Folgen erledigter Aufträge; Texte; Schnittstelle ohne und mit
+Modul; die Seite fragt nur mit Modul und setzt nur Text. Neu `scripts/klicktest_portal_stau.py`: Modul aus (keine Anfrage), an ohne Aufträge, wartet (Büro –
+Finanzen und Büro – Auftrag), gescheitert (hell und dunkel), wieder gut, Monteurin (Weiterleitung, 403). Keine angepasste Erwartung. Gegenproben:
+`gegenproben-portal.md`, „1.11.7“.

@@ -25,7 +25,7 @@ from .routers import (
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_defects, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, notice_letters, operational_assets, orders,
     outlook_sync_settings, pages, payment_terms, payments, planning, project_documents, project_participants, project_pipeline_columns, projects, properties, property_documents, quick_service_orders, quotes, recurring_costs, reminders,
     resource_planning, roof_areas, schlechtwetter, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
-    aufbewahrung, kontaktvermerke, webanfragen, work_preparation, zeiten,
+    aufbewahrung, kontaktvermerke, kundenportal, webanfragen, work_preparation, zeiten,
 )
 from .version import APP_VERSION
 
@@ -135,6 +135,7 @@ app.include_router(absence_requests.router)
 app.include_router(schlechtwetter.router)  # seit 1.9.170: Ausfalltag Schlechtwetter
 app.include_router(zeiten.router)  # seit 1.9.95: Daten der Seite „Zeiten“
 app.include_router(webanfragen.router)  # seit 1.10.1 (Stufe W1a): Anfragen der Webseite
+app.include_router(kundenportal.router)  # seit 1.11.7 (Stufe P1c): das Kundenportal im ERP (Stand des Postboten; ab P1d die Karte)
 app.include_router(kontaktvermerke.router)  # seit 1.10.10 (Stufe W1c): Kontakt vermerken an Anfrage, Projekt und Kunde
 app.include_router(aufbewahrung.router)  # seit 1.10.11 (Stufe W1c): Archiv nach dem letzten Kontakt
 app.include_router(audit.router)

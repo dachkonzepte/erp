@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.7 – Kundenportal P1c: Stau-Hinweis auf „Start“
+
+Geht ein Anmeldecode nicht hinaus, sieht das Büro es auf „Start“: ein Hinweis, wenn eine Anforderung länger als 2 Minuten wartet (läuft der Postbote?) oder wenn der zuletzt versuchte Versand scheiterte. Der Hinweis erscheint nur mit eingeschaltetem Modul „Kundenportal“ und verschwindet von selbst, sobald wieder ein Code hinausgeht. Damit ist P1c fertig.
+
 ## 1.11.6 – Kundenportal P1c: der Postbote
 
 Der Postbote ist ein eigener kleiner Dienst unter dem Benutzer des ERP. Er wartet auf Anforderungen eines Anmeldecodes aus dem Portal, prüft sie ein zweites Mal (Zugang gültig, Sitzung noch offen, Grenzen je Zugang und gesamt), erzeugt den Code, speichert nur seinen Prüfwert und schickt ihn per Mail über Microsoft 365. Ein Auftrag geht nie zweimal hinaus, auch nicht nach einem Absturz mitten im Versand, und es läuft immer nur ein Postbote. Dazu räumt er nach den Fristen auf: Codes nach 24 Stunden, Sitzungen 30 Tage nach ihrem Ende, Bremsen nach 48 Stunden, das Zugriffsprotokoll nach 24 Monaten. Eingerichtet wird der Dienst erst mit der Inbetriebnahme (P1f).
