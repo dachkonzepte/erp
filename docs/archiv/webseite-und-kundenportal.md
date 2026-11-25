@@ -2478,7 +2478,7 @@ Skript selbst lief in Tests nur ohne `DATABASE_URL` bzw. mit SQLite: dort gibt e
 
 Nebenbefund: auf dem Server Python 3.14, lokal 3.13 (`.venv`) -- hier ohne Folge, festgehalten.
 
-#### Festlegungen 1.11.21 (Bitte bestätigen)
+#### Festlegungen 1.11.21 (bestätigt am 25.11.2026)
 
 1. `scripts/portal_rechte.py --setzen` läuft von der ersten Anweisung an in einer Transaktion (`engine.begin()`, der Name der Datenbank darin); `--pruefen`
    unverändert.
@@ -2519,7 +2519,7 @@ von Hand nach `/etc/systemd/system` (S6b, Teil 2, mit S10).
 `Arbiter._start_control_server` mit dieser Konfiguration auf -- statt des Servers eine Attrappe, die nur festhält, ob er gestartet würde (kein Socket, kein
 Ordner, auch unter Windows). Ohne die Option meldet sie den Start (Gegenprobe).
 
-#### Festlegungen 1.11.22 (Bitte bestätigen)
+#### Festlegungen 1.11.22 (bestätigt am 25.11.2026)
 
 1. Die Einheit des Portals startet gunicorn mit `--no-control-socket` -- kein Steuer-Socket; Neustart und Ende nur über `systemctl`.
 2. Geprüft wird der Weg des Hauptprozesses (`Arbiter._start_control_server`) mit der Konfiguration aus ExecStart, mit einer Attrappe statt des Servers
@@ -2534,9 +2534,73 @@ Ordner, auch unter Windows). Ohne die Option meldet sie den Start (Gegenprobe).
 die Option steht in ExecStart, die Ausgabe von gunicorn nennt keinen Steuer-Socket. `test_v801_portal_dienst.py::test_einheit_des_dienstes` prüft dazu die
 Option in ExecStart. Keine Seite geändert, kein Klicktest berührt. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.22“.
 
+### P1f auf dem Server abgearbeitet (Antwort des Betriebs, 25.11.2026)
+
+S0–S10 sind erledigt, das Kundenportal läuft unter kunde.dachkonzepte.gmbh (das Modul im ERP ist nach dem Rauchtest wieder aus). Bestätigt: 1.11.21-1 und -2,
+1.11.22-1 bis -4. F1 (Tests als Kindprozess für `pruefe_portal_e4.py` und den Postboten, nach P1f) und F2 (`update.sh` vergleicht die Einheiten und meldet
+Abweichungen mit dem Befehl, installiert nicht selbst; Wortlaut als Server-Schritt, Python-Ersetzung wie in S10, nur bei eindeutiger Stelle): beide ja.
+
+Ausgaben (ohne Geheimnisse):
+
+- **S0:** Ubuntu 26.04.1, systemd 259, PostgreSQL 18.6, nginx 1.28.3; 2443 MB verfügbar; nginx nur über IPv4 (daher 1.11.20); `.env` 600. PostgreSQL:
+  `log_statement` none, `log_min_duration_statement` -1, `scram-sha-256`, `localhost`, 5432, keine preload-Bibliotheken; erp `f|f|f`; PUBLIC CREATE `f`. ufw
+  22/80/443; nginx `daily`/`rotate 14`; Journal `14day`.
+- **Dazu, über den Plan hinaus:** `/etc/logrotate.d/rsyslog` von `weekly`/`rotate 4` auf `daily`/`rotate 14` (syslog, mail, kern, auth, user, cron), Dateien
+  älter als 15 Tage gelöscht -- „höchstens 15 Tage“ gilt damit für jedes Protokoll des Servers, so steht es in der Datenschutzerklärung.
+- **S1:** kunde A 212.132.105.140, kein AAAA, kein CAA.
+- **S2:** dkportal uid 994, nologin; `.env` nicht lesbar; Probelauf wie erwartet.
+- **S3:** Rolle `f|f|f|f|f|f|10`; 5s/15s/public; pg_hba drei Zeilen vorn; spielwiese und `[local]` abgelehnt, dachkonzepte bis zur Passwortprüfung; ERP ok.
+- **S4:** `64` / `1` / `640 root:dkportal`.
+- **S5** (nach 1.11.21): 32 Anweisungen, „stimmen“, 9 und 8.
+- **S6:** Postbote bereit; Portal verbunden als dkportal, Revision `c8e2f5a1d394`; `{"ok":true}`; 421; MemoryCurrent 95 bzw. 105 MB; `systemd-analyze
+  security` 1.7 OK. Im Journal des Portals „Control server error“ -- daraus 1.11.22.
+- **S6b** (1.11.22): Portal neu installiert, danach kein „Control server error“. ERP ohne Drop-ins; danach kein „Control socket listening“, `ss -lx` 0,
+  `/home/tobias/.gunicorn` gelöscht. Die Zeile des ERP seither:
+
+      ExecStart=/home/tobias/erp/.venv/bin/gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker -b 127.0.0.1:8000 --timeout 120 --no-control-socket
+
+- **S7:** Zertifikat bis 23.02.2027 (ECDSA); alle Schutz-Kopfzeilen; `/` 200, `/api/customers` 404, `/docs` 404, DELETE 405, ERP 200; Wartungsseite bei 502;
+  `certbot renew --dry-run` ok; certbot.timer da.
+- **S8 (E4):** Portal „2 Anschlüsse, 4 Aufrufe“; ERP `2|0` -- beide sehen die Adresse des Geräts, nicht die von nginx.
+- **S9:** wie beschrieben; keine Mail unter „Gesendete Elemente“. Die Rohdaten zeigen innerhalb des Kontos `application/ms-tnef` (Exchange stellt intern im
+  eigenen Format zu) -- ob ein Textteil dazukommt, zeigt erst eine Mail an eine Adresse außerhalb: **offen**.
+- **S10:** `update.sh` per Python-Ersetzung an fünf Stellen geändert (Sicherung `update.sh.vor-p1`); Probelauf und Einspielen von 1.11.22: Rechte gesetzt und
+  stimmen, „FERTIG … ERP und Kundenportal laufen“. **Abweichung vom Vorschlag, zu Recht:** `systemctl is-active` mit mehreren Namen gibt 0 zurück, sobald einer
+  läuft -- mein Schritt 3 hätte ein stehendes Portal übersehen. Der Betrieb prüft jeden Dienst einzeln (S10 unten nachgezogen). Der Unterschied:
+
+    @@ -110,23 +110,33 @@
+    +echo "=== Rechte Kundenportal ==="
+    +PHASE="Rechte Kundenportal"
+    +if ! ( set -a; . ./.env; set +a; .venv/bin/python scripts/portal_rechte.py --setzen && .venv/bin/python scripts/portal_rechte.py --pruefen ); then
+    +    echo "!!! Rechte des Kundenportals stimmen nicht -- Abbruch vor dem Neustart. Ausgabe an Claude schicken."
+    +    exit 1
+    +fi
+    +
+     echo "=== Neustart ==="
+    -sudo systemctl restart erp
+    +sudo systemctl restart erp erp-portal erp-portalpost
+    -    if systemctl is-active --quiet erp && curl -fsS --max-time 5 -o /dev/null "$HEALTH_URL"; then
+    +    if systemctl is-active --quiet erp && systemctl is-active --quiet erp-portal && systemctl is-active --quiet erp-portalpost \
+    +       && curl -fsS --max-time 5 -o /dev/null "$HEALTH_URL" \
+    +       && curl -fsS --max-time 5 -o /dev/null -H "Host: kunde.dachkonzepte.gmbh" http://127.0.0.1:8010/health; then
+    -    echo "!!! Das ERP antwortet nach 60 Sekunden nicht auf $HEALTH_URL. Letzte Meldungen:"
+    -    sudo journalctl -u erp -n 30 --no-pager || true
+    +    echo "!!! ERP oder Kundenportal antworten nach 60 Sekunden nicht. Stand und letzte Meldungen:"
+    +    systemctl is-active erp erp-portal erp-portalpost || true
+    +    sudo journalctl -u erp -u erp-portal -u erp-portalpost -n 40 --no-pager || true
+    -echo "=== FERTIG: $ALT -> $NEU, Datenbank $AKTUELL, ERP laeuft ==="
+    +echo "=== FERTIG: $ALT -> $NEU, Datenbank $AKTUELL, ERP und Kundenportal laufen ==="
+
+- Die Datenschutzerklärung 2026-11-25a mit Abschnitt 7 „Kundenportal“ ist live.
+
+Danach als eigene kleine Versionen, in dieser Reihenfolge (Betreibervorgabe): 1. Begrüßung ohne Komma überall -- im Portal „Guten Tag Herr Dr. Muster“, in den
+Mails „Guten Tag Herr Dr. Muster,“; 2. Knopf „Kundenportal öffnen“ als Tabellenzelle mit Polster (Outlook am Rechner zeigt nur grün hinterlegten Text); 3. F1,
+dazu die Wackler `test_v352`, `klicktest_kennzeichen_entziehen` und `klicktest_nach_dem_versand_pruefen`; 4. F2 (Vergleich der Einheiten in `update.sh`, Wortlaut
+als Server-Schritt); 5. lokal Python 3.14 wie auf dem Server (Grundsatz wie 1.11.4), mit Bericht.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
+Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
 Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4, `scripts/portal_rechte.py --setzen` läuft erst seit 1.11.21 (bis dahin Abbruch, nichts
 gesetzt) -- beide kommen vor S5 auf den Server (Umsetzung 1.11.20 und 1.11.21); die Einheit des Portals startet seit 1.11.22 ohne Steuer-Socket -- sie kommt
 mit S10 und wird dann einmal neu installiert (S6b, Umsetzung 1.11.22).
@@ -3031,10 +3095,11 @@ Dann drei Stellen ändern:
    sudo systemctl restart erp erp-portal erp-portalpost
    ```
 
-3. Danach prüfen:
+3. Danach prüfen, jeden Dienst einzeln -- `systemctl is-active` mit mehreren Namen gibt 0 zurück, sobald einer läuft (bis 25.11.2026 stand hier eine Zeile
+   mit allen dreien; der Betrieb hat es beim Einspielen so geändert, Unterschied im Abschnitt „P1f auf dem Server abgearbeitet“):
 
    ```bash
-   systemctl is-active erp erp-portal erp-portalpost && curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health && echo
+   systemctl is-active --quiet erp && systemctl is-active --quiet erp-portal && systemctl is-active --quiet erp-portalpost && curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health && echo
    ```
 
 Den Unterschied in den Chat (er enthält keine Geheimnisse): `diff -u /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
