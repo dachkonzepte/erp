@@ -2422,7 +2422,7 @@ kunde einen AAAA-Eintrag an, wenn app einen hat. Auf Wunsch des Betriebs (eine k
   einer da ist; S7 prüft zuerst, dass auf dem Server 1.11.20 liegt und die Datei nur die beiden Zeilen `listen` hat.
 - Nicht geändert: gunicorn vertraut `X-Forwarded-For` weiter von 127.0.0.1 und ::1 (Vorgabe von gunicorn 26) -- nginx spricht den Dienst über 127.0.0.1 an.
 
-#### Festlegungen 1.11.20 (Bitte bestätigen)
+#### Festlegungen 1.11.20 (bestätigt am 25.11.2026)
 
 1. Der Block des Portals lauscht nur über IPv4 -- `listen 80;` und `listen 443 ssl http2;`, wie die übrigen Seiten des Servers; keine Zeile für `[::]`.
 2. S1: für kunde kein AAAA-Eintrag; zeigt `dig` einen, abbrechen und bei Ionos löschen.
@@ -2494,11 +2494,52 @@ Ausgabe nennt die Verbindungszeichenfolge. Zur Abgrenzung mit `--rolle dkportal_
 public); `--setzen` gibt der Testrolle auch CONNECT auf die Spielwiese (wie auf dem Server auf `dachkonzepte`; die Rolle ist NOLOGIN). Vor der Behebung rot mit
 genau der Meldung vom Server. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.21“.
 
+### Umsetzung 1.11.22: gunicorn ohne Steuer-Socket (S6, 25.11.2026)
+
+Betreiberangabe 25.11.2026, S6 auf dem Server: beide Dienste liefen -- Postbote bereit; Portal verbunden als dkportal, `/health` ok, 421 ohne den Namen
+kunde, je rund 100 MB, `systemd-analyze security` 1.7 OK. Im Journal des Portals eine Zeile:
+
+    [ERROR] Control server error: [Errno 30] Read-only file system: '/home/dkportal'
+
+**Ursache.** gunicorn öffnet seit 25.1.0 ab Werk einen Steuer-Socket für `gunicornc` (Konfiguration zeigen, Arbeitsprozesse dazu oder weg, Neustart, Ende):
+`$XDG_RUNTIME_DIR/gunicorn.ctl`, sonst `$HOME/.gunicorn/gunicorn.ctl`; den Ordner legt er selbst an (0700, der Socket 0600). Der Hauptprozess startet ihn in
+einem eigenen Faden, nachdem die Arbeitsprozesse laufen (`Arbiter._start_control_server`); scheitert er, schreibt der Faden die Zeile oben, und der Dienst
+läuft ohne ihn weiter. Im Portal gibt es kein `$XDG_RUNTIME_DIR` (Systemdienst), `$HOME` ist `/home/dkportal`, und `/home` ist leer und nur lesbar
+(`ProtectHome=tmpfs`). Im ERP (Benutzer tobias, ohne ProtectHome) liegt er vermutlich unter `/home/tobias/.gunicorn/gunicorn.ctl` -- jeder Prozess als tobias
+(auch Postbote und Abholer der Webanfragen) könnte darüber Arbeitsprozesse anlegen oder wegnehmen, neu starten oder den Dienst beenden. Gebraucht wird er
+nirgends: Neustart und Ende laufen über `systemctl`.
+
+**Behebung.** Die Einheit des Portals startet gunicorn mit `--no-control-socket` -- in gunicorn 26.2.0 so benannt, im Quelltext geprüft: Einstellung
+`control_socket_disable` (`config.py::ControlSocketDisable`, `store_true`, seit 25.1.0), mit ihr kehrt `arbiter.py::_start_control_server` sofort zurück. Ein
+Kommentar im Kopf der Einheit sagt warum. Fürs ERP dieselbe Option am Ende von `ExecStart` in `/etc/systemd/system/erp.service` -- die Datei liegt nur auf dem
+Server, der Betrieb ändert sie (S6b, Teil 1). `update.sh` installiert keine Einheiten: nach dem Einspielen von 1.11.22 kommt die Einheit des Portals einmal
+von Hand nach `/etc/systemd/system` (S6b, Teil 2, mit S10).
+
+**Geprüft wird der echte Weg.** `tests/gunicorn_wie_auf_dem_server.py` gibt die Argumente aus ExecStart wie bisher durch den Parser von gunicorn und ruft dann
+`Arbiter._start_control_server` mit dieser Konfiguration auf -- statt des Servers eine Attrappe, die nur festhält, ob er gestartet würde (kein Socket, kein
+Ordner, auch unter Windows). Ohne die Option meldet sie den Start (Gegenprobe).
+
+#### Festlegungen 1.11.22 (Bitte bestätigen)
+
+1. Die Einheit des Portals startet gunicorn mit `--no-control-socket` -- kein Steuer-Socket; Neustart und Ende nur über `systemctl`.
+2. Geprüft wird der Weg des Hauptprozesses (`Arbiter._start_control_server`) mit der Konfiguration aus ExecStart, mit einer Attrappe statt des Servers
+   (`test_v803`); dazu die Option in der Einheit selbst (`test_v801`).
+3. Das ERP bekommt dieselbe Option am Ende von `ExecStart` in `erp.service`, auf dem Server von Hand (S6b, Teil 1), sonst nichts an der Datei; ohne Test (die
+   Datei liegt nicht im Repo).
+4. Nach dem Einspielen von 1.11.22 wird `erp-portal.service` einmal neu installiert (S6b, Teil 2) -- `update.sh` holt die Datei, installiert sie aber nicht.
+
+#### Tests und Prüfung 1.11.22
+
+`tests/test_v803_gunicorn_server.py::test_kein_steuer_socket` (neu): der Hauptprozess startet den Steuer-Socket nicht, `control_socket_disable` ist gesetzt,
+die Option steht in ExecStart, die Ausgabe von gunicorn nennt keinen Steuer-Socket. `test_v801_portal_dienst.py::test_einheit_des_dienstes` prüft dazu die
+Option in ExecStart. Keine Seite geändert, kein Klicktest berührt. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.22“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.21: seit fc8b758 hat sich nichts an den Einheiten, an den Migrationen
-oder an den Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4, `scripts/portal_rechte.py --setzen` läuft erst seit 1.11.21 (bis dahin
-Abbruch, nichts gesetzt) -- beide kommen vor S5 auf den Server (Umsetzung 1.11.20 und 1.11.21).
+Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
+Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4, `scripts/portal_rechte.py --setzen` läuft erst seit 1.11.21 (bis dahin Abbruch, nichts
+gesetzt) -- beide kommen vor S5 auf den Server (Umsetzung 1.11.20 und 1.11.21); die Einheit des Portals startet seit 1.11.22 ohne Steuer-Socket -- sie kommt
+mit S10 und wird dann einmal neu installiert (S6b, Umsetzung 1.11.22).
 Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
 Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026. Nachgezogen am 25.11.2026, wie der
 Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben); S0, S1 und S7 seit 1.11.20 nur IPv4 (Umsetzung 1.11.20).
@@ -2770,7 +2811,8 @@ sudo systemd-analyze security erp-portal | tail -1
 **Erwartet:**
 
 - Postbote: „… app.portal_postbote: Postbote bereit (LISTEN portal_post)“ und „Postbote: aufgeräumt {'codes': 0, 'sitzungen': 0, 'bremsen': 0, 'zugriffe': 0}“.
-- Portal: gunicorn „Listening at: http://127.0.0.1:8010“, „Booting worker …“ und „Portal verbunden als dkportal, Revision <dieselbe wie in S5>“.
+- Portal: gunicorn „Listening at: http://127.0.0.1:8010“, „Booting worker …“ und „Portal verbunden als dkportal, Revision <dieselbe wie in S5>“. Bis 1.11.21
+  dazu „[ERROR] Control server error: [Errno 30] Read-only file system: '/home/dkportal'“ -- ohne Folge, weg mit S6b.
 - `{"ok":true}`; ohne den Namen kunde `421` (fremder Host).
 - `active` dreimal; `127.0.0.1:8010` (nur lokal).
 - `MemoryCurrent` je unter 200 MB (Zahl in Byte, z. B. `MemoryCurrent=95000000`).
@@ -2782,6 +2824,68 @@ Geheimnisse: Fehler nur mit Namen der Klasse). Typisch: „Datenbank auf Revisio
 Postbote“ (nur einer je Datenbank).
 **Rückweg:** `sudo systemctl disable --now erp-portal erp-portalpost && sudo rm /etc/systemd/system/erp-portal.service /etc/systemd/system/erp-portalpost.service
 && sudo systemctl daemon-reload`.
+
+#### S6b Kein Steuer-Socket (seit 1.11.22)
+
+gunicorn 26 öffnet ab Werk einen Steuer-Socket (für `gunicornc`: Konfiguration zeigen, Arbeitsprozesse dazu oder weg, Neustart, Ende) unter
+`$XDG_RUNTIME_DIR/gunicorn.ctl` bzw. `$HOME/.gunicorn/gunicorn.ctl`. Gebraucht wird er nicht -- Neustart und Ende laufen über `systemctl`. Im Portal scheiterte er
+an ProtectHome (nach S6 im Journal „[ERROR] Control server error: [Errno 30] Read-only file system: '/home/dkportal'“, sonst ohne Folge); im ERP liegt er
+vermutlich unter `/home/tobias/.gunicorn/`. Beide bekommen `--no-control-socket` (Umsetzung 1.11.22).
+
+**Teil 1: ERP** -- jederzeit nach S6, unabhängig von 1.11.22 (die Option gibt es in gunicorn 26.2.0 schon). `erp.service` liegt nur auf dem Server. Geändert
+wird genau eine Stelle: ans Ende der Zeile `ExecStart=` kommt ` --no-control-socket` (mit einem Leerzeichen davor), sonst nichts. Zuerst lesen, als tobias:
+
+```bash
+export SYSTEMD_PAGER=cat
+grep -c '^ExecStart=' /etc/systemd/system/erp.service
+grep '^ExecStart=' /etc/systemd/system/erp.service
+ls -la /home/tobias/.gunicorn 2>&1; ss -lx | grep -c 'gunicorn.ctl'
+```
+
+**Erwartet:** `1`; die eine Zeile startet gunicorn direkt (`-w 2 … --timeout 120`, laut S0) und endet auf eine Option von gunicorn, noch ohne
+`--no-control-socket`; im Ordner `/home/tobias/.gunicorn` eine Zeile `srw------- … gunicorn.ctl` und `1` (der Steuer-Socket des ERP lauscht). Fehlt der Ordner
+und steht `0`, hat das ERP keinen -- die Änderung schadet dann nicht.
+**Abbrechen,** wenn `grep -c` nicht `1` ist oder die Zeile auf `\` oder ein Anführungszeichen endet (dann geht sie weiter bzw. steht gunicorn in einem Aufruf
+der Shell, und der Befehl unten hängt die Option an die falsche Stelle) -- die Zeile in den Chat.
+
+Dann ändern, als tobias (der Neustart unterbricht das ERP für ein paar Sekunden wie `update.sh`):
+
+```bash
+sudo cp -a /etc/systemd/system/erp.service /home/tobias/erp.service.vor-1.11.22
+sudo sed -i '/^ExecStart=/{/--no-control-socket/!s/$/ --no-control-socket/}' /etc/systemd/system/erp.service
+grep '^ExecStart=' /etc/systemd/system/erp.service
+diff -U0 /home/tobias/erp.service.vor-1.11.22 /etc/systemd/system/erp.service
+sudo systemctl daemon-reload && sudo systemctl restart erp
+systemctl is-active erp
+sudo journalctl -u erp --since '2 min ago' --no-pager
+ls -A /home/tobias/.gunicorn 2>&1; ss -lx | grep -c 'gunicorn.ctl'
+```
+
+**Erwartet:** die Zeile wie vorher, am Ende ` --no-control-socket`; `diff` zeigt genau diese eine Zeile alt (`-`) und neu (`+`); `active`; im Journal je
+Arbeitsprozess „Booting worker“ und „Application startup complete“, keine Zeile „Control server“; `ls -A` leer (gunicorn löscht den Socket beim Beenden, den
+leeren Ordner lässt er stehen) und `0`. Den leeren Ordner danach löschen: `rmdir /home/tobias/.gunicorn`.
+**Abbrechen,** wenn erp nicht `active` ist: `sudo journalctl -u erp -n 30 --no-pager` in den Chat und den Rückweg gehen.
+**Rückweg:** `sudo cp -a /home/tobias/erp.service.vor-1.11.22 /etc/systemd/system/erp.service && sudo systemctl daemon-reload && sudo systemctl restart erp`.
+
+**Teil 2: Portal** -- erst wenn 1.11.22 eingespielt ist (mit S10). `update.sh` holt die geänderte Einheit, installiert sie aber nicht nach
+`/etc/systemd/system`; das geschieht hier einmal von Hand. Als tobias:
+
+```bash
+git -C /home/tobias/erp log --oneline -1
+grep -c -- '--no-control-socket' /home/tobias/erp/scripts/server/erp-portal.service
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/erp-portal.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl restart erp-portal
+systemctl is-active erp-portal
+sudo journalctl -u erp-portal --since '2 min ago' --no-pager
+curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health; echo
+```
+
+**Erwartet:** 1.11.22 oder später; `2` (Kommentar und `ExecStart`); `active`; im Journal „Listening at: http://127.0.0.1:8010“, „Booting worker …“ und
+„Portal verbunden als dkportal …“, keine Zeile „Control server error“; `{"ok":true}`. Während des Neustarts zeigt das Portal ein paar Sekunden „Gleich wieder
+da“.
+**Abbrechen,** wenn `grep -c` `0` zeigt (erst `update.sh`) oder erp-portal nicht `active` ist: `sudo journalctl -u erp-portal -n 30 --no-pager` in den Chat.
+**Rückweg:** die Einheit aus 1.11.21 zurück: `git -C /home/tobias/erp show b96a7b8:scripts/server/erp-portal.service | sudo tee
+/etc/systemd/system/erp-portal.service >/dev/null && sudo systemctl daemon-reload && sudo systemctl restart erp-portal`.
 
 #### S7 nginx und Zertifikat
 
@@ -2935,6 +3039,8 @@ Dann drei Stellen ändern:
 
 Den Unterschied in den Chat (er enthält keine Geheimnisse): `diff -u /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
 
+Mit dem ersten Einspielen danach (1.11.22 oder später) einmal S6b, Teil 2: `update.sh` holt die geänderte Einheit des Portals, installiert sie aber nicht.
+
 **Erwartet beim nächsten Einspielen:** „Rechte für dkportal gesetzt …“, „Rechte für dkportal stimmen.“, `active` dreimal, `{"ok":true}`. Während des Neustarts
 zeigt das Portal für ein paar Sekunden „Gleich wieder da“.
 **Rückweg:** `cp -a /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
@@ -2942,4 +3048,4 @@ zeigt das Portal für ein paar Sekunden „Gleich wieder da“.
 #### Danach
 
 Den Bericht P1f schreibe ich aus den Ausgaben im Chat: Speicher je Dienst, Wert von `systemd-analyze security`, E4 (Portal und ERP), Textteil der Mail (S9.6),
-Fristen von logrotate und Journal (S0).
+Fristen von logrotate und Journal (S0), Steuer-Socket weg in ERP und Portal (S6b).

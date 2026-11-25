@@ -4,10 +4,12 @@ Auf dem Server laufen gunicorn 26.2.0 und uvicorn 0.52.4 (Betreiberangabe 24.11.
 und die Suite läuft mit ihnen. Geprüft für den Portal-Dienst, wie die Einheit erp-portal ihn startet (E4):
 - gunicorn vertraut X-Forwarded-For ab Werk nur von 127.0.0.1 und ::1 -- weder Einheit noch Umgebung ändern das;
 - ab Werk kein Zugriffsprotokoll (weder gunicorn noch uvicorn schreibt eine Zeile je Anfrage);
-- der Arbeitsprozess ist der UvicornWorker; er bedient Anfragen und übernimmt die Liste der vertrauten Adressen von gunicorn.
+- der Arbeitsprozess ist der UvicornWorker; er bedient Anfragen und übernimmt die Liste der vertrauten Adressen von gunicorn;
+- kein Steuer-Socket (seit 1.11.22): der Hauptprozess startet ihn mit der Konfiguration aus ExecStart nicht.
 
 Der echte Weg von gunicorn bis kurz vor dem Hauptprozess läuft in einem eigenen Prozess (`tests/gunicorn_wie_auf_dem_server.py`). Den Hauptprozess
-selbst (fork, Signale) gibt es unter Windows nicht -- ihn belegt der ERP-Dienst auf dem Server mit denselben Versionen.
+selbst (fork, Signale) gibt es unter Windows nicht -- ihn belegt der ERP-Dienst auf dem Server mit denselben Versionen; von ihm läuft nur der Start
+des Steuer-Sockets mit (mit einer Attrappe statt des Servers).
 """
 
 from __future__ import annotations
@@ -116,6 +118,17 @@ def test_uvicorn_worker_bedient_anfragen(lauf):
     assert ergebnis["v4_vorangestellt"] == "198.51.100.9"  # die vom Besucher vorangestellte Adresse hilft nicht
     if ergebnis["v6_xff"] is not None:
         assert ergebnis["v6_xff"] == "198.51.100.10"
+
+
+def test_kein_steuer_socket(lauf):
+    """Seit 1.11.22 (P1f, S6): gunicorn 26 öffnet ab Werk einen Steuer-Socket (gunicornc: Konfiguration zeigen, Arbeitsprozesse dazu oder weg, Neustart,
+    Ende) unter $XDG_RUNTIME_DIR bzw. $HOME/.gunicorn -- im Portal scheiterte er an ProtectHome („Control server error: [Errno 30]“). Die Einheit schaltet
+    ihn ab; geprüft wird der echte Weg des Hauptprozesses (`Arbiter._start_control_server`) mit der Konfiguration aus ExecStart."""
+    ergebnis, ausgabe = lauf
+    assert ergebnis["steuer_socket"] is False, "der Hauptprozess startete den Steuer-Socket"
+    assert ergebnis["steuer_socket_aus"] is True
+    assert "--no-control-socket" in _ausfuehren()
+    assert "Control server" not in ausgabe and "control socket" not in ausgabe
 
 
 def test_platzhalter_nur_unter_windows(lauf):

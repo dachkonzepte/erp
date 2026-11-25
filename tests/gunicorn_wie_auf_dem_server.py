@@ -7,7 +7,8 @@ keinen ein.
 Ablauf wie `python -m gunicorn <Argumente aus ExecStart>` bis kurz vor dem Hauptprozess: die Argumente gehen durch den echten
 Parser von gunicorn (`WSGIApplication`, auch Umgebung und eine gunicorn.conf.py im Arbeitsordner), der Logger ist der von
 gunicorn, und der Arbeitsprozess ist die Klasse, die gunicorn daraus lädt (UvicornWorker) -- gebaut mit denselben Argumenten wie
-im Hauptprozess (`Arbiter.spawn_worker`). Nicht dabei: fork, Signale, die Datei für den Herzschlag (unter Windows nicht
+im Hauptprozess (`Arbiter.spawn_worker`). Vom Hauptprozess selbst nur der Start des Steuer-Sockets (seit 1.11.22, `Arbiter._start_control_server`
+mit einer Attrappe statt des Servers: kein Socket, kein Ordner). Nicht dabei: fork, Signale, die Datei für den Herzschlag (unter Windows nicht
 löschbar, solange sie offen ist) und das Laden der App -- statt des Portals bedient der Arbeitsprozess eine kleine App, die die
 Adresse der Verbindung zurückgibt (das Portal selbst hinter echtem uvicorn: `tests/test_v802_portal_sitzung.py`).
 
@@ -86,6 +87,28 @@ ergebnis = {
     "zugriff_handler": len(log.access_log.handlers),
     "zugriff_an": bool(log.access_log_enabled),
 }
+
+# Steuer-Socket (seit 1.11.22): gunicorn 26 öffnet ihn ab Werk im Hauptprozess, nachdem die Arbeitsprozesse laufen. Hier der echte Weg dorthin
+# (`Arbiter._start_control_server`) mit dieser Konfiguration -- statt des Servers eine Attrappe, die nur festhält, ob er gestartet würde.
+import gunicorn.ctl.server as _steuer  # noqa: E402
+from gunicorn.arbiter import Arbiter  # noqa: E402
+
+steuer_gestartet = []
+
+
+class _SteuerAttrappe:
+    def __init__(self, arbiter, pfad, modus):
+        steuer_gestartet.append(pfad)
+
+    def start(self):
+        pass
+
+
+_steuer.ControlSocketServer = _SteuerAttrappe
+_haupt = types.SimpleNamespace(cfg=cfg, log=log, _control_server=None)
+_haupt._get_control_socket_path = types.MethodType(Arbiter._get_control_socket_path, _haupt)
+Arbiter._start_control_server(_haupt)
+ergebnis.update({"steuer_socket_aus": cfg.control_socket_disable, "steuer_socket": bool(steuer_gestartet) or _haupt._control_server is not None})
 
 
 def ausgeben():

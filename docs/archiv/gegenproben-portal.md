@@ -507,3 +507,15 @@ pytest -- berichtigt und alle drei noch einmal.
 | Nr. 1 – Transaktion von der ersten Anweisung an | die alte Reihenfolge: Name der Datenbank, dann `conn.begin()` | 1 rot („already initialized a SQLAlchemy Transaction“) |
 | Nr. 2 – vorher meldet `--pruefen` Abweichungen | `--pruefen` meldet nie eine | 1 rot (vorher Rückgabe 0 statt 1) |
 | Nr. 2 – nach `--setzen` stimmt `--pruefen` | `--setzen` ohne Commit (meldet „gesetzt“, setzt nichts) | 1 rot (`--pruefen` danach Rückgabe 1) |
+
+## 1.11.22: gunicorn ohne Steuer-Socket
+
+Probendatei `gp11122.py`: `--no-control-socket` aus `scripts/server/erp-portal.service` genommen, beide Tests einzeln; die Einheit danach byte-gleich zurück
+(SHA-256 verglichen). Ohne die Option meldet die Attrappe den Start des Steuer-Sockets -- der Weg des Hauptprozesses ist also erreicht, nicht still grün.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1, 2 – der Hauptprozess startet keinen Steuer-Socket | ExecStart ohne `--no-control-socket` | `test_kein_steuer_socket` rot („der Hauptprozess startete den Steuer-Socket“) |
+| Nr. 1, 2 – die Option steht in der Einheit | ExecStart ohne `--no-control-socket` | `test_einheit_des_dienstes` rot (`"--no-control-socket" in start.split()`) |
+| Nr. 3 – ERP | keine: `erp.service` liegt nur auf dem Server | -- |
+| Nr. 4 – Einheit neu installieren | keine: Schritt auf dem Server (Doku) | -- |

@@ -344,6 +344,7 @@ def test_einheit_des_dienstes():
     assert "--workers 1 " in start and "--bind 127.0.0.1:8010 " in start and "uvicorn.workers.UvicornWorker" in start
     assert "forwarded-allow-ips" not in einheit.replace("Kein --forwarded-allow-ips", "")  # E4: gunicorn vertraut nur 127.0.0.1
     assert "access-logfile" not in einheit  # kein Zugriffsprotokoll des Dienstes (keine Adressen im Journal)
+    assert "--no-control-socket" in start.split()  # seit 1.11.22 kein Steuer-Socket (test_v803 prüft den Weg des Hauptprozesses)
     eingebunden = [z.split("=", 1)[1].split(":")[0] for z in einheit.splitlines() if z.startswith("BindReadOnlyPaths=")]
     assert sorted(eingebunden) == sorted(f"/home/tobias/erp/{x}" for x in ("app", "alembic", "alembic.ini", ".venv"))
 

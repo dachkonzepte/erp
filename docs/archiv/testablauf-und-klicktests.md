@@ -1479,6 +1479,10 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   ist verloren (die Einzelläufe in derselben Arbeitskopie überschrieben `.pytest_cache/reihenfolge`). 1.11.20 ändert nur `nginx-kunde.conf` und Doku.
   Stand: Ursache geklärt, nicht behoben (1.11.20 sollte nur nginx ändern) -- Vorschlag: den Thread der haltenden Sitzung abwarten (`join`) statt der
   Pause, freigeben erst, wenn die zweite Aktion nachweislich an der Sperre wartet (wie 1.9.348), keine Dauer gegen eine feste Schranke.
+- **`klicktest_kennzeichen_entziehen`** -- 25.11.2026, Endlauf von 1.11.21 auf b96a7b8 (frische Arbeitskopie, zu viert): 2 von 8, `GET /api/resources` kam
+  laut Verbindungsprotokoll nie beim Server an; `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 8 von 8. Bekannte Art „Anfrage nie angekommen“ (wie
+  `klicktest_rahmen`); 1.11.21 änderte nur `scripts/portal_rechte.py`, nichts an Kennzeichen, Geräten oder Plantafel. Stand: abgefangen durch die Wiederholung,
+  Ursache im Browser offen.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 

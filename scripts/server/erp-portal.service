@@ -4,6 +4,8 @@
 # /home ist leer (ProtectHome=tmpfs). Liegt in app/, alembic/ oder .venv ein Geheimnis (S0: git status --ignored), kommt es vor dem Start in
 # InaccessiblePaths= (unten). Kein --forwarded-allow-ips: gunicorn vertraut X-Forwarded-For ab Werk nur von 127.0.0.1 und ::1, gebunden ist der Dienst
 # nur an 127.0.0.1 (nginx) -- E4; FORWARDED_ALLOW_IPS und GUNICORN_CMD_ARGS gehören nicht in die Umgebung (tests/test_v803_gunicorn_server.py).
+# Kein Steuer-Socket (--no-control-socket, seit 1.11.22): gunicorn 26 öffnet ab Werk einen unter $XDG_RUNTIME_DIR bzw. $HOME/.gunicorn (gunicornc:
+# Konfiguration zeigen, Arbeitsprozesse dazu oder weg, Neustart, Ende) -- hier scheiterte er an ProtectHome, gebraucht wird er nicht (systemctl).
 [Unit]
 Description=ERP: Kundenportal (kunde.dachkonzepte.gmbh)
 After=network.target postgresql.service
@@ -22,7 +24,7 @@ BindReadOnlyPaths=/home/tobias/erp/alembic:/srv/erp-code/alembic
 BindReadOnlyPaths=/home/tobias/erp/alembic.ini:/srv/erp-code/alembic.ini
 BindReadOnlyPaths=/home/tobias/erp/.venv:/srv/erp-code/.venv
 # InaccessiblePaths=/srv/erp-code/app/<Geheimnis aus S0>
-ExecStart=/srv/erp-code/.venv/bin/python -m gunicorn 'app.portal.main:erzeugen()' --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8010 --timeout 30 --graceful-timeout 10 --max-requests 2000 --max-requests-jitter 200
+ExecStart=/srv/erp-code/.venv/bin/python -m gunicorn 'app.portal.main:erzeugen()' --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8010 --timeout 30 --graceful-timeout 10 --max-requests 2000 --max-requests-jitter 200 --no-control-socket
 Restart=on-failure
 RestartSec=5
 MemoryHigh=200M
