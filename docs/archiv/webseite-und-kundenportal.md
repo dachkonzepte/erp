@@ -2437,10 +2437,68 @@ Kommentare; der erste Teil der Datei wie in S7 (`awk` bis zum zweiten `server {`
 Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.20“. Im ersten vollen Lauf ein Wackler ohne Bezug (`test_v352`, feste Pause vor dem
 Schließen einer Sitzung, die noch committet; laufende Liste im Archiv „Testablauf“), nicht behoben.
 
+### Umsetzung 1.11.21: das Skript für die Rechte des Portals bricht nicht mehr ab (S5, 25.11.2026)
+
+Betreiberangabe 25.11.2026, S5 auf dem Server: `scripts/portal_rechte.py --setzen` brach ab, nichts gesetzt (danach 0 Spalten, 0 Funktionen für dkportal) --
+
+    File "/home/tobias/erp/scripts/portal_rechte.py", line 53, in main
+      with conn.begin():
+    sqlalchemy.exc.InvalidRequestError: This connection has already initialized a SQLAlchemy Transaction() object
+    via begin() or autobegin; can't call begin() here unless rollback() or commit() is called first.
+
+Aufruf wie in S5 (im Repo-Ordner, `.env` geladen, `alembic current` = `heads` = `c8e2f5a1d394`, Python 3.14, Pakete aus `.venv`); S0–S4 erledigt, die Rolle
+dkportal neu und ohne Rechte, pg_hba wie V1, `portal.env` vollständig.
+
+**Ursache.** Das Skript las `SELECT current_database()` auf der Verbindung und rief danach `conn.begin()` auf. SQLAlchemy 2 beginnt eine Transaktion mit der
+ersten Anweisung selbst (autobegin); ein `begin()` danach lehnt es ab. Der Fehler kam vor dem ersten GRANT, die Verbindung rollte beim Schließen zurück --
+deshalb nichts gesetzt, nichts aufzuräumen. Lokal nachgestellt (SQLAlchemy 2.0.52, Python 3.13): dieselbe Meldung -- die Version von Python spielt keine Rolle.
+
+**Behebung.** `--setzen` öffnet die Transaktion vor der ersten Anweisung (`with engine.begin() as conn:`), liest den Namen der Datenbank darin und committet
+nur, wenn alles gesetzt ist. `--pruefen` unverändert (liest, rollt zurück).
+
+**Warum die bisherigen Tests es nicht fanden.** `tests/test_v799_portal_rechte.py` prüft `rechte.setzen()` und `rechte.pruefen()` gegen PostgreSQL, ruft sie
+aber selbst in einer eigenen Transaktion auf (`with engine.begin() as c: rechte.setzen(c, …)`) -- die Logik war geprüft, der Rahmen des Skripts nicht. Das
+Skript selbst lief in Tests nur ohne `DATABASE_URL` bzw. mit SQLite: dort gibt es vor jeder Verbindung 2 zurück. Die Aufbauten von test_v800, test_v805 und
+`klicktest_portal_seiten` setzen die Rechte ebenso über die Funktion. Bei der Vorbereitung von P1f habe ich das Skript mit dem Code abgeglichen („2 Tabellen,
+8 Funktionen“), aber nicht laufen lassen -- jeder echte Aufruf gegen eine Datenbank hätte den Fehler gezeigt.
+
+**Dasselbe Muster anderswo?** Gesucht: jedes `begin()` auf einer Verbindung oder Sitzung unter `app/` und `scripts/` (außer `engine.begin()` und
+`begin_nested()`) -- außer dieser Stelle keins. Die beiden anderen Skripte, die in P1f zum ersten Mal echt laufen:
+
+- `scripts/pruefe_portal_e4.py` (S8): nur eine Sitzung, die liest und am Ende zurückrollt (`nur_lesende_sitzung()` aus `pruefe_stornos.py`), kein `begin()`.
+  Getestet war es bisher nur mit SQLite und einer übergebenen Sitzung (`test_v802_portal_sitzung.py::test_pruefskript_e4_nennt_nur_zahlen`), nie über
+  `DATABASE_URL` gegen PostgreSQL.
+- Der Postbote (`scripts/portal_postbote.py`, S6): eine eigene Verbindung mit AUTOCOMMIT für Sperre und LISTEN, die Arbeit in Sitzungen mit commit/rollback,
+  kein `begin()`. `laufen()` ist gegen PostgreSQL getestet (`test_v805_portal_postbote.py`, im Testprozess); das Skript selbst nur ohne Datenbank.
+- Einmal geprüft, beide als Kindprozess wie auf dem Server (Python aus `.venv`, im Repo-Ordner, `DATABASE_URL` aus der Umgebung), gegen PostgreSQL in einem
+  Wegwerf-Schema aus `alembic upgrade head` (dieselbe Revision `c8e2f5a1d394`), eigener `ERP_DATA_DIR`: `pruefe_portal_e4.py` ohne Aufrufe Rückgabe 1 „0
+  Anschlüsse … Noch kein Aufruf“, mit zwei erfundenen Anschlüssen Rückgabe 0 „2 Anschlüsse, 4 Aufrufe“; der Postbote „Postbote bereit (LISTEN portal_post)“ und
+  „aufgeräumt {…: 0}“, ein zweiter daneben Rückgabe 3 „Es läuft schon ein Postbote“; danach den ersten über seine PID beendet. Nicht als Test im Repo (Frage im
+  Bericht).
+
+Nebenbefund: auf dem Server Python 3.14, lokal 3.13 (`.venv`) -- hier ohne Folge, festgehalten.
+
+#### Festlegungen 1.11.21 (Bitte bestätigen)
+
+1. `scripts/portal_rechte.py --setzen` läuft von der ersten Anweisung an in einer Transaktion (`engine.begin()`, der Name der Datenbank darin); `--pruefen`
+   unverändert.
+2. Ein Test ruft das Skript wie in S5 als Kindprozess auf -- `--setzen`, dann `--pruefen`, zweimal wie `update.sh` bei jedem Einspielen --, gegen PostgreSQL
+   in einem Schema aus `alembic upgrade head`, mit der Testrolle ohne Rechte im Schema; geprüft wie in S5: Rückgaben, Ausgaben, danach 9 Spalten und 8
+   Funktionen.
+
+#### Tests und Prüfung 1.11.21
+
+`tests/test_v816_portal_rechte_skript.py` (neu, 1): vorher 0 Spalten und 0 Funktionen, `--pruefen` Rückgabe 1 mit Abweichungen; dann zweimal `--setzen`
+(Rückgabe 0, „Rechte für dkportal_test gesetzt: 2 Tabellen (nur Lesen), 8 Funktionen, …“) und `--pruefen` (Rückgabe 0, „… stimmen.“), danach 9 und 8; keine
+Ausgabe nennt die Verbindungszeichenfolge. Zur Abgrenzung mit `--rolle dkportal_test --schema <Wegwerf-Schema>` (auf dem Server die Vorgaben dkportal und
+public); `--setzen` gibt der Testrolle auch CONNECT auf die Spielwiese (wie auf dem Server auf `dachkonzepte`; die Rolle ist NOLOGIN). Vor der Behebung rot mit
+genau der Meldung vom Server. Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.21“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.20: seit fc8b758 hat sich nichts an den Einheiten, an den Migrationen
-oder an den Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4 (1.11.20 kommt vor S7 auf den Server, Umsetzung 1.11.20).
+Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.21: seit fc8b758 hat sich nichts an den Einheiten, an den Migrationen
+oder an den Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4, `scripts/portal_rechte.py --setzen` läuft erst seit 1.11.21 (bis dahin
+Abbruch, nichts gesetzt) -- beide kommen vor S5 auf den Server (Umsetzung 1.11.20 und 1.11.21).
 Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
 Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026. Nachgezogen am 25.11.2026, wie der
 Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben); S0, S1 und S7 seit 1.11.20 nur IPv4 (Umsetzung 1.11.20).
@@ -2667,7 +2725,9 @@ sudo stat -c '%a %U:%G' /etc/dk-portal/portal.env
 
 #### S5 Version und Rechte
 
-Der Code von fc8b758 samt Migrationen ist schon eingespielt. Liegt inzwischen ein neuerer Stand im Repo, zuerst wie immer `/home/tobias/update.sh`. Dann als
+Der Code von fc8b758 samt Migrationen ist schon eingespielt. Liegt inzwischen ein neuerer Stand im Repo, zuerst wie immer `/home/tobias/update.sh` -- für S5
+mindestens 1.11.21 (`git log --oneline -1`): bis 1.11.20 brach `--setzen` mit „InvalidRequestError: This connection has already initialized a SQLAlchemy
+Transaction()“ ab, nichts gesetzt (Umsetzung 1.11.21). Dann als
 tobias (die Klammern laden `.env` nur für diese Befehle):
 
 ```bash

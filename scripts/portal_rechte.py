@@ -46,18 +46,21 @@ def main(argv=None) -> int:
     rolle = args.rolle or rechte.ROLLE
     engine = create_engine(url)
     try:
+        if args.setzen:
+            # seit 1.11.21: eine Transaktion von der ersten Anweisung an. Bis dahin las das Skript den Namen der Datenbank vor conn.begin() -- SQLAlchemy 2
+            # beginnt die Transaktion mit der ersten Anweisung selbst (autobegin), begin() danach scheiterte (S5 auf dem Server, 25.11.2026).
+            try:
+                with engine.begin() as conn:
+                    datenbank = conn.exec_driver_sql("SELECT current_database()").scalar()
+                    anweisungen = rechte.setzen(conn, rolle=rolle, schema=args.schema, datenbank=datenbank)
+            except ValueError as exc:
+                print(f"Nicht gesetzt: {exc}")
+                return 1
+            print(f"Rechte für {rolle} gesetzt: {len(rechte.LESEN)} Tabellen (nur Lesen), {len(rechte.FUNKTIONEN)} Funktionen, "
+                  f"{len(anweisungen)} Anweisungen.")
+            return 0
         with engine.connect() as conn:
             datenbank = conn.exec_driver_sql("SELECT current_database()").scalar()
-            if args.setzen:
-                try:
-                    with conn.begin():
-                        anweisungen = rechte.setzen(conn, rolle=rolle, schema=args.schema, datenbank=datenbank)
-                except ValueError as exc:
-                    print(f"Nicht gesetzt: {exc}")
-                    return 1
-                print(f"Rechte für {rolle} gesetzt: {len(rechte.LESEN)} Tabellen (nur Lesen), {len(rechte.FUNKTIONEN)} Funktionen, "
-                      f"{len(anweisungen)} Anweisungen.")
-                return 0
             abweichungen = rechte.pruefen(conn, rolle=rolle, schema=args.schema, datenbank=datenbank)
             conn.rollback()
     finally:

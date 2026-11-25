@@ -495,3 +495,15 @@ Probendatei `gp11120.py` mit `tests/test_v815_nginx_nur_ipv4.py`; die Datei byte
 | Nr. 3 – S0 erwartet nur `0.0.0.0` | keine: Anleitung; geprüft in S0 (`ss -ltn`) | – |
 | Nr. 4 – S7 prüft zuerst die Datei auf dem Server | keine: Anleitung; geprüft in S7 (`grep`) | – |
 | Nr. 5 – IPv6 später nur zusammen | keine: Arbeitsweise | – |
+
+## 1.11.21: das Skript für die Rechte des Portals
+
+Probendatei `gp11121.py` mit `tests/test_v816_portal_rechte_skript.py` allein; `scripts/portal_rechte.py` je Fall byte-gleich zurück. Nr. 2b war im ersten
+Lauf schon rot an der geprüften Stelle (`--pruefen` nach dem Setzen Rückgabe 1), nur mein Suchtext im Probenlauf passte nicht zur gekürzten Ausgabe von
+pytest -- berichtigt und alle drei noch einmal.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Transaktion von der ersten Anweisung an | die alte Reihenfolge: Name der Datenbank, dann `conn.begin()` | 1 rot („already initialized a SQLAlchemy Transaction“) |
+| Nr. 2 – vorher meldet `--pruefen` Abweichungen | `--pruefen` meldet nie eine | 1 rot (vorher Rückgabe 0 statt 1) |
+| Nr. 2 – nach `--setzen` stimmt `--pruefen` | `--setzen` ohne Commit (meldet „gesetzt“, setzt nichts) | 1 rot (`--pruefen` danach Rückgabe 1) |
