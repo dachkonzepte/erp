@@ -2249,7 +2249,7 @@ mit `error_page 502 504` und internem Ort; CSP mit genau der Prüfsumme des Stil
   einem Neuladen (der Zeitpunkt steht im Speicher des Tabs; ein Neuladen nach mehr als 30 Sekunden zeigt C mit dem Hinweis).
 - `portal.css`: breit (ab 900 px) steht „Wir fragen Sie nie …“ in B direkt unter dem Inhalt; auf dem Handy weiter unten wie im Entwurf.
 
-#### Festlegungen 1.11.16 (Bitte bestätigen)
+#### Festlegungen 1.11.16 (bestätigt am 25.11.2026)
 
 1. Wartet der Code nach 30 Sekunden noch, weiter zu C mit dem Hinweis „Der Versand dauert länger als sonst. Der Code kann noch einige Minuten brauchen – sehen Sie
    bitte auch im Spam-Ordner nach.“; die Seite fragt weiter nach dem Stand, dann alle 5 Sekunden.
@@ -2300,7 +2300,7 @@ Beispiel (erfundene Firmendaten, eine Angebotsmail aus `send_quote_email()` mit 
     Muster Bedachung GmbH · Dachweg 1 · 12345 Musterstadt
     Sitz Musterstadt · Amtsgericht Musterstadt HRB 99999 · Geschäftsführer: Erika Beispiel
 
-#### Festlegungen 1.11.17 (Bitte bestätigen)
+#### Festlegungen 1.11.17 (bestätigt am 25.11.2026)
 
 1. Unter jede Mail an Kunden und Beteiligte setzt das ERP beim Senden nach einer Leerzeile „Name · Straße · PLZ Ort“ und darunter „Sitz <Ort> ·
    <Registergericht> <Registernummer> · Geschäftsführer: <Name(n)>“ aus den Firmendaten -- jede Versandart außer den Aufgaben-Mails.
@@ -2345,7 +2345,7 @@ Server ausgeführt, nichts am Code geändert.
   (`__Host-dkportal-code` nur während der Anmeldung, 15 Minuten), der Speicher des Tabs während der Anmeldung (Schritt, verdeckte Adresse, Zeitpunkt der
   Anforderung), der Link gilt 12 Monate, höchstens 5 Fehlversuche je Code, die Mails nicht in „Gesendete Elemente“.
 
-#### Festlegungen Vorbereitung P1f (Bitte bestätigen)
+#### Festlegungen Vorbereitung P1f (bestätigt am 25.11.2026)
 
 V1. pg_hba: drei Zeilen vor allen übrigen -- dkportal nur zu `dachkonzepte` über 127.0.0.1 mit scram-sha-256, jede andere Verbindung von dkportal (andere
     Datenbank, andere Adresse, Socket) `reject`.
@@ -2394,7 +2394,7 @@ Auftrag, Rechnung, Mahnung, Vertrag, Checkliste, Anzeigen, Abnahmeprotokoll) ste
 - Der Satz steht immer: für jede Rolle der Seite, bei gesperrtem Feld (Büro – Auftrag bei den Mahnstufen) und ohne Firmendaten (dann setzt das ERP nichts --
   „aus den Firmendaten“). Nicht an den Versandstellen.
 
-#### Festlegungen 1.11.19 (Bitte bestätigen)
+#### Festlegungen 1.11.19 (bestätigt am 25.11.2026)
 
 1. Unter dem Feld „Text“ der E-Mail-Vorlagen der Satz „Darunter setzt das ERP beim Senden Name, Anschrift und Pflichtangaben aus den Firmendaten.“ -- für jede Art der Auswahl, auch die Mahnstufen.
 2. Derselbe Satz unter „E-Mail-Text“ jeder Mahnstufe (Einstellungen → Mahnwesen).
@@ -2410,12 +2410,40 @@ Mahnstufe (Admin, Büro – Auftrag), ohne Firmendaten, jede Art der Auswahl ein
 jede Stufe unter „Mahnwesen“, Büro – Auftrag bei gesperrtem Feld; ohne Firmendaten; Bilder hell und dunkel. Keine angepasste Erwartung. Gegenproben:
 `gegenproben-portal.md`, „1.11.19“.
 
+### Umsetzung 1.11.20: nginx des Kundenportals nur über IPv4 (S0, 25.11.2026)
+
+Beim Abarbeiten von S0 hat der Betrieb gesehen: nginx lauscht auf dem Server nur auf `0.0.0.0:80` und `0.0.0.0:443`, nicht auf `[::]`, und es gibt keine
+AAAA-Einträge (app, web, www, kunde). Der Block des Portals lauschte zusätzlich auf `[::]:80` und `[::]:443`, S0 erwartete `[::]` und brach sonst ab, S1 legte für
+kunde einen AAAA-Eintrag an, wenn app einen hat. Auf Wunsch des Betriebs (eine kleine Version, vor S7 eingespielt):
+
+- `scripts/server/nginx-kunde.conf`: je Block nur `listen 80;` bzw. `listen 443 ssl http2;`, ein Kommentar im Kopf sagt warum. Der Kommentar nennt weder
+  „listen 80;“ noch „listen 443“ -- S7 zählt mit `grep -c` im ersten Teil der Datei (`1` und `0`), Kommentare eingeschlossen.
+- Server-Schritte: S0 erwartet nginx nur auf `0.0.0.0` und bricht nicht mehr ab, wenn `[::]` fehlt; S1 legt für kunde keinen AAAA-Eintrag an und bricht ab, wenn
+  einer da ist; S7 prüft zuerst, dass auf dem Server 1.11.20 liegt und die Datei nur die beiden Zeilen `listen` hat.
+- Nicht geändert: gunicorn vertraut `X-Forwarded-For` weiter von 127.0.0.1 und ::1 (Vorgabe von gunicorn 26) -- nginx spricht den Dienst über 127.0.0.1 an.
+
+#### Festlegungen 1.11.20 (Bitte bestätigen)
+
+1. Der Block des Portals lauscht nur über IPv4 -- `listen 80;` und `listen 443 ssl http2;`, wie die übrigen Seiten des Servers; keine Zeile für `[::]`.
+2. S1: für kunde kein AAAA-Eintrag; zeigt `dig` einen, abbrechen und bei Ionos löschen.
+3. S0 erwartet nginx nur auf `0.0.0.0:80` und `0.0.0.0:443`; fehlt `[::]`, ist das kein Grund mehr abzubrechen.
+4. S7 beginnt mit der Prüfung, dass auf dem Server 1.11.20 oder später liegt (nur die beiden Zeilen `listen`).
+5. Bekommt der Server später IPv6 (AAAA für app), kommen `listen [::]` im Block des Portals und der AAAA-Eintrag für kunde zusammen in einer eigenen Version.
+
+#### Tests und Prüfung 1.11.20
+
+`tests/test_v815_nginx_nur_ipv4.py` (neu, 3): je Block genau eine Zeile `listen` (80 bzw. 443 ssl http2); keine Adresse `[::]` und kein `ipv6only` außerhalb der
+Kommentare; der erste Teil der Datei wie in S7 (`awk` bis zum zweiten `server {`) zählt mit `grep -c` `1` und `0`. Keine Seite geändert, kein Klicktest berührt.
+Keine angepasste Erwartung. Gegenproben: `gegenproben-portal.md`, „1.11.20“. Im ersten vollen Lauf ein Wackler ohne Bezug (`test_v352`, feste Pause vor dem
+Schließen einer Sitzung, die noch committet; laufende Liste im Archiv „Testablauf“), nicht behoben.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.19: seit fc8b758 hat sich nichts an den Einheiten, an nginx, an den
-Migrationen oder an den Rechten geändert. Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
+Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.20: seit fc8b758 hat sich nichts an den Einheiten, an den Migrationen
+oder an den Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4 (1.11.20 kommt vor S7 auf den Server, Umsetzung 1.11.20).
+Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
 Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026. Nachgezogen am 25.11.2026, wie der
-Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben).
+Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben); S0, S1 und S7 seit 1.11.20 nur IPv4 (Umsetzung 1.11.20).
 
 So zu lesen:
 
@@ -2455,7 +2483,8 @@ hat der Betrieb genannt, Adresse und Port zeigt die Abfrage von PostgreSQL unten
 
 - `git log`: fc8b758 oder später.
 - `free -m`: in der Spalte „available“ mindestens 600 (zwei neue Dienste mit je höchstens 256 MB).
-- `ss -ltn`: keine Zeile mit `:8010`; nginx auf `0.0.0.0:80`, `0.0.0.0:443` und `[::]:80`, `[::]:443`.
+- `ss -ltn`: keine Zeile mit `:8010`; nginx auf `0.0.0.0:80` und `0.0.0.0:443` -- nur IPv4, wie die übrigen Seiten des Servers (bis 1.11.19 stand hier auch
+  `[::]:80`, `[::]:443`; Umsetzung 1.11.20).
 - `stat`: `.env` 600 tobias:tobias.
 - Versionen: `0.52.4 26.2.0`.
 - `systemctl show`: `User=tobias`, im ExecStart gunicorn mit `-w 2`.
@@ -2464,7 +2493,7 @@ hat der Betrieb genannt, Adresse und Port zeigt die Abfrage von PostgreSQL unten
   nicht.
 
 **Abbrechen,** wenn: weniger als 600 MB verfügbar; `:8010` belegt; `.env` nicht 600; andere Versionen als 0.52.4/26.2.0; `User=` nicht tobias (der Postbote
-läuft als tobias); nginx nicht auf `[::]` (die Datei für nginx lauscht auch dort); `git status` nennt unter `app/`, `alembic/` oder `alembic.ini` eine Datei
+läuft als tobias); `git status` nennt unter `app/`, `alembic/` oder `alembic.ini` eine Datei
 außerhalb von `__pycache__` (nur den Namen in den Chat -- sie käme vor dem Start in `InaccessiblePaths=`).
 
 PostgreSQL lesen, als tobias:
@@ -2506,8 +2535,9 @@ logrotate oder das Journal andere Fristen zeigen -- die Datenschutzerklärung ne
 
 #### S1 DNS (Ionos)
 
-Bei Ionos für `kunde.dachkonzepte.gmbh` einen A-Eintrag auf dieselbe IPv4-Adresse wie `app.dachkonzepte.gmbh`; hat `app` einen AAAA-Eintrag, ebenso einen
-AAAA-Eintrag auf dieselbe IPv6-Adresse. Nach ein paar Minuten, als tobias:
+Bei Ionos für `kunde.dachkonzepte.gmbh` einen A-Eintrag auf dieselbe IPv4-Adresse wie `app.dachkonzepte.gmbh`, **keinen** AAAA-Eintrag: nginx lauscht nur
+über IPv4, app, web und www haben keinen (Betreiberangabe 25.11.2026; bis 1.11.19 stand hier „hat `app` einen AAAA-Eintrag, ebenso einen“). Nach ein paar
+Minuten, als tobias:
 
 ```bash
 dig +short A app.dachkonzepte.gmbh;    dig +short A kunde.dachkonzepte.gmbh
@@ -2517,8 +2547,9 @@ dig +short CAA dachkonzepte.gmbh
 
 (Fehlt `dig`: `resolvectl query app.dachkonzepte.gmbh` und `resolvectl query kunde.dachkonzepte.gmbh`.)
 
-**Erwartet:** je Paar dieselbe Adresse; CAA leer oder mit `letsencrypt.org`.
-**Abbrechen,** wenn kunde keine oder eine andere Adresse hat (warten, bis der Eintrag sichtbar ist) oder CAA Let's Encrypt nicht erlaubt.
+**Erwartet:** bei A dieselbe Adresse; bei AAAA beide Zeilen leer; CAA leer oder mit `letsencrypt.org`.
+**Abbrechen,** wenn kunde keine oder eine andere A-Adresse hat (warten, bis der Eintrag sichtbar ist), wenn kunde eine AAAA-Adresse hat (bei Ionos löschen --
+über IPv6 antwortet nginx nicht) oder CAA Let's Encrypt nicht erlaubt.
 **Rückweg:** den Eintrag bei Ionos löschen.
 
 #### S2 Systembenutzer dkportal
@@ -2694,7 +2725,17 @@ Postbote“ (nur einer je Datenbank).
 
 #### S7 nginx und Zertifikat
 
-Erst nur der Block für Port 80 (für die Prüfung durch Let's Encrypt), als tobias:
+Vorher muss 1.11.20 oder später eingespielt sein (`update.sh`) -- bis 1.11.19 lauschte die Datei auch auf `[::]`. Als tobias:
+
+```bash
+git -C /home/tobias/erp log --oneline -1
+grep -E '^\s*listen' /home/tobias/erp/scripts/server/nginx-kunde.conf
+```
+
+**Erwartet:** 1.11.20 oder später; genau zwei Zeilen, `listen 80;` und `listen 443 ssl http2;`.
+**Abbrechen,** wenn eine Zeile `listen [::]` dabei ist (erst `update.sh`).
+
+Dann nur der Block für Port 80 (für die Prüfung durch Let's Encrypt), als tobias:
 
 ```bash
 awk '/^server [{]/{n++} n<2' /home/tobias/erp/scripts/server/nginx-kunde.conf | sudo tee /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf > /dev/null

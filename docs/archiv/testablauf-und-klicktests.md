@@ -1469,6 +1469,16 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   `test_v802_portal_sitzung.py` und `test_v805_portal_postbote.py` fordern in ihren eigenen Wegwerf-Schemas derselben Spielwiese zugleich Codes an, und
   `notifies(stop_after=1)` liefert alles, was in einem Schub ankommt. Grün im ersten Lauf (vor der Anpassung von `test_v393`) und im dritten Lauf (derselbe
   Stand wie im zweiten). Behoben in 1.11.18 (Abschnitt unten). Stand: behoben.
+- **`test_v352_vertrag_gewaehrleistung.py::test_postgresql_duration_waits_for_a_running_freeze`** -- 25.11.2026, voller Lauf vor dem Commit von 1.11.20
+  (Arbeitskopie auf f574f51 mit 1.11.20, gw2): `IllegalStateChangeError: Method 'close()' can't be called here; method 'commit()' is already in progress`,
+  im Thread daneben `InvalidRequestError … is not persistent` beim `refresh()` in `freeze_contract()`. Ursache: der Test schließt die haltende Sitzung nach
+  einer festen Pause (`time.sleep(0.2)`, dann `holder.close()`), ohne auf ihren Thread zu warten -- unter Last steckt das Festschreiben dort noch in Commit
+  und refresh, wenn der Hauptthread schließt. Dasselbe Muster im Nachbartest `test_postgresql_freeze_waits_for_a_running_duration_change`; dazu prüfen
+  beide die Dauer gegen eine feste Schranke (`seconds >= 0.9`, über `_waits_for()` aus `tests/test_v349_abnahme_und_gewaehrleistung.py`, das nach einer
+  festen Sekunde freigibt) -- beides gegen „Gleichzeitigkeit in Tests“ in CLAUDE.md. Einzeln auf demselben Stand dreimal 17 von 17. Die Reihenfolge von gw2
+  ist verloren (die Einzelläufe in derselben Arbeitskopie überschrieben `.pytest_cache/reihenfolge`). 1.11.20 ändert nur `nginx-kunde.conf` und Doku.
+  Stand: Ursache geklärt, nicht behoben (1.11.20 sollte nur nginx ändern) -- Vorschlag: den Thread der haltenden Sitzung abwarten (`join`) statt der
+  Pause, freigeben erst, wenn die zweite Aktion nachweislich an der Sperre wartet (wie 1.9.348), keine Dauer gegen eine feste Schranke.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 
@@ -1684,7 +1694,7 @@ eigenen Verbindung an, merkt deren `pg_backend_pid()` und zählt nur die Weckruf
 selbst einen fremden Weckruf (`NOTIFY portal_post` auf der hörenden Verbindung) und prüft, dass er ankam. Andere Tests mit `notifies(` gibt es nicht
 (gesucht über `tests/`); der Postbote selbst nimmt jeden Weckruf nur als Anlass nachzusehen, ein fremder schadet dort nicht.
 
-Festlegung 1.11.18 (Bitte bestätigen): Ein Test, der auf einen Weckruf von PostgreSQL wartet, zählt nur die Weckrufe der Verbindung, die er selbst auslöst
+Festlegung 1.11.18 (bestätigt am 25.11.2026): Ein Test, der auf einen Weckruf von PostgreSQL wartet, zählt nur die Weckrufe der Verbindung, die er selbst auslöst
 (über `pg_backend_pid()`), und prüft mit einem fremden Weckruf, dass er filtert.
 
 Gegenprobe: der Filter nach `pid` heraus -- `test_pg_code_anfordern_auftrag_und_notify_beim_commit` rot (zwei Weckrufe: der fremde und der eigene).

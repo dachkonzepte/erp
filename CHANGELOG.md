@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.20 – nginx des Kundenportals nur über IPv4
+
+Beim Abarbeiten von S0 auf dem Server gesehen: nginx lauscht dort nur auf `0.0.0.0:80` und `0.0.0.0:443`, nicht auf `[::]`, und keine der Adressen (app, web, www, kunde) hat einen AAAA-Eintrag. Der Block des Kundenportals (`scripts/server/nginx-kunde.conf`) lauschte zusätzlich auf `[::]:80` und `[::]:443` -- jetzt wie die übrigen Seiten des Servers nur über IPv4. Die Server-Schritte im Archiv ziehen nach: S0 erwartet nginx nur auf `0.0.0.0`, S1 legt für kunde keinen AAAA-Eintrag an (und bricht ab, wenn einer da ist), S7 prüft vorher, dass die Datei auf dem Server nur die beiden Zeilen `listen` hat. Neuer Test `tests/test_v815_nginx_nur_ipv4.py`.
+
 ## 1.11.19 – Satz unter den Mailvorlagen
 
 Seit 1.11.17 setzt das ERP beim Senden Name, Anschrift und Pflichtangaben unter jede Mail an Kunden -- in der Vorlage ist das nicht zu sehen. Jetzt steht direkt unter dem Text jeder Mailvorlage der Satz „Darunter setzt das ERP beim Senden Name, Anschrift und Pflichtangaben aus den Firmendaten.“: in den Einstellungen unter „E-Mail-Vorlagen“ (jede Art, auch die Mahnstufen) und unter „Mahnwesen“ beim E-Mail-Text jeder Stufe. Der Eintrag zu 1.11.17 sprach von einem „Textfeld vor dem Versand“ -- das gibt es nicht: an den Versandstellen stehen nur „An“ und „CC“, den Text nimmt der Server aus der Vorlage. Deshalb steht der Satz dort, wo der Text geschrieben wird (Rückfrage beim Betrieb).

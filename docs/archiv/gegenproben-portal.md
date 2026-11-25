@@ -481,3 +481,17 @@ der geprüften Stelle.
 | Nr. 3 – immer, auch ohne Firmendaten | keine eigene Gegenprobe: der Satz hängt an keiner Bedingung, eine müsste erfunden werden; Test und Klicktest laufen ohne Firmendaten | – |
 | Nr. 4 – jede Art der Auswahl mit Schluss | das Angebot in `OHNE_FIRMENANGABEN` | 1 rot |
 | Nr. 5 – nur unter den Vorlagen | der Satz auch beim Versand des Angebots | 1 rot |
+
+## 1.11.20: nginx des Kundenportals nur über IPv4
+
+Probendatei `gp11120.py` mit `tests/test_v815_nginx_nur_ipv4.py`; die Datei byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Port 80 nur über IPv4 | `listen [::]:80;` wieder im ersten Block | 2 rot |
+| Nr. 1 – Port 443 nur über IPv4 | `listen [::]:443 ssl http2;` wieder im zweiten Block | 2 rot |
+| Nr. 1 – der erste Teil zählt für S7 `1` und `0` | ein Kommentar im Kopf nennt „listen 443“ | 1 rot |
+| Nr. 2 – S1 ohne AAAA für kunde | keine: Anleitung für den Server; geprüft in S1 (`dig`) | – |
+| Nr. 3 – S0 erwartet nur `0.0.0.0` | keine: Anleitung; geprüft in S0 (`ss -ltn`) | – |
+| Nr. 4 – S7 prüft zuerst die Datei auf dem Server | keine: Anleitung; geprüft in S7 (`grep`) | – |
+| Nr. 5 – IPv6 später nur zusammen | keine: Arbeitsweise | – |
