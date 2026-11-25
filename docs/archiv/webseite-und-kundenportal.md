@@ -2626,6 +2626,29 @@ Mails); `scripts/klicktest_portal_seiten.py` (drei Prüfungen: „Guten Tag Herr
 Kopf der Datei). Neu `test_v817` (13). Klicktests vor dem Commit: `klicktest_portal_seiten`, `klicktest_kundenportal_karte`. Gegenproben:
 `gegenproben-portal.md`, „1.11.23“.
 
+### Umsetzung 1.11.24: Knopf der Mail als Tabellenzelle mit Polster (25.11.2026)
+
+Betreibervorgabe 25.11.2026 (nach P1f, Nr. 2): Outlook am Rechner zeigte den Knopf „Kundenportal öffnen“ nur als grün hinterlegten Text ohne Polster. Ursache:
+Polster und `display:inline-block` standen am Link (`<a>`), die Zelle darum hatte nur den Hintergrund. Outlook am Rechner zeichnet Mails mit Word und kennt an
+einem Link weder `padding` noch `inline-block` -- die Zelle war dort so groß wie der Text.
+
+- `app/portal_mails.py::_knopf()`: Polster (`14px 24px`), Hintergrund und Ecken an der Zelle (`<td align="center">`), der Link trägt nur Schrift, Farbe und
+  „keine Unterstreichung“. In Browsern und Apps sieht der Knopf aus wie bisher; klickbar ist dort jetzt nur der Text, nicht mehr die ganze Fläche (der Preis
+  dafür, dass jedes Programm die Zelle gleich zeichnet). Die runden Ecken zeigt Outlook am Rechner weiter nicht (eckig).
+- Wortlaut, Farben und Maße unverändert; kein neues Attribut (die Liste der erlaubten Attribute in `test_v807` bleibt).
+- Hier nicht prüfbar: wie Outlook am Rechner den Knopf zeigt -- das zeigt erst ein Link an das eigene Postfach nach dem Einspielen (wie S9, Schritt 3–4).
+
+#### Festlegungen 1.11.24 (Bitte bestätigen)
+
+1. Der Knopf einer Mail des Portals ist eine Tabellenzelle mit Polster und Hintergrund; der Link darin trägt nur Schrift und Farbe (kein Polster, kein
+   Hintergrund, kein `display`).
+
+#### Tests und Prüfung 1.11.24
+
+Neu `test_v807_portal_mails_html.py::test_knopf_polster_an_der_zelle`: der Link steht direkt in einer Zelle mit `padding:14px 24px` und Hintergrund, der Link
+selbst ohne Polster, Hintergrund und `display`, weiß und ohne Unterstreichung. Keine angepasste Erwartung. Klicktests vor dem Commit:
+`klicktest_kundenportal_karte` (versendet den Link über die Attrappe von Graph). Gegenproben: `gegenproben-portal.md`, „1.11.24“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den

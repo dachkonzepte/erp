@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.24 – Kundenportal: Knopf der Mail als Tabellenzelle mit Polster
+
+Outlook am Rechner zeigte den Knopf „Kundenportal öffnen“ in der Mail mit dem Link nur als grün hinterlegten Text ohne Polster: Polster und `inline-block` standen am Link, und Outlook (Word) kennt beides an einem Link nicht. Jetzt tragen Polster, Hintergrund und Ecken die Tabellenzelle, der Link nur Schrift und Farbe -- so zeichnet jedes Programm den Knopf gleich groß; in Browsern und Apps ist nur noch der Text klickbar statt der ganzen Fläche. Neu prüft `test_v807_portal_mails_html.py::test_knopf_polster_an_der_zelle` den Aufbau.
+
 ## 1.11.23 – Kundenportal: Begrüßung ohne Komma
 
 Auf Wunsch des Betriebs steht nach „Guten Tag“ kein Komma mehr: im Portal „Guten Tag Herr Dr. Muster“, in den Mails des Portals „Guten Tag Herr Dr. Muster,“ -- das Komma nur am Ende der Zeile. Die Begrüßung mit Namen entsteht nur in `app/portal/begruessung.py`, die Mails hängen das Komma an; der Brief einer Anzeige bei „Divers“ schrieb schon „Guten Tag <Name>,“. Neu wacht `tests/test_v817_begruessung_ohne_komma.py` darüber, dass kein Text unter `app/` ein Komma zwischen „Guten Tag“ und einen Namen oder Platzhalter setzt.

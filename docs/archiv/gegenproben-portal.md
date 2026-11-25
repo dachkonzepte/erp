@@ -529,3 +529,12 @@ Probendatei `gp11123.py`; jede Datei danach byte-gleich zurück (SHA-256 verglic
 | Nr. 1 – Portal und Mail ohne Komma nach „Guten Tag“ | Komma zurück in `begruessung.py` (Herr/Frau) | `test_v817::test_portal_und_mail`, `test_v802::test_begruessung`, `test_v807` rot („Guten Tag, Herr Dr. Muster“) |
 | Nr. 2 – kein Komma unter `app/`, auch nicht über die Konstante | dieselbe Probe (`{GRUSS},`) | `test_kein_komma_nach_guten_tag_unter_app` rot (`app/portal/begruessung.py:…`) |
 | Nr. 2 – kein fester Text mit Komma | in `portal.js` „Guten Tag, Gast“ als Rückfall | `test_kein_komma_nach_guten_tag_unter_app` rot (`app/portal/seiten/portal.js:…`) |
+
+## 1.11.24: Knopf der Mail als Tabellenzelle mit Polster
+
+Probendatei `gp11124.py`; `app/portal_mails.py` danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Polster an der Zelle, nicht am Link | Fassung bis 1.11.23 (Polster und `inline-block` am Link) | `test_knopf_polster_an_der_zelle` rot (`padding:14px 24px` fehlt an der Zelle) |
+| Nr. 1 – Hintergrund an der Zelle, nicht am Link | Hintergrund an den Link verlegt | `test_knopf_polster_an_der_zelle` rot (`background-color:#` fehlt an der Zelle) |

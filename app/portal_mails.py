@@ -9,7 +9,7 @@
   oder den Schalter gesendete_elemente nimmt.
 
 Seit 1.11.8 als HTML nach dem freigegebenen Entwurf (bildgrundlage/entwurf-p1/Portal-Mails.dc.html; Wortlaut verbindlich): Name des Betriebs als Text,
-grüne Linie, Knopf „Kundenportal öffnen“, Code in Gruppen („481 207“). Nur Tabellen und Stile in den Tags, höchstens 600 px breit, keine Bilder, keine
+grüne Linie, Knopf „Kundenportal öffnen“ (seit 1.11.24 Polster und Hintergrund an der Tabellenzelle), Code in Gruppen („481 207“). Nur Tabellen und Stile in den Tags, höchstens 600 px breit, keine Bilder, keine
 Schriften, kein <style>, nichts von außen -- geprüft in tests/test_v807_portal_mails_html.py. Ein Textteil daneben ginge über Graph nur mit eigenem
 MIME-Bau (sendMail nimmt genau einen Körper, Text oder HTML) -- deshalb nur HTML.
 
@@ -138,11 +138,14 @@ def _p(inhalt: str, stil: str = "") -> str:
 
 
 def _knopf(adresse: str, text: str) -> str:
+    """Seit 1.11.24 tragen Polster und Hintergrund die Tabellenzelle, der Link nur Schrift und Farbe: Outlook am Rechner (Word) kennt an einem Link weder
+    padding noch inline-block und zeigte nur grün hinterlegten Text (Betreiberangabe 25.11.2026). Klickbar ist dort nur der Text -- die Zelle zeichnet jedes
+    Programm gleich."""
     return (
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;border-collapse:separate;"><tr>'
-        f'<td style="background-color:{_GRUEN};border-radius:10px;">'
-        f'<a href="{_e(link_pruefen(adresse))}" style="display:inline-block;padding:14px 24px;font-family:{_SCHRIFT};font-size:15px;'
-        f'font-weight:bold;line-height:20px;color:#FFFFFF;text-decoration:none;">{_e(text)}</a></td></tr></table>'
+        f'<td align="center" style="padding:14px 24px;background-color:{_GRUEN};border-radius:10px;">'
+        f'<a href="{_e(link_pruefen(adresse))}" style="font-family:{_SCHRIFT};font-size:15px;font-weight:bold;line-height:20px;color:#FFFFFF;'
+        f'text-decoration:none;">{_e(text)}</a></td></tr></table>'
     )
 
 

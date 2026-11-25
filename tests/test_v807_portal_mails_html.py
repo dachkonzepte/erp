@@ -270,6 +270,21 @@ def test_aufbau_nur_tabellen_und_stile_in_den_tags(db_session):
     assert "#z=" not in code  # die Mail mit dem Code trägt keinen Link
 
 
+def test_knopf_polster_an_der_zelle(db_session):
+    """Seit 1.11.24: Outlook am Rechner kennt an einem Link weder padding noch inline-block -- Polster und Hintergrund trägt die Zelle um den Link."""
+    db = db_session
+    _firma(db)
+    link, _code = _mails(db)
+    tags = lesen(link).tags
+    [i] = [n for n, (tag, attrs) in enumerate(tags) if tag == "a" and attrs.get("href") == LINK]
+    zelle, knopf = tags[i - 1], tags[i]
+    assert zelle[0] == "td", zelle  # der Link steht direkt in der Zelle
+    zstil, kstil = zelle[1]["style"].lower(), knopf[1]["style"].lower()
+    assert "padding:14px 24px" in zstil and "background-color:#" in zstil, zstil
+    assert "padding" not in kstil and "background" not in kstil and "display" not in kstil, kstil
+    assert "color:#ffffff" in kstil and "text-decoration:none" in kstil, kstil
+
+
 # --- Angriffe über eingesetzte Werte ----------------------------------------------------------------------------------------------------------------
 
 BOESE = '<a href="https://boese.invalid">x</a> "><script>alert(1)</script> & \'Anf"ührung'
