@@ -715,7 +715,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     AST. Eine neue Versandstelle von der Oberfläche schickt einen `dispatch_key` je Klick mit
     (`_email_dispatch.html`). Seit 1.11.17 setzt sie unter jede Mail an Kunden und Beteiligte nach einer Leerzeile Name, Anschrift und
     Pflichtangaben (§ 35a GmbHG) aus den Firmendaten (`app/firmenangaben.py`, eine Quelle mit der Fußzeile der Portal-Mails); ohne nur
-    `OHNE_FIRMENANGABEN` (Aufgaben-Mails) -- eine neue Versandart nur an Mitarbeiter kommt dorthin (`tests/test_v813_firmenangaben_mails.py`).
+    `OHNE_FIRMENANGABEN` (Aufgaben-Mails) -- eine neue Versandart nur an Mitarbeiter kommt dorthin (`tests/test_v813_firmenangaben_mails.py`); seit 1.11.19 sagt das ein Satz unter dem Text jeder Mailvorlage der Einstellungen (`tests/test_v814_mail_schluss_hinweis.py`).
     Ablage und Protokoll werden nie geändert oder gelöscht (einzige
     Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung und Storno liegen seit 1.8.82 ab dem
     Festschreiben dort (feste Fassung im selben Commit, `Invoice.pdf_document_id`, `app/invoices.py::_store_fixed_pdf()`; ohne PDF

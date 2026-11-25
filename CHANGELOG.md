@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.19 – Satz unter den Mailvorlagen
+
+Seit 1.11.17 setzt das ERP beim Senden Name, Anschrift und Pflichtangaben unter jede Mail an Kunden -- in der Vorlage ist das nicht zu sehen. Jetzt steht direkt unter dem Text jeder Mailvorlage der Satz „Darunter setzt das ERP beim Senden Name, Anschrift und Pflichtangaben aus den Firmendaten.“: in den Einstellungen unter „E-Mail-Vorlagen“ (jede Art, auch die Mahnstufen) und unter „Mahnwesen“ beim E-Mail-Text jeder Stufe. Der Eintrag zu 1.11.17 sprach von einem „Textfeld vor dem Versand“ -- das gibt es nicht: an den Versandstellen stehen nur „An“ und „CC“, den Text nimmt der Server aus der Vorlage. Deshalb steht der Satz dort, wo der Text geschrieben wird (Rückfrage beim Betrieb).
+
 ## 1.11.18 – Test: Weckruf des Postboten im parallelen Lauf
 
 Ein Test des Kundenportals zählte im parallelen Lauf gelegentlich drei Weckrufe statt einem: NOTIFY gilt für die ganze Datenbank, nicht je Schema, und andere Testprozesse fordern in ihren eigenen Wegwerf-Schemas zugleich Codes an. Er zählt jetzt nur den Weckruf der Verbindung, die den Code anfordert, und schickt zur Probe selbst einen fremden mit. Am Portal ändert sich nichts: auf dem Server hat jede Datenbank nur ein Schema, und der Postbote nimmt jeden Weckruf ohnehin nur als Anlass nachzusehen.

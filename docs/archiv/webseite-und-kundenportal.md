@@ -2286,7 +2286,8 @@ genannte Weg „zentral unter jede Mail an Kunden und Beteiligte“).
   Mahnung, Vertrag, Checkliste (auch das Abnahmeprotokoll), Behinderungsanzeige, Wiederaufnahme, Bedenkenanzeige -- auch für eine Mail an einen Beteiligten
   (Kopie). Eine neue Versandart bekommt ihn ohne Zutun; geht sie nur an Mitarbeiter, kommt sie nach `OHNE_FIRMENANGABEN`.
 - Unverändert: die E-Mail-Vorlagen und ihre Vorgaben, das vorausgefüllte Textfeld vor dem Versand (der Schluss ist dort nicht zu sehen), die PDFs und die
-  Ablage, das Versandprotokoll (speichert keinen Text, Regel 18).
+  Ablage, das Versandprotokoll (speichert keinen Text, Regel 18). *Berichtigt 25.11.2026: ein Textfeld vor dem Versand gibt es nicht -- an den Versandstellen
+  stehen nur „An“ und „CC“, den Text nimmt der Server aus der Vorlage (Umsetzung 1.11.19).*
 
 Beispiel (erfundene Firmendaten, eine Angebotsmail aus `send_quote_email()` mit dem Text der Vorgabe):
 
@@ -2309,6 +2310,9 @@ Beispiel (erfundene Firmendaten, eine Angebotsmail aus `send_quote_email()` mit 
 5. Eine Quelle (`app/firmenangaben.py`) für die Zeilen unter den Mails des ERP und die Fußzeile der Mails des Portals.
 6. Die Mails des Portals tragen die Angaben nur in ihrer HTML-Fußzeile, kein zweiter Schluss.
 7. Vorlagen und Textfeld vor dem Versand bleiben ohne Schluss; er kommt erst beim Senden dazu.
+
+*Berichtigt 25.11.2026:* Nr. 7 und die Frage 1.11.17-F1 nannten ein Textfeld vor dem Versand -- das gibt es nicht (Fehler im Bericht, beim Bau von 1.11.19
+gefunden). Nr. 7 gilt für die Vorlagen; der Satz aus F1 steht seit 1.11.19 unter dem Text der Vorlagen (Umsetzung 1.11.19).
 
 #### Tests und Prüfung 1.11.17
 
@@ -2362,7 +2366,8 @@ Keine Änderung am Code, kein Test. Gegenproben: keine möglich (eine Anleitung 
 ### Beim Abarbeiten geändert, Datenschutz durchgesehen (25.11.2026, nur Doku)
 
 Antwort vom 25.11.2026: bestätigt 1.11.16-1 bis -7, 1.11.17-1 bis -7, die Festlegung zum Testablauf aus 1.11.18 und V1 bis V8. 1.11.17-F1: ja, ein Satz unter
-dem Textfeld (1.11.19); F2 prüft der Betrieb selbst. P1f-1: nach S9 das Modul „Kundenportal“ wieder aus, bis die Datenschutzerklärung online ist und der Betrieb
+dem Textfeld -- ein Textfeld vor dem Versand gibt es aber nicht (Fehler im Bericht 1.11.17); auf Rückfrage unter den Text der Vorlagen (1.11.19). F2 prüft der
+Betrieb selbst. P1f-1: nach S9 das Modul „Kundenportal“ wieder aus, bis die Datenschutzerklärung online ist und der Betrieb
 den ersten Kunden einlädt. P1f-2: der Unterschied von `update.sh` kommt nach S10.
 
 Die Server-Schritte hat der Betrieb beim Abarbeiten so geändert (unten nachgezogen):
@@ -2378,9 +2383,36 @@ vom 24.11.; drei Stellen berichtigt -- der Name des Verantwortlichen (wie im Imp
 Server, nur nicht als Teil der aufgerufenen Adresse (die Fassung vom 24.11. sagte „nie an den Server als Adresse übertragen“ -- missverständlich); der Prüfwert
 der IP-Adresse (HMAC mit Schlüssel) ist eine Pseudonymisierung und gilt weiter als personenbezogen (die Fassung vom 24.11. sagte „nicht umkehrbar“).
 
+### Umsetzung 1.11.19: Satz unter den Mailvorlagen (Antwort 1.11.17-F1)
+
+Beim Bau gefunden: ein Textfeld vor dem Versand, wie Bericht und Festlegung 7 zu 1.11.17 es nannten, gibt es nicht -- an den acht Versandstellen (Angebot,
+Auftrag, Rechnung, Mahnung, Vertrag, Checkliste, Anzeigen, Abnahmeprotokoll) stehen nur „An“ und „CC“, den Text nimmt der Server aus der Vorlage
+(`*EmailSend` ohne Text). Geschrieben wird der Mailtext nur in den Einstellungen. Rückfrage beim Betrieb am 25.11.2026: der Satz unter die Vorlagen.
+
+- Einstellungen → E-Mail-Vorlagen: direkt unter dem Feld „Text“ „Darunter setzt das ERP beim Senden Name, Anschrift und Pflichtangaben aus den Firmendaten.“ -- für jede Art der Auswahl, auch die Mahnstufen.
+- Einstellungen → Mahnwesen: derselbe Satz direkt unter „E-Mail-Text“ jeder Stufe.
+- Der Satz steht immer: für jede Rolle der Seite, bei gesperrtem Feld (Büro – Auftrag bei den Mahnstufen) und ohne Firmendaten (dann setzt das ERP nichts --
+  „aus den Firmendaten“). Nicht an den Versandstellen.
+
+#### Festlegungen 1.11.19 (Bitte bestätigen)
+
+1. Unter dem Feld „Text“ der E-Mail-Vorlagen der Satz „Darunter setzt das ERP beim Senden Name, Anschrift und Pflichtangaben aus den Firmendaten.“ -- für jede Art der Auswahl, auch die Mahnstufen.
+2. Derselbe Satz unter „E-Mail-Text“ jeder Mahnstufe (Einstellungen → Mahnwesen).
+3. Der Satz steht immer -- auch bei gesperrtem Feld und ohne Firmendaten.
+4. Er gilt für jede Art der Auswahl: keine davon geht ohne Schluss hinaus (ohne nur die Aufgaben-Mails, die hier keine Vorlage haben).
+5. Nur dort -- nicht an den Versandstellen (Antwort 25.11.2026).
+
+#### Tests und Prüfung 1.11.19
+
+`tests/test_v814_mail_schluss_hinweis.py` (neu, 8): der Satz direkt unter „Text“ der Vorlagen (Admin, Büro – Finanzen, Büro – Auftrag) und unter „E-Mail-Text“ der
+Mahnstufe (Admin, Büro – Auftrag), ohne Firmendaten, jede Art der Auswahl eine Mail an Kunden, der Satz in keiner anderen Vorlage. Klicktest
+`scripts/klicktest_mail_schluss.py` (neu, 9 Prüfungen): sichtbar, höchstens 12 px unter dem Feld, dieselbe linke Kante -- Admin für Angebot, eine Mahnstufe und
+jede Stufe unter „Mahnwesen“, Büro – Auftrag bei gesperrtem Feld; ohne Firmendaten; Bilder hell und dunkel. Keine angepasste Erwartung. Gegenproben:
+`gegenproben-portal.md`, „1.11.19“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.18: seit fc8b758 hat sich nichts an den Einheiten, an nginx, an den
+Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.19: seit fc8b758 hat sich nichts an den Einheiten, an nginx, an den
 Migrationen oder an den Rechten geändert. Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
 Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026. Nachgezogen am 25.11.2026, wie der
 Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben).

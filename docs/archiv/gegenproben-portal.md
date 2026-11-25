@@ -465,3 +465,19 @@ S0, S3 und S7 an erfundenen Daten.
 | V6 – E4 fürs ERP mit erfundenem Namen | keine: Anleitung | – |
 | V7 – erst Port 80, dann die ganze Datei | keine: Anleitung; der Ausschnitt lokal nachgeprüft | – |
 | V8 – Datenschutz: zwei Cookies, Speicher des Tabs | keine: Doku; die Cookies prüfen `test_v802_portal_sitzung.py`, der Speicher `test_v811_portal_seiten.py` | – |
+
+## 1.11.19: Satz unter den Mailvorlagen
+
+Probendateien `gp11119.py` (Nr. 1, 2, 4, 5 mit `tests/test_v814_mail_schluss_hinweis.py`; Nr. 3 mit `scripts/klicktest_mail_schluss.py`) und `gp11119_nr3b.py`;
+alle Dateien byte-gleich zurück. Nr. 3 war im ersten Lauf rot aus dem falschen Grund: die Probe blendete den ersten Satz im Dokument aus -- der gehört zur ersten
+Mahnstufe (der Bereich „Mahnwesen“ steht im Dokument vor den Vorlagen), rot wurde „Mahnwesen“ statt der Vorlagen. Wiederholt mit dem Satz der Vorlagen: rot an
+der geprüften Stelle.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Satz unter „Text“ der Vorlagen | Satz heraus | 5 rot |
+| Nr. 2 – Satz unter „E-Mail-Text“ jeder Mahnstufe | Satz heraus | 4 rot |
+| Nr. 3 – immer, auch bei gesperrtem Feld | bei gesperrter Mahnstufe ausgeblendet | Klicktest rot (Büro – Auftrag, Vorlagen) |
+| Nr. 3 – immer, auch ohne Firmendaten | keine eigene Gegenprobe: der Satz hängt an keiner Bedingung, eine müsste erfunden werden; Test und Klicktest laufen ohne Firmendaten | – |
+| Nr. 4 – jede Art der Auswahl mit Schluss | das Angebot in `OHNE_FIRMENANGABEN` | 1 rot |
+| Nr. 5 – nur unter den Vorlagen | der Satz auch beim Versand des Angebots | 1 rot |
