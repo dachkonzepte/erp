@@ -2598,6 +2598,34 @@ Mails „Guten Tag Herr Dr. Muster,“; 2. Knopf „Kundenportal öffnen“ als 
 dazu die Wackler `test_v352`, `klicktest_kennzeichen_entziehen` und `klicktest_nach_dem_versand_pruefen`; 4. F2 (Vergleich der Einheiten in `update.sh`, Wortlaut
 als Server-Schritt); 5. lokal Python 3.14 wie auf dem Server (Grundsatz wie 1.11.4), mit Bericht.
 
+### Umsetzung 1.11.23: Begrüßung ohne Komma (25.11.2026)
+
+Betreibervorgabe 25.11.2026 (nach P1f, Nr. 1): die Begrüßung überall ohne Komma nach „Guten Tag“ -- im Portal „Guten Tag Herr Dr. Muster“, in den Mails
+„Guten Tag Herr Dr. Muster,“. Die freigegebenen Entwürfe (`bildgrundlage/entwurf-p1/`, Portal und Mails) zeigen noch das Komma; maßgeblich ist diese Vorgabe.
+
+- `app/portal/begruessung.py` bildet die Begrüßung mit Namen, jetzt ohne Komma nach „Guten Tag“; die Regeln bleiben (Herr/Frau mit Titel und Nachname, Firma
+  mit dem Namen, sonst Titel, Vor- und Nachname, ohne Namen „Guten Tag“). Die Mails des Portals hängen wie bisher nur das Komma ans Ende
+  (`app/portal_mails.py::anrede()`, ohne Namen „Guten Tag,“).
+- Sonst beginnt im ERP nur der Brief einer Anzeige bei „Divers“ mit „Guten Tag“ (`app/notice_letters.py::salutation_line()`: „Guten Tag <Titel Vorname
+  Nachname>,“) -- schon ohne Komma. Die übrigen Kundentexte beginnen mit „Sehr geehrte …“; die Vorgabe betrifft sie nicht.
+- Wächter `tests/test_v817_begruessung_ohne_komma.py`: kein Text unter `app/` setzt ein Komma zwischen „Guten Tag“ und einen Namen oder Platzhalter, auch nicht
+  über die Konstante (`{GRUSS},`); dazu Portal, Mail und Brief bei „Divers“.
+
+#### Festlegungen 1.11.23 (Bitte bestätigen)
+
+1. Nach „Guten Tag“ steht kein Komma: im Portal „Guten Tag Herr Dr. Muster“, in den Mails „Guten Tag Herr Dr. Muster,“ (das Komma nur am Ende der Zeile); ohne
+   Namen „Guten Tag“ bzw. „Guten Tag,“.
+2. Kein Text unter `app/` setzt ein Komma zwischen „Guten Tag“ und einen Namen oder Platzhalter (Wächter `test_v817`).
+
+#### Tests und Prüfung 1.11.23
+
+Angepasste Erwartungen, je nur das Komma nach „Guten Tag“ (alt „Guten Tag, Herr Dr. Muster“, neu „Guten Tag Herr Dr. Muster“):
+`test_v802_portal_sitzung.py::test_begruessung` (10 Fälle mit Namen) und die Antwort von „Willkommen“ in `test_pg_ganzer_ablauf` (1) und `test_pg_eine_sitzung_je_browser` (2);
+`test_v804_portal_mails.py::test_mails_gesiezt_mit_hinweis_und_absender` (3 Fälle, mit Komma am Ende); `test_v807_portal_mails_html.py` (Wortlaut beider
+Mails); `scripts/klicktest_portal_seiten.py` (drei Prüfungen: „Guten Tag Herr Dr. Muster“, „Guten Tag Alex Beispiel“, „Guten Tag Herr Langsam“, dazu der
+Kopf der Datei). Neu `test_v817` (13). Klicktests vor dem Commit: `klicktest_portal_seiten`, `klicktest_kundenportal_karte`. Gegenproben:
+`gegenproben-portal.md`, „1.11.23“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
@@ -3061,7 +3089,7 @@ Im ERP als Admin:
 6. Die Rohdaten der Mail ansehen (Outlook im Web: „…“ → Ansicht → Nachrichtenquelle anzeigen; Apple Mail: Darstellung → Nachricht → Rohdaten): steht dort
    `multipart/alternative` (Exchange hat einen Textteil ergänzt) oder nur `text/html`? Das Ergebnis in den Chat.
 7. Den Link auf dem Handy öffnen: „Willkommen im Kundenportal“ → „Code senden“ → „Code eingeben“; Mail „Ihr Anmeldecode für das Kundenportal“ (Betreff ohne
-   Code, auch sie nicht unter „Gesendete Elemente“); die 6 Ziffern eingeben → „Guten Tag, …“ mit dem Kontakt des Betriebs.
+   Code, auch sie nicht unter „Gesendete Elemente“); die 6 Ziffern eingeben → „Guten Tag …“ (bis 1.11.22 mit Komma) mit dem Kontakt des Betriebs.
 8. Im ERP auf der Karte das Protokoll (je Aktion eine Zeile); im Versandprotokoll zwei Einträge, der Betreff ohne Link und Code.
 9. Im Portal „Auf allen Geräten abmelden“; im ERP auf der Karte „Sperren“ und das Portal des Kunden ausschalten.
 

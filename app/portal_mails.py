@@ -88,7 +88,8 @@ def code_gruppen(code: str) -> str:
 
 
 def anrede(kunde: Customer) -> str:
-    """Erste Zeile der Mail, wie die Begrüßung im Portal (app/portal/begruessung.py)."""
+    """Erste Zeile der Mail, wie die Begrüßung im Portal (app/portal/begruessung.py), mit Komma am Ende: „Guten Tag Herr Dr. Muster,“ (seit 1.11.23
+    ohne Komma nach „Guten Tag“), ohne Namen „Guten Tag,“."""
     return begruessung(kunde.salutation, kunde.title, kunde.first_name, kunde.last_name, kunde.name) + ","
 
 

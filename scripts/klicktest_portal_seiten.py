@@ -8,14 +8,14 @@ Der Postbote (app/portal_postbote.py) läuft in diesem Prozess als Benutzer des 
 
     Ablauf 1 (Herr Dr. Muster)  A „Ihr Zugang wird geprüft …“ (Antwort zurückgehalten), der Link verschwindet aus der Adresse -> B mit verdeckter
                                 Adresse -> „Wird gesendet …“ -> C „Code gesendet an …“ mit „Neuen Code senden · in 1:00“ -> falscher Code „Noch 4
-                                Versuche“ -> richtiger Code mit Leerzeichen („Wird geprüft …“) -> D „Guten Tag, Herr Dr. Muster“, kein Cookie im
+                                Versuche“ -> richtiger Code mit Leerzeichen („Wird geprüft …“) -> D „Guten Tag Herr Dr. Muster“, kein Cookie im
                                 Skript lesbar -> neu laden: wieder D -> „Auf allen Geräten abmelden?“ (Abbrechen, dann überall) -> E „Sie sind
                                 abgemeldet“ -> neu laden: E „Bitte über den Link anmelden“
     Ablauf 2 (Frau Muster)      B -> C -> neu laden ohne Link: C geht weiter (Speicher des Tabs) -> vier falsche („Noch 1 Versuch.“) -> fünfter
                                 falsch: „Neuen Code anfordern“
     Ablauf 3 (Firma)            Versand scheitert (Attrappe antwortet 403) -> B „Der Code konnte gerade nicht gesendet werden …“ mit Telefon;
                                 Bremse (Ersatz-Antwort 429): „Ein neuer Code ist in 12 Minuten wieder möglich.“, Knopf gesperrt
-    Ablauf 4 (ohne Anrede)      bis D „Guten Tag, Alex Beispiel“ -> „Abmelden“ oben -> E „Sie sind abgemeldet“
+    Ablauf 4 (ohne Anrede)      bis D „Guten Tag Alex Beispiel“ -> „Abmelden“ oben -> E „Sie sind abgemeldet“
     Ablauf 5 (seit 1.11.16)     der Postbote hält an: B „Wird gesendet …“ -> die Uhr des Browsers 31 s weiter -> C „Der Versand dauert länger als sonst …“,
                                 „Neuen Code senden · in 0:29“ -> neu laden: wieder C mit dem Hinweis -> der Postbote sendet: „Code gesendet an …“
     Ablauf 6 (seit 1.11.16)     der Postbote hält an, die Uhr 31 s und dann 10 Minuten weiter: C „Der Code konnte gerade nicht gesendet werden …“ mit Telefon
@@ -401,7 +401,7 @@ async def pruefen(tab, seed, p):
              ["Wird geprüft …", True])
     await bilder(tab, p, "c_wird_geprueft")
     await tab.freigeben()
-    p.pruefe("D: Willkommen", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag, Herr Dr. Muster")
+    p.pruefe("D: Willkommen", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag Herr Dr. Muster")
     p.pruefe("D: Abmelden im Kopf", await tab.js(sichtbar("kopf-abmelden")), True)
     p.pruefe("D: Anruf über tel:", await tab.js("[...document.querySelectorAll('#seite-d a[href^=\"tel:\"]')].map(a=>a.getAttribute('href'))"),
              ["tel:+49123456789"])
@@ -468,7 +468,7 @@ async def pruefen(tab, seed, p):
     code = await bis_c(tab, p, "Ablauf 4", L["alex"], "a***@example.invalid")
     await eintippen(tab, code or "")
     await tab.js("document.getElementById('c-anmelden').click()")
-    p.pruefe("Ablauf 4: Guten Tag ohne Anrede", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag, Alex Beispiel")
+    p.pruefe("Ablauf 4: Guten Tag ohne Anrede", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag Alex Beispiel")
     await tab.js("document.getElementById('kopf-abmelden').click()")
     p.pruefe("Ablauf 4: Abmelden oben", await tab.warten(sichtbar("seite-e"), 15) and await tab.js(text_von("e-titel")), "Sie sind abgemeldet")
 
@@ -496,7 +496,7 @@ async def pruefen(tab, seed, p):
              ["lars@example.invalid"])
     await eintippen(tab, code_aus_mail(MAILS[-1]) or "")
     await tab.js("document.getElementById('c-anmelden').click()")
-    p.pruefe("Ablauf 5: angemeldet", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag, Herr Langsam")
+    p.pruefe("Ablauf 5: angemeldet", await tab.warten(sichtbar("seite-d"), 15) and await tab.js(text_von("d-gruss")), "Guten Tag Herr Langsam")
 
     # --- Ablauf 6: nach 10 Minuten nichts (seit 1.11.16) ----------------------------------------------------------------------------------
     await frisch(tab)

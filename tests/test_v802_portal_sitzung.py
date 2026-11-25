@@ -125,17 +125,17 @@ def _geloescht(r, name: str) -> None:
 # --- ohne Datenbank ---------------------------------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("anrede, titel, vorname, nachname, name, erwartet", [
-    ("Herr", "Dr.", "Max", "Muster", "Herr Dr. Max Muster", "Guten Tag, Herr Dr. Muster"),
-    ("Frau", None, "Erika", "Muster", "Frau Erika Muster", "Guten Tag, Frau Muster"),
-    ("Frau", " Prof. ", " Erika ", " Muster ", "", "Guten Tag, Frau Prof. Muster"),
-    ("Firma", "Dr.", None, "Muster Bedachung GmbH", "Firma Muster Bedachung GmbH", "Guten Tag, Muster Bedachung GmbH"),
-    ("Divers", "Dr.", "Kim", "Muster", "Divers Dr. Kim Muster", "Guten Tag, Dr. Kim Muster"),
-    (None, None, "Max", "Muster", "Max Muster", "Guten Tag, Max Muster"),
-    ("", "", "", "Muster", "Muster", "Guten Tag, Muster"),
-    ("Herr", None, "Max", "", "Herr Max", "Guten Tag, Max"),
-    (None, None, None, None, "Altbestand Muster", "Guten Tag, Altbestand Muster"),
+    ("Herr", "Dr.", "Max", "Muster", "Herr Dr. Max Muster", "Guten Tag Herr Dr. Muster"),
+    ("Frau", None, "Erika", "Muster", "Frau Erika Muster", "Guten Tag Frau Muster"),
+    ("Frau", " Prof. ", " Erika ", " Muster ", "", "Guten Tag Frau Prof. Muster"),
+    ("Firma", "Dr.", None, "Muster Bedachung GmbH", "Firma Muster Bedachung GmbH", "Guten Tag Muster Bedachung GmbH"),
+    ("Divers", "Dr.", "Kim", "Muster", "Divers Dr. Kim Muster", "Guten Tag Dr. Kim Muster"),
+    (None, None, "Max", "Muster", "Max Muster", "Guten Tag Max Muster"),
+    ("", "", "", "Muster", "Muster", "Guten Tag Muster"),
+    ("Herr", None, "Max", "", "Herr Max", "Guten Tag Max"),
+    (None, None, None, None, "Altbestand Muster", "Guten Tag Altbestand Muster"),
     (None, None, None, None, None, "Guten Tag"),
-    ("Herr", None, None, "<b>Muster</b>", "", "Guten Tag, Herr <b>Muster</b>"),  # bleibt Text; die Seite setzt ihn über textContent
+    ("Herr", None, None, "<b>Muster</b>", "", "Guten Tag Herr <b>Muster</b>"),  # bleibt Text; die Seite setzt ihn über textContent
 ])
 def test_begruessung(anrede, titel, vorname, nachname, name, erwartet):
     assert begruessung(anrede, titel, vorname, nachname, name) == erwartet
@@ -336,7 +336,7 @@ def test_pg_ganzer_ablauf(welt):
     _geloescht(r, COOKIE_CODE)
     wert = g.kekse[COOKIE]
     assert wert != vorlaeufig and COOKIE_CODE not in g.kekse  # neuer Wert nach dem Code
-    assert g.willkommen().json() == {"begruessung": "Guten Tag, Herr Dr. Muster"}
+    assert g.willkommen().json() == {"begruessung": "Guten Tag Herr Dr. Muster"}
     r = g.weiter()
     assert r.json() == {"stand": "angemeldet"} and not r.headers.get_list("set-cookie")  # eben bestätigt: noch nicht verlängert
     assert g.link(link).json() == {"stand": "angemeldet", "email_anzeige": None}
@@ -500,11 +500,11 @@ def test_pg_eine_sitzung_je_browser(welt):
     g = Geraet(welt.app)
     wert1 = _anmelden(welt, g, link1)
     assert g.link(link2).json()["stand"] == "code_noetig"  # die Sitzung von 1 gilt nicht für 2
-    assert g.willkommen().json() == {"begruessung": "Guten Tag, Herr Erste"}  # bis zum Code bleibt 1
+    assert g.willkommen().json() == {"begruessung": "Guten Tag Herr Erste"}  # bis zum Code bleibt 1
     g.code()
     w.code_anlegen(g.kekse[COOKIE_CODE], CODE)
     assert g.pruefen(CODE).json()["stand"] == "angemeldet"
-    assert g.willkommen().json() == {"begruessung": "Guten Tag, Frau Zweite"}
+    assert g.willkommen().json() == {"begruessung": "Guten Tag Frau Zweite"}
     assert Geraet(welt.app, {COOKIE: wert1}).weiter().status_code == 401
     assert w.erp("SELECT beendet_grund FROM portal_sitzungen WHERE wert_sha256 = :s", s=pruefwerte.sitzung(wert1)) == [("abgemeldet",)]
 

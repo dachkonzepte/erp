@@ -519,3 +519,13 @@ Probendatei `gp11122.py`: `--no-control-socket` aus `scripts/server/erp-portal.s
 | Nr. 1, 2 – die Option steht in der Einheit | ExecStart ohne `--no-control-socket` | `test_einheit_des_dienstes` rot (`"--no-control-socket" in start.split()`) |
 | Nr. 3 – ERP | keine: `erp.service` liegt nur auf dem Server | -- |
 | Nr. 4 – Einheit neu installieren | keine: Schritt auf dem Server (Doku) | -- |
+
+## 1.11.23: Begrüßung ohne Komma
+
+Probendatei `gp11123.py`; jede Datei danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Portal und Mail ohne Komma nach „Guten Tag“ | Komma zurück in `begruessung.py` (Herr/Frau) | `test_v817::test_portal_und_mail`, `test_v802::test_begruessung`, `test_v807` rot („Guten Tag, Herr Dr. Muster“) |
+| Nr. 2 – kein Komma unter `app/`, auch nicht über die Konstante | dieselbe Probe (`{GRUSS},`) | `test_kein_komma_nach_guten_tag_unter_app` rot (`app/portal/begruessung.py:…`) |
+| Nr. 2 – kein fester Text mit Komma | in `portal.js` „Guten Tag, Gast“ als Rückfall | `test_kein_komma_nach_guten_tag_unter_app` rot (`app/portal/seiten/portal.js:…`) |

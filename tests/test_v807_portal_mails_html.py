@@ -110,7 +110,7 @@ GRUSS = "Mit freundlichen Grüßen\nIhr Team der Muster Bedachung GmbH"
 LINK_WORTLAUT = [
     "Muster", "Bedachung GmbH",
     "Ihr persönlicher Zugang zum Kundenportal",
-    "Guten Tag, Herr Dr. Muster,",
+    "Guten Tag Herr Dr. Muster,",
     "wie besprochen haben wir für Sie einen Zugang zu unserem Kundenportal eingerichtet. Dort finden Sie künftig Ihre Unterlagen zu Anfragen und "
     "Aufträgen an einem Ort.",
     "Kundenportal öffnen",
@@ -126,7 +126,7 @@ LINK_WORTLAUT = [
 CODE_WORTLAUT = [
     "Muster", "Bedachung GmbH",
     "Ihr Anmeldecode",
-    "Guten Tag, Herr Dr. Muster,",
+    "Guten Tag Herr Dr. Muster,",
     "Ihr Code für das Kundenportal lautet:",
     "481 207",
     "Er gilt 10 Minuten und nur in dem Browser, in dem Sie ihn angefordert haben.",

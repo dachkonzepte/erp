@@ -171,10 +171,10 @@ def test_gescheitert_nennt_nichts_vom_text(db_session, monkeypatch, caplog):
 
 
 @pytest.mark.parametrize("werte, erste_zeile", [
-    ({}, "Guten Tag, Herr Dr. Muster,"),
-    ({"salutation": "Frau", "title": None, "first_name": "Erika", "name": "Frau Erika Muster"}, "Guten Tag, Frau Muster,"),
+    ({}, "Guten Tag Herr Dr. Muster,"),
+    ({"salutation": "Frau", "title": None, "first_name": "Erika", "name": "Frau Erika Muster"}, "Guten Tag Frau Muster,"),
     ({"salutation": "Firma", "title": None, "first_name": None, "last_name": "Muster Dach GmbH", "name": "Muster Dach GmbH"},
-     "Guten Tag, Muster Dach GmbH,"),
+     "Guten Tag Muster Dach GmbH,"),
 ])
 def test_mails_gesiezt_mit_hinweis_und_absender(db_session, werte, erste_zeile):
     """Seit 1.11.8 als HTML -- den ganzen Wortlaut prüft tests/test_v807_portal_mails_html.py; hier Anrede, Hinweis und Absender je Art."""
