@@ -94,7 +94,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Projektordner | `/home/tobias/erp` |
 | Datenordner (`ERP_DATA_DIR`, außerhalb von Git) | `/home/tobias/erp-data` |
 | Umgebung | `/home/tobias/erp/.env` |
-| Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten) |
+| Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten); PostgreSQL 18.6 (Betreiberangabe 25.11.2026) |
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` (gunicorn 26.2.0, uvicorn 0.52.4 -- seit 1.11.4 genau so in requirements.txt, `tests/test_v803_gunicorn_server.py`) |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
 | Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |

@@ -2359,11 +2359,31 @@ V8. Datenschutz: zwei Cookies und der Speicher des Tabs, Link 12 Monate (statt �
 Keine Änderung am Code, kein Test. Gegenproben: keine möglich (eine Anleitung für den Server, sie wird in P1f auf dem Server geprüft) -- Tabelle mit Begründung in
 `gegenproben-portal.md`, „Vorbereitung P1f“.
 
+### Beim Abarbeiten geändert, Datenschutz durchgesehen (25.11.2026, nur Doku)
+
+Antwort vom 25.11.2026: bestätigt 1.11.16-1 bis -7, 1.11.17-1 bis -7, die Festlegung zum Testablauf aus 1.11.18 und V1 bis V8. 1.11.17-F1: ja, ein Satz unter
+dem Textfeld (1.11.19); F2 prüft der Betrieb selbst. P1f-1: nach S9 das Modul „Kundenportal“ wieder aus, bis die Datenschutzerklärung online ist und der Betrieb
+den ersten Kunden einlädt. P1f-2: der Unterschied von `update.sh` kommt nach S10.
+
+Die Server-Schritte hat der Betrieb beim Abarbeiten so geändert (unten nachgezogen):
+
+- S0 ohne die `sed`-Zeile auf `.env`: der Datenbank-Benutzer des ERP ist `erp`, die Datenbank `dachkonzepte`, PostgreSQL 18.6 -- S3b entfällt (ab 15 darf
+  PUBLIC im Schema public nichts anlegen; die Abfrage in S0 bleibt als Nachweis).
+- Zu Beginn jeder Sitzung `export SYSTEMD_PAGER=cat` -- `systemctl` öffnete sonst ein Blätterfenster und schnitt lange Zeilen ab.
+- `journalctl` immer mit `sudo`. Unter `sudo` kommt `SYSTEMD_PAGER` nicht an (sudo setzt die Umgebung zurück); jedes `sudo journalctl` in den Schritten trägt
+  deshalb `--no-pager` (stand dort schon).
+
+Datenschutz: die Fassung vom 25.11.2026 (`datenschutz_portal_2026-11-25.md`, vom Betrieb durchgesehen, im Archiv der Berichte neben der vom 24.11.) ersetzt die
+vom 24.11.; drei Stellen berichtigt -- der Name des Verantwortlichen (wie im Impressum der Webseite); der Link geht zur Prüfung verschlüsselt (HTTPS) an den
+Server, nur nicht als Teil der aufgerufenen Adresse (die Fassung vom 24.11. sagte „nie an den Server als Adresse übertragen“ -- missverständlich); der Prüfwert
+der IP-Adresse (HMAC mit Schlüssel) ist eine Pseudonymisierung und gilt weiter als personenbezogen (die Fassung vom 24.11. sagte „nicht umkehrbar“).
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.18: seit fc8b758 hat sich nichts an den Einheiten, an nginx, an den
 Migrationen oder an den Rechten geändert. Grundlage: Bauplan P1, Abschnitte 1 und 2 (im Archiv `bauplan_p1_e8bb2af.txt`), mit dem Stand nach Nachtrag N1 (der
-Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026.
+Benutzer des Portals liest nur Firmendaten und Revision und ruft acht Funktionen auf) und den Antworten bis 24.11.2026. Nachgezogen am 25.11.2026, wie der
+Betrieb die Schritte beim Abarbeiten geändert hat (Abschnitt oben).
 
 So zu lesen:
 
@@ -2372,7 +2392,9 @@ So zu lesen:
   die Ausgabe in den Chat geben -- keiner der Befehle zeigt ein Geheimnis.
 - **Geheimnisse:** kein Befehl liest `.env` oder `/etc/dk-portal/portal.env` aus. Passwort und Schlüssel entstehen in der root-Shell direkt in der Datei; geprüft
   werden nur Namen und Längen. Nie `cat`, `less` oder einen Editor auf diese beiden Dateien.
-- `<ERP-Benutzer>` ist der Name des Datenbank-Benutzers des ERP aus S0 (kein Geheimnis) -- in den Befehlen einsetzen.
+- **Zu Beginn jeder Sitzung** (auch nach einem neuen Anmelden): `export SYSTEMD_PAGER=cat` -- sonst öffnet `systemctl` ein Blätterfenster und schneidet lange
+  Zeilen ab (Betreiberangabe 25.11.2026). `journalctl` immer mit `sudo` und `--no-pager` (unter `sudo` kommt die Variable nicht an).
+- Der Datenbank-Benutzer des ERP ist `erp`, die Datenbank `dachkonzepte`, PostgreSQL 18.6 (Betreiberangabe 25.11.2026) -- in den Befehlen steht er schon.
 - Meldet psql „could not change directory to …: Permission denied“, ist das harmlos (der Benutzer postgres darf den aktuellen Ordner nicht lesen).
 - Gebraucht: SSH als tobias mit sudo, der DNS-Zugang bei Ionos, ein Handy mit mobilen Daten (WLAN aus), das eigene Postfach, ein Konto im ERP als Admin.
 
@@ -2381,6 +2403,7 @@ So zu lesen:
 Als tobias:
 
 ```bash
+export SYSTEMD_PAGER=cat
 cd /home/tobias/erp
 git log --oneline -1
 lsb_release -ds; systemctl --version | head -1; psql --version; nginx -v
@@ -2389,13 +2412,12 @@ ss -ltn
 stat -c '%a %U:%G %n' /home/tobias /home/tobias/erp /home/tobias/erp/.env /home/tobias/erp-data
 .venv/bin/python -c "import uvicorn, gunicorn; print(uvicorn.__version__, gunicorn.__version__)"
 systemctl show -p User -p ExecStart erp
-sed -n 's|^DATABASE_URL=\([^:]*\)://\([^:@/]*\).*@\([^/@?]*\)/\([^?]*\).*|\1 \2 \3 \4|p' .env
 git status --ignored --short -- app alembic alembic.ini
 ls /etc/systemd/system | grep erp; ls -d /srv/erp-code 2>&1
 ```
 
-Die `sed`-Zeile gibt nur Art, Benutzer, Rechner:Port und Datenbank aus der Verbindungszeichenfolge aus -- nie das Passwort (es steht vor dem letzten „@“
-und wird übersprungen).
+(Bis 25.11.2026 stand hier eine `sed`-Zeile, die Benutzer, Rechner:Port und Datenbank aus `.env` las; entfällt -- Benutzer `erp` und Datenbank `dachkonzepte`
+hat der Betrieb genannt, Adresse und Port zeigt die Abfrage von PostgreSQL unten.)
 
 **Erwartet:**
 
@@ -2405,33 +2427,32 @@ und wird übersprungen).
 - `stat`: `.env` 600 tobias:tobias.
 - Versionen: `0.52.4 26.2.0`.
 - `systemctl show`: `User=tobias`, im ExecStart gunicorn mit `-w 2`.
-- `sed`: `postgresql+psycopg <ERP-Benutzer> 127.0.0.1:5432 dachkonzepte` (oder `localhost:5432`).
 - `git status`: nichts oder nur Zeilen `!! app/…/__pycache__/`.
 - `ls /etc/systemd/system | grep erp`: `erp.service`, `erp-webanfragen.service`, `erp-webanfragen.timer` -- noch kein `erp-portal*`; `/srv/erp-code` gibt es noch
   nicht.
 
 **Abbrechen,** wenn: weniger als 600 MB verfügbar; `:8010` belegt; `.env` nicht 600; andere Versionen als 0.52.4/26.2.0; `User=` nicht tobias (der Postbote
-läuft als tobias); nginx nicht auf `[::]` (die Datei für nginx lauscht auch dort); Rechner:Port anders als 127.0.0.1 bzw. localhost mit 5432 oder die Datenbank
-nicht `dachkonzepte` (dann passe ich S3 an); `git status` nennt unter `app/`, `alembic/` oder `alembic.ini` eine Datei außerhalb von `__pycache__` (nur den
-Namen in den Chat -- sie käme vor dem Start in `InaccessiblePaths=`).
+läuft als tobias); nginx nicht auf `[::]` (die Datei für nginx lauscht auch dort); `git status` nennt unter `app/`, `alembic/` oder `alembic.ini` eine Datei
+außerhalb von `__pycache__` (nur den Namen in den Chat -- sie käme vor dem Start in `InaccessiblePaths=`).
 
 PostgreSQL lesen, als tobias:
 
 ```bash
 sudo -u postgres psql -tAX -c "show log_statement" -c "show log_min_duration_statement" -c "show password_encryption" -c "show listen_addresses" -c "show port" -c "show shared_preload_libraries"
 sudo -u postgres psql -tAX -c "select rolname from pg_roles where rolname = 'dkportal'"
-sudo -u postgres psql -tAX -c "select rolsuper, rolcreaterole, rolbypassrls from pg_roles where rolname = '<ERP-Benutzer>'"
+sudo -u postgres psql -tAX -c "select rolsuper, rolcreaterole, rolbypassrls from pg_roles where rolname = 'erp'"
 sudo -u postgres psql -d dachkonzepte -tAX -c "select has_schema_privilege('public', 'public', 'CREATE')"
 sudo -u postgres psql -X -c "select line_number, type, database, user_name, address, auth_method from pg_hba_file_rules order by line_number"
 ```
 
 **Erwartet:** `none`, `-1`, `scram-sha-256`, `localhost` (oder eine Liste mit 127.0.0.1), `5432`, leer oder `pg_stat_statements`; die Rolle `dkportal` gibt es
-nicht (leere Zeile); `f|f|f`; `f` (in PostgreSQL ab 15 darf PUBLIC im Schema public nichts anlegen); die Regeln von pg_hba (zum Ansehen -- `dkportal` steht in
-keiner).
+nicht (leere Zeile); `f|f|f`; `f` (in PostgreSQL ab 15, hier 18.6, darf PUBLIC im Schema public nichts anlegen -- deshalb kein S3b); die Regeln von pg_hba
+(zum Ansehen -- `dkportal` steht in keiner).
 
 **Abbrechen,** wenn: `password_encryption` nicht `scram-sha-256`; die Rolle `dkportal` gibt es schon; der Benutzer des ERP ist Superuser, darf Rollen anlegen
-oder umgeht Zeilenrechte (nicht `f|f|f`); `shared_preload_libraries` nennt `pgaudit` oder etwas, das Anweisungen mitschreibt. Nicht abbrechen bei
-`log_statement` anders als `none` (S3 schaltet es für seine Sitzung ab) und bei `t` für das Schema (dann gilt S3b).
+oder umgeht Zeilenrechte (nicht `f|f|f`); `shared_preload_libraries` nennt `pgaudit` oder etwas, das Anweisungen mitschreibt; `port` nicht `5432` (dann die
+Zahl in S3 anpassen); für das Schema `t` (unter PostgreSQL 18 unerwartet -- melden, dann kommt S3b zurück). Nicht abbrechen bei `log_statement` anders als `none`
+(S3 schaltet es für seine Sitzung ab).
 
 nginx, Zertifikat, Protokolle, als tobias:
 
@@ -2525,12 +2546,7 @@ printf '%s\n' "ALTER ROLE dkportal SET statement_timeout = '5s';" "ALTER ROLE dk
   "ALTER ROLE dkportal SET search_path = public;" | sudo -u postgres psql -X -q -v ON_ERROR_STOP=1
 ```
 
-**S3b, nur wenn S0 für das Schema `t` zeigte** (PostgreSQL vor 15): erst dem ERP das Anlegen ausdrücklich geben, dann PUBLIC nehmen -- für das ERP ändert sich
-nichts:
-
-```bash
-sudo -u postgres psql -d dachkonzepte -X -v ON_ERROR_STOP=1 -c "GRANT CREATE ON SCHEMA public TO <ERP-Benutzer>" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
-```
+(S3b -- dem ERP das Anlegen im Schema public ausdrücklich geben, PUBLIC nehmen -- entfällt seit 25.11.2026: PostgreSQL 18.6, S0 zeigt `f`.)
 
 pg_hba: drei Zeilen vor alle übrigen (die erste passende Regel gilt), als tobias:
 
@@ -2568,8 +2584,7 @@ ebenso für `[local]`, die dritte `fe_sendauth: no password supplied` (sie kam b
 `640 root:dkportal /etc/dk-portal/portal.env`; `DATABASE_URL=`, `PORTAL_HERKUNFT=`, `ERP_ENV=`; `1`.
 **Abbrechen,** wenn eine der drei Verbindungen anders endet, das ERP nicht antwortet (dann zuerst `sudo cp -a "$HBA.vor-p1" "$HBA"` und neu laden) oder ein Wert
 abweicht.
-**Rückweg:** `sudo -u postgres psql -X -c "DROP ROLE dkportal"`; `sudo cp -a "$HBA.vor-p1" "$HBA"` und `select pg_reload_conf()`; `sudo rm -r /etc/dk-portal`;
-nach S3b `REVOKE CREATE ON SCHEMA public FROM <ERP-Benutzer>` und `GRANT CREATE ON SCHEMA public TO PUBLIC`.
+**Rückweg:** `sudo -u postgres psql -X -c "DROP ROLE dkportal"`; `sudo cp -a "$HBA.vor-p1" "$HBA"` und `select pg_reload_conf()`; `sudo rm -r /etc/dk-portal`.
 
 #### S4 Schlüssel der Bremsen (nie angezeigt)
 
@@ -2604,7 +2619,7 @@ sudo -u postgres psql -d dachkonzepte -tAX -c "select count(*) from information_
 **Erwartet:** `current` und `heads` nennen dieselbe Revision (`… (head)`); „Rechte für dkportal gesetzt: 2 Tabellen (nur Lesen), 8 Funktionen, n Anweisungen.“ und
 „Rechte für dkportal stimmen.“; `9` (Spalten: 8 der Firmendaten, 1 der Revision) und `8` (Funktionen).
 **Abbrechen,** wenn `current` und `heads` verschieden sind (erst `update.sh`) oder `--pruefen` Abweichungen nennt (die Zeilen in den Chat; „Schema public: darf
-Objekte anlegen“ heißt S3b fehlt).
+Objekte anlegen“ ist unter PostgreSQL 18 unerwartet -- melden).
 **Rückweg:** keiner nötig -- `--setzen` gibt nur dkportal Rechte; `DROP ROLE` (S3) nimmt sie mit (vorher `sudo -u postgres psql -d dachkonzepte -X -c "DROP OWNED
 BY dkportal"`).
 
@@ -2616,9 +2631,9 @@ Als tobias:
 sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/erp-portalpost.service /home/tobias/erp/scripts/server/erp-portal.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now erp-portalpost
-journalctl -u erp-portalpost -n 5 --no-pager
+sudo journalctl -u erp-portalpost -n 5 --no-pager
 sudo systemctl enable --now erp-portal
-journalctl -u erp-portal -n 10 --no-pager
+sudo journalctl -u erp-portal -n 10 --no-pager
 curl -fsS -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health; echo
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8010/health
 systemctl is-active erp erp-portal erp-portalpost
@@ -2638,7 +2653,7 @@ sudo systemd-analyze security erp-portal | tail -1
 - `MemoryCurrent` je unter 200 MB (Zahl in Byte, z. B. `MemoryCurrent=95000000`).
 - `Overall exposure level for erp-portal.service: …` -- den Wert in den Chat.
 
-**Abbrechen,** wenn ein Dienst nicht `active` ist: `journalctl -u erp-portal -n 30 --no-pager` bzw. `-u erp-portalpost` in den Chat (das Journal enthält keine
+**Abbrechen,** wenn ein Dienst nicht `active` ist: `sudo journalctl -u erp-portal -n 30 --no-pager` bzw. `-u erp-portalpost` in den Chat (das Journal enthält keine
 Geheimnisse: Fehler nur mit Namen der Klasse). Typisch: „Datenbank auf Revision …, der Code erwartet … -- erst update.sh“ (dann `update.sh`, danach
 `sudo systemctl restart erp-portal`); „… startet nicht“ mit einem Namen aus portal.env (S3/S4 prüfen); beim Postboten Rückgabe 3 „Es läuft schon ein
 Postbote“ (nur einer je Datenbank).
@@ -2752,7 +2767,7 @@ Im ERP als Admin:
 Ist 1.11.17 schon eingespielt: eine beliebige Mail an Kunden (etwa ein Angebot des Rauchtest-Kunden an die eigene Adresse) zeigt unten nach einer Leerzeile Name,
 Anschrift und Pflichtangaben.
 
-**Abbrechen,** wenn eine Mail unter „Gesendete Elemente“ steht, der Code nach einer Minute nicht da ist (dann `journalctl -u erp-portalpost -n 20 --no-pager` und
+**Abbrechen,** wenn eine Mail unter „Gesendete Elemente“ steht, der Code nach einer Minute nicht da ist (dann `sudo journalctl -u erp-portalpost -n 20 --no-pager` und
 der Hinweis auf „Start“ in den Chat) oder ein Betreff Link oder Code enthält.
 
 #### S10 update.sh für drei Dienste
