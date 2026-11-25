@@ -298,12 +298,13 @@ def test_postgresql_report_waits_for_office_remedied(pg):
             holder.commit = angehalten
             defects_module.set_status(holder, defect, {"status": "beseitigt", "event_date": HEUTE}, [], user_id=None,
                                       user_name="Büro")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: _pg_melden(Session, welt, str(uuid.uuid4())))
-    time.sleep(0.3)
+        return faden
+    done = _waits_for(Session, hold, lambda: _pg_melden(Session, welt, str(uuid.uuid4())))
     holder.close()
-    assert isinstance(done["result"], defects_module.DefectConflict) and done["seconds"] >= 0.9, done
+    assert isinstance(done["result"], defects_module.DefectConflict), done
     check = Session()
     try:
         events = check.scalars(select(DefectEvent).where(DefectEvent.defect_id == welt["defect_id"])).all()

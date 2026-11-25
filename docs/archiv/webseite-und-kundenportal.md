@@ -2649,6 +2649,35 @@ Neu `test_v807_portal_mails_html.py::test_knopf_polster_an_der_zelle`: der Link 
 selbst ohne Polster, Hintergrund und `display`, weiß und ohne Unterstreichung. Keine angepasste Erwartung. Klicktests vor dem Commit:
 `klicktest_kundenportal_karte` (versendet den Link über die Attrappe von Graph). Gegenproben: `gegenproben-portal.md`, „1.11.24“.
 
+### Umsetzung 1.11.25: e4 und Postbote als Kindprozess, Wackler (25.11.2026)
+
+Antwort auf F1 (aus 1.11.21): ja, nach P1f, zusammen mit den Wacklern `test_v352`, `klicktest_kennzeichen_entziehen` und
+`klicktest_nach_dem_versand_pruefen`.
+
+- Neu `tests/test_v818_portal_skripte_kindprozess.py`: `scripts/pruefe_portal_e4.py` (S8) und `scripts/portal_postbote.py` (S6) laufen wie auf dem Server
+  -- Python aus `.venv`, im Repo-Ordner, `DATABASE_URL` aus der Umgebung -- gegen PostgreSQL in einem Wegwerf-Schema aus `alembic upgrade head`. e4: ohne
+  Aufruf Rückgabe 1 („0 Anschlüsse, 0 Aufrufe“, „Noch kein Aufruf“), mit zwei erfundenen Anschlüssen Rückgabe 0 („2 Anschlüsse, 4 Aufrufe“); Postbote:
+  „bereit“ und „aufgeräumt“, ein zweiter daneben Rückgabe 3, der erste über seine PID beendet. Keine Ausgabe nennt die Verbindungszeichenfolge. Damit läuft
+  jedes Skript, das die Server-Schritte P1 nennen, in einem Test als Kindprozess gegen PostgreSQL (`portal_rechte.py` seit 1.11.21).
+- `test_v352` und die übrigen acht Tests mit `_waits_for()`: Archiv „Testablauf“, „Umsetzung 1.11.25“.
+- Die beiden Klicktests: Befund „Stille Verbindungen (1.11.25)“ im Archiv „Testablauf“, keine Änderung am Werkzeug.
+
+#### Festlegungen 1.11.25 (Bitte bestätigen)
+
+1. `pruefe_portal_e4.py` und der Postbote laufen in einem Test als Kindprozess wie auf dem Server (S6, S8), gegen PostgreSQL in einem Schema aus
+   `alembic upgrade head`.
+2. `_waits_for()` gibt die erste Aktion erst frei, wenn eine Verbindung des Tests nachweislich an einer Sperre wartet, wartet danach auf beide Fäden und
+   prüft keine Dauer -- für alle neun Tests in v349, v351, v352, v354, v356.
+3. Bei „Anfrage nicht angekommen“ bleibt das Werkzeug, wie es ist (Wiederholung); der Befund „stille Verbindung“ steht im Archiv, mit dem Weg, ihn im
+   Verbindungsprotokoll zu prüfen.
+
+#### Tests und Prüfung 1.11.25
+
+Neu `test_v818` (2). Angepasste Erwartungen (Regel 28): in den neun Tests mit `_waits_for()` entfällt „zweite Aktion ≥ 0,9 s“ (alt: Dauer gegen eine feste
+Schranke; neu: `_waits_for()` prüft, dass eine Verbindung des Tests an einer Sperre gewartet hat), ebenso die festen Pausen vor `holder.close()`; in
+`test_v349::test_postgresql_sync_waits_for_a_running_acceptance` die Pause vor der Prüfung der ersten Aktion (jetzt `join`). Keine Seite geändert, kein
+Klicktest berührt. Gegenproben: `gegenproben-portal.md`, „1.11.25“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den

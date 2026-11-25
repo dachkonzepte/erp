@@ -1478,11 +1478,47 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   festen Sekunde freigibt) -- beides gegen „Gleichzeitigkeit in Tests“ in CLAUDE.md. Einzeln auf demselben Stand dreimal 17 von 17. Die Reihenfolge von gw2
   ist verloren (die Einzelläufe in derselben Arbeitskopie überschrieben `.pytest_cache/reihenfolge`). 1.11.20 ändert nur `nginx-kunde.conf` und Doku.
   Stand: Ursache geklärt, nicht behoben (1.11.20 sollte nur nginx ändern) -- Vorschlag: den Thread der haltenden Sitzung abwarten (`join`) statt der
-  Pause, freigeben erst, wenn die zweite Aktion nachweislich an der Sperre wartet (wie 1.9.348), keine Dauer gegen eine feste Schranke.
+  Pause, freigeben erst, wenn die zweite Aktion nachweislich an der Sperre wartet (wie 1.9.348), keine Dauer gegen eine feste Schranke. **Behoben mit
+  1.11.25** an der gemeinsamen Hilfe `_waits_for()` für alle neun Tests in v349, v351, v352, v354, v356 (Abschnitt „Umsetzung 1.11.25“ unten).
 - **`klicktest_kennzeichen_entziehen`** -- 25.11.2026, Endlauf von 1.11.21 auf b96a7b8 (frische Arbeitskopie, zu viert): 2 von 8, `GET /api/resources` kam
   laut Verbindungsprotokoll nie beim Server an; `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 8 von 8. Bekannte Art „Anfrage nie angekommen“ (wie
   `klicktest_rahmen`); 1.11.21 änderte nur `scripts/portal_rechte.py`, nichts an Kennzeichen, Geräten oder Plantafel. Stand: abgefangen durch die Wiederholung,
-  Ursache im Browser offen.
+  Ursache im Browser offen. Befund mit 1.11.25: der Server nahm die Verbindung an (`HTTP connection made` im
+  Verbindungsprotokoll, im selben Augenblick wie der Start der Anfrage im Browser), auf ihr kam aber nie eine Anfrage an -- sie blieb still, bis der Test
+  endete (46 s). Dasselbe bei `klicktest_nach_dem_versand_pruefen` (unten). Abschnitt „Stille Verbindungen (1.11.25)“.
+- **`klicktest_nach_dem_versand_pruefen`** -- 25.11.2026, Endlauf von 1.11.22 auf 5e5b6d7 (frische Arbeitskopie, zu viert): alle 14 Prüfungen wie
+  erwartet, aber `/zeiten` nicht bereit -- `GET /static/ds/ds-gesperrt.css` kam laut Verbindungsprotokoll nie beim Server an („gesendet: ja, Antwort-Kopf:
+  nein“, 35 s offen); `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 14 von 14. Im Verbindungsprotokoll: die vier Stylesheets der Seite auf vier
+  Verbindungen, drei bedient, die vierte angenommen, aber ohne Anfrage, still bis zum Verlassen der Seite (30 s). 1.11.22 änderte nur die Einheit des
+  Portals. Stand: abgefangen durch die Wiederholung, Ursache offen (Abschnitt „Stille Verbindungen (1.11.25)“).
+
+## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
+
+`tests/test_v349_abnahme_und_gewaehrleistung.py::_waits_for()` (benutzt von neun Tests in v349, v351, v352, v354, v356) gab die erste Aktion nach einer
+festen Sekunde frei; die Tests schlossen danach die Sitzung der ersten Aktion nach einer festen Pause (0,2 bzw. 0,3 s) und prüften „zweite Aktion ≥ 0,9 s“.
+Unter Last schloss der Test die Sitzung mitten in ihrem Commit (Wackler test_v352, 25.11.2026: `IllegalStateChangeError`). Jetzt wie
+`tests/test_v365_abnahme_aus_protokoll.py::_run()` seit 1.9.348:
+
+- freigegeben wird erst, wenn eine Verbindung des Tests nachweislich an einer Sperre wartet -- `pg_blocking_pids()` über alle Verbindungen mit dem Schema
+  als `application_name` (jede pg-Fixture der fünf Dateien setzt ihn), Sicherheitsnetz `_bis()` (120 s, keine erwartete Dauer);
+- `first_holds_lock()` gibt den Faden der ersten Aktion zurück, `_waits_for()` wartet auf beide Fäden (`join`), bevor ein Test die Sitzung schließt oder
+  ein Ergebnis der ersten Aktion liest;
+- dass die zweite Aktion gewartet hat, prüft `_waits_for()` selbst; „≥ 0,9 s“ und die festen Pausen in den Tests entfallen.
+
+Gegenproben: `gegenproben-portal.md`, „1.11.25“ (die Version gehört zu den Nacharbeiten von P1f).
+
+## Stille Verbindungen (1.11.25)
+
+Beide Wiederholungen von 1.11.21 und 1.11.22 (`klicktest_kennzeichen_entziehen`, `klicktest_nach_dem_versand_pruefen`) zeigen im Verbindungsprotokoll
+dasselbe: der Browser startet eine Anfrage auf einer neuen Verbindung (laut Netzprotokoll „gesendet: ja“), der Server nimmt die Verbindung im selben
+Augenblick an (`HTTP connection made`), auf ihr beginnt aber nie eine ASGI-Aufgabe -- sie bleibt still, bis der Test die Seite verlässt oder endet. Jede
+andere Verbindung derselben Seite wird bedient. Prüfen lässt sich das in `verbindungen.log` des Klicktests: je Adresse `HTTP connection made` ohne
+`Started scope` auf derselben Adresse.
+
+- Vermutung, nicht belegt: die Ereignisschleife von uvicorn unter Windows (Proactor) -- auf dem Server läuft uvloop. Nachgestellt habe ich es nicht: über
+  10 000 neue Verbindungen gleichzeitig gegen uvicorn mit der Proactor-Schleife (32 Fäden, GET sofort oder bis 50 ms nach dem Verbinden), keine blieb still.
+- Keine Änderung am Werkzeug: die Meldung „nicht angekommen“ vergleichen ein Klicktest und zwei Tests wörtlich, und die Wiederholung (seit 1.9.19) fängt
+  den Fall ab. Kommt er gehäuft, ist der nächste Schritt ein Vergleich über mehrere Endläufe mit der Selector-Schleife für die Instanz.
 
 ## Engines der Tests schließen sich selbst (1.9.195, L1a Stufe 3, Punkt 4)
 

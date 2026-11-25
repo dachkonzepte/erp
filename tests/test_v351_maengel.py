@@ -708,12 +708,13 @@ def test_postgresql_defect_waits_for_discarding_the_acceptance(pg):
                 commit()
             holder.commit = angehalten
             acceptances_module.discard_acceptance(holder, acceptance, reason="falsch", user_id=None, user_name="PG")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: _pg_create(Session, welt))
-    time.sleep(0.2)
+        return faden
+    done = _waits_for(Session, hold, lambda: _pg_create(Session, welt))
     holder.close()
-    assert isinstance(done["result"], defects_module.DefectConflict) and done["seconds"] >= 0.9
+    assert isinstance(done["result"], defects_module.DefectConflict)
 
 
 def test_postgresql_two_status_changes_at_once(pg):
@@ -736,8 +737,10 @@ def test_postgresql_two_status_changes_at_once(pg):
             holder.commit = angehalten
             defects_module.set_status(holder, defect, {"status": "erledigt_ohne", "reason": "Minderung"}, [],
                                       user_id=None, user_name="A")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
+        return faden
 
     def second():
         db = Session()
@@ -747,10 +750,9 @@ def test_postgresql_two_status_changes_at_once(pg):
                                              user_name="B")
         finally:
             db.close()
-    done = _waits_for(hold, second)
-    time.sleep(0.2)
+    done = _waits_for(Session, hold, second)
     holder.close()
-    assert isinstance(done["result"], defects_module.DefectConflict) and done["seconds"] >= 0.9
+    assert isinstance(done["result"], defects_module.DefectConflict)
     check = Session()
     try:
         assert len(check.scalars(select(DefectEvent).where(DefectEvent.defect_id == defect_id)).all()) == 1

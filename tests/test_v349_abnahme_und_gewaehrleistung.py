@@ -887,25 +887,54 @@ def pg():
         admin.dispose()
 
 
-def _waits_for(first_holds_lock, second_action) -> dict:
-    """first_holds_lock() hält die Sperre, bis das Ereignis gesetzt ist; second_action() läuft in einem Thread.
-    Rückgabe: {"result": Ergebnis oder Ausnahme, "seconds": wie lange die zweite Aktion gebraucht hat}."""
+def _bis(bedingung, was: str, sicherheitsnetz: float = 120.0):
+    """Seit 1.11.25 wie tests/test_v375_rechnungen_sperren.py::_bis(): wartet auf einen beobachtbaren Zustand; sicherheitsnetz begrenzt
+    nur einen hängenden Lauf (dann rot mit was), es ist keine erwartete Dauer."""
+    ende = time.monotonic() + sicherheitsnetz
+    while not bedingung():
+        assert time.monotonic() < ende, f"{was} -- nach {sicherheitsnetz:.0f} s nicht eingetreten"
+        time.sleep(0.01)
+
+
+def _waits_for(Session, first_holds_lock, second_action) -> dict:
+    """first_holds_lock(release) startet die erste Aktion in einem eigenen Faden, der ihre Sperren hält, bis release gesetzt ist, und gibt diesen Faden
+    zurück; second_action() läuft in einem zweiten Faden. Rückgabe: {"result": Ergebnis oder Ausnahme der zweiten Aktion}.
+
+    Seit 1.11.25 (Wackler test_v352, 25.11.2026; wie tests/test_v365_abnahme_aus_protokoll.py::_run() seit 1.9.348): freigegeben wird erst, wenn eine
+    Verbindung dieses Tests (application_name = Schema, gesetzt von jeder pg-Fixture der fünf Dateien) nachweislich an einer Sperre wartet
+    (pg_blocking_pids; Sicherheitsnetz _bis()) -- bis dahin nach einer festen Sekunde. Danach wartet _waits_for auf beide Fäden (join): bis dahin schlossen
+    die Tests die Sitzung der ersten Aktion nach einer festen Pause, unter Last mitten in deren Commit (IllegalStateChangeError). Dass die zweite gewartet
+    hat, prüft _waits_for selbst; die Prüfung „≥ 0,9 s“ in den Tests entfällt."""
+    engine = Session.kw["bind"]
+    with engine.connect() as conn:
+        name = conn.execute(text("SELECT current_setting('application_name')")).scalar()
+    assert name, "die Verbindungen des Tests tragen das Schema als application_name"
+
+    def wartet() -> bool:
+        with engine.connect() as conn:
+            return bool(conn.execute(text("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = :n "
+                                          "AND cardinality(pg_blocking_pids(pid)) > 0)"), {"n": name}).scalar())
+
     release, done = threading.Event(), {}
 
     def second():
-        start = time.monotonic()
         try:
             done["result"] = second_action()
         except Exception as exc:  # noqa: BLE001 -- das Ergebnis prüft der Test
             done["result"] = exc
-        done["seconds"] = time.monotonic() - start
-    first_holds_lock(release)
-    thread = threading.Thread(target=second)
-    thread.start()
-    time.sleep(1.0)
-    assert "seconds" not in done, "die zweite Aktion wartete nicht auf die Sperre"
+    erste = first_holds_lock(release)
+    assert isinstance(erste, threading.Thread), "first_holds_lock gibt den Faden der ersten Aktion zurück"
+    zweite = threading.Thread(target=second)
+    zweite.start()
+    gewartet = []
+    _bis(lambda: gewartet.append(True) or True if wartet() else not zweite.is_alive(),
+         "die zweite Aktion wartet weder auf eine Sperre noch ist sie fertig")
     release.set()
-    thread.join(timeout=30)
+    zweite.join(timeout=60)
+    assert not zweite.is_alive(), "die zweite Aktion hängt"
+    erste.join(timeout=60)
+    assert not erste.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
+    assert gewartet, ("die zweite Aktion hat nicht auf die Sperre der ersten gewartet", done.get("result"))
     return done
 
 
@@ -955,11 +984,13 @@ def test_postgresql_acceptance_waits_for_a_running_sync(pg):
             ready.set()
             release.wait(timeout=30)
             holder.commit()
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: _create(Session, welt))
+        return faden
+    done = _waits_for(Session, hold, lambda: _create(Session, welt))
     holder.close()
-    assert isinstance(done["result"], int) and done["seconds"] >= 0.9
+    assert isinstance(done["result"], int)
 
 
 def test_postgresql_sync_waits_for_a_running_acceptance(pg):
@@ -971,11 +1002,12 @@ def test_postgresql_sync_waits_for_a_running_acceptance(pg):
     def hold(release):
         def run():
             ergebnis["id"] = _create(Session, welt, pause=(bereit, release))
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         bereit.wait(timeout=10)
-    done = _waits_for(hold, lambda: _check(Session, welt))
-    assert isinstance(done["result"], AcceptanceExistsError) and done["seconds"] >= 0.9
-    time.sleep(0.2)
+        return faden
+    done = _waits_for(Session, hold, lambda: _check(Session, welt))
+    assert isinstance(done["result"], AcceptanceExistsError)
     assert isinstance(ergebnis.get("id"), int)
 
 

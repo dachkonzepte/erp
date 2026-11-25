@@ -538,3 +538,19 @@ Probendatei `gp11124.py`; `app/portal_mails.py` danach byte-gleich zurück (SHA-
 |---|---|---|
 | Nr. 1 – Polster an der Zelle, nicht am Link | Fassung bis 1.11.23 (Polster und `inline-block` am Link) | `test_knopf_polster_an_der_zelle` rot (`padding:14px 24px` fehlt an der Zelle) |
 | Nr. 1 – Hintergrund an der Zelle, nicht am Link | Hintergrund an den Link verlegt | `test_knopf_polster_an_der_zelle` rot (`background-color:#` fehlt an der Zelle) |
+
+## 1.11.25: e4 und Postbote als Kindprozess, `_waits_for()`
+
+Probendatei `gp11125.py`; jede Datei danach byte-gleich zurück (SHA-256 verglichen). Nr. 2b blieb nicht beim Warten hängen: ohne die Sperre des Mangels
+wartete die zweite Aktion an einer anderen Stelle und schrieb danach einen zweiten Eintrag -- rot am Ergebnis, nicht an „hat nicht gewartet“. Deshalb Nr. 2c:
+eine zweite Aktion ganz ohne Datenbank.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – e4 läuft als Kindprozess gegen PostgreSQL | Rahmenfehler wie in S5: `begin()` nach der ersten Anweisung | `test_pg_pruefe_portal_e4_als_kindprozess` rot („Datenbank nicht lesbar: InvalidRequestError“, Rückgabe 2) |
+| Nr. 1 – ein zweiter Postbote endet mit 3 | ohne die Sperre der Datenbank (`SELECT true`) | `test_pg_postbote_als_kindprozess` rot (der zweite läuft weiter, `TimeoutExpired`) |
+| Nr. 2 – die Sperre bleibt geprüft | `_lock()` in `app/defects.py` ohne `FOR UPDATE` | `test_postgresql_two_status_changes_at_once` rot (zwei Einträge statt 409) |
+| Nr. 2 – „hat gewartet“ prüft `_waits_for()` | die zweite Aktion ohne Datenbank (`test_v352`) | rot („die zweite Aktion hat nicht auf die Sperre der ersten gewartet“) |
+| Nr. 2 – `join` auf die erste Aktion | erste Aktion 1,5 s langsam nach dem Commit, mit `join` | grün |
+| Nr. 2 – `join` auf die erste Aktion | dieselbe Probe ohne `join` | `test_postgresql_sync_waits_for_a_running_acceptance` rot (Ergebnis der ersten noch nicht da) |
+| Nr. 3 – Befund ohne Änderung | keine: nur Befund und Doku | -- |

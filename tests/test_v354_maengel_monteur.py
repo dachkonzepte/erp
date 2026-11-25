@@ -543,12 +543,13 @@ def test_postgresql_two_reports_with_the_same_key_at_once(pg):
                 commit()
             holder.commit = angehalten
             first["id"] = _pg_melden(Session, welt, kennung, holder=holder)
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: _pg_melden(Session, welt, kennung))
-    time.sleep(0.3)
+        return faden
+    done = _waits_for(Session, hold, lambda: _pg_melden(Session, welt, kennung))
     holder.close()
-    assert done["seconds"] >= 0.9 and done["result"] == first["id"], done
+    assert done["result"] == first["id"], done
     check = Session()
     try:
         events = check.scalars(select(DefectEvent).where(DefectEvent.defect_id == welt["defect_id"])).all()
@@ -576,12 +577,13 @@ def test_postgresql_report_waits_for_withdrawing_the_release(pg):
             holder.commit = angehalten
             defects_module.set_release(holder, defect, released=False, reason="Kunde zieht zurück", user_id=None,
                                        user_name="Büro")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: _pg_melden(Session, welt, str(uuid.uuid4())))
-    time.sleep(0.3)
+        return faden
+    done = _waits_for(Session, hold, lambda: _pg_melden(Session, welt, str(uuid.uuid4())))
     holder.close()
-    assert isinstance(done["result"], defects_module.DefectConflict) and done["seconds"] >= 0.9, done
+    assert isinstance(done["result"], defects_module.DefectConflict), done
     check = Session()
     try:
         assert [e.kind for e in check.scalars(select(DefectEvent).where(DefectEvent.defect_id == welt["defect_id"]))] \

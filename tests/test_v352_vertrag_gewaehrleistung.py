@@ -207,8 +207,10 @@ def test_postgresql_duration_waits_for_a_running_freeze(pg):
         def run():
             _paused(holder, release, ready)
             freeze_contract(holder, load_order(holder, order_id), attachment="aktuell", user_name="A")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
+        return faden
 
     def second():
         db = Session()
@@ -217,10 +219,9 @@ def test_postgresql_duration_waits_for_a_running_freeze(pg):
                                       warranty_days=0, reason="B")
         finally:
             db.close()
-    done = _waits_for(hold, second)
-    time.sleep(0.2)
+    done = _waits_for(Session, hold, second)
     holder.close()
-    assert isinstance(done["result"], WarrantyLockedError) and done["seconds"] >= 0.9
+    assert isinstance(done["result"], WarrantyLockedError)
 
 
 def test_postgresql_freeze_waits_for_a_running_duration_change(pg):
@@ -241,13 +242,14 @@ def test_postgresql_freeze_waits_for_a_running_duration_change(pg):
             _paused(holder, release, ready)
             set_order_warranty(holder, holder.get(Order, order_id), work_kind="bauwerk", warranty_months=48,
                                warranty_days=0, reason="4 Jahre vereinbart")
-        threading.Thread(target=run).start()
+        faden = threading.Thread(target=run)
+        faden.start()
         ready.wait(timeout=10)
-    done = _waits_for(hold, lambda: freeze_contract(freezer, order_vorher, attachment="aktuell", user_name="B"))
-    time.sleep(0.2)
+        return faden
+    done = _waits_for(Session, hold, lambda: freeze_contract(freezer, order_vorher, attachment="aktuell", user_name="B"))
     holder.close()
     try:
-        assert done["seconds"] >= 0.9 and not isinstance(done["result"], Exception), done["result"]
+        assert not isinstance(done["result"], Exception), done["result"]
         assert frozen_content(done["result"])["placeholders"]["{gewaehrleistung}"] == "4 Jahre"
     finally:
         freezer.close()
