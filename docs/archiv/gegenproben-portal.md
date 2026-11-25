@@ -554,3 +554,14 @@ eine zweite Aktion ganz ohne Datenbank.
 | Nr. 2 – `join` auf die erste Aktion | erste Aktion 1,5 s langsam nach dem Commit, mit `join` | grün |
 | Nr. 2 – `join` auf die erste Aktion | dieselbe Probe ohne `join` | `test_postgresql_sync_waits_for_a_running_acceptance` rot (Ergebnis der ersten noch nicht da) |
 | Nr. 3 – Befund ohne Änderung | keine: nur Befund und Doku | -- |
+
+## 1.11.26: update.sh vergleicht die Einheiten
+
+Probendatei `gp11126.py`; jede Datei danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – eine Abweichung wird gemeldet | jede installierte Einheit gilt als gleich | `test_abweichung_und_fehlende_mit_befehl_nichts_installiert` rot |
+| Nr. 1 – nichts installiert | bei einer Abweichung die Fassung des Repos hineinschreiben | derselbe Test rot (der Ordner der installierten Einheiten ändert sich) |
+| Nr. 2 – nur vor genau einer Zeile FERTIG | nur bei 0 Zeilen abbrechen | `test_nur_bei_eindeutiger_stelle[…2-mal]` rot |
+| Nr. 3 – Dienst mit Timer ohne Neustart | die Prüfung auf den Timer entfernt | `test_dienst_mit_timer_ohne_neustart` rot |

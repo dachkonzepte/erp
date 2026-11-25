@@ -2678,6 +2678,37 @@ Schranke; neu: `_waits_for()` prüft, dass eine Verbindung des Tests an einer Sp
 `test_v349::test_postgresql_sync_waits_for_a_running_acceptance` die Pause vor der Prüfung der ersten Aktion (jetzt `join`). Keine Seite geändert, kein
 Klicktest berührt. Gegenproben: `gegenproben-portal.md`, „1.11.25“.
 
+### Umsetzung 1.11.26: update.sh vergleicht die Einheiten (25.11.2026)
+
+Antwort auf F2 (aus 1.11.22): `update.sh` vergleicht die Einheiten und meldet Abweichungen mit dem Befehl, installiert nicht selbst; Wortlaut als
+Server-Schritt, Python-Ersetzung wie in S10, nur bei eindeutiger Stelle.
+
+- Der Vergleich liegt als Skript im Repo, `update.sh` ruft es nur auf: `scripts/pruefe_einheiten.py` vergleicht jede Einheit aus `scripts/server/`
+  (`*.service`, `*.timer`) Byte für Byte mit `/etc/systemd/system/<Name>` und meldet jede, die abweicht, fehlt oder nicht lesbar ist -- mit „Ansehen:
+  diff -u …“ und „Übernehmen: sudo install … && sudo systemctl daemon-reload && sudo systemctl restart <Einheit>“ (ein Dienst mit gleichnamigem Timer ohne
+  Neustart, er läuft über den Timer). Es installiert nichts, startet nichts neu und schreibt nichts; Rückgabe 1 bei einer Abweichung, `update.sh` fährt fort.
+  Nur Standardbibliothek, keine Datenbank, keine Umgebung. So ist der Vergleich getestet, und eine Änderung daran kommt über Git -- in `update.sh` steht nur
+  der Aufruf.
+- `scripts/server/update_einheiten_einfuegen.py` fügt den Aufruf einmal vor der Zeile FERTIG ein, nur wenn sie genau einmal dasteht (sonst Rückgabe 1,
+  nichts geändert); steht er schon drin, ändert es nichts. Dieselbe Datei, nur der Inhalt (Rechte bleiben).
+- Server-Schritt S11 unten.
+
+#### Festlegungen 1.11.26 (Bitte bestätigen)
+
+1. `update.sh` meldet vor FERTIG jede Einheit aus `scripts/server/`, die von der installierten abweicht, fehlt oder nicht lesbar ist, mit dem Befehl zum
+   Ansehen und zum Übernehmen; es installiert, startet und schreibt nichts (`scripts/pruefe_einheiten.py`).
+2. Der Vergleich liegt als Skript im Repo; `update.sh` enthält nur den Aufruf, eingefügt von `scripts/server/update_einheiten_einfuegen.py` nur vor genau
+   einer Zeile FERTIG.
+3. Ein Dienst mit gleichnamigem Timer bekommt im Befehl keinen Neustart (er läuft über den Timer).
+
+#### Tests und Prüfung 1.11.26
+
+Neu `tests/test_v819_einheiten_vergleichen.py` (9): die vier Einheiten des Repos; alle gleich Rückgabe 0; abweichend und fehlend mit Befehlen, Rückgabe 1,
+der Ordner der installierten Einheiten unverändert; Dienst mit Timer ohne Neustart; als Kindprozess aus einem anderen Ordner; Einfügen vor FERTIG, ein
+zweites Mal ohne Änderung, bei 0 oder 2 Zeilen FERTIG oder Windows-Zeilenenden Rückgabe 1 ohne Änderung. Dazu einmal von Hand: `bash -n` auf einer
+nachgebauten `update.sh` nach dem Einfügen (Git Bash). Keine angepasste Erwartung, keine Seite, kein Klicktest. Gegenproben: `gegenproben-portal.md`,
+„1.11.26“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
@@ -3189,6 +3220,36 @@ Mit dem ersten Einspielen danach (1.11.22 oder später) einmal S6b, Teil 2: `upd
 **Erwartet beim nächsten Einspielen:** „Rechte für dkportal gesetzt …“, „Rechte für dkportal stimmen.“, `active` dreimal, `{"ok":true}`. Während des Neustarts
 zeigt das Portal für ein paar Sekunden „Gleich wieder da“.
 **Rückweg:** `cp -a /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
+
+#### S11 update.sh vergleicht die Einheiten (seit 1.11.26)
+
+Erst, wenn 1.11.26 eingespielt ist (`update.sh`). `update.sh` holt die Einheiten aus `scripts/server/`, installiert sie aber nicht; ab jetzt meldet es vor
+der Zeile FERTIG jede, die von der installierten abweicht, mit dem Befehl zum Ansehen und Übernehmen -- installiert wird weiter von Hand (Antwort F2,
+Umsetzung 1.11.26). Als tobias:
+
+```bash
+cd /home/tobias/erp
+git log --oneline -1
+.venv/bin/python scripts/pruefe_einheiten.py; echo "Rückgabe $?"
+cp -a /home/tobias/update.sh /home/tobias/update.sh.vor-1.11.26
+python3 scripts/server/update_einheiten_einfuegen.py /home/tobias/update.sh; echo "Rückgabe $?"
+bash -n /home/tobias/update.sh && echo "Syntax ok"
+diff -u /home/tobias/update.sh.vor-1.11.26 /home/tobias/update.sh
+```
+
+**Erwartet:** 1.11.26 oder später; „Einheiten wie im Repo: erp-portal.service, erp-portalpost.service, erp-webanfragen.service, erp-webanfragen.timer.“ und
+`Rückgabe 0` (meldet es eine Abweichung, die Zeilen in den Chat -- erst ansehen, dann entscheiden); „update.sh geändert: der Vergleich der Einheiten steht
+vor der Zeile FERTIG.“ und `Rückgabe 0`; „Syntax ok“; im `diff` vor `echo "=== FERTIG: …` genau diese vier neuen Zeilen:
+
+    +echo "=== Einheiten ==="
+    +PHASE="Einheiten"
+    +/home/tobias/erp/.venv/bin/python /home/tobias/erp/scripts/pruefe_einheiten.py || echo "!!! Einheiten weichen vom Repo ab (oben) -- update.sh installiert sie nicht."
+    +
+
+**Abbrechen,** wenn das Einfügen „Abbruch: …“ meldet (Rückgabe 1, `update.sh` unverändert -- die Meldung in den Chat) oder „Syntax ok“ fehlt (dann
+`cp -a /home/tobias/update.sh.vor-1.11.26 /home/tobias/update.sh`).
+**Erwartet beim nächsten Einspielen:** vor FERTIG „=== Einheiten ===“ und „Einheiten wie im Repo: …“.
+**Rückweg:** `cp -a /home/tobias/update.sh.vor-1.11.26 /home/tobias/update.sh`.
 
 #### Danach
 
