@@ -2709,6 +2709,34 @@ zweites Mal ohne Änderung, bei 0 oder 2 Zeilen FERTIG oder Windows-Zeilenenden 
 nachgebauten `update.sh` nach dem Einfügen (Git Bash). Keine angepasste Erwartung, keine Seite, kein Klicktest. Gegenproben: `gegenproben-portal.md`,
 „1.11.26“.
 
+### Umsetzung 1.11.27: lokal Python 3.14 wie auf dem Server (25.11.2026)
+
+Betreibervorgabe 25.11.2026 (nach P1f, Nr. 5), Grundsatz wie 1.11.4: die Suite läuft mit der Version des Servers. Auf dem Server läuft Python 3.14
+(S5), lokal lief bis hierher 3.13.15.
+
+- Installiert: Python 3.14.10 für Windows, der neueste Fehlerstand mit Installer auf python.org (Signatur der Python Software Foundation geprüft), nur für
+  den Benutzer, ohne Eintrag in PATH, ohne Dateizuordnung, ohne eigenen Starter. Der vorhandene Starter `py` nimmt ohne Versionsangabe jetzt 3.14 (die
+  neueste installierte); `python` aus PATH bleibt, wie es war. Den Fehlerstand des Servers kenne ich nicht (Frage im Bericht).
+- `.venv` neu mit `py -3.14 -m venv`, die Pakete mit `pip install -r requirements.txt -c <Stand der alten .venv>`: alle 51 in genau denselben Versionen
+  wie unter 3.13 (`pip freeze` beider gleich) -- 1.11.27 ändert nur Python. Jedes Paket hatte ein fertiges Rad für 3.14 unter Windows.
+- Die alte `.venv` (3.13) liegt bis zur Bestätigung unter `C:\DACHKONZEPTE-ERP\venv313-vor-1.11.27` (Rückweg: neue `.venv` löschen, die alte
+  zurückschieben); danach löschen. Sie liegt außerhalb des Projekts, damit `backup_windows.ps1` sie nicht mitsichert.
+- `tests/test_v803_gunicorn_server.py::test_python_wie_auf_dem_server`: Haupt- und Nebenversion wie auf dem Server (`SERVER_PYTHON = (3, 14)`).
+- `setup_windows.bat` legt `.venv` nur mit 3.14 an: zuerst `py -3.14`, sonst `python`, wenn es 3.14 ist; sonst der Hinweis „Python 3.14 wurde nicht
+  gefunden“. `requirements.txt` nennt die Version im Kopf.
+
+#### Festlegungen 1.11.27 (Bitte bestätigen)
+
+1. Lokal läuft Python 3.14 wie auf dem Server; `test_v803` verlangt Haupt- und Nebenversion des Servers.
+2. Die Pakete der neuen `.venv` haben genau die Versionen der bisherigen -- die Version ändert nur Python.
+3. `setup_windows.bat` legt `.venv` nur mit Python 3.14 an.
+4. Die alte `.venv` bleibt bis zur Bestätigung außerhalb des Projekts liegen, danach wird sie gelöscht.
+
+#### Tests und Prüfung 1.11.27
+
+Neu `test_v803::test_python_wie_auf_dem_server`. Volle Suite und alle Klicktests unter 3.14 (Endlauf im Bericht). Keine angepasste Erwartung. Gegenprobe:
+`gegenproben-portal.md`, „1.11.27“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den

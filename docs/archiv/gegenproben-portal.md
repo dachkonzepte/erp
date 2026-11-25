@@ -565,3 +565,12 @@ Probendatei `gp11126.py`; jede Datei danach byte-gleich zurück (SHA-256 verglic
 | Nr. 1 – nichts installiert | bei einer Abweichung die Fassung des Repos hineinschreiben | derselbe Test rot (der Ordner der installierten Einheiten ändert sich) |
 | Nr. 2 – nur vor genau einer Zeile FERTIG | nur bei 0 Zeilen abbrechen | `test_nur_bei_eindeutiger_stelle[…2-mal]` rot |
 | Nr. 3 – Dienst mit Timer ohne Neustart | die Prüfung auf den Timer entfernt | `test_dienst_mit_timer_ohne_neustart` rot |
+
+## 1.11.27: lokal Python 3.14
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – die Suite läuft mit Python 3.14 | `test_v803` mit der alten `.venv` (Python 3.13.15) | `test_python_wie_auf_dem_server` rot („die Suite läuft mit Python 3.13, der Server mit 3.14“) |
+| Nr. 2 – Pakete unverändert | keine Gegenprobe: Vergleich `pip freeze` beider Umgebungen (gleich) | -- |
+| Nr. 3 – `setup_windows.bat` nur mit 3.14 | keine Gegenprobe: Datei für Windows ohne Test; einmal von Hand geprüft (Bericht) | -- |
+| Nr. 4 – alte `.venv` beiseite | keine: Arbeitsweise | -- |

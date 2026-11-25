@@ -1491,6 +1491,13 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   nein“, 35 s offen); `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 14 von 14. Im Verbindungsprotokoll: die vier Stylesheets der Seite auf vier
   Verbindungen, drei bedient, die vierte angenommen, aber ohne Anfrage, still bis zum Verlassen der Seite (30 s). 1.11.22 änderte nur die Einheit des
   Portals. Stand: abgefangen durch die Wiederholung, Ursache offen (Abschnitt „Stille Verbindungen (1.11.25)“).
+- **`test_v413_testlauf_parallel.py::test_pg_ein_testlauf_raeumt_zu_beginn_auf`** -- 25.11.2026, voller Lauf vor dem Commit von 1.11.26 (Arbeitskopie
+  auf 542f2d6 mit 1.11.26): `psycopg.errors.ConnectionTimeout` -- die Verbindung `pgtest-aufraeumen` zur Spielwiese kam nicht in 5 s zustande. Einzeln
+  auf demselben Stand dreimal grün; 1.11.26 berührt weder Testlauf noch PostgreSQL. Die Systemkataloge der Spielwiese waren nach acht vollen Läufen an
+  diesem Tag aufgebläht (Datenbank 185 MB, `pg_attribute` 45 MB); nach `VACUUM FULL` 77 MB, der Endlauf danach grün. Die Reihenfolge ist verloren (die
+  Arbeitskopie war schon entfernt). **Ich habe 1.11.26 trotz dieses roten Tests committet** (der Befehl zeigte das Ergebnis nur an) -- gegen Regel 15;
+  seitdem hängt der Commit am geprüften Ergebnis. Stand: Last der Spielwiese, kein Fund im Code; nach vielen vollen Läufen eines Tages die Kataloge
+  aufräumen.
 
 ## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
 

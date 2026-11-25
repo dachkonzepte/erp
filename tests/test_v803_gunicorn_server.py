@@ -1,7 +1,8 @@
 """gunicorn und uvicorn genau in den Versionen des Servers (seit 1.11.4).
 
 Auf dem Server laufen gunicorn 26.2.0 und uvicorn 0.52.4 (Betreiberangabe 24.11.2026). requirements.txt nennt genau diese Versionen,
-und die Suite läuft mit ihnen. Geprüft für den Portal-Dienst, wie die Einheit erp-portal ihn startet (E4):
+und die Suite läuft mit ihnen. Seit 1.11.27 ebenso Python 3.14 (Betreiberangabe 25.11.2026, S5) -- Haupt- und Nebenversion; den Fehlerstand des
+Servers nennt SERVER_PYTHON, sobald er bekannt ist. Geprüft für den Portal-Dienst, wie die Einheit erp-portal ihn startet (E4):
 - gunicorn vertraut X-Forwarded-For ab Werk nur von 127.0.0.1 und ::1 -- weder Einheit noch Umgebung ändern das;
 - ab Werk kein Zugriffsprotokoll (weder gunicorn noch uvicorn schreibt eine Zeile je Anfrage);
 - der Arbeitsprozess ist der UvicornWorker; er bedient Anfragen und übernimmt die Liste der vertrauten Adressen von gunicorn;
@@ -30,6 +31,7 @@ UMGEBUNG = ROOT / "scripts" / "server" / "portal.env.beispiel"
 SKRIPT = ROOT / "tests" / "gunicorn_wie_auf_dem_server.py"
 
 SERVER = {"gunicorn": "26.2.0", "uvicorn": "0.52.4"}  # Betreiberangabe 24.11.2026
+SERVER_PYTHON = (3, 14)  # Betreiberangabe 25.11.2026 (S5: „Python 3.14“), seit 1.11.27 auch lokal
 ZEILEN = {"gunicorn": "gunicorn==26.2.0", "uvicorn": "uvicorn[standard]==0.52.4"}
 PLATZHALTER_WINDOWS = {"fcntl", "grp", "pwd", "os.geteuid", "os.getegid", "socket.AF_UNIX", "WorkerTmp", "SIGQUIT-Handler"} | {
     f"signal.SIG{n}" for n in "HUP QUIT INT TERM TTIN TTOU USR1 USR2 WINCH CHLD ABRT".split()}
@@ -45,6 +47,12 @@ def test_versionen_wie_auf_dem_server():
         eigene = [z for z in zeilen if z.split("[")[0].split("=")[0].split(">")[0].split("<")[0].strip() == paket]
         assert eigene == [zeile], f"requirements.txt: {paket} genau in der Version des Servers ({zeile})"
         assert version(paket) == SERVER[paket], f"installiert ist {paket} {version(paket)} -- die Suite läuft mit der Version des Servers"
+
+
+def test_python_wie_auf_dem_server():
+    """Seit 1.11.27: die Suite läuft mit der Python-Version des Servers (bis dahin lokal 3.13, auf dem Server 3.14)."""
+    assert sys.version_info[:2] == SERVER_PYTHON, (f"die Suite läuft mit Python {sys.version_info[0]}.{sys.version_info[1]}, der Server mit "
+                                                  f"{SERVER_PYTHON[0]}.{SERVER_PYTHON[1]} -- .venv mit setup_windows.bat neu anlegen")
 
 
 def _ausfuehren() -> list[str]:

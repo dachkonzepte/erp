@@ -1,3 +1,5 @@
+# Python 3.14 wie auf dem Server (seit 1.11.27, Grundsatz wie 1.11.4: die Suite läuft mit der Version des Servers; tests/test_v803_gunicorn_server.py)
+# -- lokal über setup_windows.bat (py -3.14).
 fastapi>=0.121,<1.0  # seit 1.8.114: Depends(get_db, scope="function") -- die Sitzung schließt vor dem Senden (app/database.py)
 uvicorn[standard]==0.52.4  # seit 1.11.4 genau die Version des Servers (Betreiberangabe 24.11.2026) -- E4 hängt an der Auswertung von X-Forwarded-For
 gunicorn==26.2.0  # seit 1.11.2 (P1-12): Server-Prozesse von ERP und Kundenportal mit UvicornWorker -- nur unter Linux; lokal startet uvicorn;
