@@ -21,6 +21,8 @@ AKTIONEN = (
     "verlaengert",          # Sitzung gleitend verlängert (höchstens einmal je Stunde)
     "abgemeldet",           # dieses Gerät abgemeldet
     "ueberall_abgemeldet",  # alle Geräte des Zugangs abgemeldet
+    "unterlagen",           # seit 1.11.31 (P2a): Liste der Unterlagen geladen
+    "datei_angefordert",    # seit 1.11.31 (P2a): eine Unterlage angefordert (objekt_art „freigabe“, objekt_id = Freigabe)
 )
 ERGEBNISSE = (
     "ok",
@@ -40,3 +42,14 @@ ERGEBNISSE = (
 ZWECK_LINK = "dk-portal-link:"
 ZWECK_SITZUNG = "dk-portal-sitzung:"
 ZWECK_CODE = "dk-portal-code:"
+
+# Freigaben (portal_freigaben, seit 1.11.31, Stufe P2a; Bauplan P2, B4): was der Kunde sieht. Art = was das Portal zeigt, Quelle = woher die Unterlage
+# im ERP stammt (Tabelle; die Funktion der Datenbank prüft je Quelle die Kette zum Kunden, app/portal/unterlagen.py).
+FREIGABE_ARTEN = ("angebot", "auftrag", "vertrag", "rechnung", "mahnung", "abnahmeprotokoll", "einsatzbericht", "brief", "checkliste", "foto",
+                  "dokument")
+FREIGABE_QUELLEN = ("sent_documents", "invoices", "reminders", "service_reports", "checklist_versions", "notice_letters", "service_report_photos",
+                    "customer_documents", "project_documents", "property_documents", "defect_files", "order_acceptance_files")
+# Warum eine Kopie nicht entstand (ab P2b, der Postbote): nur feste Wörter.
+KOPIE_FEHLER = ("zu_gross", "nicht_lesbar", "falscher_typ", "pruefsumme", "abbruch")
+# Typ einer Kopie (ab P2b): nur PDF und JPEG (Fotos werden neu kodiert, Bauplan P2, B5/B6).
+KOPIE_TYPEN = ("application/pdf", "image/jpeg")

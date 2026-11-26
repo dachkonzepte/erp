@@ -3454,3 +3454,75 @@ unterschreiben oder sein PDF abrufen. Gegenproben: `gegenproben-portal.md`, „1
 `test_v067_admin_and_masterdata_edit.py::test_property_and_employee_can_be_edited_and_are_audited` -- altes Soll: das Objekt wechselt ohne Begründung den
 Kunden; neues Soll: dasselbe mit `kundenwechsel_grund` (im ersten vollen Lauf rot mit „Bitte eine Begründung …“). Keine Seite geändert, keine Bilder. Klicktests vor dem Commit:
 alle, die das Formular der Stammdaten oder die Objektseite öffnen. Gegenproben: `gegenproben-portal.md`, „1.11.30“.
+
+### Umsetzung 1.11.31: Freigaben und Lese-Funktionen der Unterlagen (P2a)
+
+- **Tabelle `portal_freigaben`** (`app/models.py::PortalFreigabe`, Migration `e5c8a1f3b9d2`): Kunde fest (`customer_id`), Art (`FREIGABE_ARTEN`: angebot,
+  auftrag, vertrag, rechnung, mahnung, abnahmeprotokoll, einsatzbericht, brief, checkliste, foto, dokument), Quelle als Tabelle und ID ohne Fremdschlüssel
+  (`FREIGABE_QUELLEN`, zwölf Tabellen -- eine gelöschte Quelle lässt die Freigabe ruhen, statt das Löschen zu sperren), Titel (höchstens 120 Zeichen) und
+  Datum fürs Portal, Regel (leer = einzeln, ab P2c), freigegeben und zurückgenommen mit Konto, Name und Grund, Kopie (Name, Typ nur PDF oder JPEG, Größe,
+  Prüfsumme, bereit, fester Fehlergrund -- ab P2b). Nie gelöscht; höchstens eine nicht zurückgenommene je Quelle (Teilindex). In `KEIN_TEIL` des
+  Archivschutzes (Zurücknehmen geht auch im Archiv, eine neue Freigabe nicht); eine Freigabe hält den Rückweg eines Adressimports auf wie ein Zugang.
+- **Funktionen der Datenbank** (`app/portal/unterlagen.py`, Text wörtlich in der Migration, unter PostgreSQL nach jedem `create_all()`): Helfer ohne
+  SECURITY DEFINER -- `portal_quelle(quelle, id)` liefert je Quelle über einen festen Zweig Kunde, Auftragsnummer und Adresse des Objekts (Rechnung und
+  Mahnung über den Kunden der Rechnung, Auftrag, Vertrag, Bericht, Fotos, Protokolle und Briefe über den Kunden des Auftrags, Angebot und Projektdokument über
+  das Projekt, Objektdokument über das Objekt, Kundendokument direkt), `portal_projekt_offen`, `portal_adresse`, `portal_fassung_gilt` (keine der gezeigten
+  Unterschriften verworfen), `portal_sichtbar`, `portal_kunde_der_sitzung`, `portal_protokoll_freigabe`. Für den Benutzer des Portals: `portal_unterlagen`,
+  `portal_datei_anfordern`, `portal_datei` (rechte.py: 11 Funktionen statt 8).
+- **Sichtbar** ist eine Freigabe nur, wenn sie zum Kunden der Sitzung gehört, nicht zurückgenommen ist, ihre Kopie bereit liegt und `portal_quelle()` heute
+  denselben Kunden nennt. Nie: Rechnung im Entwurf, Mahnung nicht versendet oder ersetzt, Einsatzbericht ohne feste Fassung (1.11.29), verworfene Abnahme,
+  überholte Fassung einer Checkliste, Projekt als Mustervorgang oder im Archiv (von Hand oder Aufbewahrung, Entscheidung P2-11), Objektdokument einer Anfrage
+  im Archiv. Passt die Kette nicht mehr, ruht die Freigabe -- sie steht weiter, im Portal nichts.
+- **Kein GET schreibt** bleibt: `portal_unterlagen` und `portal_datei_anfordern` schreiben das Zugriffsprotokoll (neue Aktionen „unterlagen“ und
+  „datei_angefordert“, die Freigabe in `objekt_art`/`objekt_id` -- die Spalten gab es seit P1) und zählen die Bremsen (Bauplan B7); `portal_datei` liest nur.
+- Noch nicht: Kopien und Auslieferung (P2b), Freigeben im ERP und die automatischen Regeln (P2c), Zahlstand und Termine (P2d), Seiten (P2e).
+
+#### Festlegungen 1.11.31 (Bitte bestätigen)
+
+1. Sichtbar ist nur, was als Freigabe für den Kunden der Sitzung steht, nicht zurückgenommen ist und eine bereite Kopie hat.
+2. Zusätzlich führt die Kette der Quelle heute zu genau diesem Kunden -- sonst ruht die Freigabe (auch der neue Kunde sieht sie nicht).
+3. Nie sichtbar: Rechnung im Entwurf, ersetzte oder nicht versendete Mahnung, Einsatzbericht ohne feste Fassung, Projekt als Mustervorgang oder im Archiv.
+4. Jede Quelle hat genau einen festen Zweig in SQL, kein dynamisches SQL; eine neue Quelle braucht einen eigenen Zweig.
+5. Die Gruppe im Portal ist Auftragsnummer und Adresse des Objekts, nie der Projekttitel.
+6. Eine Datei gibt es nur nach einer Anforderung derselben Sitzung für diese Freigabe in den letzten 30 Minuten; `portal_datei()` schreibt nichts.
+7. Liste und Anforderung schreiben das Zugriffsprotokoll (Aktion, Ergebnis, Freigabe, kein Inhalt) und zählen die Bremsen: Liste 120 je Sitzung und
+   Stunde; Anforderung 300 je Zugang und Stunde, 1500 je Tag, 300 je Anschluss und Stunde, 5000 gesamt je Stunde.
+8. Der Benutzer des Portals liest `portal_freigaben` nicht und ruft keinen Helfer auf; er darf genau die drei Funktionen.
+9. Höchstens eine nicht zurückgenommene Freigabe je Quelle; eine Freigabe wird nie gelöscht und hält den Rückweg eines Adressimports auf.
+10. Quelle als Tabelle und ID ohne Fremdschlüssel: das Löschen einer Quelle sperrt nichts, die Freigabe ruht.
+11. Im Protokoll der Karte „Kundenportal“ heißen die neuen Aktionen „Unterlagen geöffnet“ und „Unterlage angefordert“; fand eine Anforderung nichts,
+    „– nicht verfügbar“ (`ERGEBNIS_JE_AKTION`, nicht „unbekannter Link“).
+
+#### Tests und Prüfung 1.11.31
+
+`tests/test_v821_portal_unterlagen.py` (12 Tests, sechs davon gegen PostgreSQL mit der Testrolle `dkportal_test`; ein Wegwerf-Schema je Test). Im ersten
+vollen Lauf rot und behoben: `test_v809` (die Karte braucht für jede Aktion einen Text -- daraus Festlegung 11) und `test_v738` (ein Auftrag im Test
+bekommt sein Angebot sichtbar über `quell_angebot()`, nicht über eine Variable). Jeder Zweig von
+`portal_quelle()` läuft einmal fehlerfrei; positiv geprüft sind die Zweige Rechnung, Mahnung, Angebot, Auftrag, Einsatzbericht, Kundendokument und
+Objektdokument -- Checkliste, Brief, Foto des Berichts, Projektdokument, Datei am Mangel und Beleg der Abnahme nur auf Lauf und leeres Ergebnis; ihre echten
+Fälle kommen mit den Regeln in P2c. Die Migration lief auf SQLite hin, zurück, hin und unter PostgreSQL in `test_v816` (alembic upgrade head als Kindprozess).
+
+Angepasste Erwartungen (Regel 28):
+- `test_v799_portal_rechte.py::test_feste_werte_als_check_wie_in_der_migration` -- altes Soll: alle CHECKs des Portals wörtlich in `4f8a2c6e1b97`; neues
+  Soll: der CHECK der Aktionen wörtlich in `e5c8a1f3b9d2`, dessen `AKTION_VORHER` gleich dem Stand in `4f8a2c6e1b97`; die übrigen wie bisher. Dazu
+  `portal_freigaben` in `KEIN_ZUGRIFF` und in der Liste der Tabellen mit Kundendaten.
+- `test_v800_portal_funktionen.py::test_security_definer_genau_die_rechte_des_portals_und_keine_fuer_alle` -- altes Soll: `rechte.FUNKTIONEN` gleich den
+  Funktionen aus `funktionen.py`; neues Soll: dazu die drei aus `unterlagen.py`. `test_pg_create_all_legt_die_funktionen_an` -- altes Soll: 14 Funktionen
+  im Schema; neues Soll: 14 + 7 Helfer + 3 = 24.
+- `test_v816_portal_rechte_skript.py::test_pg_skript_als_kindprozess_setzen_dann_pruefen` -- altes Soll: „… 8 Funktionen …“ und `(9, 8)`; neues Soll:
+  „… 11 Funktionen …“ und `(9, 11)`.
+- `test_v793_archivschutz.py`: `portal_freigaben.customer_id` in `KEIN_TEIL` mit Grund.
+
+Gegenproben: `gegenproben-portal.md`, „1.11.31“. Beim Einspielen: Migration über `update.sh` (probt gegen spielwiese); danach meldet `portal_rechte.py
+--setzen` „2 Tabellen (nur Lesen), 11 Funktionen, 45 Anweisungen“ (bisher 8 Funktionen). Sonst kein Server-Schritt, nichts im Portal sichtbar.
+
+#### Prüfungen für P2d (Zusatz 2 des Betriebs) und P2b (Zusätze 3–5), festgehalten
+
+- P2d: ein Listener am Flush sieht keine Massen-Updates (`session.execute(update(...))`), keine Skripte, kein SQL in Migrationen -- vor dem Bau Trigger auf
+  Anweisungsebene für die Tabellen der Liste prüfen (setzt `portal_veraltet` und NOTIFY, der Postbote rechnet dann alle Kunden mit Portal neu); bleibt es beim
+  Listener, sagt der Bericht warum.
+- P2b: der internal-Block von nginx setzt den vollständigen Satz an Kopfzeilen selbst (auch HSTS; ein add_header in einer location verdrängt alle des Servers),
+  Wächter darauf; Kopien mit Endung (.pdf/.jpg), im Block feste `types { application/pdf pdf; image/jpeg jpg; }` und `default_type
+  application/octet-stream`; Fotos neu kodiert in einem Kindprozess mit Grenze für Speicher (RLIMIT_AS) und Zeit, Absturz oder Zeitüberschreitung ein fester
+  Fehlergrund, der Postbote läuft weiter (Test mit Bombe und kaputtem Bild); die Metadaten der vom ERP erzeugten PDFs prüfen (Author, Title, Subject,
+  Creator, Producer, Keywords) und Benutzernamen oder Interna melden; Rauchtest auch auf Android mit „Herunterladen“ und Öffnen der Datei.

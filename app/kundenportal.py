@@ -57,12 +57,15 @@ AKTION_TEXT = {
     "code_fehler": "Code nicht gesendet", "code_falsch": "Code falsch eingegeben", "code_abgelaufen": "Code abgelaufen",
     "angemeldet": "Angemeldet", "verlaengert": "Anmeldung verlängert", "abgemeldet": "Abgemeldet",
     "ueberall_abgemeldet": "Auf allen Geräten abgemeldet",
+    "unterlagen": "Unterlagen geöffnet", "datei_angefordert": "Unterlage angefordert",  # seit 1.11.31 (P2a)
 }
 ERGEBNIS_TEXT = {
     "ok": "", "unbekannt": "unbekannter Link", "gesperrt": "Zugang gesperrt", "abgelaufen": "Link abgelaufen", "portal_aus": "Portal aus",
     "archiv": "Kunde im Archiv", "modul_aus": "Modul aus", "bremse": "zu viele Versuche", "code_noetig": "neues Gerät, Code nötig",
     "angemeldet": "Gerät schon angemeldet", "ungueltig": "ungültig",
 }
+# Seit 1.11.31 (P2a): ein Ergebnis, das je Aktion etwas anderes heißt -- „unbekannt“ bei einer Unterlage ist kein unbekannter Link
+ERGEBNIS_JE_AKTION = {("datei_angefordert", "unbekannt"): "nicht verfügbar"}
 
 
 class PortalNicht(Exception):
@@ -419,7 +422,7 @@ def protokoll(db: Session, kunde: Customer, seite: int = 1) -> dict:
     if zugang is not None:
         for z in db.scalars(select(PortalZugriff).where(PortalZugriff.zugang_id == zugang.id)
                             .order_by(PortalZugriff.zeitpunkt.desc(), PortalZugriff.id.desc()).limit(bis)):
-            ergebnis = ERGEBNIS_TEXT.get(z.ergebnis, z.ergebnis)
+            ergebnis = ERGEBNIS_JE_AKTION.get((z.aktion, z.ergebnis), ERGEBNIS_TEXT.get(z.ergebnis, z.ergebnis))
             zeilen.append((z.zeitpunkt, 0, z.id, {"art": "portal", "text": AKTION_TEXT.get(z.aktion, z.aktion) + (f" – {ergebnis}" if ergebnis else ""),
                                                    "von": "Kundenportal"}))
         grenze = bis * ZEILEN_JE_AKTION

@@ -58,7 +58,7 @@ KEIN_ZUGRIFF = frozenset({
     'outlook_delete_orders', 'outlook_series_occurrences', 'outlook_sync_settings', 'payment_allocations', 'payment_refund_sources', 'payment_terms',
     'payments', 'personalnummern_vergeben', 'planning_holidays', 'planning_region_settings', 'planning_school_holiday_sync',
     'planning_school_holidays', 'planning_settings', 'planning_slot_capacity', 'planning_slot_employees', 'planning_slot_resources',
-    'planning_slots', 'portal_bremsen', 'portal_codes', 'portal_post', 'portal_sitzungen', 'portal_zugaenge', 'portal_zugriffe',
+    'planning_slots', 'portal_bremsen', 'portal_codes', 'portal_freigaben', 'portal_post', 'portal_sitzungen', 'portal_zugaenge', 'portal_zugriffe',
     'productive_hours_settings', 'project_documents', 'project_participants', 'project_pipeline_columns', 'project_profiles', 'projects',
     'properties', 'property_documents', 'quote_document_meta', 'quote_employee_assignments', 'quote_item_calculations', 'quote_item_layouts',
     'quote_item_material_calculations', 'quote_items', 'quote_sections', 'quotes', 'recurring_cost_documents', 'recurring_cost_settings',
@@ -88,7 +88,7 @@ VERBOTEN = frozenset({
     'webanfragen', 'webanfrage_dateien', 'kontaktvermerke', 'projects', 'project_documents', 'project_participants', 'quotes', 'quote_items',
     'orders', 'order_items', 'invoices', 'invoice_items', 'payments', 'payment_allocations', 'reminders', 'defects', 'defect_events', 'defect_files',
     'service_reports', 'service_report_photos', 'calendar_events', 'tasks',
-    'portal_zugaenge', 'portal_sitzungen', 'portal_codes', 'portal_post', 'portal_zugriffe', 'portal_bremsen',
+    'portal_zugaenge', 'portal_sitzungen', 'portal_codes', 'portal_post', 'portal_zugriffe', 'portal_bremsen', 'portal_freigaben',
 })
 # LESEN genau so (Bauplan P1 mit Nachtrag N1) -- eine weitere Tabelle nur nach Entscheidung des Betriebs
 LESEN_GENAU = {
@@ -151,9 +151,16 @@ def test_feste_werte_als_check_wie_in_der_migration():
         ("portal_zugriffe", "ck_portal_zugriff_aktion"): "aktion IN (" + ", ".join(f"'{w}'" for w in werte.AKTIONEN) + ")",
         ("portal_zugriffe", "ck_portal_zugriff_ergebnis"): "ergebnis IN (" + ", ".join(f"'{w}'" for w in werte.ERGEBNISSE) + ")",
     }
+    # Seit 1.11.31 (P2a): zwei Aktionen dazu -- der CHECK der Aktionen steht seitdem in der Migration e5c8a1f3b9d2 (dort auch der vorige Stand),
+    # 4f8a2c6e1b97 trägt unverändert den Stand von P1; die CHECKs der Freigaben prüft tests/test_v821_portal_unterlagen.py
+    neu_pfad = next((ROOT / "alembic" / "versions").glob("e5c8a1f3b9d2_*.py"))
+    spec = importlib.util.spec_from_file_location("migration_unterlagen", neu_pfad)
+    neu = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(neu)
     for (tabelle, name), sql in erwartet.items():
         assert _check(tabelle, name) == sql, name
-        assert modul.CHECKS[name] == sql, f"Migration {name}"
+        assert (neu if name == "ck_portal_zugriff_aktion" else modul).CHECKS[name] == sql, f"Migration {name}"
+    assert modul.CHECKS["ck_portal_zugriff_aktion"] == neu.AKTION_VORHER
     assert set(modul.CHECKS) == {n for _t, n in erwartet}
 
 

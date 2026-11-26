@@ -483,7 +483,7 @@ def _run_is_untouched(db: Session, run: ImportRun) -> bool:
     """Alles-oder-nichts-Voraussetzung fürs Rückgängigmachen: JEDER durch den Lauf erzeugte
     Kunde/Lieferant darf noch keine eigene Verwendung haben, UND jede seiner offen gebliebenen
     Arbeitslisten-Zeilen darf noch nicht aufgelöst worden sein."""
-    from .models import Contact, Inquiry, PortalZugang, Project
+    from .models import Contact, Inquiry, PortalFreigabe, PortalZugang, Project
 
     customers = db.scalars(select(Customer).where(Customer.import_run_id == run.id)).all()
     for customer in customers:
@@ -493,6 +493,8 @@ def _run_is_untouched(db: Session, run: ImportRun) -> bool:
         has_contact = db.scalar(select(Contact.id).where(Contact.customer_id == customer.id)) is not None
         # Seit 1.11.0: ein Zugang zum Kundenportal ebenso -- sein Fremdschlüssel ließe das Löschen des Kunden sonst unter PostgreSQL scheitern (500).
         has_portal = db.scalar(select(PortalZugang.id).where(PortalZugang.customer_id == customer.id)) is not None
+        # Seit 1.11.31: ebenso eine Freigabe fürs Portal (auch zurückgenommen -- sie bleibt als Nachweis, ihr Fremdschlüssel ebenso).
+        has_portal = has_portal or db.scalar(select(PortalFreigabe.id).where(PortalFreigabe.customer_id == customer.id)) is not None
         if has_project or has_inquiry or has_contact or has_portal:
             return False
         extra_properties = [p for p in customer.properties if p.name != "Hauptadresse"]

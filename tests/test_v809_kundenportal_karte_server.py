@@ -443,6 +443,8 @@ def test_protokoll_seitenweise(welt):
 def test_texte_fuer_jede_aktion_und_jedes_ergebnis():
     from app.portal.werte import AKTIONEN, ERGEBNISSE
     assert set(kp.AKTION_TEXT) == set(AKTIONEN) and set(kp.ERGEBNIS_TEXT) == set(ERGEBNISSE)
+    # seit 1.11.31: Ausnahmen je Aktion nur für bekannte Aktionen und Ergebnisse
+    assert all(a in AKTIONEN and e in ERGEBNISSE for a, e in kp.ERGEBNIS_JE_AKTION)
 
 
 @pytest.mark.parametrize("adresse, anzeige", [("max@example.invalid", "m***@example.invalid"), ("a@b.invalid", "a***@b.invalid"),

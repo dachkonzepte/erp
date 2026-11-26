@@ -23,7 +23,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import Base
-from app.portal import funktionen, pruefwerte, rechte, werte
+from app.portal import funktionen, pruefwerte, rechte, unterlagen, werte
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,8 +55,9 @@ def test_jede_funktion_fester_pfad_ohne_dynamisches_sql():
 
 def test_security_definer_genau_die_rechte_des_portals_und_keine_fuer_alle():
     definer = {_erzeugt(a) for a in funktionen.ANWEISUNGEN if a.startswith("CREATE OR REPLACE FUNCTION") and "SECURITY DEFINER" in a}
-    assert definer == set(rechte.FUNKTIONEN) == set(funktionen.FUER_DAS_PORTAL)
-    assert rechte.FUNKTIONEN == funktionen.FUER_DAS_PORTAL
+    assert definer == set(funktionen.FUER_DAS_PORTAL)
+    # seit 1.11.31 (P2a) dazu die drei Funktionen der Unterlagen (app/portal/unterlagen.py, eigene Prüfung in tests/test_v821_portal_unterlagen.py)
+    assert rechte.FUNKTIONEN == {**funktionen.FUER_DAS_PORTAL, **unterlagen.FUER_DAS_PORTAL}
     erzeugt = {_erzeugt(a) for a in funktionen.ANWEISUNGEN if a.startswith("CREATE OR REPLACE FUNCTION")}
     entzogen = {re.match(r"REVOKE ALL ON FUNCTION (\w+)\(", a).group(1) for a in funktionen.ANWEISUNGEN if a.startswith("REVOKE")}
     assert erzeugt == entzogen
@@ -465,7 +466,8 @@ def test_pg_create_all_legt_die_funktionen_an():
             namen = [r[0] for r in c.execute(text(
                 "SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = :s AND p.proname LIKE 'portal!_%' "
                 "ESCAPE '!' AND array_to_string(p.proconfig, ',') = :cfg ORDER BY 1"), {"s": schema, "cfg": f"search_path=pg_catalog, {schema}, pg_temp"})]
-        assert len(namen) == 14 and set(rechte.FUNKTIONEN) <= set(namen)
+        # 14 aus P1, seit 1.11.31 dazu Helfer und Funktionen der Unterlagen (P2a)
+        assert len(namen) == 14 + len(unterlagen._HELFER) + len(unterlagen._FUNKTIONEN) and set(rechte.FUNKTIONEN) <= set(namen)
     finally:
         engine.dispose()
         with admin.begin() as c:

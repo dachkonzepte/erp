@@ -7,8 +7,8 @@ dahin nur rechte.setzen() in einer eigenen Transaktion auf, das Skript selbst nu
                   PostgreSQL in einem Wegwerf-Schema, das alembic upgrade head anlegt (wie auf dem Server), mit der Testrolle ohne Rechte im Schema.
                   Zur Abgrenzung zusätzlich --rolle und --schema (auf dem Server die Vorgaben dkportal und public).
     vorher        die Rolle hat im Schema kein Recht (0 Spalten, 0 Funktionen), --pruefen meldet Abweichungen (Rückgabe 1)
-    setzen        Rückgabe 0, „Rechte für … gesetzt: 2 Tabellen (nur Lesen), 8 Funktionen, n Anweisungen.“
-    pruefen       Rückgabe 0, „Rechte für … stimmen.“; danach 9 Spalten (8 der Firmendaten, 1 der Revision) und 8 Funktionen wie in S5 erwartet
+    setzen        Rückgabe 0, „Rechte für … gesetzt: 2 Tabellen (nur Lesen), 11 Funktionen, n Anweisungen.“ (bis 1.11.30: 8)
+    pruefen       Rückgabe 0, „Rechte für … stimmen.“; danach 9 Spalten (8 der Firmendaten, 1 der Revision) und 11 Funktionen (bis 1.11.30: 8, so in S5)
     zweimal       --setzen und --pruefen noch einmal (update.sh bei jedem Einspielen): dasselbe Ergebnis
 """
 
@@ -80,10 +80,10 @@ def test_pg_skript_als_kindprozess_setzen_dann_pruefen(schema_von_alembic):
     for _ in range(2):  # update.sh setzt und prüft bei jedem Einspielen
         gesetzt = _skript(url, schema, "--setzen")
         assert gesetzt.returncode == 0, gesetzt.stdout + gesetzt.stderr
-        assert gesetzt.stdout.startswith(f"Rechte für {TESTROLLE} gesetzt: 2 Tabellen (nur Lesen), 8 Funktionen, "), gesetzt.stdout
+        assert gesetzt.stdout.startswith(f"Rechte für {TESTROLLE} gesetzt: 2 Tabellen (nur Lesen), 11 Funktionen, "), gesetzt.stdout  # seit 1.11.31: 8 + 3 (P2a)
         assert gesetzt.stderr == ""
         geprueft = _skript(url, schema, "--pruefen")
         assert (geprueft.returncode, geprueft.stdout, geprueft.stderr) == (0, f"Rechte für {TESTROLLE} stimmen.\n", "")
-        assert _rechte(engine, schema) == (9, 8)
+        assert _rechte(engine, schema) == (9, 11)  # seit 1.11.31: 8 + 3 Funktionen (P2a)
     for ausgabe in (vorher, gesetzt, geprueft):
         assert "postgresql" not in ausgabe.stdout + ausgabe.stderr  # nie die Verbindungszeichenfolge

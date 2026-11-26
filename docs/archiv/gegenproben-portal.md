@@ -623,3 +623,32 @@ byte-gleich zurück (SHA-256 verglichen). Jede Probe: der Test der Aussage rot a
 | Nr. 6 – jeder Fremdschlüssel eingeordnet | Dachflächen aus `WANDERT_MIT` entfernt | rot (Liste ungleich) |
 
 Nr. 7 (keine Oberfläche) ohne Gegenprobe: nichts gebaut.
+
+## 1.11.31: Freigaben und Lese-Funktionen der Unterlagen (P2a)
+
+Probendatei `gegenprobe_11131.py` (Scratchpad); je Probe eine Stelle unter `app/` mit Marker `GEGENPROBE`, jede Datei danach byte-gleich zurück (SHA-256
+verglichen). Die Funktionen entstehen in jedem Testschema aus `app/portal/unterlagen.py` -- eine Änderung dort wirkt im Test. Jede Probe: der Test der
+Aussage in `tests/test_v821_portal_unterlagen.py` rot an genau ihrer Prüfung.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur mit bereiter Kopie | Bedingung „Kopie bereit“ aus der Liste entfernt | rot (Freigabe ohne Kopie in der Liste) |
+| Nr. 2 – Kette führt zum Kunden | Vergleich mit dem Kunden der Kette in der Liste entfernt | rot („Rechnung mit anderem Kunden“) |
+| Nr. 3 – Rechnung im Entwurf nie | Bedingung „kein Entwurf“ entfernt | rot („Entwurf, Bericht ohne Fassung“) |
+| Nr. 3 – Bericht nur mit fester Fassung | Bedingung „feste Fassung“ entfernt | rot („Entwurf, Bericht ohne Fassung“) |
+| Nr. 3 – ersetzte Mahnung nie | Bedingung „nicht ersetzt“ entfernt | rot („Mahnung ersetzt“) |
+| Nr. 3 – Mustervorgang und Archiv nie | `portal_projekt_offen()` liefert immer wahr | rot (`is_template`) |
+| Nr. 4 – jede Quelle ein Zweig | ein Zweig umbenannt | rot (Liste der Zweige ungleich) |
+| Nr. 5 – Auftragsnummer statt Projekttitel | Zweig „auftrag“ liefert den Projekttitel | rot („Interner Titel“) |
+| Nr. 6 – Anforderung höchstens 30 Minuten alt | Zeitfenster entfernt | rot (nach 31 Minuten noch „ok“) |
+| Nr. 6 – Anforderung derselben Sitzung | Vergleich der Sitzung entfernt | rot (zweites Gerät bekommt die Datei) |
+| Nr. 7 – Bremse der Anforderung | Grenze je Zugang 300 000 statt 300 | rot (kein „bremse“) |
+| Nr. 7 – Protokoll der Anforderung | Eintrag „ok“ entfernt | rot (Protokoll ohne Anforderung) |
+| Nr. 8 – kein Helfer für die Rolle | `portal_quelle` in die Rechte des Portals aufgenommen | rot („Helfer ausführbar: portal_quelle“) |
+| Nr. 9 – eine aktive Freigabe je Quelle | Teilindex nicht eindeutig | rot (keine Ausnahme) |
+| Nr. 9 – Rückweg des Adressimports | Prüfung der Freigabe entfernt | rot (Lauf gilt als unberührt) |
+| Nr. 11 – Text „nicht verfügbar“ | Ergebnis je Aktion nicht beachtet | rot („unbekannter Link“) |
+
+Nr. 10 (Quelle ohne Fremdschlüssel) ohne eigene Gegenprobe: sie ist im Schema sichtbar (keine Spalte mit Fremdschlüssel), `test_pg_kette_…` löscht eine Quelle
+und prüft, dass die Freigabe bleibt. Beim ersten Lauf blieb Nr. 8 grün -- der Test prüfte nur den Fehlercode, den ein Helfer ohne SECURITY DEFINER ohnehin
+an den Tabellen bekommt; seitdem prüft er das Recht selbst (`has_function_privilege`).

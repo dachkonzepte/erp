@@ -6795,6 +6795,49 @@ class PortalBremse(Base):
     zaehler: Mapped[int] = mapped_column(default=0, server_default="0")
 
 
+
+class PortalFreigabe(Base):
+    """Freigabe einer Unterlage fürs Kundenportal (seit 1.11.31, Stufe P2a; Bauplan P2, B4 und Nachtrag vom 26.11.2026): ohne Zeile ist nichts sichtbar.
+    Der Kunde steht fest (customer_id); die Funktion der Datenbank zeigt die Freigabe nur, wenn die Kette ihrer Quelle heute noch zu ihm führt (sonst
+    „ruht“ sie), sie nicht zurückgenommen ist und ihre Kopie bereit liegt (ab P2b, kopie_*). Quelle = Tabelle und ID ohne Fremdschlüssel (wie das
+    Versandprotokoll): eine gelöschte Quelle lässt die Freigabe ruhen, statt das Löschen zu sperren. Nie gelöscht -- eine Rücknahme bleibt als Zeile
+    (Nachweis, was der Kunde wann sehen konnte); höchstens eine nicht zurückgenommene je Quelle. Der Benutzer des Portals hat auf die Tabelle kein Recht
+    (app/portal/rechte.py), er liest über app/portal/unterlagen.py."""
+
+    __tablename__ = "portal_freigaben"
+    __table_args__ = (
+        CheckConstraint(portal_in("art", portal_werte.FREIGABE_ARTEN), name="ck_portal_freigabe_art"),
+        CheckConstraint(portal_in("quelle", portal_werte.FREIGABE_QUELLEN), name="ck_portal_freigabe_quelle"),
+        CheckConstraint(portal_in("kopie_typ", portal_werte.KOPIE_TYPEN, leer=True), name="ck_portal_freigabe_kopie_typ"),
+        CheckConstraint(portal_in("kopie_fehler", portal_werte.KOPIE_FEHLER, leer=True), name="ck_portal_freigabe_kopie_fehler"),
+        UniqueConstraint("kopie_name", name="uq_portal_freigabe_kopie"),
+        Index("uq_portal_freigabe_aktiv", "quelle", "quelle_id", unique=True,
+              sqlite_where=text("zurueckgenommen_am IS NULL"), postgresql_where=text("zurueckgenommen_am IS NULL")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    art: Mapped[str] = mapped_column(String(20))
+    quelle: Mapped[str] = mapped_column(String(30))
+    quelle_id: Mapped[int] = mapped_column()
+    titel: Mapped[str] = mapped_column(String(120))
+    datum: Mapped[date] = mapped_column(Date)
+    regel: Mapped[str | None] = mapped_column(String(30), nullable=True)  # automatische Regel (ab P2c), leer = einzeln freigegeben
+    freigegeben_am: Mapped[datetime] = mapped_column(DateTime)
+    freigegeben_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    freigegeben_von_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    zurueckgenommen_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    zurueckgenommen_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    zurueckgenommen_von_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    zurueckgenommen_grund: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    kopie_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    kopie_typ: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    kopie_groesse: Mapped[int | None] = mapped_column(nullable=True)
+    kopie_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kopie_bereit_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    kopie_fehler: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+
 # Seit 1.10.23 (Antwort F10): ein Vorgang im Archiv ist nur lesbar -- der Archivschutz hängt sich an jeden Flush (vor das Änderungsprotokoll). Hier
 # eingebunden, damit jede Sitzung ihn hat, sobald die Modelle geladen sind (App, Tests, Skripte).
 from . import archivschutz  # noqa: E402,F401

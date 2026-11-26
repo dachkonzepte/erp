@@ -87,6 +87,9 @@ event.listen(Base.metadata, "after_create", telefonbuch.pg_anlegen)
 # Seit 1.11.1: ebenso die Funktionen der Datenbank für Link und Sitzung des Kundenportals (app/portal/funktionen.py, Migration b5d1e8a3c247).
 from .portal import funktionen as portal_funktionen  # noqa: E402
 event.listen(Base.metadata, "after_create", portal_funktionen.pg_anlegen)
+# Seit 1.11.31 (P2a): die Funktionen für die Unterlagen (app/portal/unterlagen.py, Migration e5c8a1f3b9d2) -- nach denen für Link und Sitzung.
+from .portal import unterlagen as portal_unterlagen  # noqa: E402
+event.listen(Base.metadata, "after_create", portal_unterlagen.pg_anlegen)
 
 
 def get_db():
