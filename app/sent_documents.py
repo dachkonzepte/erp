@@ -47,7 +47,7 @@ from typing import Callable, NamedTuple
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import EmailDispatch, Invoice, SentDocument
+from .models import EmailDispatch, Invoice, SentDocument, ServiceReport
 from .paths import data_dir
 
 SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir() / "sent_documents"))
@@ -57,9 +57,12 @@ SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir(
 # "behinderungsanzeige"/"wiederaufnahme" seit 1.8.40: Briefe an den Auftraggeber (app/notice_letters.py), Dokument-ID
 # ist die der Checkliste; die Fassung liegt ab dem Erstellen hier, dazu beim Versand die Vollmachten.
 # "bedenkenanzeige" seit 1.8.44 ebenso (Brief aus der Bedenkenanzeige).
+# "einsatzbericht" seit 1.11.29: die feste Fassung beim Unterschreiben (ServiceReport.pdf_document_id, app/service_reports.py::sign_report()),
+# Dokument-ID = Bericht. Kein Versand und keine nachgetragene Zustellung (app/dispatch_documents.py lehnt ab).
 DOCUMENT_TYPES = {"angebot": "Angebot", "auftrag": "Auftrag", "rechnung": "Rechnung", "mahnung": "Mahnung",
                   "checkliste": "Checkliste", "vertrag": "Vertrag", "behinderungsanzeige": "Behinderungsanzeige",
-                  "wiederaufnahme": "Anzeige der Wiederaufnahme", "bedenkenanzeige": "Bedenkenanzeige"}
+                  "wiederaufnahme": "Anzeige der Wiederaufnahme", "bedenkenanzeige": "Bedenkenanzeige",
+                  "einsatzbericht": "Einsatzbericht"}
 # Was die Ablage aufnimmt (seit 1.8.20 neben PDFs auch Belege nachgetragener Zustellungen) und mit
 # welcher Endung die Datei abgelegt wird.
 CONTENT_TYPE_SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -161,7 +164,11 @@ def read_sent_document(doc: SentDocument) -> bytes:
 
 def frozen_version(db: Session, document_type: str, document_id: int) -> SentDocument | None:
     """Die maßgebliche Fassung: bei einer Rechnung seit 1.8.82 die feste Fassung vom Festschreiben (Invoice.pdf_document_id),
-    sonst die zuerst abgelegte, deren Versand nicht fehlgeschlagen ist."""
+    sonst die zuerst abgelegte, deren Versand nicht fehlgeschlagen ist. Beim Einsatzbericht (seit 1.11.29) nur die feste Fassung der
+    Unterschrift (ServiceReport.pdf_document_id) -- ohne sie (Entwurf, vor 1.11.29 unterschrieben) keine."""
+    if document_type == "einsatzbericht":
+        return db.scalar(select(SentDocument).join(ServiceReport, ServiceReport.pdf_document_id == SentDocument.id)
+                         .where(ServiceReport.id == document_id))
     if document_type not in FROZEN_AFTER_FIRST_DISPATCH:
         return None
     if document_type == "rechnung":

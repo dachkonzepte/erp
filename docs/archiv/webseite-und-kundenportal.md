@@ -78,7 +78,7 @@ Empfangsdienstes (webseite-2026-11-18a, anfrage-2026-11-18a); sie liegen nicht i
   Werk aus), Link, Code per Mail, Sitzung, Bremsen und Zugriffsprotokoll in der Datenbank, Mailweg ohne „Gesendete Elemente“, Beleg zu E4.
 - **P2 Lesen**, **P3 Angebot annehmen** (nach Bestätigung von F6), **P4 Ausführung**, **P5 Hausverwaltungen**.
 - W1 abgeschlossen am 23.11.2026; P1 ab 1.11.0, abgeschlossen am 26.11.2026 mit 1.11.28 und S11 (Abschnitt „P1: Fundament des Kundenportals“ unten,
-  zuletzt „P1 abgeschlossen“).
+  zuletzt „P1 abgeschlossen“). P2 ab 1.11.29 (Abschnitt „P2: Unterlagen im Kundenportal lesen“ ganz unten).
 
 ## W1a: Abholen und Eingang (ab 1.10.0)
 
@@ -3340,3 +3340,85 @@ vor der Zeile FERTIG.“ und `Rückgabe 0`; „Syntax ok“; im `diff` vor `echo
 
 Den Bericht P1f schreibe ich aus den Ausgaben im Chat: Speicher je Dienst, Wert von `systemd-analyze security`, E4 (Portal und ERP), Textteil der Mail (S9.6),
 Fristen von logrotate und Journal (S0), Steuer-Socket weg in ERP und Portal (S6b).
+
+## P2: Unterlagen im Kundenportal lesen (ab 1.11.29)
+
+### Bauplan P2 und Entscheidungen des Betriebs (26.11.2026)
+
+Bauplan mit Befund und Nachtrag `bildgrundlage/bauplan_p2_d86b9df.txt` (nicht in Git; nach der Bestätigung ins Archiv der Berichte). Das Tragende:
+
+- **Befund:** kein Byte einer Kundenunterlage in der Datenbank, alles unter `ERP_DATA_DIR`; Rechnung, Vertrag, Abnahmeprotokoll und Briefe als feste Fassung in
+  der Ablage, Angebot und Auftragsbestätigung je Versand, Mahnung ab dem ersten Versand; der Einsatzbericht bis 1.11.28 bei jedem Abruf neu (N3). Fotos aus
+  Bericht, Checkliste und Objekt verkleinert ohne Metadaten (Versuch: EXIF, GPS, XMP, ICC weg), Uploads der Kundenakte und der Projektmappe unverändert, auch
+  Fotos. Zuordnung: jede Kette endet am Kunden, als alleiniger Filter reicht sie nicht -- ein Objekt wechselt den Kunden ohne Prüfung (N1), die Dokumentliste
+  des Objekts mischt Projekte fremder Kunden, Projekte auf dem Objekt eines anderen Kunden, Kundenwechsel am Projekt. Versand: die An-Adresse ist bei den
+  meisten Arten frei; `reached_client()` zählt jede Mail als beim Auftraggeber angekommen (N2). Nie per Mail: Einsatzberichte, Fotos, Dokumente, Mängel,
+  Termine.
+- **Entscheidungen (P2-1 bis P2-21):** Versionen 1.11.29 ff.; Weg B -- bereinigte Kopien in `/srv/dk-portal/dateien`, ausgeliefert von nginx über
+  X-Accel-Redirect, dkportal liest keine Datei; automatisch sichtbar: Rechnungen (festgeschrieben, angekommen), Mahnungen, je Angebot und Auftragsbestätigung
+  die zuletzt versendete Fassung (nur an die Adresse des Kunden, sonst Vorschlag), Vertrag, Abnahmeprotokoll, Wartungsprotokolle und Rapporte ab Unterschrift
+  (PDF wie unterschrieben, mit Namen), Briefe der Anzeigen, feste Baustellentage -- auch für alles vor der Einladung; einzeln: Fotos und Dokumente (nur PDF und
+  Rasterbild, Titel statt Dateiname); Freigeben ab Büro – Auftrag; Zahlstand fein (offen, teilweise bezahlt, bezahlt, Guthaben, in Schlussrechnung enthalten),
+  „offen“ nur, was das ERP mahnen würde -- Einbehalt oder genutztes Skonto nie „offen“; Termine nur feste Baustellentage, Wartungsmonat und Kran später,
+  Büro-Kalender nie; Mängel in P4; Gruppen nach Adresse des Objekts und Auftragsnummer; Projekt im Archiv (von Hand oder Aufbewahrung): nichts; 25 MB je
+  Datei, Bremsen laut Bauplan, Pixelgrenze; Kopien nicht in der Sicherung; „Ansehen“ im selben Tab; keine Mail bei neuen Unterlagen; Hausverwaltungen erst
+  ab P5.
+- **Zusätzlich:** Reihenfolge 1.11.29 = N3, 1.11.30 = N1, dann P2a, danach anhalten; N2 erst nach P2. P2d: Trigger auf Anweisungsebene statt (nur) Listener
+  am Flush prüfen. P2b: der internal-Block von nginx setzt alle Kopfzeilen selbst (auch HSTS), Kopien mit Endung und festen types; Fotos neu kodiert im
+  Kindprozess mit Grenze für Speicher und Zeit; Metadaten der vom ERP erzeugten PDFs prüfen; Rauchtest auch mit Android. P2c: Fotos mehrere auf einmal
+  freigeben; vor dem Einladen zeigt das ERP, was der Kunde ab dann sieht. Oberfläche des Portals erst nach den Entwürfen (P2e).
+- **Gemessen auf dem Server (26.11.2026):** sent_documents 2 Dateien, project_files 1, service_report_photos 42 (3,2 MB), webanfragen 8 (größte 2,3 MB),
+  roof_area_sketches 3; 108 GB frei.
+
+### Umsetzung 1.11.29: feste Fassung des Einsatzberichts beim Unterschreiben (Nebenbefund N3)
+
+- `app/service_reports.py::sign_report()`: nach Status, Unterschriften und Zeiten (und dem Fortschreiben eines Wartungsvertrags) im selben Commit
+  `_feste_fassung()` -- `build_service_report_pdf()` (lokal importiert, Regel 3), `store_sent_document()` mit Art „einsatzbericht“, Dokument-ID = Bericht,
+  Nummer = Auftragsnummer, Dateiname wie der Download (`pdf_dateiname()`), dann `ServiceReport.pdf_document_id` (Migration `d7f3a9c1e284`, FK auf
+  sent_documents; downgrade verweigert, solange ein Bericht eine Fassung trägt). Scheitert PDF oder Ablage: zurückrollen, die eben geschriebenen
+  Unterschriftsbilder wieder löschen, 400 mit `FESTE_FASSUNG_GESCHEITERT` („… nicht unterschrieben, nichts gespeichert …“); `logger.error` nur mit dem
+  Klassennamen (Regel 18).
+- Die Unterschrift lädt den Bericht mit FOR UPDATE (`populate_existing`, wie Checkliste und Vertrag): eine zweite gleichzeitige wartet und bekommt „bereits
+  unterschrieben“. Dahinter der Wächter am Modell (`_service_report_pdf_fixed`, wie bei der Rechnung): die Fassung wechselt genau einmal von leer auf die
+  Ablage.
+- `GET /api/service-reports/{id}/pdf` über `document_pdf_response()` (wie Rechnung und Mahnung): mit Fassung deren Bytes und `X-DK-Ablage`, verändert 409,
+  fehlend 410, nie still neu erzeugt; ohne Fassung wie bisher neu erzeugt. Ein Entwurf hat wie bisher kein PDF (400).
+- `app/sent_documents.py`: „einsatzbericht“ in `DOCUMENT_TYPES`, `frozen_version()` kennt die Fassung am Bericht. `app/dispatch_documents.py`: Eintrag im
+  Verzeichnis, der jede Zustellung ablehnt (es gibt keinen Versandweg für Einsatzberichte); Projekt und Filter des Versandprotokolls kennen die Art.
+- Unverändert: die Ansicht der Monteurin in der Wartungshistorie (`build_service_report_pdf_for_field()`, ohne die Zeiten der Kollegen) entsteht weiter neu --
+  sie ist keine Kundenfassung; der Bestand bleibt ohne Fassung.
+
+#### Festlegungen 1.11.29 (Bitte bestätigen)
+
+1. Die Unterschrift legt im selben Commit das PDF als feste Fassung in die Ablage (Art „einsatzbericht“, Dokument-ID = Bericht, Nummer = Auftragsnummer,
+   Dateiname wie der Download) und vermerkt sie am Bericht.
+2. Nach der Unterschrift kommt der Download aus der Ablage (`X-DK-Ablage`); verändert 409, fehlend 410, nie neu erzeugt. Ein Entwurf hat weiter kein PDF.
+3. Scheitert PDF oder Ablage, ist nichts gespeichert -- kein Status, keine Unterschrift, keine Unterschriftsbilder, kein Eintrag in der Ablage; Meldung 400.
+4. Die feste Fassung steht fest: genau einmal von leer auf die Ablage (Wächter am Modell).
+5. Vor 1.11.29 unterschriebene Berichte bleiben ohne Fassung: PDF wie bisher bei jedem Abruf neu, kein Abruf legt etwas ab, nichts nachträglich ohne
+   Zustimmung des Betriebs; im Portal nicht sichtbar.
+6. Ein Einsatzbericht wird über das Versandprotokoll weder versendet noch zugestellt; dort gehört er zu seinem Projekt.
+7. Die Unterschrift sperrt die Zeile des Berichts: zwei gleichzeitige ergeben eine Unterschrift und eine Fassung.
+8. Die Ansicht der Monteurin in der Wartungshistorie bleibt neu erzeugt (keine Kundenfassung, ohne Zeiten der Kollegen).
+
+#### Vorschlag: vor 1.11.29 unterschriebene Berichte (nichts gebaut)
+
+- **Ab 1.9.42 unterschrieben** (mit gespeicherten Zeiten, `time_rows_json`): auf Wunsch einmalig nachträglich festschreiben -- ein Skript nur für den Server
+  (Vorschau mit Zahl, dann Bestätigung, Muster `scripts/personalnummern_einlesen.py`), die Fassung als „nachträglich festgeschrieben am …“ in der Ablage
+  gekennzeichnet. Ehrlich dazu: Zeiten, Prüfpunkte, Befunde, Material und Unterschriften stimmen mit dem Unterschriebenen überein, Namen und Briefkopf sind die
+  von heute.
+- **Vor 1.9.42 unterschrieben** (ohne gespeicherte Zeiten): nicht nachträglich -- das PDF zeigte heute alle Zeiten des Auftrags, nicht die des Berichtstags; im
+  Portal nie, auf Wunsch einzeln als Dokument über die Projektmappe.
+- Zahl auf dem Server (nur lesend): `sudo -u postgres psql -tAX -d dachkonzepte -c "select count(*), count(*) filter (where time_rows_json is not null),
+  count(*) filter (where pdf_document_id is not null) from service_reports where status = 'unterschrieben'"` -- unterschrieben, davon mit Zeiten, davon mit
+  Fassung (nach 1.11.29).
+
+#### Tests und Prüfung 1.11.29
+
+`tests/test_v819_einsatzbericht_feste_fassung.py` (je Festlegung 1–7 ein Test, Nr. 7 gegen PostgreSQL mit `_run()` aus `test_v375`). Angepasste Erwartung
+(Regel 28): `test_v467_zeiten_einsatzbericht.py::test_alter_bericht_ohne_stand_wie_vor_1937` -- altes Soll: nach dem Unterschreiben `time_rows_json` geleert,
+das PDF zeigt alle Zeiten des Auftrags; neues Soll: dasselbe, der Bericht wird dafür ohne feste Fassung unterschrieben (ein Bericht von vor 1.9.42 hat keine;
+mit Fassung käme das PDF aus der Ablage); ebenso `test_v473_zeitpunkte_berlin.py::test_unterschriftszeit_auf_der_seite_wie_im_pdf` -- altes Soll:
+Unterschriftszeit nach dem Unterschreiben auf 15:33 UTC gesetzt, PDF und Seite zeigen 17:33; neues Soll: dasselbe, ohne feste Fassung unterschrieben
+(die feste Fassung zeigte die echte Zeit der Unterschrift; im ersten vollen Lauf rot). Migration auf einer Wegwerf-SQLite hin, zurück, hin. Klicktests vor dem Commit: alle, die einen Einsatzbericht
+unterschreiben oder sein PDF abrufen. Gegenproben: `gegenproben-portal.md`, „1.11.29“.

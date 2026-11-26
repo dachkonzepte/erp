@@ -728,7 +728,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
     Briefe zur Behinderungsanzeige (seit 1.8.44 auch zur Bedenkenanzeige) ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
     empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`); seit 1.8.66 jede Checkliste ab jeder Unterschrift und
-    dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift); seit 1.8.67 geht das
+    dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift); seit 1.11.29 der Einsatzbericht ab der Unterschrift
+    (`ServiceReport.pdf_document_id`, Art „einsatzbericht“, nie versendet); seit 1.8.67 geht das
     Abnahmeprotokoll über den Weg der Briefe (`app/protocol_dispatch.py`, gemeinsame Funktionen `client_recipients()`,
     `client_address()`, `dispatch_to_client()` in `app/notice_letters.py`) -- nur die jüngste gültige Fassung, seit 1.8.68 in
     Kopie genau an die in der Fassung eingefrorenen Empfänger (kein freies CC). Seit 1.8.69 für Protokoll und Briefe: wo ein PDF

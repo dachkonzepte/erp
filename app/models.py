@@ -4033,10 +4033,15 @@ class ServiceReport(Base):
     # Seit 1.9.42 (Stufe 4, R1 Nachrunde): die Zeiten des Berichtstags, wie sie bei der Unterschrift angezeigt waren (JSON,
     # app/service_reports.py::zeiten_des_berichts()); leer = Entwurf oder vor 1.9.42 unterschrieben.
     time_rows_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.11.29 (Nebenbefund N3, Bauplan P2): die feste Fassung des PDFs, abgelegt im selben Commit wie die Unterschrift (Art „einsatzbericht“,
+    # app/service_reports.py::sign_report()); leer = Entwurf oder vor 1.11.29 unterschrieben (PDF wie bisher bei jedem Abruf neu).
+    pdf_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sent_documents.id", name="fk_service_reports_pdf_document_id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     order: Mapped["Order"] = relationship()
+    pdf_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[pdf_document_id])  # seit 1.11.29
     created_by_employee: Mapped["Employee | None"] = relationship()
     maintenance_contract: Mapped["MaintenanceContract | None"] = relationship()
     maintenance_contract_item: Mapped["MaintenanceContractItem | None"] = relationship()
@@ -6381,6 +6386,18 @@ def _invoice_pdf_fixed(mapper, connection, target):
         table.select().with_only_columns(table.c.pdf_document_id).where(table.c.id == target.id)).scalar()
     if stored is not None:
         raise ArchiveImmutableError("Die feste Fassung einer Rechnung steht fest.")
+
+
+# Feste Fassung eines Einsatzberichts (seit 1.11.29): pdf_document_id genau einmal von leer auf die Ablage (bei der Unterschrift).
+@event.listens_for(ServiceReport, "before_update")
+def _service_report_pdf_fixed(mapper, connection, target):
+    if not inspect(target).attrs.pdf_document_id.history.has_changes():
+        return
+    table = ServiceReport.__table__
+    stored = connection.execute(
+        table.select().with_only_columns(table.c.pdf_document_id).where(table.c.id == target.id)).scalar()
+    if stored is not None:
+        raise ArchiveImmutableError("Die feste Fassung eines Einsatzberichts steht fest.")
 
 
 # Abzüge der Schlussrechnung (seit 1.8.85): beim Festschreiben angelegt, danach weder geändert noch gelöscht.

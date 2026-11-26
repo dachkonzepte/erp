@@ -15,6 +15,7 @@ from datetime import datetime
 
 import pytest
 
+from app import service_reports as service_reports_module
 from app.models import ServiceReport
 from tests import vorlagen_js as vj
 from tests.node_lauf import node_ausfuehren
@@ -93,9 +94,11 @@ def test_wer_den_helfer_nimmt_bindet_ihn_ein():
     assert [name for name in nutzer if not vj.bindet_ein(name, "_berlin_date.html")] == []
 
 
-def test_unterschriftszeit_auf_der_seite_wie_im_pdf(welt):  # noqa: F811
+def test_unterschriftszeit_auf_der_seite_wie_im_pdf(welt, monkeypatch):  # noqa: F811
     """Der Befund: die Berichtsseite zeigte die Unterschrift in UTC (15:33), das PDF in Berlin (17:33). Jetzt rechnet die Seite den Wert
-    der API mit dem Helfer -- dieselbe Zeit wie das PDF; der gespeicherte Wert bleibt UTC."""
+    der API mit dem Helfer -- dieselbe Zeit wie das PDF; der gespeicherte Wert bleibt UTC. Seit 1.11.29 ohne feste Fassung unterschrieben: der Test
+    setzt die Zeit erst danach fest, die feste Fassung zeigte die echte Zeit der Unterschrift (wie ein Bericht von vor 1.11.29 neu erzeugt)."""
+    monkeypatch.setattr(service_reports_module, "_feste_fassung", lambda db, report: None)
     rid = _bericht(welt)
     _unterschreiben(welt, rid)
     db = welt["db"]

@@ -371,3 +371,10 @@ unter Einstellungen -> System -> Protokolle. Seit 1.8.113 nimmt `GET /api/email-
 an seinen Objekten, Aufgaben-Mails nie); die Projektmappe zeigt die Einträge im Reiter "Versand", die Kundenakte in der Karte "Versand"
 (`_email_dispatch.html::renderDispatchList()`), die Seite `/versandprotokoll` nimmt `?projekt=`/`?kunde=`. Der Link einer Mahnung führt
 in ihre Rechnung (`invoice_id` am Eintrag, `/invoices/<id>?mahnung=<id>`); den Link je Dokument baut `dispatchDocLink()` für alle Listen.
+
+## Nachtrag 1.11.29 -- feste Fassung des Einsatzberichts beim Unterschreiben
+
+Seit 1.11.29 (Nebenbefund N3 aus dem Bauplan P2, `docs/archiv/webseite-und-kundenportal.md` „Umsetzung 1.11.29“) nimmt die Ablage das PDF eines
+Einsatzberichts bei der Unterschrift auf (Art „einsatzbericht“, `ServiceReport.pdf_document_id`, `app/service_reports.py::_feste_fassung()`); Download und
+Kundenportal nehmen ab dann diese Bytes. Versendet oder zugestellt wird ein Einsatzbericht nicht -- `app/dispatch_documents.py` führt die Art nur, weil jede Art
+der Ablage dort einen Eintrag braucht, und lehnt jede Zustellung ab. Vorher unterschriebene Berichte haben keine Fassung.

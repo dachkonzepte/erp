@@ -114,11 +114,13 @@ def test_laufende_zeit_beim_unterschreiben(welt):
     assert b"seit 13:00" in _pdf(welt, bericht)
 
 
-def test_alter_bericht_ohne_stand_wie_vor_1937(welt):
+def test_alter_bericht_ohne_stand_wie_vor_1937(welt, monkeypatch):
     """Ein vor 1.9.42 unterschriebener Bericht (ohne gespeicherten Stand): Seite und PDF wie vor 1.9.37 -- alle Zeiten des Auftrags, mit
-    Tätigkeit, auch Vortag und Folgetag; nichts rückwirkend geändert."""
+    Tätigkeit, auch Vortag und Folgetag; nichts rückwirkend geändert. Seit 1.11.29: vor 1.9.42 unterschrieben heißt auch ohne feste Fassung
+    (die gibt es erst seit 1.11.29) -- das Unterschreiben hier legt keine ab, das PDF entsteht wie damals neu."""
     db = welt["db"]
     bericht = _bericht(welt)
+    monkeypatch.setattr(service_reports_module, "_feste_fassung", lambda db, report: None)
     _unterschreiben(welt, bericht)
     db.get(ServiceReport, bericht).time_rows_json = None
     db.commit()

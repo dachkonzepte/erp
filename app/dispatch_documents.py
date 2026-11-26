@@ -22,6 +22,9 @@ gehört und welches PDF in die Ablage kommt:
 - Behinderungsanzeige, Anzeige der Wiederaufnahme (seit 1.8.40, Dokument-ID = Checkliste): die Fassung des
   Briefs zur aktuellen Unterschrift des Abschnitts, beim ersten Mal erstellt (app/notice_letters.py) -- nie
   neu gerendert; nach der Behinderungsanzeige ist die Aufgabe "versenden" erledigt (after_delivery).
+- Einsatzbericht (seit 1.11.29, Dokument-ID = Bericht): liegt ab der Unterschrift in der Ablage, wird aber weder versendet noch
+  zugestellt -- der Eintrag lehnt jede Zustellung ab (ValueError, 400). Er steht hier, weil jede Art der Ablage einen Eintrag braucht
+  (Projekt für Historie und Versandprotokoll).
 
 Rollenlos; wer zustellen darf, entscheidet der Router. PDF-Renderer werden lokal importiert (Regel 3).
 """
@@ -33,7 +36,7 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 from .auftragsstatus import storniert
-from .models import Checklist, EmailDispatch, Invoice, Order, OrderContract, Quote, Reminder
+from .models import Checklist, EmailDispatch, Invoice, Order, OrderContract, Quote, Reminder, ServiceReport
 from .sent_documents import DOCUMENT_TYPES, DocumentPdf, frozen_or_fresh_pdf
 
 
@@ -157,11 +160,17 @@ def _notice(kind: str):
     return build
 
 
+def _service_report(db: Session, report: ServiceReport) -> DispatchDocument:
+    """Seit 1.11.29: in der Ablage, aber nie zugestellt (kein Versandweg für Einsatzberichte)."""
+    raise ValueError("Ein Einsatzbericht wird nicht über das Versandprotokoll versendet oder zugestellt.")
+
+
 _REGISTRY = {"angebot": (Quote, _quote), "auftrag": (Order, _order), "rechnung": (Invoice, _invoice),
              "mahnung": (Reminder, _reminder), "checkliste": (Checklist, _checklist),
              "vertrag": (OrderContract, _contract), "behinderungsanzeige": (Checklist, _notice("behinderungsanzeige")),
              "wiederaufnahme": (Checklist, _notice("wiederaufnahme")),
-             "bedenkenanzeige": (Checklist, _notice("bedenkenanzeige"))}  # seit 1.8.44
+             "bedenkenanzeige": (Checklist, _notice("bedenkenanzeige")),  # seit 1.8.44
+             "einsatzbericht": (ServiceReport, _service_report)}  # seit 1.11.29
 assert set(_REGISTRY) == set(DOCUMENT_TYPES), "jede Dokumentart der Ablage braucht einen Eintrag hier"
 
 
@@ -215,7 +224,7 @@ def document_filter(*, project_id: int | None = None, customer_id: int | None = 
         "mahnung": select(Reminder.id).where(Reminder.invoice_id.in_(rechnungen)),
         "vertrag": select(OrderContract.id).where(OrderContract.order_id.in_(auftraege)),
         "checkliste": checklisten, "behinderungsanzeige": checklisten, "wiederaufnahme": checklisten,
-        "bedenkenanzeige": checklisten,
+        "bedenkenanzeige": checklisten, "einsatzbericht": select(ServiceReport.id).where(ServiceReport.order_id.in_(auftraege)),
     }
     assert set(je_art) == set(_REGISTRY), "jede Dokumentart braucht ihren Weg zum Projekt"
     return or_(false(), *(and_(EmailDispatch.document_type == art, EmailDispatch.document_id.in_(ids)) for art, ids in je_art.items()))
@@ -232,6 +241,6 @@ def project_id_of(db: Session, document_type: str, document_id: int | None) -> i
         row = row.order
     if isinstance(row, Checklist):
         row = db.get(Order, row.order_id) if row.order_id else None
-    if isinstance(row, OrderContract):
+    if isinstance(row, (OrderContract, ServiceReport)):
         row = row.order
     return getattr(row, "project_id", None)

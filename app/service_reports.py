@@ -1490,6 +1490,35 @@ def delete_asset_usage(db: Session, row_id: int) -> bool:
     return True
 
 
+FESTE_FASSUNG_GESCHEITERT = (
+    "Das PDF des Berichts ließ sich nicht erstellen bzw. ablegen – der Bericht ist nicht unterschrieben, nichts gespeichert. Bitte erneut "
+    "unterschreiben; bleibt es dabei, das Büro verständigen.")
+
+
+def pdf_dateiname(report: ServiceReport) -> str:
+    """Dateiname des PDFs (Download und feste Fassung), seit 1.11.29 an einer Stelle."""
+    return f"Einsatzbericht_{report.order.order_number}_{report.id}.pdf".replace("/", "-")
+
+
+def _feste_fassung(db: Session, report: ServiceReport) -> None:
+    """Die feste Fassung (seit 1.11.29): das PDF im Stand der Unterschrift -- Status, Unterschriften, Zeiten schon gesetzt --, abgelegt mit SHA-256
+    (app/sent_documents.py, Art „einsatzbericht“, Dokument-ID = Bericht) und am Bericht vermerkt (ServiceReport.pdf_document_id, genau einmal, Wächter
+    in app/models.py). Danach entsteht es nie neu: Download und Portal nehmen die abgelegten Bytes, nur mit stimmender Prüfsumme (frozen_version()).
+    Kein Commit -- der Aufrufer committet die Unterschrift mit."""
+    from .audit import current_actor
+    from .sent_documents import store_sent_document
+    from .service_report_pdf import build_service_report_pdf  # lokal: app/service_report_pdf.py importiert dieses Modul (Regel 3)
+
+    db.flush()
+    content = build_service_report_pdf(db, report)
+    user_id, user_name = current_actor()
+    document = store_sent_document(
+        db, document_type="einsatzbericht", document_id=report.id, document_number=report.order.order_number,
+        filename=pdf_dateiname(report), content=content, user_id=user_id, user_name=user_name,
+    )
+    report.pdf_document_id = document.id
+
+
 def sign_report(
     db: Session, report_id: int, *,
     installer_signature_png_bytes: bytes, installer_signature_name: str,
@@ -1525,8 +1554,17 @@ def sign_report(
     Seit 1.8.35: jedes Unterschriftsbild höchstens 2 MB (MAX_SIGNATURE_PNG_BYTES, wie Checkliste und
     Vertrag), geprüft gleich nach dem Status und bevor etwas auf die Festplatte geschrieben wird. Seit 1.8.56 an
     derselben Stelle die gemeinsame Prüfung aller Unterschrift-Wege (app/signature_image.py::check_signature_png():
-    PNG, Größe, nicht leer) -- vorher wurden die Bytes ungeprüft gespeichert."""
-    report = db.get(ServiceReport, report_id)
+    PNG, Größe, nicht leer) -- vorher wurden die Bytes ungeprüft gespeichert.
+
+    Seit 1.11.29 (Nebenbefund N3, Bauplan P2): im selben Commit die feste Fassung des PDFs in der Ablage (_feste_fassung(), Art
+    „einsatzbericht“) -- ab dann zeigen Download und Kundenportal genau das, was unterschrieben wurde, nicht ein heute neu erzeugtes PDF.
+    Scheitert das PDF oder die Ablage, ist nichts gespeichert (kein Status, keine Unterschrift; die Bilder kommen wieder weg) -- ValueError,
+    Router 400. Dazu sperrt die Unterschrift die Zeile des Berichts (FOR UPDATE; SQLite ignoriert es): zwei gleichzeitige Unterschriften
+    ergeben eine Unterschrift und „bereits unterschrieben“, nie zwei Fassungen."""
+    report = db.execute(
+        select(ServiceReport).where(ServiceReport.id == report_id)
+        .with_for_update(of=ServiceReport).execution_options(populate_existing=True)
+    ).scalar_one_or_none()
     if report is None:
         return None
     if report.status == "unterschrieben":
@@ -1566,6 +1604,14 @@ def sign_report(
             contract.next_due_date = add_months(contract.next_due_date, contract.interval_months)
             contract.last_reminder_due_date = None
 
+    try:
+        _feste_fassung(db, report)
+    except Exception as exc:  # noqa: BLE001 -- ohne feste Fassung keine Unterschrift
+        logger.error("Einsatzbericht %s: feste Fassung nicht erstellt (%s)", report_id, type(exc).__name__)
+        db.rollback()
+        for stored in (installer_stored, customer_stored):
+            signature_path(stored).unlink(missing_ok=True)
+        raise ValueError(FESTE_FASSUNG_GESCHEITERT) from exc
     db.commit()
     report = _load(db, report.id)
 

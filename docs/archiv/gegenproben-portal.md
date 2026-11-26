@@ -588,3 +588,21 @@ Probendatei `gegenprobe_11128.py` (Scratchpad); je Probe eine Zeile von `_knopf(
 | Nr. 1 – kein doppeltes Polster | `padding:14px 24px` zusätzlich an der Zelle (wie 1.11.24) | rot (`padding` an der Zelle) |
 | Nr. 1 – dasselbe Polster | Link `12px 20px`, Zelle `14px 24px` | rot (Polster ungleich) |
 | Nr. 1 – Hintergrund nur an der Zelle | Hintergrund zusätzlich am Link | rot (Hintergrund am Link) |
+
+## 1.11.29: feste Fassung des Einsatzberichts beim Unterschreiben
+
+Probendatei `gegenprobe_11129.py` (Scratchpad); je Probe eine Stelle unter `app/` mit Marker `GEGENPROBE`, jede Datei danach byte-gleich zurück (SHA-256
+verglichen). Jede Probe: der Test der Aussage in `tests/test_v819_einsatzbericht_feste_fassung.py` rot an genau ihrer Prüfung.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Fassung bei der Unterschrift | Aufruf von `_feste_fassung()` entfernt | rot (keine Fassung am Bericht) |
+| Nr. 2 – Download aus der Ablage | Route fragt eine Art ohne Ablage ab (neu erzeugt) | rot (Renderer läuft nach der Unterschrift) |
+| Nr. 3 – nichts gespeichert: Bilder | Löschen der Unterschriftsbilder entfernt | rot (Bilder liegen noch) |
+| Nr. 3 – nichts gespeichert: Daten | Zurückrollen entfernt | rot (Status „unterschrieben“ in der Sitzung) |
+| Nr. 4 – Fassung steht fest | Wächter am Modell wirft nicht | rot (keine Ausnahme) |
+| Nr. 5 – kein Abruf legt nachträglich ab | Route legt bei fehlender Fassung eine ab | rot (`X-DK-Ablage` beim zweiten Abruf) |
+| Nr. 6 – nicht zustellbar | Eintrag im Verzeichnis liefert ein Dokument | rot (keine Ausnahme) |
+| Nr. 7 – eine Unterschrift bei zweien (PostgreSQL) | FOR UPDATE beim Laden entfernt | rot (die zweite endet nicht mit „bereits unterschrieben“) |
+
+Nr. 8 (Ansicht der Monteurin bleibt neu erzeugt) ohne Gegenprobe: dort ist nichts geändert.

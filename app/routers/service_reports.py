@@ -52,11 +52,12 @@ from ..service_reports import (
     list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
     list_reports_for_field, list_roof_areas_for_order, material_to_dict, noch_offen, NochOffen, VorlagenpunktGeschuetzt,
     ArtFest, contract_area_hint, noch_offen_je_schritt, report_to_dict,
-    regenerate_inspection_items, sign_report, zeiten_des_berichts,
+    pdf_dateiname, regenerate_inspection_items, sign_report, zeiten_des_berichts,
     sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
 from ..zugehoerigkeit import NotInOrderProperty
 from ..ids import Id
+from .email_dispatches import document_pdf_response
 from .orders import require_field_order_access, require_field_report_ownership
 
 router = APIRouter()
@@ -325,12 +326,13 @@ def get_service_report_pdf(report_id: Id, db: Session = Depends(get_db, scope="f
     report = get_report_row(db, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
+    # Seit 1.11.29: ein ab 1.11.29 unterschriebener Bericht kommt aus der Ablage (feste Fassung der Unterschrift, X-DK-Ablage; verändert
+    # oder fehlend 409/410, nie still neu erzeugt) -- Entwurf und Bestand von vorher wie bisher neu erzeugt.
     try:
-        pdf = build_service_report_pdf(db, report)
+        return document_pdf_response(db, "einsatzbericht", report.id, build=lambda: build_service_report_pdf(db, report),
+                                     filename=pdf_dateiname(report))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    filename = f"Einsatzbericht_{report.order.order_number}_{report.id}.pdf".replace("/", "-")
-    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 # --- Strukturierte Prüfpunkte (seit 1.2.16) -- eigener Pfad-Präfix "inspection-items" für die
