@@ -270,8 +270,20 @@ def test_aufbau_nur_tabellen_und_stile_in_den_tags(db_session):
     assert "#z=" not in code  # die Mail mit dem Code trägt keinen Link
 
 
-def test_knopf_polster_an_der_zelle(db_session):
-    """Seit 1.11.24: Outlook am Rechner kennt an einem Link weder padding noch inline-block -- Polster und Hintergrund trägt die Zelle um den Link."""
+def _stile(stil: str) -> dict:
+    """Der Inhalt von style="a:b;c:d" als Wörterbuch, Namen und Werte klein."""
+    werte = {}
+    for teil in stil.split(";"):
+        if ":" in teil:
+            name, wert = teil.split(":", 1)
+            werte[name.strip().lower()] = wert.strip().lower()
+    return werte
+
+
+def test_knopf_ganze_flaeche_und_outlook(db_session):
+    """Seit 1.11.28 das übliche Muster: Hintergrund, Ecken und `mso-padding-alt` (liest nur Outlook am Rechner, das am Link weder padding noch inline-block
+    kennt) an der Zelle; der Link mit `display:inline-block` und demselben Polster -- in Browsern und Apps ist die ganze Fläche klickbar. Die Zelle hat kein
+    padding, sonst läge es dort doppelt. (1.11.24 hatte das Polster an der Zelle, klickbar war nur der Text.)"""
     db = db_session
     _firma(db)
     link, _code = _mails(db)
@@ -279,10 +291,14 @@ def test_knopf_polster_an_der_zelle(db_session):
     [i] = [n for n, (tag, attrs) in enumerate(tags) if tag == "a" and attrs.get("href") == LINK]
     zelle, knopf = tags[i - 1], tags[i]
     assert zelle[0] == "td", zelle  # der Link steht direkt in der Zelle
-    zstil, kstil = zelle[1]["style"].lower(), knopf[1]["style"].lower()
-    assert "padding:14px 24px" in zstil and "background-color:#" in zstil, zstil
-    assert "padding" not in kstil and "background" not in kstil and "display" not in kstil, kstil
-    assert "color:#ffffff" in kstil and "text-decoration:none" in kstil, kstil
+    z, k = _stile(zelle[1]["style"]), _stile(knopf[1]["style"])
+    assert z.get("background-color", "").startswith("#") and "border-radius" in z, z
+    assert z.get("mso-padding-alt") == "14px 24px", z  # Outlook am Rechner
+    assert not [n for n in z if n.startswith("padding")], z  # in Browsern sonst doppelt
+    assert k.get("display") == "inline-block", k  # ganze Fläche klickbar
+    assert k.get("padding") == z["mso-padding-alt"], (k, z)  # in jedem Programm dasselbe Polster
+    assert not [n for n in k if n.startswith("background")], k  # Hintergrund nur an der Zelle
+    assert k.get("color") == "#ffffff" and k.get("text-decoration") == "none", k
 
 
 # --- Angriffe über eingesetzte Werte ----------------------------------------------------------------------------------------------------------------

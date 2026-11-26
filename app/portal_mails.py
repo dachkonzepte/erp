@@ -137,15 +137,18 @@ def _p(inhalt: str, stil: str = "") -> str:
     return f'<p style="margin:0 0 16px 0;{stil}">{inhalt}</p>'
 
 
+_KNOPF_POLSTER = "14px 24px"
+
+
 def _knopf(adresse: str, text: str) -> str:
-    """Seit 1.11.24 tragen Polster und Hintergrund die Tabellenzelle, der Link nur Schrift und Farbe: Outlook am Rechner (Word) kennt an einem Link weder
-    padding noch inline-block und zeigte nur grün hinterlegten Text (Betreiberangabe 25.11.2026). Klickbar ist dort nur der Text -- die Zelle zeichnet jedes
-    Programm gleich."""
+    """Das übliche Muster (seit 1.11.28): Hintergrund und Ecken an der Zelle, das Polster am Link als inline-block -- in Browsern und Apps ist so die
+    ganze Fläche klickbar, auf dem Handy vor allem. Outlook am Rechner (Word) kennt an einem Link weder padding noch inline-block (1.11.24); dort polstert
+    `mso-padding-alt` die Zelle, das liest nur Outlook. Die Zelle selbst hat kein padding, sonst läge es in Browsern doppelt."""
     return (
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;border-collapse:separate;"><tr>'
-        f'<td align="center" style="padding:14px 24px;background-color:{_GRUEN};border-radius:10px;">'
-        f'<a href="{_e(link_pruefen(adresse))}" style="font-family:{_SCHRIFT};font-size:15px;font-weight:bold;line-height:20px;color:#FFFFFF;'
-        f'text-decoration:none;">{_e(text)}</a></td></tr></table>'
+        f'<td align="center" style="background-color:{_GRUEN};border-radius:10px;mso-padding-alt:{_KNOPF_POLSTER};">'
+        f'<a href="{_e(link_pruefen(adresse))}" style="display:inline-block;padding:{_KNOPF_POLSTER};font-family:{_SCHRIFT};font-size:15px;'
+        f'font-weight:bold;line-height:20px;color:#FFFFFF;text-decoration:none;">{_e(text)}</a></td></tr></table>'
     )
 
 

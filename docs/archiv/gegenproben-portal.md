@@ -574,3 +574,17 @@ Probendatei `gp11126.py`; jede Datei danach byte-gleich zurück (SHA-256 verglic
 | Nr. 2 – Pakete unverändert | keine Gegenprobe: Vergleich `pip freeze` beider Umgebungen (gleich) | -- |
 | Nr. 3 – `setup_windows.bat` nur mit 3.14 | keine Gegenprobe: Datei für Windows ohne Test; einmal von Hand geprüft (Bericht) | -- |
 | Nr. 4 – alte `.venv` beiseite | keine: Arbeitsweise | -- |
+
+## 1.11.28: Knopf der Mail wieder ganz klickbar
+
+Probendatei `gegenprobe_11128.py` (Scratchpad); je Probe eine Zeile von `_knopf()` mit Marker `GEGENPROBE`, `app/portal_mails.py` danach byte-gleich zurück
+(SHA-256 verglichen). Jede Probe: `test_knopf_ganze_flaeche_und_outlook` rot an genau der Prüfung der Aussage.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Outlook am Rechner polstert über die Zelle | `mso-padding-alt` an der Zelle entfernt | rot (`mso-padding-alt` fehlt) |
+| Nr. 1 – ganze Fläche klickbar | `display:inline-block` am Link entfernt | rot (`display`) |
+| Nr. 1 – ganze Fläche klickbar | `padding` am Link entfernt | rot (Polster des Links ungleich `mso-padding-alt`) |
+| Nr. 1 – kein doppeltes Polster | `padding:14px 24px` zusätzlich an der Zelle (wie 1.11.24) | rot (`padding` an der Zelle) |
+| Nr. 1 – dasselbe Polster | Link `12px 20px`, Zelle `14px 24px` | rot (Polster ungleich) |
+| Nr. 1 – Hintergrund nur an der Zelle | Hintergrund zusätzlich am Link | rot (Hintergrund am Link) |

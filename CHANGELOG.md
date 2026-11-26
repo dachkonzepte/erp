@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.28 – Kundenportal -- Knopf der Mail wieder ganz klickbar
+
+Mit 1.11.24 trug die Tabellenzelle das Polster, klickbar war nur der Text -- auf dem Handy, wo die meisten Kunden die Mail öffnen, ein Rückschritt. Jetzt das übliche Muster: die Zelle trägt Hintergrund, Ecken und `mso-padding-alt:14px 24px` (das liest nur Outlook am Rechner, das am Link weder padding noch inline-block kennt), der Link wieder `display:inline-block` mit `padding:14px 24px` -- in Browsern und Apps ist die ganze Fläche klickbar. `test_v807::test_knopf_ganze_flaeche_und_outlook` prüft den Aufbau (auch: kein padding an der Zelle, dasselbe Polster an beiden Stellen).
+
 ## 1.11.27 – Lokal Python 3.14 wie auf dem Server
 
 Auf dem Server läuft Python 3.14, lokal lief bis hierher 3.13. Wie 1.11.4 für gunicorn und uvicorn gilt jetzt auch für Python: die Suite läuft mit der Version des Servers. Installiert ist Python 3.14.10 nur für den Benutzer, ohne Änderung an PATH; `.venv` ist neu angelegt, alle 51 Pakete in genau den Versionen der bisherigen Umgebung (die Version ändert nur Python). `tests/test_v803_gunicorn_server.py::test_python_wie_auf_dem_server` verlangt Haupt- und Nebenversion des Servers, `setup_windows.bat` legt `.venv` nur noch mit 3.14 an. Die alte Umgebung liegt bis zur Bestätigung außerhalb des Projekts.

@@ -2753,6 +2753,33 @@ Neu `test_v803::test_python_wie_auf_dem_server`. Volle Suite und alle Klicktests
   wieder mit `display:inline-block` und `padding:14px 24px`, damit in Browsern und Apps die ganze Fläche klickbar ist -- als 1.11.28.
 - Eingespielt werden 1.11.23 bis 1.11.28 zusammen, danach S11 (wörtlich als Datei `bildgrundlage/server_schritt_s11.md`).
 
+### Umsetzung 1.11.28: Knopf der Mail wieder ganz klickbar, Outlook über `mso-padding-alt` (26.11.2026)
+
+Betreiberentscheidung 26.11.2026 statt 1.11.24-1: nur der Text klickbar ist auf dem Handy, wo die meisten Kunden die Mail öffnen, ein Rückschritt. Das
+übliche Muster:
+
+- `app/portal_mails.py::_knopf()`: an der Zelle (`<td align="center">`) Hintergrund, Ecken und `mso-padding-alt:14px 24px` -- eine Angabe, die nur
+  Outlook am Rechner liest; die Zelle hat kein `padding`, sonst läge das Polster in Browsern doppelt. Am Link wieder `display:inline-block` und
+  `padding:14px 24px` (beide aus `_KNOPF_POLSTER`), dazu Schrift, Farbe, keine Unterstreichung; kein Hintergrund am Link.
+- In Browsern und Apps ist damit die ganze grüne Fläche der Link. Outlook am Rechner (Word) übergeht `padding` und `inline-block` am Link und polstert
+  über `mso-padding-alt` die Zelle: dort ist wie mit 1.11.24 nur der Text klickbar, die Fläche hat aber ihr Polster; die runden Ecken zeigt es weiter nicht.
+- Wortlaut, Farben und Maße unverändert, kein neues Attribut, keine andere Mail berührt (der Code steht in einem Kasten, nicht in einem Knopf).
+- Hier nicht prüfbar: Outlook am Rechner und das Handy -- nach dem Einspielen ein Link an das eigene Postfach (`bildgrundlage/server_schritt_s11.md`,
+  „Danach“).
+
+#### Festlegungen 1.11.28 (Bitte bestätigen)
+
+1. Der Knopf einer Mail des Portals: an der Zelle Hintergrund, Ecken und `mso-padding-alt:14px 24px`, kein `padding`; am Link `display:inline-block` und
+   dasselbe Polster, kein Hintergrund -- ersetzt 1.11.24-1.
+
+#### Tests und Prüfung 1.11.28
+
+Angepasste Erwartung (Regel 28): `test_v807_portal_mails_html.py::test_knopf_polster_an_der_zelle` heißt jetzt `test_knopf_ganze_flaeche_und_outlook` --
+altes Soll: Zelle mit `padding:14px 24px` und Hintergrund, Link ohne Polster, Hintergrund und `display`; neues Soll: Zelle mit Hintergrund, Ecken und
+`mso-padding-alt:14px 24px`, ohne `padding`; Link mit `display:inline-block` und `padding` gleich `mso-padding-alt`, ohne Hintergrund; weiß und ohne
+Unterstreichung wie bisher. Die Stile liest der Test jetzt als Wörterbuch (`_stile()`), nicht als Text. Klicktests vor dem Commit:
+`klicktest_kundenportal_karte` (versendet den Link über die Attrappe von Graph), `klicktest_portal_seiten`. Gegenproben: `gegenproben-portal.md`, „1.11.28“.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
 Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
