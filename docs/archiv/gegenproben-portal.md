@@ -714,3 +714,25 @@ byte-gleich zurück (SHA-256 verglichen).
 
 Ohne Gegenprobe: 1.11.33-1 „gegengelesen“ -- eine Abweichung zwischen geschriebener und gelesener Datei lässt sich ohne Eingriff ins Dateisystem nicht
 herbeiführen (nur Durchsicht); 1.11.33-1 „0640“ prüft der Test nur unter Linux (hier Windows), auf dem Server zeigt P2b-3 die Rechte.
+
+## 1.11.34: Auslieferung über nginx (P2b, Teil 2)
+
+Probendatei `gegenprobe_11134.py` (Scratchpad, mit `--trocken` vorab geprüft); unter `app/` mit Marker `GEGENPROBE` in der geänderten Zeile, nginx-Datei,
+Einheit und Attrappe unter `scripts/` ohne Marker; jede Datei danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.34-2 – 404 außen gleich | „anfordern“ unbekannt als 403 „fremd“ | rot |
+| 1.11.34-3 – Name und Typ geprüft | nur der Typ geprüft | rot (ein unpassender Name ginge an nginx: leere Antwort mit X-Accel-Redirect bzw. 404 der Attrappe statt 500) |
+| 1.11.34-4 – Name ohne Anführungszeichen, Schrägstriche, Steuerzeichen | Filter entfernt | rot |
+| 1.11.34-4 – ASCII-Fassung | ASCII-Fassung = volle Fassung | rot |
+| 1.11.34-4 – Cache-Control private, no-store | Kopfzeile entfernt | rot (nur „no-store“ der Schranke) |
+| 1.11.34-1 – Herunterladen als attachment | inline | rot |
+| 1.11.34-8 – Nummer höchstens int4 | Grenze 2^40 | rot (500 statt 422) |
+| 1.11.34-9 – ein GET löscht kein Cookie | 401 mit gelöschtem Cookie | rot |
+| 1.11.34-5 – HSTS im internal-Block | Zeile entfernt | rot |
+| 1.11.34-5 – CSP ohne sandbox | sandbox ergänzt | rot |
+| 1.11.34-5 – default_type application/octet-stream | text/html | rot |
+| 1.11.34-6 – Protokoll ohne internen Weg | `$uri` in log_format | rot |
+| 1.11.34-7 – Portal sieht den Ordner nicht | InaccessiblePaths entfernt | rot |
+| 1.11.34-10 – Attrappe übernimmt nur, was nginx übernimmt | CSP des Dienstes übernommen | rot (zwei Tests) |

@@ -15,7 +15,16 @@ Ablauf (Bauplan P1, 3.1–3.3; alles Prüfen in den Funktionen der Datenbank, ap
     POST /api/abmelden        {"ueberall": false | true}
     GET  /api/willkommen      Begrüßung des Kunden der Sitzung
 Ohne gültige Sitzung 401 {"fehler": "sitzung"} (ein POST löscht dabei das Cookie), eine Bremse 429 {"fehler": "bremse", "minuten": n} mit Retry-After.
-Kein Weg nimmt eine ID: der Kunde kommt nur aus der Sitzung.
+Der Kunde kommt nur aus der Sitzung; die einzige Nummer, die ein Weg nimmt, ist die einer Freigabe (seit 1.11.34) -- ob sie dem Kunden der Sitzung gehört,
+prüft die Funktion der Datenbank (fremd, zurückgenommen, ruhend und unbekannt sind außen dasselbe: 404).
+
+Seit 1.11.34 (Stufe P2b; Bauplan P2, B2 „Weg B“, B6, B7) die Dateien -- das Portal fasst kein Byte an, nginx liefert die Kopie aus:
+    POST /api/datei/anfordern {"freigabe": n}   prüft Sitzung, Bremsen und Sichtbarkeit und schreibt das Zugriffsprotokoll -> {"stand": "angefordert"}
+    GET  /datei/{n}                              liest nur: nach einer Anforderung derselben Sitzung in den letzten 30 Minuten (auch für die Range-Abrufe
+    GET  /datei/{n}/herunterladen                eines PDF-Betrachters) eine leere Antwort mit X-Accel-Redirect auf /_portal_dateien/<Name der Kopie>,
+                                                 Content-Type, Content-Disposition (inline bzw. attachment, Name aus dem Titel, nie der ursprüngliche
+                                                 Dateiname) und Cache-Control -- nur diese drei übernimmt nginx; alle übrigen Kopfzeilen setzt dort der
+                                                 internal-Block selbst (scripts/server/nginx-kunde.conf)
 
 Seit 1.11.14 (Stufe P1e) die Seite selbst (app/portal/seiten.py): GET / (eine Seite für A–E, mit den öffentlichen Firmendaten), /s/portal.js und
 /s/portal.css (fester Typ, ein Jahr im Speicher des Browsers -- die Seite nennt sie mit ?v=<Prüfsumme>); dazu die Design-Dateien unter /static
@@ -25,10 +34,13 @@ Seit 1.11.14 (Stufe P1e) die Seite selbst (app/portal/seiten.py): GET / (eine Se
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
+from urllib.parse import quote
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Path, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
 from . import pruefwerte
 from .begruessung import begruessung
@@ -43,7 +55,7 @@ LESEN_METHODEN = ["GET", "HEAD"]
 # Pfad -> Art; jede Route steht in genau einer (Wächter)
 OEFFENTLICH = {"/health", "/api/kontakt", "/api/link", "/", "/s/portal.js", "/s/portal.css"}  # die Seite seit 1.11.14
 VORSTUFE = {"/api/code", "/api/code/stand", "/api/code/pruefen"}
-SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen"}
+SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen", "/api/datei/anfordern", "/datei/{freigabe}", "/datei/{freigabe}/herunterladen"}
 
 # Cookies (Bauplan 3.3): nur über diese Adresse (__Host-: Secure, Path=/, ohne Domain), nie für Skripte lesbar, nie bei Anfragen von fremden Seiten
 COOKIE = "__Host-dkportal"            # bestätigte Sitzung, 30 Tage gleitend
@@ -65,7 +77,16 @@ BEHANDELT = {
     "portal_code_pruefen": frozenset({"angemeldet", "falsch", "neu_anfordern", "bremse", "ungueltig"}),
     "portal_sitzung_weiter": frozenset({"gueltig", "verlaengert", "ungueltig"}),
     "portal_abmelden": frozenset({"abgemeldet", "ungueltig"}),
+    "portal_datei_anfordern": frozenset({"ok", "bremse", "unbekannt", "ungueltig"}),  # seit 1.11.34
+    "portal_datei": frozenset({"ok", "unbekannt", "ungueltig"}),
 }
+
+# Seit 1.11.34: die Kopien (app/portal_kopien.py) -- nginx liefert sie aus dem internal-Block unter diesem Weg aus
+INTERN = "/_portal_dateien/"
+KOPIE_NAME = re.compile(r"^[0-9a-f]{64}\.(pdf|jpg)$")
+KOPIE_ENDUNG = {"application/pdf": "pdf", "image/jpeg": "jpg"}
+FREIGABE_HOECHSTENS = 2147483647  # int4 wie die Spalte
+DATEINAME_HOECHSTENS = 100
 
 
 class UnbekanntesErgebnis(RuntimeError):
@@ -138,6 +159,10 @@ class CodeIn(_Ein):
 
 class AbmeldenIn(_Ein):
     ueberall: StrictBool
+
+
+class AnfordernIn(_Ein):
+    freigabe: StrictInt = Field(ge=1, le=FREIGABE_HOECHSTENS)
 
 
 # --- Hilfen ----------------------------------------------------------------------------------------------------------------------------------------
@@ -346,3 +371,72 @@ def willkommen(request: Request):
     if zeile is None:
         return JSONResponse({"fehler": "sitzung"}, status_code=401)
     return {"begruessung": begruessung(zeile["anrede"], zeile["titel"], zeile["vorname"], zeile["nachname"], zeile["name"])}
+
+
+# --- Dateien (seit 1.11.34, Stufe P2b) -------------------------------------------------------------------------------------------------------------
+
+UMLAUTE = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss"})
+
+
+def dateiname(titel: str | None, typ: str) -> tuple[str, str]:
+    """(ASCII-Name, Name für filename*) aus dem Titel der Freigabe -- nie der ursprüngliche Dateiname. Steuerzeichen, Anführungszeichen, Schrägstriche und
+    Backslash fallen weg; der ASCII-Name ersetzt Umlaute und alles außer Buchstaben, Ziffern, Leerzeichen, Punkt, Bindestrich und Unterstrich; beide
+    höchstens DATEINAME_HOECHSTENS Zeichen vor der Endung, leer -> „Unterlage“."""
+    endung = KOPIE_ENDUNG[typ]
+    sauber = "".join(" " if unicodedata.category(z)[0] == "C" or z in "\"\\/" else z for z in (titel or ""))
+    sauber = re.sub(r"\s+", " ", sauber).strip(" .")[:DATEINAME_HOECHSTENS].strip(" .") or "Unterlage"
+    ascii_ = unicodedata.normalize("NFKD", sauber.translate(UMLAUTE)).encode("ascii", "ignore").decode("ascii")
+    ascii_ = re.sub(r"[^A-Za-z0-9 ._-]", "_", ascii_)
+    ascii_ = re.sub(r"\s+", " ", ascii_).strip(" .") or "Unterlage"
+    return f"{ascii_}.{endung}", f"{sauber}.{endung}"
+
+
+@router.post("/api/datei/anfordern", response_model=CodeOut)
+def datei_anfordern(request: Request, eingabe: AnfordernIn):
+    """„Ansehen“ (Bauplan P2, B7): die Funktion prüft Sitzung, Bremsen und ob die Freigabe dem Kunden der Sitzung sichtbar ist, und schreibt das
+    Zugriffsprotokoll. Fremd, zurückgenommen, ruhend und unbekannt: 404 -- außen dasselbe."""
+    wert = _wert(request, COOKIE)
+    if wert is None:
+        return _ohne_sitzung(COOKIE)
+    ergebnis, minuten = _db(request).datei_anfordern(pruefwerte.sitzung(wert), eingabe.freigabe, _anschluss(request))
+    if _behandelt("portal_datei_anfordern", ergebnis) == "bremse":
+        return _bremse(minuten)
+    if ergebnis == "ungueltig":
+        return _ohne_sitzung(COOKIE)
+    if ergebnis == "unbekannt":
+        return JSONResponse({"fehler": "nicht_gefunden"}, status_code=404)
+    return {"stand": "angefordert"}
+
+
+def _datei(request: Request, freigabe: int, art: str):
+    """Liest nur: die Kopie für nginx (X-Accel-Redirect) -- nach einer Anforderung derselben Sitzung in den letzten 30 Minuten. Ein GET setzt und löscht
+    kein Cookie. Name und Typ der Kopie prüft der Dienst noch einmal, bevor er sie nginx nennt (nie ein Pfad aus der Datenbank ohne Prüfung)."""
+    wert = _wert(request, COOKIE)
+    if wert is None:
+        return JSONResponse({"fehler": "sitzung"}, status_code=401)
+    ergebnis, name, typ, _groesse, titel = _db(request).datei(pruefwerte.sitzung(wert), freigabe)
+    if _behandelt("portal_datei", ergebnis) == "ungueltig":
+        return JSONResponse({"fehler": "sitzung"}, status_code=401)
+    if ergebnis == "unbekannt":
+        return JSONResponse({"fehler": "nicht_gefunden"}, status_code=404)
+    if typ not in KOPIE_ENDUNG or not KOPIE_NAME.match(name or "") or not name.endswith("." + KOPIE_ENDUNG[typ]):
+        raise UnbekanntesErgebnis("portal_datei")
+    ascii_, voll = dateiname(titel, typ)
+    medientyp = "application/pdf" if typ == "application/pdf" else "image/jpeg"  # fester Typ (Regel 31); typ ist oben geprüft
+    return Response(b"", media_type=medientyp, headers={
+        "X-Accel-Redirect": INTERN + name,
+        "Content-Disposition": f'{art}; filename="{ascii_}"; filename*=UTF-8\'\'{quote(voll, safe="")}',
+        "Cache-Control": "private, no-store",
+    })
+
+
+@router.api_route("/datei/{freigabe}", methods=LESEN_METHODEN, response_class=Response)
+def datei_ansehen(request: Request, freigabe: int = Path(ge=1, le=FREIGABE_HOECHSTENS)):
+    """„Ansehen“ im selben Tab (P2-16): inline."""
+    return _datei(request, freigabe, "inline")
+
+
+@router.api_route("/datei/{freigabe}/herunterladen", methods=LESEN_METHODEN, response_class=Response)
+def datei_herunterladen(request: Request, freigabe: int = Path(ge=1, le=FREIGABE_HOECHSTENS)):
+    """„Herunterladen“: attachment."""
+    return _datei(request, freigabe, "attachment")

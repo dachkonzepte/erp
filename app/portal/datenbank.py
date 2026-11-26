@@ -71,6 +71,15 @@ class Datenbank:
     def abmelden(self, sitzung: str, ueberall: bool) -> str:
         return self._schreibend("SELECT portal_abmelden(:s, :u)", s=sitzung, u=ueberall)[0]
 
+    # --- Unterlagen (seit 1.11.34, Stufe P2b; app/portal/unterlagen.py) ---------------------------------------------------------------------------
+
+    def datei_anfordern(self, sitzung: str, freigabe: int, anschluss: str) -> tuple[str, int | None]:
+        return self._schreibend("SELECT ergebnis, minuten FROM portal_datei_anfordern(:s, :f, :a)", s=sitzung, f=freigabe, a=anschluss)
+
+    def datei(self, sitzung: str, freigabe: int) -> tuple[str, str | None, str | None, int | None, str | None]:
+        """Liest nur (STABLE): (Ergebnis, Name der Kopie, Typ, Größe, Titel)."""
+        return tuple(self._lesend("SELECT ergebnis, name, typ, groesse, titel FROM portal_datei(:s, :f)", s=sitzung, f=freigabe))
+
     def willkommen(self, sitzung: str) -> dict | None:
         zeile = self._lesend("SELECT anrede, titel, vorname, nachname, name FROM portal_willkommen(:s)", s=sitzung)
         return dict(zeile._mapping) if zeile is not None else None

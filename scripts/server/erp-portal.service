@@ -24,6 +24,9 @@ BindReadOnlyPaths=/home/tobias/erp/alembic:/srv/erp-code/alembic
 BindReadOnlyPaths=/home/tobias/erp/alembic.ini:/srv/erp-code/alembic.ini
 BindReadOnlyPaths=/home/tobias/erp/.venv:/srv/erp-code/.venv
 # InaccessiblePaths=/srv/erp-code/app/<Geheimnis aus S0>
+# Seit 1.11.34 (Stufe P2b): die Kopien der freigegebenen Unterlagen liefert nginx aus -- der Dienst selbst sieht den Ordner nicht (zusätzlich zu den Rechten
+# tobias:www-data 2750, dkportal ist nicht in der Gruppe). Ohne - davor: fehlt der Ordner, startet der Dienst nicht (Server-Schritt P2b-1 legt ihn vorher an).
+InaccessiblePaths=/srv/dk-portal
 ExecStart=/srv/erp-code/.venv/bin/python -m gunicorn 'app.portal.main:erzeugen()' --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8010 --timeout 30 --graceful-timeout 10 --max-requests 2000 --max-requests-jitter 200 --no-control-socket
 Restart=on-failure
 RestartSec=5

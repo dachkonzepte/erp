@@ -142,31 +142,40 @@ def test_begruessung(anrede, titel, vorname, nachname, name, erwartet):
 
 
 def _woerter(funktion: str) -> set[str]:
-    sql = next(s for n, _a, s in funktionen._FUNKTIONEN if n == funktion)
+    from app.portal import unterlagen
+    sql = next(s for n, _a, s in (*funktionen._FUNKTIONEN, *unterlagen._FUNKTIONEN) if n == funktion)
     rumpf = sql.split("$$", 1)[1]
     return set(re.findall(r"RETURN QUERY SELECT '(\w+)'::text", rumpf)) | set(re.findall(r"RETURN '(\w+)';", rumpf))
 
 
 def test_jedes_ergebniswort_jeder_funktion_ist_behandelt():
-    for funktion in ("portal_link_oeffnen", "portal_code_anfordern", "portal_code_pruefen", "portal_sitzung_weiter", "portal_abmelden"):
+    for funktion in ("portal_link_oeffnen", "portal_code_anfordern", "portal_code_pruefen", "portal_sitzung_weiter", "portal_abmelden",
+                     "portal_datei_anfordern", "portal_datei"):  # die beiden letzten seit 1.11.34
         assert routen.BEHANDELT[funktion] == _woerter(funktion), funktion
     rumpf = next(s for n, _a, s in funktionen._FUNKTIONEN if n == "portal_post_stand").split("$$", 1)[1]
     assert set(re.findall(r"'(\w+)'", rumpf)) == {"ungueltig", "keiner"} and "p.status" in rumpf
     assert routen.BEHANDELT["portal_post_stand"] == {"ungueltig", "keiner", *werte.POST_STATUS}
-    # jede Funktion des Portals hat ihren Weg; portal_sitzung (nur prüfen) braucht heute keiner, portal_willkommen liefert eine Zeile
-    assert set(routen.BEHANDELT) | {"portal_sitzung", "portal_willkommen"} == set(funktionen.FUER_DAS_PORTAL)
+    # jede Funktion des Portals hat ihren Weg; portal_sitzung (nur prüfen) braucht heute keiner, portal_willkommen liefert eine Zeile; seit 1.11.34 die
+    # Funktionen der Unterlagen dazu -- portal_unterlagen (die Liste) bekommt ihren Weg mit den Seiten (P2e)
+    from app.portal import unterlagen
+    assert set(routen.BEHANDELT) | {"portal_sitzung", "portal_willkommen", "portal_unterlagen"} == set(funktionen.FUER_DAS_PORTAL) | set(unterlagen.FUER_DAS_PORTAL)
 
 
 def test_kein_weg_nimmt_eine_id():
-    """Der Kunde kommt nur aus der Sitzung: kein Pfad-, Abfrage-, Kopf- oder Cookie-Parameter; Körper nur Code bzw. ueberall."""
-    koerper = {}
+    """Der Kunde kommt nur aus der Sitzung: kein Abfrage-, Kopf- oder Cookie-Parameter; Körper nur Code bzw. ueberall. Seit 1.11.34 die einzige Nummer:
+    die einer Freigabe (Pfad der Dateien, Körper von „anfordern“) -- ob sie dem Kunden der Sitzung gehört, prüft die Funktion der Datenbank (test_v825).
+    Bis 1.11.33: gar kein Pfad-Parameter."""
+    koerper, pfad = {}, {}
     for route in routen.router.routes:
         assert isinstance(route, APIRoute)
         d = route.dependant
-        assert not (d.path_params or d.query_params or d.header_params or d.cookie_params), route.path
+        assert not (d.query_params or d.header_params or d.cookie_params), route.path
+        pfad[route.path] = {f.name for f in d.path_params}
         koerper[route.path] = {f.name for f in d.body_params}
-    assert {p: k for p, k in koerper.items() if k} == {"/api/code/pruefen": {"eingabe"}, "/api/abmelden": {"eingabe"}}
+    assert {p: k for p, k in pfad.items() if k} == {"/datei/{freigabe}": {"freigabe"}, "/datei/{freigabe}/herunterladen": {"freigabe"}}
+    assert {p: k for p, k in koerper.items() if k} == {"/api/code/pruefen": {"eingabe"}, "/api/abmelden": {"eingabe"}, "/api/datei/anfordern": {"eingabe"}}
     assert set(routen.CodeIn.model_fields) == {"code"} and set(routen.AbmeldenIn.model_fields) == {"ueberall"}
+    assert set(routen.AnfordernIn.model_fields) == {"freigabe"}
 
 
 def test_cookies_nur_an_einer_stelle():

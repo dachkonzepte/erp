@@ -3650,3 +3650,165 @@ unter Sperre gelesen. Angepasste Erwartungen (Regel 28):
   Fassung der neuesten Migration, die sie setzt (`a7c3e9f1d2b4` für `kopie_fehler`).
 Gegenproben: `gegenproben-portal.md`, „1.11.33“. Beim Einspielen: Migration über `update.sh`; die Server-Schritte P2b kommen mit 1.11.34 (Ordner, `.env`,
 Einheiten, nginx, Prüfskript).
+
+### Umsetzung 1.11.34 (P2b, Teil 2): Auslieferung über nginx
+
+- Wege des Portals (`app/portal/routen.py`, Liste SITZUNG): `POST /api/datei/anfordern` mit `{"freigabe": n}` (1 … 2147483647, sonst 422) ruft
+  `portal_datei_anfordern()` -- angefordert 200 `{"stand": "angefordert"}`, Bremse 429, ohne Sitzung 401 (Cookie gelöscht), sonst 404
+  `{"fehler": "nicht_gefunden"}`. `GET/HEAD /datei/{n}` (inline) und `/datei/{n}/herunterladen` (attachment) rufen nur `portal_datei()` (STABLE): ohne
+  Sitzung 401 ohne Set-Cookie, ohne Anforderung derselben Sitzung in den letzten 30 Minuten 404, sonst eine leere Antwort mit `X-Accel-Redirect:
+  /_portal_dateien/<Name>`, `Content-Type` (fest application/pdf bzw. image/jpeg), `Content-Disposition` und `Cache-Control: private, no-store`. Name und Typ
+  aus der Datenbank prüft der Dienst vorher noch einmal (64 hex mit passender Endung), sonst 500 ohne X-Accel-Redirect.
+- Name der Datei (`dateiname()`): aus dem Titel der Freigabe, nie aus dem ursprünglichen Dateinamen; Steuerzeichen, Anführungszeichen, Schrägstrich und
+  Backslash fallen weg, höchstens 100 Zeichen, leer „Unterlage“; dazu eine ASCII-Fassung (Umlaute ausgeschrieben, sonst „_“) als `filename=` und die volle
+  als `filename*=UTF-8''…`.
+- nginx (`scripts/server/nginx-kunde.conf`): `location /_portal_dateien/` mit `internal`, `alias /srv/dk-portal/dateien/`, `types { application/pdf pdf;
+  image/jpeg jpg; }`, `default_type application/octet-stream` und genau dem Satz der Schutz-Kopfzeilen des Dienstes mit `always` (CSP der Datei
+  `default-src 'none'; frame-ancestors 'none'` ohne sandbox, X-Frame-Options, nosniff, Referrer, COOP, CORP, Permissions-Policy, HSTS). Aus der Antwort des
+  Dienstes übernimmt nginx bei X-Accel-Redirect nur Content-Type, Content-Disposition und Cache-Control (dazu Expires, Accept-Ranges, Set-Cookie -- der Dienst
+  setzt sie dort nicht); alle übrigen Kopfzeilen des Dienstes fallen weg. Das Protokoll nennt die angefragte Adresse ohne Abfrage (`map $request_uri
+  $dkportal_pfad`) statt `$uri`, das nach der Umleitung der interne Weg mit dem Namen der Kopie wäre.
+- Einheit `erp-portal`: `InaccessiblePaths=/srv/dk-portal` (ohne „-“: ohne den Ordner startet der Dienst nicht -- er kommt in P2b-1 vorher).
+- Attrappe von nginx (`scripts/nginx_attrappe.py`, nur ERP_ENV development/test, nur 127.0.0.1): reicht jede Anfrage an den Dienst, löst X-Accel-Redirect auf
+  wie nginx -- übernommen genau `UEBERNOMMEN` (wie die Tabelle der Kopfzeilen in nginx, Feld „redirect“), dazu die add_header des internal-Blocks aus der
+  nginx-Datei selbst, Range und HEAD wie für eine statische Datei; `/_portal_dateien/` direkt 404.
+- Beleg B6 (lokal): `scripts/klicktest_portal_dateien.py` -- anmelden wie der Kunde, der Postbote legt die Kopien an, anfordern, dann zeigt Chrome das PDF
+  im eigenen Betrachter und das Foto (Inhaltstyp, kein Download, Bild), „Herunterladen“ heißt „Dachplan Süd.pdf“ und ist byte-gleich, ohne Anforderung 404,
+  der interne Weg 404 (19 Prüfungen). Firefox (headless, eigenes Profil) zeigt ein PDF mit genau diesen Kopfzeilen mit pdf.js an (einmaliger Versuch im
+  Scratchpad, Bild im Bericht). Safari und beide Handy-Systeme: offen (siehe Abweichungen).
+
+#### Festlegungen 1.11.34 (Bitte bestätigen)
+
+1. Eine Datei gibt es nur in zwei Schritten: `POST /api/datei/anfordern` (Sitzung, Bremsen, Sichtbarkeit, Protokoll), dann `GET/HEAD /datei/<n>` bzw.
+   `/datei/<n>/herunterladen` (liest nur; Anforderung derselben Sitzung in den letzten 30 Minuten).
+2. Fremd, zurückgenommen, ruhend, unbekannt, ohne oder mit abgelaufener Anforderung, Anforderung einer anderen Sitzung: außen dasselbe 404
+   `{"fehler": "nicht_gefunden"}`.
+3. Der Dienst fasst kein Byte an: leere Antwort mit X-Accel-Redirect auf `/_portal_dateien/<Name>`; Name und Typ vorher geprüft, sonst 500.
+4. Vom Dienst kommen nur Content-Type (fest), Content-Disposition (inline bzw. attachment, Name aus dem Titel, ASCII und UTF-8, höchstens 100 Zeichen, nie der
+   ursprüngliche Dateiname) und `Cache-Control: private, no-store`.
+5. Der internal-Block setzt den vollständigen Satz der Schutz-Kopfzeilen des Dienstes selbst, mit `always`, die CSP der Datei ohne sandbox; feste Typen pdf
+   und jpg, sonst application/octet-stream; ein Wächter vergleicht den Satz mit dem Dienst.
+6. Das Protokoll von nginx nennt die angefragte Adresse ohne Abfrage, nie den internen Weg.
+7. Die Einheit des Portals sieht den Ordner der Kopien nicht (`InaccessiblePaths=/srv/dk-portal`).
+8. Die Nummer einer Freigabe ist die einzige Nummer, die ein Weg des Portals nimmt (1 … 2147483647, sonst 422).
+9. Ein GET der Dateien setzt und löscht kein Cookie; `POST /api/datei/anfordern` ohne Sitzung löscht es wie jeder POST.
+10. Die Attrappe von nginx läuft nur lokal und übernimmt vom Dienst genau die Kopfzeilen, die nginx übernimmt; den internal-Block liest sie aus der nginx-Datei.
+
+#### Abweichungen vom Bauplan (P2b)
+
+- B6 „Zu belegen in P2b, bevor die Seiten entstehen: Anzeige eines PDFs mit genau diesen Kopfzeilen in Chrome, Firefox und Safari am Rechner und auf beiden
+  Handy-Systemen“ und Nachtrag 5 „Rauchtest auch auf Android mit Herunterladen und Öffnen“: belegt sind Chrome (Klicktest, ganzer Weg über die Attrappe) und
+  Firefox (PDF mit denselben Kopfzeilen) -- lokal unter Windows. Safari und die Handys gehen hier nicht; auf dem Server braucht es dafür eine Freigabe (P2c)
+  und eine Seite mit Link (P2e, nach Ihren Entwürfen). Vorschlag: der Rauchtest am Rechner (Safari) und auf beiden Handys vor der Inbetriebnahme, sobald P2c
+  und P2e stehen (wie P2f im Bauplan).
+- B2 „welche Kopfzeilen nginx bei X-Accel-Redirect aus der Antwort des Portals übernimmt, belege ich in P2b am Server“: nicht am Server (dort liegt noch keine
+  Kopie, es gibt keine Freigabe) -- genommen aus dem Quelltext von nginx (Tabelle der Kopfzeilen des Upstreams, Feld „redirect“) und so in der Attrappe;
+  der Nachweis mit curl kommt mit dem Rauchtest. Für die Sicherheit hängt nichts daran: die Schutz-Kopfzeilen setzt der internal-Block selbst.
+- B6 nannte als Kopfzeilen nosniff, Cache-Control, CORP und die CSP; dazu kommen nach Nachtrag 3a alle übrigen des Dienstes (X-Frame-Options, Referrer,
+  COOP, Permissions-Policy, HSTS).
+- Die Liste der Unterlagen (`portal_unterlagen()`) hat noch keinen Weg -- sie kommt mit den Seiten (P2e); B11 nennt für P2b nur Anfordern und Datei.
+
+#### Tests und Prüfung 1.11.34
+
+`tests/test_v825_portal_dateien.py` (35; PostgreSQL mit Testrolle, echter uvicorn, davor die Attrappe): Dateiname, unpassende Kopie, internal-Block gegen die
+Kopfzeilen des Dienstes, Protokoll, Einheit; anfordern, ansehen, herunterladen, HEAD, Range über die Attrappe; direkt beim Dienst leer mit X-Accel-Redirect und
+ohne Schreiben; 404 außen gleich in sieben Fällen; 401, 429, 422; unpassender Name 500; interner Weg 404; Angriffe mit allen Methoden (h11, httptools).
+`scripts/klicktest_portal_dateien.py` 19 von 19. Angepasste Erwartungen (Regel 28):
+- `test_v801_portal_dienst.py::test_nginx_block` -- alt: `$uri` in der Zeile log_format; neu: `$dkportal_pfad`, kein `$uri` (die map prüft test_v825).
+- `test_v802_portal_sitzung.py::test_kein_weg_nimmt_eine_id` -- alt: kein Pfad-Parameter, Körper nur bei Code und Abmelden; neu: genau `freigabe` im Pfad der
+  beiden Dateiwege und im Körper von „anfordern“ (Modell `AnfordernIn` nur mit `freigabe`).
+- `test_v802_portal_sitzung.py::test_jedes_ergebniswort_jeder_funktion_ist_behandelt` -- alt: die Funktionen aus funktionen.py; neu: dazu
+  `portal_datei_anfordern` und `portal_datei` (Wörter aus unterlagen.py), `portal_unterlagen` noch ohne Weg.
+Gegenproben: `gegenproben-portal.md`, „1.11.34“.
+
+### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.34)
+
+Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
+
+**P2b-0 Einspielen.** `/home/tobias/update.sh` (Migrationen f2b7d4a9c1e3 und a7c3e9f1d2b4, Probe gegen spielwiese). Erwartet: FERTIG; die Prüfung der Einheiten
+meldet `erp-portal.service` und `erp-portalpost.service` als abweichend (sie kommen in P2b-3 und P2b-5). Bis dahin läuft der Postbote ohne Kopien („PORTAL_DATEIEN
+nicht gesetzt“ im Journal), die Codes gehen weiter; `/datei/…` beantwortet der Dienst ohne Sitzung mit 401.
+
+**P2b-1 Ordner.**
+
+```bash
+sudo install -d -o tobias -g www-data -m 0750 /srv/dk-portal
+sudo install -d -o tobias -g www-data -m 2750 /srv/dk-portal/dateien
+ls -ld /srv/dk-portal /srv/dk-portal/dateien
+id dkportal
+sudo -u dkportal ls /srv/dk-portal/dateien; echo "Rückgabe $?"
+sudo -u www-data ls /srv/dk-portal/dateien; echo "Rückgabe $?"
+```
+
+Erwartet: `drwxr-x--- … tobias www-data … /srv/dk-portal`, `drwxr-s--- … tobias www-data … /srv/dk-portal/dateien`; `id dkportal` ohne www-data;
+dkportal „Keine Berechtigung“ und Rückgabe 2; www-data leer und Rückgabe 0. Abbruch, wenn dkportal den Ordner lesen kann. Rückweg: `sudo rm -r /srv/dk-portal`.
+
+**P2b-2 Umgebung.**
+
+```bash
+cd /home/tobias/erp
+grep -c '^PORTAL_DATEIEN=' .env
+echo 'PORTAL_DATEIEN=/srv/dk-portal/dateien' >> .env      # nur, wenn die Zeile davor 0 meldete
+grep -c '^PORTAL_DATEIEN=' .env
+```
+
+Erwartet: zuletzt `1`. Rückweg: die Zeile in .env wieder löschen.
+
+**P2b-3 Postbote.**
+
+```bash
+cd /home/tobias/erp
+sudo install -m 644 -o root -g root scripts/server/erp-portalpost.service /etc/systemd/system/erp-portalpost.service
+sudo systemctl daemon-reload && sudo systemctl restart erp-portalpost
+systemctl is-active erp-portalpost
+systemctl show erp-portalpost -p MemoryHigh -p MemoryMax -p UMask
+journalctl -u erp-portalpost --since "-3 min" --no-pager | grep -E "Postbote bereit|PORTAL_DATEIEN|Kopien"
+ls -la /srv/dk-portal/dateien
+```
+
+Erwartet: `active`; `MemoryHigh=671088640`, `MemoryMax=805306368`, `UMask=0027`; „Postbote bereit (LISTEN portal_post, portal_freigabe)“, kein „PORTAL_DATEIEN nicht
+gesetzt“, kein „Kopien nicht abgeglichen“; im Ordner nur `.datenbank` (`-rw-r----- tobias www-data`). Abbruch bei „Kopien nicht abgeglichen“ (Klasse in den
+Chat). Rückweg: `git show HEAD~2:scripts/server/erp-portalpost.service | sudo tee /etc/systemd/system/erp-portalpost.service > /dev/null`, daemon-reload, Neustart.
+
+**P2b-4 Fotos prüfen.**
+
+```bash
+cd /home/tobias/erp && .venv/bin/python scripts/pruefe_portal_foto.py
+```
+
+Erwartet: dreimal „ok“, die Zeile „Messung: … Spitze des Kindprozesses … MB“ und „alle drei wie erwartet“. Die Ausgabe bitte in den Chat (unter Linux greift
+hier RLIMIT_AS; lokal ließ sich das nicht prüfen). Abbruch bei „!!!“.
+
+**P2b-5 Portal.**
+
+```bash
+cd /home/tobias/erp
+sudo install -m 644 -o root -g root scripts/server/erp-portal.service /etc/systemd/system/erp-portal.service
+sudo systemctl daemon-reload && sudo systemctl restart erp-portal
+systemctl is-active erp-portal
+systemctl show erp-portal -p InaccessiblePaths
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: kunde.dachkonzepte.gmbh' http://127.0.0.1:8010/health
+.venv/bin/python scripts/pruefe_einheiten.py
+```
+
+Erwartet: `active`; `InaccessiblePaths=/srv/dk-portal`; `200`; die Prüfung der Einheiten ohne Abweichung. Abbruch, wenn der Dienst nicht startet (meist fehlt der
+Ordner aus P2b-1). Rückweg: die alte Einheit wie in P2b-3 (`HEAD~2`), daemon-reload, Neustart.
+
+**P2b-6 nginx.**
+
+```bash
+sudo cp /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf /root/kunde.dachkonzepte.gmbh.conf.vor-p2b
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/nginx-kunde.conf /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
+sudo nginx -t && sudo systemctl reload nginx
+for p in /_portal_dateien/.datenbank /datei/1 /datei/1/herunterladen /health; do printf '%s ' "$p"; curl -s -o /dev/null -w '%{http_code}\n' "https://kunde.dachkonzepte.gmbh$p"; done
+curl -s -o /dev/null -X POST -H 'Content-Type: application/json' -H 'Origin: https://kunde.dachkonzepte.gmbh' -d '{"freigabe":1}' -w '%{http_code}\n' https://kunde.dachkonzepte.gmbh/api/datei/anfordern
+sudo tail -n 6 /var/log/nginx/kunde.access.log
+```
+
+Erwartet: „syntax is ok“, „test is successful“; `/_portal_dateien/.datenbank 404` (internal), `/datei/1 401`, `/datei/1/herunterladen 401`, `/health 200`; POST `401`;
+im Protokoll die Adressen genau so, ohne Abfrage. Abbruch, wenn `nginx -t` einen Fehler meldet: `sudo cp /root/kunde.dachkonzepte.gmbh.conf.vor-p2b
+/etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo nginx -t && sudo systemctl reload nginx`, Meldung in den Chat; ebenso, wenn `/_portal_dateien/.datenbank`
+etwas anderes als 404 liefert. Rückweg: dieselbe Zeile.
+
+Der Nachweis der Kopfzeilen einer echten Datei mit curl und der Rauchtest (Safari, iPhone, Android mit Herunterladen und Öffnen) kommen, sobald es eine Freigabe
+(P2c) und eine Seite mit Link (P2e) gibt.

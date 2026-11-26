@@ -353,7 +353,10 @@ def test_nginx_block():
     conf = (ROOT / "scripts" / "server" / "nginx-kunde.conf").read_text(encoding="utf-8")
     zeilen = [z.split("#")[0].strip() for z in conf.splitlines() if z.split("#")[0].strip()]
     log = next(z for z in zeilen if z.startswith("log_format"))
-    assert "$remote_addr" not in log and "$http_x_forwarded_for" not in log and "$request " not in log and "$request_uri" not in log and "$uri" in log
+    assert "$remote_addr" not in log and "$http_x_forwarded_for" not in log and "$request " not in log and "$request_uri" not in log
+    # seit 1.11.34: die angefragte Adresse ohne Abfrage aus einer map über $request_uri ($uri wäre nach X-Accel-Redirect der interne Weg der Kopie;
+    # bis 1.11.33 stand hier „$uri in log“) -- test_v825 prüft die map
+    assert "$dkportal_pfad" in log and "$uri" not in log
     for z in ("server_tokens off;", "client_max_body_size 16k;", "proxy_set_header X-Real-IP $remote_addr;",
               "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;", "proxy_set_header X-Forwarded-Proto $scheme;",
               "proxy_set_header Host $host;", "proxy_pass http://127.0.0.1:8010;", "limit_conn dkportal_anschluss 20;", "limit_req_status 429;",
