@@ -15,9 +15,12 @@ die drei Funktionen unten aufrufen (app/portal/rechte.py::FUNKTIONEN) und hat au
   PDF-Betrachters kommen so durch).
 - **Ausgabe** nur die Felder unten (Positivliste); die Gruppe ist Auftragsnummer und Adresse des Objekts (Entscheidung P2-10), nie der Projekttitel.
 
+Seit 1.11.32 (Matrix je Quelle × Fall, tests/test_v822_portal_unterlagen_matrix.py): ein Brief ruht, sobald die Unterschrift dahinter verworfen ist (wie
+die Fassung einer Checkliste), ein Foto am Mangel, sobald der Mangel verworfen ist -- portal_quelle() neu in der Migration f2b7d4a9c1e3 (CREATE OR REPLACE).
+
 Grenzen (Bauplan P2, B7): Liste je Sitzung 120 je Stunde; Anfordern je Zugang 300 je Stunde und 1500 je Tag, je Anschluss 300 je Stunde, gesamt 5000 je
-Stunde. Der Text steht wörtlich in der Migration e5c8a1f3b9d2 (tests/test_v821_portal_unterlagen.py vergleicht beide); eine Änderung braucht eine neue
-Migration (CREATE OR REPLACE). Unter PostgreSQL legt jedes create_all() sie nach denen aus funktionen.py an (app/database.py); unter SQLite gibt es sie nicht.
+Stunde. Der Text steht wörtlich in den Migrationen: e5c8a1f3b9d2, dazu die neueren mit CREATE OR REPLACE (MIGRATIONEN); tests/test_v821_portal_unterlagen.py
+vergleicht je Funktion die neueste Fassung. Eine Änderung braucht eine neue Migration (CREATE OR REPLACE) und einen Eintrag in MIGRATIONEN. Unter PostgreSQL legt jedes create_all() sie nach denen aus funktionen.py an (app/database.py); unter SQLite gibt es sie nicht.
 """
 
 import re
@@ -81,7 +84,8 @@ _HELFER = (
      "  ELSIF p_quelle = 'notice_letters' THEN\n"
      "    RETURN QUERY SELECT o.customer_id, o.order_number::text, portal_adresse(p.property_id)\n"
      "      FROM notice_letters n JOIN checklists c ON c.id = n.checklist_id JOIN orders o ON o.id = c.order_id JOIN projects p ON p.id = o.project_id\n"
-     "      WHERE n.id = p_id AND portal_projekt_offen(p.id);\n"
+     "      WHERE n.id = p_id AND portal_projekt_offen(p.id)\n"
+     "        AND NOT EXISTS (SELECT 1 FROM checklist_attachments u WHERE u.id = n.signature_id AND u.discarded_at IS NOT NULL);\n"
      "  ELSIF p_quelle = 'service_report_photos' THEN\n"
      "    RETURN QUERY SELECT o.customer_id, o.order_number::text, portal_adresse(p.property_id)\n"
      "      FROM service_report_photos f JOIN service_reports sr ON sr.id = f.service_report_id JOIN orders o ON o.id = sr.order_id\n"
@@ -100,7 +104,7 @@ _HELFER = (
      "  ELSIF p_quelle = 'defect_files' THEN\n"
      "    RETURN QUERY SELECT o.customer_id, o.order_number::text, portal_adresse(p.property_id)\n"
      "      FROM defect_files f JOIN defects d ON d.id = f.defect_id JOIN orders o ON o.id = d.order_id JOIN projects p ON p.id = o.project_id\n"
-     "      WHERE f.id = p_id AND portal_projekt_offen(p.id);\n"
+     "      WHERE f.id = p_id AND d.discarded_at IS NULL AND portal_projekt_offen(p.id);\n"
      "  ELSIF p_quelle = 'order_acceptance_files' THEN\n"
      "    RETURN QUERY SELECT o.customer_id, o.order_number::text, portal_adresse(p.property_id)\n"
      "      FROM order_acceptance_files f JOIN order_acceptances a ON a.id = f.acceptance_id JOIN orders o ON o.id = a.order_id\n"
@@ -228,6 +232,9 @@ _FUNKTIONEN = (
      "END\n"
      "$$"),
 )
+
+# Die Migrationen mit dem Text dieser Funktionen, älteste zuerst (seit 1.11.32): e5c8a1f3b9d2 legt alle an, jede weitere ersetzt einzelne
+MIGRATIONEN = ("e5c8a1f3b9d2", "f2b7d4a9c1e3")
 
 # Name -> Argumente der Funktionen, die der Benutzer des Portals aufrufen darf (app/portal/rechte.py::FUNKTIONEN nimmt diese dazu)
 FUER_DAS_PORTAL = {name: argumente for name, argumente, _sql in _FUNKTIONEN}

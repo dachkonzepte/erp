@@ -40,8 +40,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = "e5c8a1f3b9d2"
 
 
-def _migration():
-    pfad = next((ROOT / "alembic" / "versions").glob(f"{MIGRATION}_*.py"))
+def _migration(revision=MIGRATION):
+    pfad = next((ROOT / "alembic" / "versions").glob(f"{revision}_*.py"))
     spec = importlib.util.spec_from_file_location("migration_unterlagen", pfad)
     modul = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(modul)
@@ -72,7 +72,19 @@ def test_funktionen_fester_pfad_ohne_dynamisches_sql_und_rechte():
 def test_migration_traegt_anweisungen_und_checks_woertlich():
     from app.models import portal_in
     modul = _migration()
-    assert modul.ANWEISUNGEN == unterlagen.ANWEISUNGEN
+    # seit 1.11.32: je Funktion die neueste Fassung aus unterlagen.MIGRATIONEN (e5c8a1f3b9d2 legt alle an, jede weitere ersetzt einzelne mit CREATE OR REPLACE)
+    assert unterlagen.MIGRATIONEN[0] == MIGRATION
+    wirksam = list(modul.ANWEISUNGEN)
+    name = lambda a: re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1) if a.startswith("CREATE") else a  # noqa: E731
+    for revision in unterlagen.MIGRATIONEN[1:]:
+        danach = _migration(revision)
+        for neu in danach.ANWEISUNGEN:
+            if neu.startswith("CREATE"):
+                (stelle,) = [i for i, a in enumerate(wirksam) if name(a) == name(neu)]
+                wirksam[stelle] = neu
+            else:
+                assert neu in wirksam, neu  # nur ein REVOKE, das es schon gibt
+    assert tuple(wirksam) == unterlagen.ANWEISUNGEN
     assert modul.CHECKS == {
         "ck_portal_freigabe_art": portal_in("art", werte.FREIGABE_ARTEN),
         "ck_portal_freigabe_quelle": portal_in("quelle", werte.FREIGABE_QUELLEN),

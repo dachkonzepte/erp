@@ -3388,7 +3388,7 @@ Bauplan mit Befund und Nachtrag `bildgrundlage/bauplan_p2_d86b9df.txt` (nicht in
 - Unverändert: die Ansicht der Monteurin in der Wartungshistorie (`build_service_report_pdf_for_field()`, ohne die Zeiten der Kollegen) entsteht weiter neu --
   sie ist keine Kundenfassung; der Bestand bleibt ohne Fassung.
 
-#### Festlegungen 1.11.29 (Bitte bestätigen)
+#### Festlegungen 1.11.29 (bestätigt am 26.11.2026)
 
 1. Die Unterschrift legt im selben Commit das PDF als feste Fassung in die Ablage (Art „einsatzbericht“, Dokument-ID = Bericht, Nummer = Auftragsnummer,
    Dateiname wie der Download) und vermerkt sie am Bericht.
@@ -3437,7 +3437,7 @@ unterschreiben oder sein PDF abrufen. Gegenproben: `gegenproben-portal.md`, „1
 - Die Sperre der Objektzeile (FOR UPDATE) hält einen Vorgang ab, der zwischen Zählen und Umsetzen dazukäme -- keine eigene Festlegung, keine eigene
   Gegenprobe (nur unter PostgreSQL wirksam).
 
-#### Festlegungen 1.11.30 (Bitte bestätigen)
+#### Festlegungen 1.11.30 (bestätigt am 26.11.2026)
 
 1. Hängt am Objekt ein Vorgang (Projekt -- auch eines anderen Kunden --, Anfrage, Wartungsvertrag, Dokument, Checkliste, Abnahme, Mangel), wechselt es den
    Kunden nicht: 409 mit Bereichen, Zahl und dem Rat, beim neuen Kunden ein neues Objekt anzulegen; nichts geändert.
@@ -3477,7 +3477,7 @@ alle, die das Formular der Stammdaten oder die Objektseite öffnen. Gegenproben:
   „datei_angefordert“, die Freigabe in `objekt_art`/`objekt_id` -- die Spalten gab es seit P1) und zählen die Bremsen (Bauplan B7); `portal_datei` liest nur.
 - Noch nicht: Kopien und Auslieferung (P2b), Freigeben im ERP und die automatischen Regeln (P2c), Zahlstand und Termine (P2d), Seiten (P2e).
 
-#### Festlegungen 1.11.31 (Bitte bestätigen)
+#### Festlegungen 1.11.31 (bestätigt am 26.11.2026)
 
 1. Sichtbar ist nur, was als Freigabe für den Kunden der Sitzung steht, nicht zurückgenommen ist und eine bereite Kopie hat.
 2. Zusätzlich führt die Kette der Quelle heute zu genau diesem Kunden -- sonst ruht die Freigabe (auch der neue Kunde sieht sie nicht).
@@ -3526,3 +3526,44 @@ Gegenproben: `gegenproben-portal.md`, „1.11.31“. Beim Einspielen: Migration 
   application/octet-stream`; Fotos neu kodiert in einem Kindprozess mit Grenze für Speicher (RLIMIT_AS) und Zeit, Absturz oder Zeitüberschreitung ein fester
   Fehlergrund, der Postbote läuft weiter (Test mit Bombe und kaputtem Bild); die Metadaten der vom ERP erzeugten PDFs prüfen (Author, Title, Subject,
   Creator, Producer, Keywords) und Benutzernamen oder Interna melden; Rauchtest auch auf Android mit „Herunterladen“ und Öffnen der Datei.
+
+### Antworten des Betriebs zu den Berichten 1.11.29 bis 1.11.31 (26.11.2026)
+
+- Bestätigt: 1.11.29-1 bis -8, 1.11.30-1 bis -7, 1.11.31-1 bis -11. Berichte und Bauplan P2 seit 26.11.2026 im Archiv der Berichte.
+- Vor P2b als 1.11.32 nur Tests: Matrix je Quelle (alle zwölf) × Fall gegen PostgreSQL mit der Testrolle, jede Zelle Testname oder „entfällt (Grund)“, je
+  Zweig eine Gegenprobe (Kette entfernt -> fremde Freigabe sichtbar -> rot); ein Fehler im SQL wird gemeldet und behoben. Dazu ein Test: die feste Fassung
+  des Einsatzberichts zeigt die Unterschriftszeit in Berliner Zeit, Winter und Sommer.
+- Quelle als Tabelle und ID statt typisierter Spalten (Bauplan B4.1): einverstanden. **Abweichungen vom Bauplan künftig ausdrücklich als solche melden**
+  (eigener Abschnitt im Bericht).
+- Für P2c vorgemerkt: ruht die Freigabe einer Quelle für einen anderen Kunden, scheitert eine neue Freigabe an „höchstens eine je Quelle“ -- dann eine klare
+  Meldung im ERP („erst beim bisherigen Kunden zurücknehmen“), kein Fehler.
+- Schon unterschriebene Einsatzberichte: Entscheidung nach der Zählung auf dem Server, bis dahin nichts.
+- Danach P2b wie im Bauplan mit den Zusätzen aus dem Nachtrag; nach P2b anhalten.
+
+### Umsetzung 1.11.32: Matrix je Quelle und Fall, zwei Lücken der Kette
+
+- `tests/test_v822_portal_unterlagen_matrix.py`: 15 Zeilen (die zwölf Quellen, die Ablage nach Angebot, Auftragsbestätigung und Vertrag, die Fassung einer
+  Checkliste nach Auftrag und Objekt) × zehn Fälle; jede Zelle ein eigener Test `test_matrix[<zeile>-<fall>]` gegen PostgreSQL mit der Testrolle
+  `dkportal_test` (ein Schema für das Modul, je Test eigene Kunden und eigene Anschlüsse) oder in `ENTFAELLT` mit Grund -- ein Wächter verlangt genau eins.
+  Jeder Fall prüft zuerst, dass die Unterlage vor der Änderung sichtbar war. 143 Zellen, 7 entfallen (Kundendokument ohne Objekt und Projekt, Objektdokument
+  und Checkliste am Objekt ohne Projekt).
+- Gefunden und behoben: `portal_quelle()` prüfte beim Brief der Anzeigen nicht, ob die Unterschrift dahinter verworfen ist (bei der Fassung einer Checkliste
+  schon), und bei der Datei am Mangel nicht, ob der Mangel verworfen ist -- die Freigabe blieb sichtbar. Beide ruhen jetzt; `portal_quelle()` neu in der
+  Migration `f2b7d4a9c1e3` (CREATE OR REPLACE, downgrade setzt den Text aus `e5c8a1f3b9d2`). `app/portal/unterlagen.py::MIGRATIONEN` nennt die Migrationen
+  mit dem Text der Funktionen; der Vergleich in `test_v821` nimmt je Funktion die neueste.
+- `test_v819`: die feste Fassung zeigt die Unterschrift in Berliner Zeit (Winter 10:05 UTC -> 11:05, Sommer 10:05 UTC -> 12:05), Monteur und Kunde, aus der
+  Ablage gelesen.
+
+#### Festlegungen 1.11.32 (Bitte bestätigen)
+
+1. Ein Brief der Anzeigen ist nur sichtbar, solange die Unterschrift dahinter nicht verworfen ist (wie die Fassung einer Checkliste).
+2. Ein Foto oder Beleg am Mangel ist nur sichtbar, solange der Mangel nicht verworfen ist.
+3. Jede Quelle × jeder Fall steht in der Matrix als Test oder mit Grund als „entfällt“; eine neue Quelle oder ein neuer Fall kommt dort hinein.
+
+#### Tests und Prüfung 1.11.32
+
+Matrix 143 Tests (dazu der Wächter der Zellen); vor der Korrektur rot genau `notice_letters-quelle_ungueltig` und `defect_files-quelle_ungueltig`. Die neue
+Migration lief unter PostgreSQL hin, zurück und wieder hin (Text von `portal_quelle()` je Stand geprüft) und in `test_v816`. Angepasste Erwartung (Regel 28):
+`test_v821_portal_unterlagen.py::test_migration_traegt_anweisungen_und_checks_woertlich` -- altes Soll: `e5c8a1f3b9d2.ANWEISUNGEN` gleich
+`unterlagen.ANWEISUNGEN`; neues Soll: `e5c8a1f3b9d2` mit den Fassungen der neueren Migrationen aus `MIGRATIONEN` ersetzt gleich `unterlagen.ANWEISUNGEN`.
+Gegenproben: `gegenproben-portal.md`, „1.11.32“. Beim Einspielen: Migration über `update.sh`; sonst nichts.

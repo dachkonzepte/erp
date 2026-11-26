@@ -16,7 +16,7 @@ import hashlib
 import os
 import stat
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
@@ -180,6 +180,27 @@ def test_zweite_unterschrift_abgelehnt(welt):
     with pytest.raises(ValueError, match="bereits unterschrieben"):
         _unterschreiben(db, rid)
     assert len(_ablage(db, rid)) == 1
+
+
+@pytest.mark.parametrize("utc, berlin", [(datetime(2026, 1, 15, 10, 5), "15.01.2026 11:05"), (datetime(2026, 7, 15, 10, 5), "15.07.2026 12:05")],
+                         ids=["winter", "sommer"])
+def test_feste_fassung_zeigt_die_unterschrift_in_berliner_zeit(welt, monkeypatch, utc, berlin):
+    """Seit 1.11.32 (Vorgabe des Betriebs): die feste Fassung zeigt die Zeit der Unterschrift in Berliner Zeit -- Winter UTC+1, Sommer UTC+2. Die
+    Unterschrift läuft zur festen Uhrzeit (UTC, wie datetime.utcnow() speichert); geprüft wird das PDF aus der Ablage, nicht ein neu erzeugtes."""
+    from tests.test_v213_inspection_items import _extract_pdf_text
+
+    class FesteZeit(datetime):
+        @classmethod
+        def utcnow(cls):
+            return utc
+    monkeypatch.setattr(service_reports_module, "datetime", FesteZeit)
+    db, rid = welt["db"], _bericht(welt)
+    _unterschreiben(db, rid)
+    antwort = welt["client"].get(f"/api/service-reports/{rid}/pdf")
+    assert antwort.status_code == 200 and "x-dk-ablage" in antwort.headers
+    text_ = _extract_pdf_text(antwort.content)
+    assert text_.count(f"{berlin} Uhr".encode()) == 2, text_  # Monteur und Kunde
+    assert f"{utc:%d.%m.%Y %H:%M} Uhr".encode() not in text_
 
 
 # ---------------------------------------------------------------------------

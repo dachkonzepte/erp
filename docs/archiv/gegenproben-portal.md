@@ -652,3 +652,29 @@ Aussage in `tests/test_v821_portal_unterlagen.py` rot an genau ihrer Prüfung.
 Nr. 10 (Quelle ohne Fremdschlüssel) ohne eigene Gegenprobe: sie ist im Schema sichtbar (keine Spalte mit Fremdschlüssel), `test_pg_kette_…` löscht eine Quelle
 und prüft, dass die Freigabe bleibt. Beim ersten Lauf blieb Nr. 8 grün -- der Test prüfte nur den Fehlercode, den ein Helfer ohne SECURITY DEFINER ohnehin
 an den Tabellen bekommt; seitdem prüft er das Recht selbst (`has_function_privilege`).
+
+## 1.11.32: Matrix je Quelle und Fall, zwei Lücken der Kette
+
+Probendatei `gegenprobe_11132.py` (Scratchpad); je Probe eine Stelle unter `app/` mit Marker `GEGENPROBE`, jede Datei danach byte-gleich zurück (SHA-256
+verglichen). Je Zweig von `portal_quelle()`: die Kette durch den Kunden der Freigabe selbst ersetzt (`SELECT x.customer_id` -> der `customer_id` der
+Freigabe) -- die Zelle „fremder Kunde“ jeder Zeile dieses Zweigs rot („fremde Freigabe sichtbar“).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.31-2 – Kette Rechnung | Zweig `invoices` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Mahnung | Zweig `reminders` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Ablage | Zweig `sent_documents` ohne Kette (alle drei Teile) | rot (3 Zellen: Angebot, Auftrag, Vertrag) |
+| 1.11.31-2 – Kette Einsatzbericht | Zweig `service_reports` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Checkliste | Zweig `checklist_versions` ohne Kette (Auftrag und Objekt) | rot (2 Zellen) |
+| 1.11.31-2 – Kette Brief | Zweig `notice_letters` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Foto des Berichts | Zweig `service_report_photos` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Kundendokument | Zweig `customer_documents` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Projektdokument | Zweig `project_documents` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Objektdokument | Zweig `property_documents` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Datei am Mangel | Zweig `defect_files` ohne Kette | rot (1 Zelle) |
+| 1.11.31-2 – Kette Beleg der Abnahme | Zweig `order_acceptance_files` ohne Kette | rot (1 Zelle) |
+| 1.11.32-1 – Brief ruht nach verworfener Unterschrift | Bedingung entfernt | rot (`notice_letters-quelle_ungueltig`) |
+| 1.11.32-2 – Foto am Mangel ruht nach verworfenem Mangel | Bedingung entfernt | rot (`defect_files-quelle_ungueltig`) |
+| Test Berliner Zeit (Vorgabe) | Zeile „Bestätigt von“ ohne `to_berlin()` | rot (Winter und Sommer: nur eine der zwei Zeiten in Berliner Zeit) |
+
+Nr. 3 (jede Zelle Test oder „entfällt“) ohne Gegenprobe unter `app/`: der Wächter `test_jede_zelle_getestet_oder_entfaellt` prüft die Liste selbst.
