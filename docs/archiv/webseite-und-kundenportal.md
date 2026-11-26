@@ -3567,3 +3567,86 @@ Migration lief unter PostgreSQL hin, zurück und wieder hin (Text von `portal_qu
 `test_v821_portal_unterlagen.py::test_migration_traegt_anweisungen_und_checks_woertlich` -- altes Soll: `e5c8a1f3b9d2.ANWEISUNGEN` gleich
 `unterlagen.ANWEISUNGEN`; neues Soll: `e5c8a1f3b9d2` mit den Fassungen der neueren Migrationen aus `MIGRATIONEN` ersetzt gleich `unterlagen.ANWEISUNGEN`.
 Gegenproben: `gegenproben-portal.md`, „1.11.32“. Beim Einspielen: Migration über `update.sh`; sonst nichts.
+
+### Umsetzung 1.11.33 (P2b, Teil 1): Kopien der freigegebenen Unterlagen
+
+- `app/portal_kopien.py::abgleich()` (der Postbote, Benutzer des ERP): Kopie weg, wo sie nicht mehr sein soll (zuerst die Zeile, dann die Datei); zu jeder
+  Freigabe, die sein soll, ohne Kopie und ohne Fehler, eine neue; im vollen Lauf dazu fehlende Dateien neu, Waisen und alte Teil-Dateien weg. „Soll sein“:
+  nicht zurückgenommen, Kunde nicht im Archiv, `portal_quelle()` führt heute zum Kunden der Freigabe -- dieselbe Kette wie im Portal.
+- Quelle: Ablage (`sent_documents`, Rechnung und Mahnung über `frozen_version()`, Einsatzbericht über `pdf_document_id`, Fassung und Brief über
+  `sent_document_id`) mit Prüfsumme der Ablage; Fotos und Dokumente aus ihrem Ordner (Pfad muss im Ordner der Art bleiben); Belege der Abnahme und Dateien am
+  Mangel über `read_acceptance_file()` (Prüfsumme). Typ nur am Inhalt: PDF byte-gleich, Rasterbild neu kodiert, alles andere „falscher_typ“.
+- Fotos im Kindprozess `app/portal_foto_kind.py` (`python -I`, Umgebung nur PATH): Grenze für Speicher zuerst (Linux RLIMIT_AS, Windows Job-Objekt),
+  nur JPEG/PNG/WebP/GIF, über 64 Mio. Bildpunkte „zu_gross“, Drehung angewandt, sRGB, Transparenz auf Weiß, erstes Bild, Kante 1600, Qualität 82, aus einem
+  frischen Bild (kein EXIF, XMP, IPTC, ICC, Kommentar, kein angehängter Rest). Zeitgrenze 60 s (subprocess beendet das Kind). Rückgabe 10/11 -> nicht_lesbar
+  bzw. zu_gross, alles andere „abbruch“.
+- Datei: `<64 hex>.pdf` bzw. `.jpg`, exklusiv als Teil-Datei geschrieben, umbenannt, gegengelesen, 0640; die Zeile wird erst danach bereit (bedingtes UPDATE:
+  nicht zurückgenommen, noch ohne Kopie und Fehler -- eine Rücknahme während des Kodierens lässt die Datei gleich wieder verschwinden). Zeit aus der
+  Datenbank (`portal_jetzt()`).
+- Fehler: festes Wort an der Zeile (`fehlt` neu, `zu_gross`, `pruefsumme`, `falscher_typ`, `nicht_lesbar`, `abbruch`), kein zweiter Versuch von selbst; das
+  Protokoll nennt nur Nummer der Freigabe und Wort. Keine Rechte an der Quelle (OSError beim Lesen) ist „nicht_lesbar“; ein Fehler am eigenen Ordner
+  (fehlt, keine Rechte, Platte voll) ist kein Fehlerwort: der Postbote protokolliert die Klasse und versucht es im nächsten Lauf wieder.
+- Ordner: `.datenbank` nennt `current_database()/current_schema()`; fehlt sie und liegen keine Kopien da, entsteht sie; sonst `OrdnerFremd` -- dort wird
+  nichts angelegt oder gelöscht. Fremde Dateien bleiben (nur gezählt).
+- Weckruf: `app/portal/weckruf.py`, Auslöser auf Anweisungsebene nach INSERT und UPDATE von `zurueckgenommen_am` -> `pg_notify('portal_freigabe', '')`;
+  Migration `a7c3e9f1d2b4` (Text wörtlich, dazu `kopie_fehler` mit „fehlt“; downgrade setzt „fehlt“ zurück auf leer). Unter SQLite nur die Prüfung (Batch,
+  der Teilindex bleibt -- geprüft hin und zurück).
+- Postbote (`laufen()`): LISTEN auf beide Kanäle; Kopien beim Start und alle 15 Minuten voll, auf den Weckruf und solange Arbeit wartet; je Durchgang
+  höchstens 5 s an neuen Kopien, dann wieder Codes. Ohne `PORTAL_DATEIEN` Codes wie bisher, Hinweis im Protokoll. Am Ende gibt er Sperre und LISTEN frei
+  (Nebenbefund: bis 1.11.32 ging die Verbindung mit beidem in den Pool zurück -- auf dem Server ohne Folgen, der Prozess endet; im Test hielt sich ein zweiter
+  Postbote derselben Engine für überzählig).
+- Einheit `erp-portalpost`: MemoryHigh 640M, MemoryMax 768M (bis 1.11.32 200M/256M -- der Kindprozess zählt zur Einheit), UMask 0027. `.env.example` nennt
+  `PORTAL_DATEIEN`.
+- Messung (lokal, Windows, Rauschbilder als ungünstigster Fall): 48 Mio. Bildpunkte als JPEG (33 MB) -> 0,5 s, Spitze im Kind 305 MB; 50 Mio. als PNG mit
+  Alpha (117 MB, über der Grenze von 25 MB) -> 0,9 s, 560 MB. Auf dem Server misst `scripts/pruefe_portal_foto.py` (Server-Schritt P2b-4) unter Linux die
+  Spitze des Kinds.
+- Metadaten der PDFs des ERP (Nachtrag 5, erzeugt in einer Wegwerf-Datenbank und ausgelesen): Author = Firmenname aus den Einstellungen (Scan-Seite des
+  Vertrags „anonymous“), Title = Nummer und Bezeichnung, wie sie sichtbar auf dem PDF stehen (Rechnung „R-… - Rechnung“, Auftrag „<Nr> - <Titel>“, Checkliste
+  „<Vorlage> – <Kontext>“, Einsatzbericht „<Art> - Auftrag <Nr>“), Creator „(unspecified)“ bzw. „anonymous“, Producer „ReportLab PDF Library -
+  (opensource)“ bzw. „PDFium“ (zusammengefügte Abschrift), Subject „(unspecified)“, Keywords leer, Datum mit Zeitzone, kein XMP. Kein Benutzername, nichts
+  Internes. Hochgeladene PDFs (Kundenakte, Projektmappe, Belege) tragen ihre eigenen Angaben -- dafür der Hinweis beim Freigeben (B6, P2c).
+
+#### Festlegungen 1.11.33 (Bitte bestätigen)
+
+1. Kopien legt nur der Postbote an, im Ordner `PORTAL_DATEIEN`; Name zufällig (64 hexadezimale Zeichen) mit Endung .pdf bzw. .jpg, Datei 0640; die Zeile
+   wird erst nach geschriebener und gegengelesener Datei bereit.
+2. PDFs byte-gleich, nur aus der festen Fassung der Ablage (mit Prüfsumme) bzw. aus der gespeicherten Datei; nie neu erzeugt.
+3. Jedes Rasterbild wird neu kodiert, im Kindprozess mit 1 GiB Speicher, 60 s, 64 Mio. Bildpunkten (schon darüber „zu_gross“), Kante 1600, Qualität 82,
+   sRGB, ohne jede Angabe aus der Datei; das Kind bekommt nur PATH.
+4. Höchstens 25 MB je Quelle.
+5. Fehlerwörter fest (`fehlt` neu); kein zweiter Versuch von selbst (P2c setzt zurück); das Protokoll nennt nur Nummer und Wort.
+6. Rücknahme, Ruhen und Kunde im Archiv: Kopie weg (Zeile zuerst, dann Datei); wird die Freigabe wieder sichtbar, entsteht eine neue Kopie mit neuem Namen.
+7. Voller Lauf alle 15 Minuten: fehlende Datei neu, Waise und Teil-Datei älter als eine Stunde weg, fremde Dateien bleiben.
+8. Ein Ordner gehört genau einer Datenbank (`.datenbank`); passt sie nicht, legt und löscht der Postbote dort nichts.
+9. Weckruf über einen Auslöser auf Anweisungsebene an `portal_freigaben`, nur nach INSERT und nach UPDATE von `zurueckgenommen_am`.
+10. Je Durchgang höchstens 5 s an neuen Kopien, dann wieder die Codes; wartet noch Arbeit, geht es ohne Warten weiter.
+11. Ohne `PORTAL_DATEIEN` laufen die Codes weiter, Kopien entstehen keine (Hinweis); ein Fehler am Ordner beendet den Postboten nicht.
+12. Einheit `erp-portalpost`: MemoryHigh 640M, MemoryMax 768M, UMask 0027.
+13. `laufen()` gibt am Ende Sperre und LISTEN frei.
+
+#### Abweichungen vom Bauplan (1.11.33)
+
+- B5 „dazu eine Vorschau 400 px für Listen“: nicht gebaut -- kommt mit den Seiten (P2e), wenn die Entwürfe zeigen, ob und in welcher Größe.
+- B2.1 „NOTIFY … (Freigabe, Rücknahme, Ruhen)“: Ruhen weckt nicht -- der Auslöser sitzt nur an `portal_freigaben`. Die Kopie einer ruhenden Freigabe geht im
+  nächsten vollen Lauf (höchstens 15 Minuten); im Portal ist sie sofort weg (die Funktionen prüfen die Kette selbst). Mit P2d (Auslöser an den Tabellen der
+  Liste) ließe es sich mit erledigen.
+- B4.1 Fehlergründe: dazu „fehlt“ (Quelle oder ihre Datei fehlt) -- der Bauplan nannte nur Beispiele.
+- Nachtrag 4: die Grenze RLIMIT_AS gibt es nur unter Linux; lokal (Windows) setzt das Kind ein Job-Objekt mit derselben Grenze. Die Tests prüfen den Weg
+  unter Windows; den unter Linux prüft `scripts/pruefe_portal_foto.py` auf dem Server (P2b-4) -- hier gibt es kein Linux.
+- B2.1 „Speicher des Postboten … rund 100 MB“: der Kindprozess zählt zur Einheit, deshalb deren Grenze höher (Festlegung 12).
+
+#### Tests und Prüfung 1.11.33
+
+`tests/test_v823_portal_kopien.py` (36, PostgreSQL mit Testrolle; je Zeile der Matrix eine echte Datei), `tests/test_v824_portal_foto.py` (17, durch den echten
+Kindprozess, dazu das Prüfskript als Kindprozess), `tests/test_v818_portal_skripte_kindprozess.py` (der Postbote als eigener Prozess legt auf einem Schema aus
+alembic eine Kopie an). Gefunden beim Bauen: RETURNING gab beim Entfernen den neuen Wert (leer) zurück -- die Datei blieb liegen; seither die Namen vorher
+unter Sperre gelesen. Angepasste Erwartungen (Regel 28):
+- `test_v800_portal_funktionen.py::test_pg_create_all_legt_die_funktionen_an` -- alt: 14 + Helfer + Funktionen der Unterlagen; neu: dazu 1 (die Funktion des
+  Weckrufs, `portal_freigabe_geweckt`).
+- `test_v805_portal_postbote.py::test_einheit_des_postboten` -- alt: MemoryMax 256M, MemoryHigh 200M; neu: 768M, 640M und UMask 0027.
+- `test_v818_portal_skripte_kindprozess.py::test_pg_postbote_als_kindprozess` -- alt: „Postbote bereit (LISTEN portal_post)“; neu: „Postbote bereit (LISTEN
+  portal_post, portal_freigabe)“, dazu die Kopie.
+- `test_v821_portal_unterlagen.py::test_migration_traegt_anweisungen_und_checks_woertlich` -- alt: die Prüfungen aus `e5c8a1f3b9d2`; neu: je Prüfung die
+  Fassung der neuesten Migration, die sie setzt (`a7c3e9f1d2b4` für `kopie_fehler`).
+Gegenproben: `gegenproben-portal.md`, „1.11.33“. Beim Einspielen: Migration über `update.sh`; die Server-Schritte P2b kommen mit 1.11.34 (Ordner, `.env`,
+Einheiten, nginx, Prüfskript).

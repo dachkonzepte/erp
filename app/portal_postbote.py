@@ -9,7 +9,12 @@ Der Postbote
 3. erzeugt den Code, speichert nur den Prüfwert (frühere Codes der Sitzung gelten nicht mehr), schickt ihn über app/portal_mails.py::senden()
    (Microsoft 365, ohne „Gesendete Elemente“) und hält das Ergebnis am Auftrag und im Zugriffsprotokoll fest. Scheitert der Versand, gilt der Code nicht;
 4. räumt auf (beim Start, danach stündlich): Codes 24 Stunden nach dem Anlegen, Sitzungen 30 Tage nach ihrem Ende (mit ihnen ihre Codes und Aufträge),
-   Bremsen 48 Stunden nach ihrem Fenster, das Zugriffsprotokoll nach 24 Monaten (P1-2).
+   Bremsen 48 Stunden nach ihrem Fenster, das Zugriffsprotokoll nach 24 Monaten (P1-2);
+5. seit 1.11.33 (Stufe P2b): gleicht die Kopien der freigegebenen Unterlagen ab (app/portal_kopien.py) -- auf den Weckruf portal_freigabe (LISTEN, der
+   Auslöser an portal_freigaben, app/portal/weckruf.py), beim Start und danach alle 15 Minuten voll. Je Durchgang höchstens wenige Sekunden an neuen
+   Kopien, dann wieder die Codes; bleibt etwas übrig, kommt er ohne Warten wieder. Ohne Ordner (PORTAL_DATEIEN nicht gesetzt) keine Kopien, die Codes gehen
+   weiter. Ein Fehler am Ordner (fehlt, keine Rechte, gehört einer anderen Datenbank) beendet den Postboten nicht: protokolliert (nur die Klasse), nächster
+   Versuch im nächsten vollen Lauf.
 
 Genau ein Postbote: er hält eine Sperre der Datenbank (pg_try_advisory_lock je Schema -- auf dem Server eines, in Tests jedes Wegwerf-Schema für
 sich) -- ein zweiter bricht ab. Ein Auftrag geht nie zweimal hinaus: der
@@ -30,7 +35,7 @@ from sqlalchemy import delete, func, literal_column, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from . import portal_mails
+from . import portal_kopien, portal_mails
 from .audit import record_audit_entry
 from .email_dispatch import DispatchConflict
 from .models import Customer, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang, PortalZugriff
@@ -46,6 +51,8 @@ CODE_GUELTIG = timedelta(minutes=portal_mails.CODE_MINUTEN)
 # (Fenster, Grenze, je Zugang) -- gezählt an den gesendeten Codes; dieselben Zahlen prüft portal_code_anfordern() an den Anforderungen
 GRENZEN = ((timedelta(minutes=15), 3, True), (timedelta(days=1), 10, True), (timedelta(hours=1), 200, False))
 NACHSEHEN_SEKUNDEN = 60
+KOPIEN_VOLL_SEKUNDEN = 15 * 60    # seit 1.11.33: voller Abgleich der Kopien (Bauplan P2, B2.1)
+KOPIEN_DURCHGANG_SEKUNDEN = 5.0   # Arbeit an neuen Kopien je Durchgang, dann wieder die Codes
 STAU_NACH = timedelta(minutes=2)  # Hinweis auf „Start“ (seit 1.11.7)
 AUFRAEUMEN_SEKUNDEN = 3600
 
@@ -172,28 +179,68 @@ def aufraeumen(db: Session) -> dict[str, int]:
     return zahlen
 
 
+def kopien(db: Session, ordner, *, voll: bool, sekunden: float = KOPIEN_DURCHGANG_SEKUNDEN, foto=None) -> bool:
+    """Ein Abgleich der Kopien (seit 1.11.33); True, wenn noch Arbeit wartet. Ein Fehler am Ordner beendet den Postboten nicht (die Codes gehen vor):
+    nur die Klasse ins Protokoll, False -- der nächste volle Lauf versucht es wieder. Ein Fehler der Datenbank geht weiter (Schleife endet, systemd)."""
+    try:
+        stand = portal_kopien.abgleich(db, ordner, voll=voll, sekunden=sekunden, **({"foto": foto} if foto else {}))
+    except (OSError, portal_kopien.OrdnerFremd) as e:
+        db.rollback()
+        logger.error("Postbote: Kopien nicht abgeglichen (%s)", type(e).__name__)
+        return False
+    if stand.angelegt or stand.entfernt or stand.nachgeholt or stand.waisen or stand.fehler:
+        logger.info("Postbote: Kopien angelegt %s, entfernt %s, nachgeholt %s, Waisen %s, Fehler %s", stand.angelegt, stand.entfernt, stand.nachgeholt,
+                    stand.waisen, dict(sorted(stand.fehler.items())))
+    return stand.mehr
+
+
 def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehen: float = NACHSEHEN_SEKUNDEN,
-           aufraeumen_alle: float = AUFRAEUMEN_SEKUNDEN) -> None:
+           aufraeumen_alle: float = AUFRAEUMEN_SEKUNDEN, ordner=None, kopien_voll_alle: float = KOPIEN_VOLL_SEKUNDEN, foto=None) -> None:
     """Die Schleife des Dienstes: Sperre nehmen (sonst AndererPostbote), LISTEN, dann je Weckruf oder spätestens nach `nachsehen` Sekunden alle
-    wartenden Aufträge, dazu das Aufräumen. Ein Fehler der Datenbank beendet die Schleife (systemd startet neu, Restart=always)."""
+    wartenden Aufträge, dazu das Aufräumen und (seit 1.11.33, mit `ordner`) die Kopien: auf den Weckruf portal_freigabe, solange Arbeit wartet, und alle
+    `kopien_voll_alle` Sekunden voll. Ein Fehler der Datenbank beendet die Schleife (systemd startet neu, Restart=always)."""
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as hoerer:
         if not hoerer.scalar(text("SELECT pg_try_advisory_lock(:k, hashtext(current_schema()))"), {"k": SPERRE}):
             raise AndererPostbote("Es läuft schon ein Postbote.")
         hoerer.exec_driver_sql(f"LISTEN {KANAL}")
+        hoerer.exec_driver_sql(f"LISTEN {portal_kopien.KANAL}")
         roh = hoerer.connection.driver_connection
-        logger.info("Postbote bereit (LISTEN %s)", KANAL)
-        zuletzt_aufgeraeumt = None
-        while not halt():
-            with Session(engine) as db:
-                n = alle(db)
-                if zuletzt_aufgeraeumt is None or time.monotonic() - zuletzt_aufgeraeumt >= aufraeumen_alle:
-                    zahlen = aufraeumen(db)
-                    zuletzt_aufgeraeumt = time.monotonic()
-                    logger.info("Postbote: aufgeräumt %s", zahlen)
-            if n:
-                logger.info("Postbote: %s Aufträge erledigt", n)
-            for _ in roh.notifies(timeout=nachsehen, stop_after=1):
+        logger.info("Postbote bereit (LISTEN %s, %s)", KANAL, portal_kopien.KANAL)
+        if ordner is None:
+            logger.warning("Postbote: PORTAL_DATEIEN nicht gesetzt -- keine Kopien für das Kundenportal")
+        try:
+            _schleife(engine, roh, halt=halt, nachsehen=nachsehen, aufraeumen_alle=aufraeumen_alle, ordner=ordner, kopien_voll_alle=kopien_voll_alle,
+                      foto=foto)
+        finally:  # seit 1.11.33: die Verbindung geht in den Pool zurück -- ohne Sperre und ohne LISTEN (sonst hielte sie beides weiter)
+            try:
+                hoerer.exec_driver_sql("UNLISTEN *")
+                hoerer.execute(text("SELECT pg_advisory_unlock(:k, hashtext(current_schema()))"), {"k": SPERRE})
+            except Exception:  # noqa: BLE001 -- eine abgerissene Verbindung hält ohnehin nichts mehr
                 pass
+
+
+def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, kopien_voll_alle, foto) -> None:
+    """Die Arbeit von laufen() zwischen LISTEN und Ende."""
+    zuletzt_aufgeraeumt = zuletzt_voll = None
+    geweckt = mehr = False
+    while not halt():
+        with Session(engine) as db:
+            n = alle(db)
+            if zuletzt_aufgeraeumt is None or time.monotonic() - zuletzt_aufgeraeumt >= aufraeumen_alle:
+                zahlen = aufraeumen(db)
+                zuletzt_aufgeraeumt = time.monotonic()
+                logger.info("Postbote: aufgeräumt %s", zahlen)
+            if ordner is not None:
+                voll = zuletzt_voll is None or time.monotonic() - zuletzt_voll >= kopien_voll_alle
+                if voll or geweckt or mehr:
+                    mehr = kopien(db, ordner, voll=voll, foto=foto)
+                    if voll:
+                        zuletzt_voll = time.monotonic()
+        if n:
+            logger.info("Postbote: %s Aufträge erledigt", n)
+        geweckt = False
+        for nachricht in roh.notifies(timeout=0 if mehr else nachsehen, stop_after=1):
+            geweckt = geweckt or nachricht.channel == portal_kopien.KANAL
 
 
 # Seit 1.11.7: der Hinweis auf „Start“ (fester Text, die Oberfläche setzt ihn nur als Text)

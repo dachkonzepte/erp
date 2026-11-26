@@ -6,6 +6,9 @@ Läuft dauerhaft unter dem Benutzer des ERP; die Einheit lädt vorher .env (DATA
     set -a; source .env; set +a
     .venv/bin/python scripts/portal_postbote.py
 
+Seit 1.11.33 (Stufe P2b) legt er die Kopien der freigegebenen Unterlagen in den Ordner PORTAL_DATEIEN (aus .env; auf dem Server /srv/dk-portal/dateien).
+Fehlt die Variable, gehen die Codes weiter, Kopien entstehen keine (Hinweis im Protokoll).
+
 Ohne DATABASE_URL oder mit einer anderen Datenbank als PostgreSQL bricht das Skript ab (Rückgabe 2) -- app/database.py fiele sonst still auf SQLite
 zurück (Vorfall 1), und LISTEN, SKIP LOCKED und die Funktionen des Portals gibt es nur unter PostgreSQL. Läuft schon ein Postbote: Rückgabe 3 (systemd
 startet nach 5 Sekunden neu, Restart=always). Ein Fehler der Datenbank beendet die Schleife (Rückgabe 1) -- ebenso neu gestartet. Protokolliert nur
@@ -33,13 +36,14 @@ def main(*, umgebung=os.environ, ausgabe=lambda s: print(s, file=sys.stderr)) ->
     from sqlalchemy import create_engine
 
     from app.logging_config import configure_logging
+    from app.portal_kopien import ordner_aus_umgebung
     from app.portal_postbote import AndererPostbote, laufen
 
     configure_logging()
     # genau die geprüfte Verbindung -- nicht app.database.engine (die läse DATABASE_URL noch einmal selbst); zwei Verbindungen reichen (LISTEN, Arbeit)
     engine = create_engine(url, future=True, pool_pre_ping=True, pool_size=2, max_overflow=1)
     try:
-        laufen(engine)
+        laufen(engine, ordner=ordner_aus_umgebung(umgebung))
     except AndererPostbote:
         logger.warning("Es läuft schon ein Postbote -- dieser startet nicht.")
         return 3

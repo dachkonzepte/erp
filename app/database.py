@@ -90,6 +90,9 @@ event.listen(Base.metadata, "after_create", portal_funktionen.pg_anlegen)
 # Seit 1.11.31 (P2a): die Funktionen für die Unterlagen (app/portal/unterlagen.py, Migration e5c8a1f3b9d2) -- nach denen für Link und Sitzung.
 from .portal import unterlagen as portal_unterlagen  # noqa: E402
 event.listen(Base.metadata, "after_create", portal_unterlagen.pg_anlegen)
+# Seit 1.11.33 (P2b): der Weckruf für den Postboten an portal_freigaben (app/portal/weckruf.py, Migration a7c3e9f1d2b4).
+from .portal import weckruf as portal_weckruf  # noqa: E402
+event.listen(Base.metadata, "after_create", portal_weckruf.pg_anlegen)
 
 
 def get_db():

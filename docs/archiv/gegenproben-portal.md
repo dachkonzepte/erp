@@ -678,3 +678,39 @@ Freigabe) -- die Zelle „fremder Kunde“ jeder Zeile dieses Zweigs rot („fre
 | Test Berliner Zeit (Vorgabe) | Zeile „Bestätigt von“ ohne `to_berlin()` | rot (Winter und Sommer: nur eine der zwei Zeiten in Berliner Zeit) |
 
 Nr. 3 (jede Zelle Test oder „entfällt“) ohne Gegenprobe unter `app/`: der Wächter `test_jede_zelle_getestet_oder_entfaellt` prüft die Liste selbst.
+
+## 1.11.33: Kopien der freigegebenen Unterlagen (P2b, Teil 1)
+
+Probendatei `gegenprobe_11133.py` (Scratchpad, mit `--trocken` vorab geprüft, dass jede Änderung genau einmal passt); je Probe eine Stelle mit Marker
+`GEGENPROBE` in der geänderten Zeile (die Einheit unter `scripts/server/` ohne Marker -- systemd kennt keinen Kommentar hinter einem Wert), danach jede Datei
+byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.33-2 – PDF nur mit Prüfsumme der Ablage | Datei der Ablage ohne Prüfung gelesen | rot (`[pruefsumme]`) |
+| 1.11.33-2 – PDF byte-gleich | ein Byte angehängt | rot (13 Zeilen der Matrix mit PDF) |
+| 1.11.33-1 – Name zufällig mit Endung | Endung .bin | rot (`[invoices]`) |
+| 1.11.33-4 – höchstens 25 MB | Prüfung der Größe entfernt | rot (`[zu_gross]`) |
+| 1.11.33-3 – ohne Angaben aus der Datei | Kind gibt den Eingang zurück | rot (Metadaten, ZIP, HTML) |
+| 1.11.33-3 – Drehung angewandt | Drehung entfernt | rot (Maße) |
+| 1.11.33-3 – Grenze für Speicher | Grenze nicht gesetzt | rot (Bild 6000 × 6000 geht durch) |
+| 1.11.33-3 – Zeitgrenze | ohne timeout | rot (Dauer) |
+| 1.11.33-3 – über der Pixelgrenze schon zu groß | Prüfung und Warnung als Fehler entfernt | rot (72 Mio. Bildpunkte) |
+| 1.11.33-3 – Kind ohne Geheimnisse | ganze Umgebung weitergegeben | rot |
+| 1.11.33-6 – Kunde im Archiv: Kopie weg | Bedingung `archiviert_am` entfernt | rot |
+| 1.11.33-6 – Datei nach der Zeile weg | Löschen der Datei entfernt | rot |
+| 1.11.33-7 – Waisen weg | Löschen der Waisen entfernt | rot (die Waise bleibt liegen) |
+| 1.11.33-8 – fremder Ordner unberührt | Prüfung der Kennung entfernt | rot (keine OrdnerFremd) |
+| 1.11.33-5 – kein zweiter Versuch | Bedingung `kopie_fehler IS NULL` entfernt | rot (7 Fehlerwörter; schon der erste Lauf wiederholt dieselbe Zeile bis zur Zeitgrenze, 707-mal) |
+| 1.11.33-1 – Rücknahme während des Kodierens | Bedingung `zurueckgenommen_am` im UPDATE entfernt | rot |
+| 1.11.33-1 – Teil-Datei nach Abbruch weg | Aufräumen der Teil-Datei entfernt | rot |
+| 1.11.33-10 – Zeitgrenze je Durchgang | Zeitgrenze nie erreicht | rot |
+| 1.11.33-9 – Weckruf nur bei Freigabe und Rücknahme | Auslöser auf jedes UPDATE | rot (`[1, 1, 1, 1]`) |
+| 1.11.33-9 – Postbote legt auf den Weckruf an | Weckruf nicht ausgewertet | rot (keine Kopie in 20 s) |
+| 1.11.33-11 – Fehler am Ordner beendet ihn nicht | Ausnahme nicht abgefangen | rot |
+| 1.11.33-13 – Sperre am Ende frei | Freigabe der Sperre entfernt | rot |
+| 1.11.33-5 – Fehlerwort „fehlt“ | „fehlt“ aus `KOPIE_FEHLER` | rot (Wörter des Moduls ≠ Liste) |
+| 1.11.33-12 – Speicher der Einheit | MemoryMax 256M | rot |
+
+Ohne Gegenprobe: 1.11.33-1 „gegengelesen“ -- eine Abweichung zwischen geschriebener und gelesener Datei lässt sich ohne Eingriff ins Dateisystem nicht
+herbeiführen (nur Durchsicht); 1.11.33-1 „0640“ prüft der Test nur unter Linux (hier Windows), auf dem Server zeigt P2b-3 die Rechte.

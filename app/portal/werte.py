@@ -49,7 +49,8 @@ FREIGABE_ARTEN = ("angebot", "auftrag", "vertrag", "rechnung", "mahnung", "abnah
                   "dokument")
 FREIGABE_QUELLEN = ("sent_documents", "invoices", "reminders", "service_reports", "checklist_versions", "notice_letters", "service_report_photos",
                     "customer_documents", "project_documents", "property_documents", "defect_files", "order_acceptance_files")
-# Warum eine Kopie nicht entstand (ab P2b, der Postbote): nur feste Wörter.
-KOPIE_FEHLER = ("zu_gross", "nicht_lesbar", "falscher_typ", "pruefsumme", "abbruch")
+# Warum eine Kopie nicht entstand (ab P2b, der Postbote, app/portal_kopien.py): nur feste Wörter. „fehlt“ seit 1.11.33 (Quelle oder ihre Datei fehlt;
+# bis dahin wäre es „nicht_lesbar“ gewesen).
+KOPIE_FEHLER = ("zu_gross", "nicht_lesbar", "falscher_typ", "pruefsumme", "abbruch", "fehlt")
 # Typ einer Kopie (ab P2b): nur PDF und JPEG (Fotos werden neu kodiert, Bauplan P2, B5/B6).
 KOPIE_TYPEN = ("application/pdf", "image/jpeg")

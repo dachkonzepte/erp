@@ -378,4 +378,5 @@ def test_einheit_des_postboten():
     zeilen = {z.split("=", 1)[0]: z.split("=", 1)[1] for z in einheit.splitlines() if "=" in z and not z.startswith("#")}
     assert zeilen["User"] == "tobias" and zeilen["Restart"] == "always" and zeilen["Type"] == "simple"
     assert zeilen["ExecStart"] == "/bin/bash -c 'set -a; source .env; set +a; exec .venv/bin/python scripts/portal_postbote.py'"
-    assert zeilen["MemoryMax"] == "256M" and zeilen["MemoryHigh"] == "200M"
+    # seit 1.11.33 mehr Speicher: der Kindprozess für Fotos (RLIMIT_AS 1 GiB) zählt zur Grenze der Einheit; bis 1.11.32 200M/256M
+    assert zeilen["MemoryMax"] == "768M" and zeilen["MemoryHigh"] == "640M" and zeilen["UMask"] == "0027"

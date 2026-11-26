@@ -4,8 +4,10 @@ Bis dahin liefen beide in Tests nur im Testprozess bzw. ohne Datenbank -- diesel
 
     e4          ohne Aufruf Rückgabe 1 „0 Anschlüsse, 0 Aufrufe“ und „Noch kein Aufruf“; mit zwei erfundenen Anschlüssen (je zwei Aufrufe in der Bremse
                 des Links) Rückgabe 0 „2 Anschlüsse, 4 Aufrufe“ und „Erwartet nach dem Nachweis mit zwei Geräten: 2“
-    Postbote    „Postbote bereit (LISTEN portal_post)“ und „aufgeräumt“; ein zweiter daneben endet mit Rückgabe 3 („Es läuft schon ein Postbote“); der erste
+    Postbote    „Postbote bereit (LISTEN portal_post, portal_freigabe)“ (seit 1.11.33 auch der Weckruf der Kopien) und „aufgeräumt“; ein zweiter daneben endet mit Rückgabe 3 („Es läuft schon ein Postbote“); der erste
                 wird über seine eigene PID beendet (Regel 12)
+    Kopien      (seit 1.11.33) mit PORTAL_DATEIEN legt der Postbote zu einer Freigabe die Kopie an -- PDF byte-gleich, Zeile bereit, Kennung des Ordners;
+                ohne Weckruf schon im ersten vollen Lauf
     beide       keine Ausgabe nennt die Verbindungszeichenfolge
 """
 
@@ -84,16 +86,43 @@ def _bis(bedingung, was: str, prozess: subprocess.Popen, zeilen: list[str], sich
         time.sleep(0.05)
 
 
-def test_pg_postbote_als_kindprozess(schema_von_alembic):
-    _engine, umgebung = schema_von_alembic
+def _freigabe_mit_datei(engine, umgebung) -> tuple[int, bytes]:
+    """Ein Kunde mit einem Dokument (PDF in customer_files unter ERP_DATA_DIR) und dessen Freigabe ohne Kopie -- wie das ERP es ablegt."""
+    pdf = b"%PDF-1.4\n% erfunden fuer den Kindprozess\n%%EOF\n"
+    stored = uuid.uuid4().hex + ".pdf"
+    with engine.begin() as c:
+        kid = c.execute(text("INSERT INTO customers (name, last_name, created_at) VALUES ('Muster Kind', 'Muster', now()) RETURNING id")).scalar()
+        kat = c.execute(text("INSERT INTO document_categories (key, label, created_at, updated_at) VALUES (:k, 'Sonstiges', now(), now()) RETURNING id"),
+                        {"k": f"kind-{uuid.uuid4().hex[:8]}"}).scalar()
+        did = c.execute(text("INSERT INTO customer_documents (customer_id, category, category_id, original_filename, stored_filename, file_size, uploaded_at) "
+                             "VALUES (:k, 'Sonstiges', :c, 'plan.pdf', :s, :g, now()) RETURNING id"), {"k": kid, "c": kat, "s": stored, "g": len(pdf)}).scalar()
+        fid = c.execute(text("INSERT INTO portal_freigaben (customer_id, art, quelle, quelle_id, titel, datum, freigegeben_am, freigegeben_von_name) "
+                             "VALUES (:k, 'dokument', 'customer_documents', :d, 'Plan', DATE '2026-11-26', now(), 'Büro') RETURNING id"),
+                        {"k": kid, "d": did}).scalar()
+    ordner = Path(umgebung["ERP_DATA_DIR"]) / "customer_files" / str(kid)
+    ordner.mkdir(parents=True, exist_ok=True)
+    (ordner / stored).write_bytes(pdf)
+    return fid, pdf
+
+
+def test_pg_postbote_als_kindprozess(schema_von_alembic, tmp_path):
+    engine, umgebung = schema_von_alembic
+    kopien = tmp_path / "kopien"
+    kopien.mkdir()
+    umgebung = dict(umgebung, PORTAL_DATEIEN=str(kopien))
+    fid, pdf = _freigabe_mit_datei(engine, umgebung)
     zeilen: list[str] = []
     erster = subprocess.Popen([sys.executable, "scripts/portal_postbote.py"], cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                               encoding="utf-8", errors="replace", env=umgebung)
     leser = threading.Thread(target=lambda: zeilen.extend(z.rstrip() for z in erster.stdout), daemon=True)
     leser.start()
     try:
-        _bis(lambda: any("Postbote bereit (LISTEN portal_post)" in z for z in zeilen), "„Postbote bereit“", erster, zeilen)
+        _bis(lambda: any("Postbote bereit (LISTEN portal_post, portal_freigabe)" in z for z in zeilen), "„Postbote bereit“", erster, zeilen)
         _bis(lambda: any("Postbote: aufgeräumt" in z for z in zeilen), "„aufgeräumt“", erster, zeilen)
+        _bis(lambda: any("Postbote: Kopien angelegt 1" in z for z in zeilen), "„Kopien angelegt 1“", erster, zeilen)
+        with engine.connect() as c:
+            name, bereit = c.execute(text("SELECT kopie_name, kopie_bereit_am FROM portal_freigaben WHERE id = :i"), {"i": fid}).one()
+        assert bereit is not None and (kopien / name).read_bytes() == pdf and (kopien / ".datenbank").exists()
         zweiter = subprocess.run([sys.executable, "scripts/portal_postbote.py"], cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
                                  errors="replace", timeout=120, env=umgebung)
         assert zweiter.returncode == 3 and "Es läuft schon ein Postbote" in zweiter.stderr, zweiter
