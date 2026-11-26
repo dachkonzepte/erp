@@ -1414,7 +1414,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `tests/test_v675_stammdaten_breite.py`, Klicktest `klicktest_stammdaten_breite.py`; seit 1.9.278 unter 1400 px das Untermenü über der Karte, die
   Telefonnummer ohne Umbruch (`.tel`), `tests/test_v678_stammdaten_untermenue_oben.py`; seit 1.9.289 dort in Zeilen statt seitlich rollend -- unter 850 px eine
   Zeile, die im Rahmen rollt --, „40 h/Woche“ ohne Umbruch (`.nw`), `tests/test_v689_leiste_zeitraum_und_stammdaten.py`) -- `docs/archiv/stammdaten-und-sidebar.md`
-- **Adressimport & Objekte** (Altsystem-Import, Hauptadressen-Kennzeichnung; seit 1.10.21 Rohdaten erledigter Zeilen leeren -- Vorschau und Bestätigung nur Admin, `app/address_import.py::rohdaten_leeren()`, Wiedererkennung bleibt; seit 1.9.351 jede Zeile gegen die kürzeste Zielspalte geprüft, eine zu lange
+- **Adressimport & Objekte** (Altsystem-Import, Hauptadressen-Kennzeichnung; seit 1.11.30 wechselt ein Objekt den Kunden nur ohne Vorgang daran und nicht
+  als Hauptadresse, mit Begründung in der Historie -- `app/objekt_kundenwechsel.py`, jeder Fremdschlüssel auf Objekte dort eingeordnet; seit 1.10.21 Rohdaten erledigter Zeilen leeren -- Vorschau und Bestätigung nur Admin, `app/address_import.py::rohdaten_leeren()`, Wiedererkennung bleibt; seit 1.9.351 jede Zeile gegen die kürzeste Zielspalte geprüft, eine zu lange
   Zeile abgelehnt statt gekürzt, Liste mit Zeile, Feld und Grenze -- `zellen_grenzen()`, `zu_lang()`) --
   `docs/archiv/adressimport-und-objekte.md`
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,

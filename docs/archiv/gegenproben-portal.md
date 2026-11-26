@@ -606,3 +606,20 @@ verglichen). Jede Probe: der Test der Aussage in `tests/test_v819_einsatzbericht
 | Nr. 7 – eine Unterschrift bei zweien (PostgreSQL) | FOR UPDATE beim Laden entfernt | rot (die zweite endet nicht mit „bereits unterschrieben“) |
 
 Nr. 8 (Ansicht der Monteurin bleibt neu erzeugt) ohne Gegenprobe: dort ist nichts geändert.
+
+## 1.11.30: ein Objekt wechselt den Kunden nur geprüft
+
+Probendatei `gegenprobe_11130.py` (Scratchpad); je Probe eine Stelle unter `app/` mit Marker `GEGENPROBE` (bzw. eine Zeile weg), jede Datei danach
+byte-gleich zurück (SHA-256 verglichen). Jede Probe: der Test der Aussage rot an genau ihrer Prüfung.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – ein Projekt sperrt | Projekt aus `SPERREN` entfernt | rot (200 statt 409) |
+| Nr. 1 – der Router prüft | Router setzt den Kunden an `kunde_wechseln()` vorbei | rot (200 statt 409) |
+| Nr. 2 – Hauptadresse | Prüfung der Hauptadresse entfernt | rot (200 statt 409) |
+| Nr. 3 – nur mit Begründung | Prüfung der Begründung entfernt | rot (dreimal 200 statt 422) |
+| Nr. 4 – Eintrag in der Historie | `record_audit_entry()` übergangen | rot (kein Eintrag) |
+| Nr. 5 – derselbe Kunde ist kein Wechsel | Rückkehr bei gleichem Kunden entfernt | rot (409 statt 200) |
+| Nr. 6 – jeder Fremdschlüssel eingeordnet | Dachflächen aus `WANDERT_MIT` entfernt | rot (Liste ungleich) |
+
+Nr. 7 (keine Oberfläche) ohne Gegenprobe: nichts gebaut.

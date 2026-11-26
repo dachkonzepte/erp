@@ -3422,3 +3422,35 @@ mit Fassung käme das PDF aus der Ablage); ebenso `test_v473_zeitpunkte_berlin.p
 Unterschriftszeit nach dem Unterschreiben auf 15:33 UTC gesetzt, PDF und Seite zeigen 17:33; neues Soll: dasselbe, ohne feste Fassung unterschrieben
 (die feste Fassung zeigte die echte Zeit der Unterschrift; im ersten vollen Lauf rot). Migration auf einer Wegwerf-SQLite hin, zurück, hin. Klicktests vor dem Commit: alle, die einen Einsatzbericht
 unterschreiben oder sein PDF abrufen. Gegenproben: `gegenproben-portal.md`, „1.11.29“.
+
+### Umsetzung 1.11.30: ein Objekt wechselt den Kunden nur geprüft (Nebenbefund N1)
+
+- `app/objekt_kundenwechsel.py::kunde_wechseln()`, aufgerufen von `PUT /api/properties/{id}`, sobald `customer_id` einen anderen Kunden nennt (derselbe
+  Kunde ist kein Wechsel -- das Formular schickt ihn immer mit): Sperre der Objektzeile, dann `sperrgrund()` -- je Bereich aus `SPERREN` die Zahl (Projekt,
+  auch eines anderen Kunden, Anfrage, Wartungsvertrag, Dokument, Checkliste, Abnahme, Mangel) und die Hauptadresse; gibt es einen Grund, 409 mit Bereichen und
+  Rat („Lege beim neuen Kunden ein neues Objekt an.“), nichts geändert. Sonst Pflicht `kundenwechsel_grund` (höchstens 500 Zeichen; fehlt sie oder ist sie
+  leer, 422) und ein Eintrag in der Änderungshistorie (Aktion „Kunde gewechselt“, alter und neuer Kunde, Begründung). Was zum Gebäude gehört, wechselt mit
+  (`WANDERT_MIT`: Dachflächen; die Herkunft aus dem Adressimport). Jeder Fremdschlüssel auf properties steht in genau einer der beiden Listen.
+- Keine Oberfläche: in der Oberfläche des ERP gibt es keinen Weg, den Kunden eines Objekts zu ändern -- das Stammdaten-Formular leitet beim Bearbeiten
+  eines Objekts auf die Objektseite um (`master_data_form.html::init()`), Objektseite und Kundenakte schicken keinen Kunden mit. N1 betraf nur die
+  Schnittstelle (ein Skript oder ein direkter Aufruf); ein Feld für die Begründung wäre nie zu sehen gewesen (beim Bauen gemerkt, wieder entfernt).
+- Die Sperre der Objektzeile (FOR UPDATE) hält einen Vorgang ab, der zwischen Zählen und Umsetzen dazukäme -- keine eigene Festlegung, keine eigene
+  Gegenprobe (nur unter PostgreSQL wirksam).
+
+#### Festlegungen 1.11.30 (Bitte bestätigen)
+
+1. Hängt am Objekt ein Vorgang (Projekt -- auch eines anderen Kunden --, Anfrage, Wartungsvertrag, Dokument, Checkliste, Abnahme, Mangel), wechselt es den
+   Kunden nicht: 409 mit Bereichen, Zahl und dem Rat, beim neuen Kunden ein neues Objekt anzulegen; nichts geändert.
+2. Die Hauptadresse eines Kunden wechselt den Kunden nie.
+3. Sonst nur mit Begründung (Pflicht, höchstens 500 Zeichen); ohne sie 422 und nichts geändert -- auch keine anderen Felder.
+4. Der Wechsel steht mit altem und neuem Kunden und der Begründung in der Änderungshistorie; Dachflächen wechseln mit dem Objekt.
+5. Derselbe Kunde ist kein Wechsel und braucht keine Begründung.
+6. Jeder Fremdschlüssel auf Objekte steht in genau einer Liste: sperrt den Wechsel oder wechselt mit.
+7. Keine Oberfläche für den Kundenwechsel (es gibt keinen Weg dorthin); wird einer gebraucht, als eigene Runde mit Feld für die Begründung.
+
+#### Tests und Prüfung 1.11.30
+
+`tests/test_v820_objekt_kundenwechsel.py` (15 Tests). Angepasste Erwartung (Regel 28):
+`test_v067_admin_and_masterdata_edit.py::test_property_and_employee_can_be_edited_and_are_audited` -- altes Soll: das Objekt wechselt ohne Begründung den
+Kunden; neues Soll: dasselbe mit `kundenwechsel_grund` (im ersten vollen Lauf rot mit „Bitte eine Begründung …“). Keine Seite geändert, keine Bilder. Klicktests vor dem Commit:
+alle, die das Formular der Stammdaten oder die Objektseite öffnen. Gegenproben: `gegenproben-portal.md`, „1.11.30“.

@@ -54,7 +54,8 @@ def test_property_and_employee_can_be_edited_and_are_audited():
         db.add_all([c1,c2]); db.commit()
         prop = Property(customer_id=c1.id, name="Altobjekt", city="Aachen")
         db.add(prop); db.commit()
-        updated_prop = update_property(prop.id, PropertyUpdate(customer_id=c2.id, name="Neuobjekt", street="Neue Str. 1", postal_code="52531", city="Übach-Palenberg", notes="bearbeitet"), db)
+        updated_prop = update_property(prop.id, PropertyUpdate(customer_id=c2.id, name="Neuobjekt", street="Neue Str. 1", postal_code="52531", city="Übach-Palenberg", notes="bearbeitet",
+                                                                kundenwechsel_grund="Objekt gehört jetzt Kunde B"), db)  # seit 1.11.30 Pflicht
         assert updated_prop.customer_id == c2.id and updated_prop.name == "Neuobjekt"
 
         fn = load_employee_functions(db)[0]

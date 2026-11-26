@@ -249,3 +249,9 @@ Antwort des Betriebs vom 21.11.2026 (F3, Punkt 7 aus W1c): es kommt noch ein Imp
 erledigten Zeilen nur die personenbezogenen Spalten geleert (Vorschau und Bestätigung nur Admin, Karte „Rohdaten erledigter Zeilen“ auf der Seite „Adressimport“).
 Adressnummer, Art, Status, Erledigung und Verweise bleiben; offene Zeilen der Arbeitsliste und eine laufende Vorschau bleiben ganz. Herleitung, Festlegungen und
 Tests: `docs/archiv/webseite-und-kundenportal.md`, „Umsetzung 1.10.21“.
+
+## Ein Objekt wechselt den Kunden nur geprüft (seit 1.11.30)
+
+Bis 1.11.29 setzte `PUT /api/properties/{id}` den Kunden eines Objekts ohne Prüfung um. Seit 1.11.30 (`app/objekt_kundenwechsel.py`, Nebenbefund N1 aus dem
+Bauplan P2): mit einem Vorgang am Objekt oder als Hauptadresse 409, sonst nur mit Begründung (Änderungshistorie); Dachflächen wechseln mit. Herleitung und
+Festlegungen: `docs/archiv/webseite-und-kundenportal.md`, „Umsetzung 1.11.30“.

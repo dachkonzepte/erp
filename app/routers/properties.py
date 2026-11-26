@@ -17,6 +17,7 @@ from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import PropertyCreate, PropertyOut, PropertyUpdate
 from ..telefonbuch import nach_namen
 from ..ids import Id
+from ..objekt_kundenwechsel import GrundFehlt, KundenwechselGesperrt, kunde_wechseln
 
 # Seit 1.10.23 (Antwort F10): eine schreibende Anfrage an einen Vorgang im Archiv endet vor dem Endpunkt mit 409 -- vor jeder Datei und Mail
 # (app/archivschutz.py; die Zuordnung Pfadparameter -> Tabelle prüft tests/test_v793_archivschutz.py)
@@ -62,10 +63,20 @@ def update_property(property_id: Id, payload: PropertyUpdate, db: Session = Depe
     # Ort nicht mit -- bis dahin wurden sie dabei geleert.
     values = payload.model_dump(exclude_unset=True)
     customer_id = values.pop("customer_id", None)
+    grund = values.pop("kundenwechsel_grund", None)
     if customer_id is not None:
-        if db.get(Customer, customer_id) is None:
+        kunde = db.get(Customer, customer_id)
+        if kunde is None:
             raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
-        property_obj.customer_id = customer_id
+        # Seit 1.11.30 (Nebenbefund N1, Bauplan P2): nicht mehr ohne Prüfung -- mit Vorgängen am Objekt 409, sonst nur mit Begründung (422)
+        try:
+            kunde_wechseln(db, property_obj, kunde, grund)
+        except KundenwechselGesperrt as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except GrundFehlt as exc:
+            db.rollback()
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     for key, value in values.items():
         setattr(property_obj, key, value)
     db.commit()

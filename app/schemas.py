@@ -387,6 +387,9 @@ class PropertyUpdate(PartialUpdate):
     access_notes: str | None = None
     site_contact_name: str | None = Field(default=None, max_length=160)
     site_contact_phone: str | None = Field(default=None, max_length=60)
+    # Seit 1.11.30 (Nebenbefund N1): Pflicht, wenn customer_id einen anderen Kunden nennt; keine Spalte -- sie steht in der Änderungshistorie
+    # (app/objekt_kundenwechsel.py)
+    kundenwechsel_grund: str | None = Field(default=None, max_length=500)
 
 
 PROJEKTSTATUS_ABGELEITET = ("Der Projektstatus ergibt sich aus Angebot und Auftrag (Anfrage, Angebot, Phase des Auftrags) und wird nicht von Hand "
