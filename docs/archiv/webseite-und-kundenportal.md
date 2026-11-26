@@ -2563,7 +2563,7 @@ Ausgaben (ohne Geheimnisse):
   `certbot renew --dry-run` ok; certbot.timer da.
 - **S8 (E4):** Portal „2 Anschlüsse, 4 Aufrufe“; ERP `2|0` -- beide sehen die Adresse des Geräts, nicht die von nginx.
 - **S9:** wie beschrieben; keine Mail unter „Gesendete Elemente“. Die Rohdaten zeigen innerhalb des Kontos `application/ms-tnef` (Exchange stellt intern im
-  eigenen Format zu) -- ob ein Textteil dazukommt, zeigt erst eine Mail an eine Adresse außerhalb: **offen**.
+  eigenen Format zu) -- ob ein Textteil dazukommt, zeigt erst eine Mail an eine Adresse außerhalb: **offen** (beantwortet am 26.11.2026, „Nachtrag P1f“).
 - **S10:** `update.sh` per Python-Ersetzung an fünf Stellen geändert (Sicherung `update.sh.vor-p1`); Probelauf und Einspielen von 1.11.22: Rechte gesetzt und
   stimmen, „FERTIG … ERP und Kundenportal laufen“. **Abweichung vom Vorschlag, zu Recht:** `systemctl is-active` mit mehreren Namen gibt 0 zurück, sobald einer
   läuft -- mein Schritt 3 hätte ein stehendes Portal übersehen. Der Betrieb prüft jeden Dienst einzeln (S10 unten nachgezogen). Der Unterschied:
@@ -2611,7 +2611,7 @@ Betreibervorgabe 25.11.2026 (nach P1f, Nr. 1): die Begrüßung überall ohne Kom
 - Wächter `tests/test_v817_begruessung_ohne_komma.py`: kein Text unter `app/` setzt ein Komma zwischen „Guten Tag“ und einen Namen oder Platzhalter, auch nicht
   über die Konstante (`{GRUSS},`); dazu Portal, Mail und Brief bei „Divers“.
 
-#### Festlegungen 1.11.23 (Bitte bestätigen)
+#### Festlegungen 1.11.23 (bestätigt am 26.11.2026)
 
 1. Nach „Guten Tag“ steht kein Komma: im Portal „Guten Tag Herr Dr. Muster“, in den Mails „Guten Tag Herr Dr. Muster,“ (das Komma nur am Ende der Zeile); ohne
    Namen „Guten Tag“ bzw. „Guten Tag,“.
@@ -2638,7 +2638,7 @@ einem Link weder `padding` noch `inline-block` -- die Zelle war dort so groß wi
 - Wortlaut, Farben und Maße unverändert; kein neues Attribut (die Liste der erlaubten Attribute in `test_v807` bleibt).
 - Hier nicht prüfbar: wie Outlook am Rechner den Knopf zeigt -- das zeigt erst ein Link an das eigene Postfach nach dem Einspielen (wie S9, Schritt 3–4).
 
-#### Festlegungen 1.11.24 (Bitte bestätigen)
+#### Festlegungen 1.11.24 (nicht bestätigt -- geändert am 26.11.2026, siehe 1.11.28)
 
 1. Der Knopf einer Mail des Portals ist eine Tabellenzelle mit Polster und Hintergrund; der Link darin trägt nur Schrift und Farbe (kein Polster, kein
    Hintergrund, kein `display`).
@@ -2662,7 +2662,7 @@ Antwort auf F1 (aus 1.11.21): ja, nach P1f, zusammen mit den Wacklern `test_v352
 - `test_v352` und die übrigen acht Tests mit `_waits_for()`: Archiv „Testablauf“, „Umsetzung 1.11.25“.
 - Die beiden Klicktests: Befund „Stille Verbindungen (1.11.25)“ im Archiv „Testablauf“, keine Änderung am Werkzeug.
 
-#### Festlegungen 1.11.25 (Bitte bestätigen)
+#### Festlegungen 1.11.25 (bestätigt am 26.11.2026)
 
 1. `pruefe_portal_e4.py` und der Postbote laufen in einem Test als Kindprozess wie auf dem Server (S6, S8), gegen PostgreSQL in einem Schema aus
    `alembic upgrade head`.
@@ -2693,7 +2693,7 @@ Server-Schritt, Python-Ersetzung wie in S10, nur bei eindeutiger Stelle.
   nichts geändert); steht er schon drin, ändert es nichts. Dieselbe Datei, nur der Inhalt (Rechte bleiben).
 - Server-Schritt S11 unten.
 
-#### Festlegungen 1.11.26 (Bitte bestätigen)
+#### Festlegungen 1.11.26 (bestätigt am 26.11.2026)
 
 1. `update.sh` meldet vor FERTIG jede Einheit aus `scripts/server/`, die von der installierten abweicht, fehlt oder nicht lesbar ist, mit dem Befehl zum
    Ansehen und zum Übernehmen; es installiert, startet und schreibt nichts (`scripts/pruefe_einheiten.py`).
@@ -2716,7 +2716,8 @@ Betreibervorgabe 25.11.2026 (nach P1f, Nr. 5), Grundsatz wie 1.11.4: die Suite l
 
 - Installiert: Python 3.14.10 für Windows, der neueste Fehlerstand mit Installer auf python.org (Signatur der Python Software Foundation geprüft), nur für
   den Benutzer, ohne Eintrag in PATH, ohne Dateizuordnung, ohne eigenen Starter. Der vorhandene Starter `py` nimmt ohne Versionsangabe jetzt 3.14 (die
-  neueste installierte); `python` aus PATH bleibt, wie es war. Den Fehlerstand des Servers kenne ich nicht (Frage im Bericht).
+  neueste installierte); `python` aus PATH bleibt, wie es war. Den Fehlerstand des Servers kannte ich nicht (F3; Antwort 26.11.2026: 3.14.4 -- lokal
+  bleibt 3.14.10).
 - `.venv` neu mit `py -3.14 -m venv`, die Pakete mit `pip install -r requirements.txt -c <Stand der alten .venv>`: alle 51 in genau denselben Versionen
   wie unter 3.13 (`pip freeze` beider gleich) -- 1.11.27 ändert nur Python. Jedes Paket hatte ein fertiges Rad für 3.14 unter Windows.
 - Die alte `.venv` (3.13) liegt bis zur Bestätigung unter `C:\DACHKONZEPTE-ERP\venv313-vor-1.11.27` (Rückweg: neue `.venv` löschen, die alte
@@ -2725,17 +2726,32 @@ Betreibervorgabe 25.11.2026 (nach P1f, Nr. 5), Grundsatz wie 1.11.4: die Suite l
 - `setup_windows.bat` legt `.venv` nur mit 3.14 an: zuerst `py -3.14`, sonst `python`, wenn es 3.14 ist; sonst der Hinweis „Python 3.14 wurde nicht
   gefunden“. `requirements.txt` nennt die Version im Kopf.
 
-#### Festlegungen 1.11.27 (Bitte bestätigen)
+#### Festlegungen 1.11.27 (bestätigt am 26.11.2026)
 
 1. Lokal läuft Python 3.14 wie auf dem Server; `test_v803` verlangt Haupt- und Nebenversion des Servers.
 2. Die Pakete der neuen `.venv` haben genau die Versionen der bisherigen -- die Version ändert nur Python.
 3. `setup_windows.bat` legt `.venv` nur mit Python 3.14 an.
-4. Die alte `.venv` bleibt bis zur Bestätigung außerhalb des Projekts liegen, danach wird sie gelöscht.
+4. Die alte `.venv` bleibt bis zur Bestätigung außerhalb des Projekts liegen, danach wird sie gelöscht (gelöscht am 26.11.2026).
 
 #### Tests und Prüfung 1.11.27
 
 Neu `test_v803::test_python_wie_auf_dem_server`. Volle Suite und alle Klicktests unter 3.14 (Endlauf im Bericht). Keine angepasste Erwartung. Gegenprobe:
 `gegenproben-portal.md`, „1.11.27“.
+
+### Nachtrag P1f (Antwort des Betriebs, 26.11.2026)
+
+- **S9.6 beantwortet:** an eine Adresse bei Gmail kommt die Mail mit dem Link als `multipart/alternative` mit `text/plain` an -- Exchange ergänzt den
+  Textteil selbst; `dkim=pass`, `spf=pass`, `dmarc=pass`, im Posteingang. Ein eigener Textteil ist nicht nötig.
+- **DKIM und DMARC:** für dachkonzepte.gmbh fehlten beide bis zum 26.11.2026 -- die erste Mail des Portals an eine Adresse außerhalb landete deshalb im
+  Spam. Seit 26.11.2026 DKIM in Microsoft 365 (selector1, selector2) und DMARC `p=none`. Den Absendernamen von web@ setzt der Betrieb in Microsoft 365 auf
+  den Namen der Firma -- das ERP setzt keinen eigenen Absender (Regel 17), der Name kommt aus dem Postfach.
+- **F3:** auf dem Server läuft Python 3.14.4; lokal bleibt 3.14.10 (`test_v803` prüft Haupt- und Nebenversion).
+- **Bestätigt:** 1.11.23-1 und -2, 1.11.25-1 bis -3, 1.11.26-1 bis -3, 1.11.27-1 bis -4 (die alte `.venv` ist am 26.11.2026 gelöscht). Zu Regel 15
+  (1.11.26 trotz eines roten Tests committet, selbst gemeldet): die Regel bleibt, wie sie ist.
+- **Geändert statt bestätigt: 1.11.24-1.** Nur der Text klickbar ist auf dem Handy, wo die meisten Kunden die Mail öffnen, ein Rückschritt. Stattdessen
+  das übliche Muster: Hintergrund und Ecken an der Zelle, an der Zelle zusätzlich `mso-padding-alt:14px 24px` (liest nur Outlook am Rechner); der Link
+  wieder mit `display:inline-block` und `padding:14px 24px`, damit in Browsern und Apps die ganze Fläche klickbar ist -- als 1.11.28.
+- Eingespielt werden 1.11.23 bis 1.11.28 zusammen, danach S11 (wörtlich als Datei `bildgrundlage/server_schritt_s11.md`).
 
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 

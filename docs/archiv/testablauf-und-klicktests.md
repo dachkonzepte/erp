@@ -1498,6 +1498,11 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   Arbeitskopie war schon entfernt). **Ich habe 1.11.26 trotz dieses roten Tests committet** (der Befehl zeigte das Ergebnis nur an) -- gegen Regel 15;
   seitdem hängt der Commit am geprüften Ergebnis. Stand: Last der Spielwiese, kein Fund im Code; nach vielen vollen Läufen eines Tages die Kataloge
   aufräumen.
+- **`klicktest_rechnungen_sperren`** -- 25.11.2026, Endlauf von 1.11.27 auf 8c3c0b8 (frische Arbeitskopie, zu viert, Python 3.14.10): alle 23 Prüfungen
+  wie erwartet, aber „Anfrage nicht angekommen: GET /api/projects/1/akte?auftrag=1“; `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 23 von 23.
+  Im Verbindungsprotokoll wieder eine stille Verbindung (angenommen, keine Anfrage, 29,6 s) -- die dritte nach 1.11.21 und 1.11.22, die erste unter Python
+  3.14; drei der letzten vier Endläufe hatten genau eine (b96a7b8, 5e5b6d7, 8c3c0b8; 0ddaa83 keine). 1.11.27 änderte nur die Python-Version. Stand:
+  abgefangen durch die Wiederholung, Ursache offen (Abschnitt „Stille Verbindungen (1.11.25)“).
 
 ## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
 
