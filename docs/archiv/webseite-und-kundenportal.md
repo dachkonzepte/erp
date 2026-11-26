@@ -77,7 +77,8 @@ Empfangsdienstes (webseite-2026-11-18a, anfrage-2026-11-18a); sie liegen nicht i
 - **P1 Fundament des Portals:** eigener Dienst unter kunde.dachkonzepte.gmbh mit eigenem PostgreSQL- und Systembenutzer, Schranke, Zugänge je Kunde (ab
   Werk aus), Link, Code per Mail, Sitzung, Bremsen und Zugriffsprotokoll in der Datenbank, Mailweg ohne „Gesendete Elemente“, Beleg zu E4.
 - **P2 Lesen**, **P3 Angebot annehmen** (nach Bestätigung von F6), **P4 Ausführung**, **P5 Hausverwaltungen**.
-- W1 abgeschlossen am 23.11.2026; P1 ab 1.11.0 (Abschnitt „P1: Fundament des Kundenportals“ unten).
+- W1 abgeschlossen am 23.11.2026; P1 ab 1.11.0, abgeschlossen am 26.11.2026 mit 1.11.28 und S11 (Abschnitt „P1: Fundament des Kundenportals“ unten,
+  zuletzt „P1 abgeschlossen“).
 
 ## W1a: Abholen und Eingang (ab 1.10.0)
 
@@ -2767,7 +2768,7 @@ Betreiberentscheidung 26.11.2026 statt 1.11.24-1: nur der Text klickbar ist auf 
 - Hier nicht prüfbar: Outlook am Rechner und das Handy -- nach dem Einspielen ein Link an das eigene Postfach (`bildgrundlage/server_schritt_s11.md`,
   „Danach“).
 
-#### Festlegungen 1.11.28 (Bitte bestätigen)
+#### Festlegungen 1.11.28 (bestätigt am 26.11.2026)
 
 1. Der Knopf einer Mail des Portals: an der Zelle Hintergrund, Ecken und `mso-padding-alt:14px 24px`, kein `padding`; am Link `display:inline-block` und
    dasselbe Polster, kein Hintergrund -- ersetzt 1.11.24-1.
@@ -2780,9 +2781,22 @@ altes Soll: Zelle mit `padding:14px 24px` und Hintergrund, Link ohne Polster, Hi
 Unterstreichung wie bisher. Die Stile liest der Test jetzt als Wörterbuch (`_stile()`), nicht als Text. Klicktests vor dem Commit:
 `klicktest_kundenportal_karte` (versendet den Link über die Attrappe von Graph), `klicktest_portal_seiten`. Gegenproben: `gegenproben-portal.md`, „1.11.28“.
 
+### P1 abgeschlossen (Antwort des Betriebs, 26.11.2026)
+
+- **Eingespielt:** 1.11.23 bis 1.11.28 zusammen mit `update.sh` (FERTIG 5e5b6d7 -> 038fad3). Bestätigt: 1.11.28-1.
+- **S11 erledigt:** `pruefe_einheiten.py` von Hand „Einheiten wie im Repo“, Rückgabe 0; der Aufruf steht in `update.sh` (Zeilen 142–144), `bash -n` ok. Ein
+  zweiter Aufruf des Einfügeskripts meldete „steht schon in update.sh -- nichts geändert“ -- es lässt sich also gefahrlos wiederholen. Ab dem nächsten
+  Einspielen steht vor FERTIG „=== Einheiten ===“.
+- **Mail geprüft (1.11.23 und 1.11.28):** Outlook am Rechner zeigt den Knopf als grüne Fläche mit Polster; auf dem Handy öffnet ein Tipp auf den Rand der
+  Fläche das Portal (die ganze Fläche ist der Link). Begrüßung in der Mail „Guten Tag Herr Rauchtest,“ und im Portal „Guten Tag Herr Rauchtest“ -- ohne Komma
+  nach „Guten Tag“. Danach der Zugang gesperrt und das Modul wieder aus.
+- **P1 ist damit abgeschlossen** (1.11.0–1.11.28, Server-Schritte S0–S11). Keine Festlegung der Stufe ist offen. Bericht 1.11.28 und
+  `server_schritt_s11.md` liegen seit 26.11.2026 in `C:\DACHKONZEPTE-ERP\Archiv\berichte\` (nicht in Git). Nächste Stufe laut „Stufen“ oben: P2 Lesen --
+  nicht begonnen.
+
 ### Server-Schritte P1 (Inbetriebnahme des Kundenportals, Stand fc8b758)
 
-Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
+Abgearbeitet am 25.11.2026 (Ausgaben im Abschnitt „P1f auf dem Server abgearbeitet“ oben), S11 am 26.11.2026 (Abschnitt „P1 abgeschlossen“ oben). Zum Abarbeiten in dieser Reihenfolge. Gilt für fc8b758 und jeden späteren Stand bis 1.11.22: seit fc8b758 hat sich nichts an den Migrationen oder an den
 Rechten geändert; der Block für nginx lauscht seit 1.11.20 nur über IPv4, `scripts/portal_rechte.py --setzen` läuft erst seit 1.11.21 (bis dahin Abbruch, nichts
 gesetzt) -- beide kommen vor S5 auf den Server (Umsetzung 1.11.20 und 1.11.21); die Einheit des Portals startet seit 1.11.22 ohne Steuer-Socket -- sie kommt
 mit S10 und wird dann einmal neu installiert (S6b, Umsetzung 1.11.22).
@@ -3292,7 +3306,7 @@ Mit dem ersten Einspielen danach (1.11.22 oder später) einmal S6b, Teil 2: `upd
 zeigt das Portal für ein paar Sekunden „Gleich wieder da“.
 **Rückweg:** `cp -a /home/tobias/update.sh.vor-p1 /home/tobias/update.sh`.
 
-#### S11 update.sh vergleicht die Einheiten (seit 1.11.26)
+#### S11 update.sh vergleicht die Einheiten (seit 1.11.26; erledigt am 26.11.2026)
 
 Erst, wenn 1.11.26 eingespielt ist (`update.sh`). `update.sh` holt die Einheiten aus `scripts/server/`, installiert sie aber nicht; ab jetzt meldet es vor
 der Zeile FERTIG jede, die von der installierten abweicht, mit dem Befehl zum Ansehen und Übernehmen -- installiert wird weiter von Hand (Antwort F2,
