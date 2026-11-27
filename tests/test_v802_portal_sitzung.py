@@ -156,9 +156,11 @@ def test_jedes_ergebniswort_jeder_funktion_ist_behandelt():
     assert set(re.findall(r"'(\w+)'", rumpf)) == {"ungueltig", "keiner"} and "p.status" in rumpf
     assert routen.BEHANDELT["portal_post_stand"] == {"ungueltig", "keiner", *werte.POST_STATUS}
     # jede Funktion des Portals hat ihren Weg; portal_sitzung (nur prüfen) braucht heute keiner, portal_willkommen liefert eine Zeile; seit 1.11.34 die
-    # Funktionen der Unterlagen dazu -- portal_unterlagen (die Liste) bekommt ihren Weg mit den Seiten (P2e)
-    from app.portal import unterlagen
-    assert set(routen.BEHANDELT) | {"portal_sitzung", "portal_willkommen", "portal_unterlagen"} == set(funktionen.FUER_DAS_PORTAL) | set(unterlagen.FUER_DAS_PORTAL)
+    # Funktionen der Unterlagen dazu -- portal_unterlagen (die Liste) bekommt ihren Weg mit den Seiten (P2e); seit 1.11.44 portal_vorschau (in test_v834
+    # geprüft), die Listen des Schaufensters bekommen ihren Weg mit den Seiten (P2e, Teil 3)
+    from app.portal import schaufenster, unterlagen
+    ohne_weg = {"portal_sitzung", "portal_willkommen", "portal_unterlagen", "portal_rechnungen", "portal_termine", "portal_uebersicht"}
+    assert set(routen.BEHANDELT) | ohne_weg == set(funktionen.FUER_DAS_PORTAL) | set(unterlagen.FUER_DAS_PORTAL) | set(schaufenster.FUER_DAS_PORTAL)
 
 
 def test_kein_weg_nimmt_eine_id():
@@ -172,7 +174,8 @@ def test_kein_weg_nimmt_eine_id():
         assert not (d.query_params or d.header_params or d.cookie_params), route.path
         pfad[route.path] = {f.name for f in d.path_params}
         koerper[route.path] = {f.name for f in d.body_params}
-    assert {p: k for p, k in pfad.items() if k} == {"/datei/{freigabe}": {"freigabe"}, "/datei/{freigabe}/herunterladen": {"freigabe"}}
+    assert {p: k for p, k in pfad.items() if k} == {"/datei/{freigabe}": {"freigabe"}, "/datei/{freigabe}/herunterladen": {"freigabe"},
+                                                     "/datei/{freigabe}/vorschau": {"freigabe"}}  # seit 1.11.44
     assert {p: k for p, k in koerper.items() if k} == {"/api/code/pruefen": {"eingabe"}, "/api/abmelden": {"eingabe"}, "/api/datei/anfordern": {"eingabe"}}
     assert set(routen.CodeIn.model_fields) == {"code"} and set(routen.AbmeldenIn.model_fields) == {"ueberall"}
     assert set(routen.AnfordernIn.model_fields) == {"freigabe"}

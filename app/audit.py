@@ -129,7 +129,7 @@ STILL_JE_ART = {
     # Seit 1.11.10: der Prüfwert des Links nie in der Historie (Regel 18 sinngemäß), die verdeckte Anzeige läuft mit der E-Mail mit
     PortalZugang: {"link_sha256", "email_anzeige", "zuletzt_genutzt_am"},
     # Seit 1.11.36: die Kopie einer Freigabe (Name, Typ, Größe, Prüfsumme, bereit, Fehler) -- Sache des Postboten, nicht des Büros
-    PortalFreigabe: {"kopie_name", "kopie_typ", "kopie_groesse", "kopie_sha256", "kopie_bereit_am", "kopie_fehler"},
+    PortalFreigabe: {"kopie_name", "kopie_typ", "kopie_groesse", "kopie_sha256", "kopie_bereit_am", "kopie_fehler", "kopie_vorschau"},  # Vorschau seit 1.11.44
 }
 # Seit 1.9.115: Inhalte eines privaten Termins nie in der Historie (sie liest jedes Büro) -- nur, dass sich etwas geändert hat.
 PRIVATE_TERMINFELDER = {"title", "location", "notes"}
@@ -297,7 +297,7 @@ FIELD_LABELS = {
     "zurueckgenommen_am": "Zurückgenommen am", "zurueckgenommen_von_user_id": "Zurückgenommen von (Konto)",
     "zurueckgenommen_von_name": "Zurückgenommen von", "zurueckgenommen_grund": "Grund der Rücknahme", "kopie_name": "Kopie (Name)",
     "kopie_typ": "Kopie (Typ)", "kopie_groesse": "Kopie (Größe)", "kopie_sha256": "Kopie (Prüfsumme)", "kopie_bereit_am": "Kopie bereit am",
-    "kopie_fehler": "Kopie gescheitert",
+    "kopie_fehler": "Kopie gescheitert", "kopie_vorschau": "Vorschau der Kopie",
     "job_title": "Berufsbezeichnung",
     "labor_rate_override": "Verrechnungssatz (abweichend)",
     "last_year": "Letztes Jahr",

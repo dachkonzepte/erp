@@ -4294,6 +4294,58 @@ sudo -u postgres psql -d dachkonzepte -tAX -c "select p.proname, pg_get_function
 Erwartet: vier Zeilen, jede `…|t|t`. Abbrechen, wenn eine `f` zeigt: `cd /home/tobias/erp && ( set -a; . ./.env; set +a; .venv/bin/python scripts/portal_rechte.py
 --setzen && .venv/bin/python scripts/portal_rechte.py --pruefen )` (wie in `update.sh`) und die Ausgabe in den Chat. Rückweg: keiner nötig -- die Seiten nutzen den Betreff erst ab P2e, Teil 3.
 
+### Umsetzung 1.11.44 (P2e, Teil 2): Vorschau der Fotos
+
+Bauplan P2, B5 („dazu eine Vorschau 400 px für Listen“, in P2b nicht gebaut -- „kommt mit den Seiten“), Entwurf Seiten 4 und 5 (Bildreihe, je 12 Fotos).
+
+- **Postbote** (`app/portal_kopien.py`): zu jeder Kopie eines Fotos die Vorschau aus der fertigen Kopie -- derselbe Kindprozess (`kind_befehl()` mit Kante und
+  Qualität), längste Kante 400 px, Qualität 75, Name wie eine Kopie, in `portal_freigaben.kopie_vorschau` (eindeutig; Migration `b3e7a1d9c5f2`). Ein PDF hat keine.
+  Scheitert die Vorschau, gilt die Kopie trotzdem (Warnung mit dem Wort, ohne Inhalt); der volle Lauf holt fehlende Vorschauen aus der Kopie nach
+  (`_vorschauen_nachholen()`, auch für Kopien von vor 1.11.44) -- die Kopie bleibt dabei sichtbar und unverändert, im Journal „Vorschauen nachgeholt n“.
+  Rücknahme, Ruhen und Archiv nehmen Kopie und Vorschau; fehlt eine der beiden Dateien, legt der volle Lauf beides neu an; Vorschauen sind keine Waisen.
+- **Datenbank**: `portal_vorschau(sitzung, freigabe)` (SECURITY DEFINER, STABLE, `app/portal/schaufenster.py`, Text wörtlich in der Migration) nennt die Vorschau
+  eines sichtbaren Fotos (`portal_sichtbar()` wie die Datei) -- „keine“ ohne Vorschau. `portal_rechte.py --setzen` meldet danach 55 Anweisungen (Recht des
+  Portals und Entzug für alle).
+- **Dienst**: `GET /datei/<n>/vorschau` (Liste SITZUNG) -- eine leere Antwort mit X-Accel-Redirect wie die Dateien, `image/jpeg`, `inline`, `private, no-store`;
+  ohne Anforderung und ohne Eintrag im Zugriffsprotokoll, ohne Bremse des Portals (nginx begrenzt die Anfragen je Anschluss wie bei jedem Weg). Fremd, ohne
+  Vorschau, zurückgenommen, ruhend, unbekannt außen gleich 404; ohne Sitzung 401. nginx unverändert (derselbe internal-Block).
+
+#### Festlegungen 1.11.44 (Bitte bestätigen)
+
+1. Je Foto im Portal eine Vorschau (längste Kante 400 px, Qualität 75) aus der fertigen Kopie, im selben Kindprozess; ein PDF hat keine.
+2. Scheitert die Vorschau, gilt die Kopie trotzdem; der volle Lauf holt sie nach, ohne die Kopie anzufassen -- auch für Fotos von vor 1.11.44.
+3. Rücknahme, Ruhen und Archiv nehmen Kopie und Vorschau; fehlt eine Datei, legt der volle Lauf beides neu an; Vorschauen sind keine Waisen.
+4. Die Vorschau kommt ohne Anforderung, ohne Eintrag im Zugriffsprotokoll und ohne Bremse des Portals -- sichtbar wie die Datei, sonst außen gleich 404.
+
+#### Abweichungen vom Bauplan (1.11.44)
+
+- B7 sah für jedes Ansehen eine Anforderung mit Protokoll vor; für die Vorschau nicht: eine Seite „Fotos“ schriebe sonst 12 bis 24 Einträge und stieße an die
+  Bremse von 300 Anforderungen je Stunde. Die Liste der Fotos selbst steht im Protokoll; das große Foto und das Herunterladen gehen weiter über die Anforderung.
+- B5 nannte keine Qualität der Vorschau -- 75 (die Kopie hat 82).
+
+#### Tests und Prüfung 1.11.44
+
+`tests/test_v834_portal_vorschau.py` neu (Kindprozess mit 400 px an einem echten Foto, Funktion liest nur und jedes Ergebniswort ist behandelt, Migration wörtlich;
+unter PostgreSQL Postbote mit echten Fotos -- Vorschau, PDF ohne, Rücknahme, Scheitern und Nachholen, fehlende Datei, Waisen -- und der Dienst über die Attrappe
+von nginx). Angepasst, nur Aufbau: `tests/test_v802_portal_sitzung.py` (Funktionen ohne eigenen Weg: dazu die drei Listen des Schaufensters bis P2e, Teil 3;
+portal_vorschau hat ihren Weg), `tests/test_v833_portal_rechnungen_termine.py` (Positivliste und Funktionen um portal_vorschau; die Migrationen je Funktion
+gelesen, Entzüge als Menge). Angepasste Erwartungen: `tests/test_v802_portal_sitzung.py::test_kein_weg_nimmt_eine_id` -- alt zwei Wege mit Freigabenummer, neu dazu `/datei/{freigabe}/vorschau`; `tests/test_v816_portal_rechte_skript.py` -- alt „14 Funktionen“ und (9, 14), neu „15 Funktionen“ und (9, 15); `tests/test_v823_portal_kopien.py::test_pg_kopie_je_zeile` -- alt im Ordner nur die Kopie, neu bei einem Foto Kopie und Vorschau; Klicktest `klicktest_portal_dateien.py` „Kopien angelegt“ -- alt [jpg, pdf, pdf], neu [jpg, jpg, pdf, pdf] (Kopie und Vorschau des Fotos). Dazu heißt `kopie_vorschau` in der Änderungshistorie „Vorschau der Kopie“ und bleibt still wie die übrigen Felder der Kopie. Gegenproben: 10, alle rot aus dem geprüften Grund.
+
+#### Server-Schritt P2e-2 (nach dem Einspielen von 1.11.44)
+
+`update.sh` spielt die Migration ein, setzt die Rechte und startet den Postboten neu; sein erster voller Lauf holt die Vorschauen der vorhandenen Fotos nach.
+Danach nur lesend:
+
+```bash
+journalctl -u erp-portalpost --since "-5 min" --no-pager | grep -E "Vorschau"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select count(*) filter (where kopie_typ = 'image/jpeg'), count(*) filter (where kopie_vorschau is not null) from portal_freigaben where kopie_name is not null"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select has_function_privilege('dkportal', 'portal_vorschau(text, integer)', 'EXECUTE')"
+```
+
+Erwartet: „Vorschauen nachgeholt n“ (n = Zahl der Fotos mit Kopie, oder keine Zeile, wenn es keine gibt), keine Zeile „Vorschau der Freigabe … nicht angelegt“;
+zwei gleiche Zahlen; `t`. Abbrechen bei „nicht angelegt“: die Zeile in den Chat (sie nennt nur Nummer und Wort). Rückweg: keiner nötig -- die Seiten nutzen die
+Vorschau erst ab P2e, Teil 3.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

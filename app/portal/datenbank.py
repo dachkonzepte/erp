@@ -80,6 +80,10 @@ class Datenbank:
         """Liest nur (STABLE): (Ergebnis, Name der Kopie, Typ, Größe, Titel)."""
         return tuple(self._lesend("SELECT ergebnis, name, typ, groesse, titel FROM portal_datei(:s, :f)", s=sitzung, f=freigabe))
 
+    def vorschau(self, sitzung: str, freigabe: int) -> tuple[str, str | None]:
+        """Seit 1.11.44: liest nur (STABLE): (Ergebnis, Name der Vorschau)."""
+        return tuple(self._lesend("SELECT ergebnis, name FROM portal_vorschau(:s, :f)", s=sitzung, f=freigabe))
+
     def willkommen(self, sitzung: str) -> dict | None:
         zeile = self._lesend("SELECT anrede, titel, vorname, nachname, name FROM portal_willkommen(:s)", s=sitzung)
         return dict(zeile._mapping) if zeile is not None else None

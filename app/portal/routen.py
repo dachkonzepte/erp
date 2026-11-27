@@ -55,7 +55,8 @@ LESEN_METHODEN = ["GET", "HEAD"]
 # Pfad -> Art; jede Route steht in genau einer (Wächter)
 OEFFENTLICH = {"/health", "/api/kontakt", "/api/link", "/", "/s/portal.js", "/s/portal.css"}  # die Seite seit 1.11.14
 VORSTUFE = {"/api/code", "/api/code/stand", "/api/code/pruefen"}
-SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen", "/api/datei/anfordern", "/datei/{freigabe}", "/datei/{freigabe}/herunterladen"}
+SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen", "/api/datei/anfordern", "/datei/{freigabe}", "/datei/{freigabe}/herunterladen",
+           "/datei/{freigabe}/vorschau"}  # die Vorschau seit 1.11.44
 
 # Cookies (Bauplan 3.3): nur über diese Adresse (__Host-: Secure, Path=/, ohne Domain), nie für Skripte lesbar, nie bei Anfragen von fremden Seiten
 COOKIE = "__Host-dkportal"            # bestätigte Sitzung, 30 Tage gleitend
@@ -79,6 +80,7 @@ BEHANDELT = {
     "portal_abmelden": frozenset({"abgemeldet", "ungueltig"}),
     "portal_datei_anfordern": frozenset({"ok", "bremse", "unbekannt", "ungueltig"}),  # seit 1.11.34
     "portal_datei": frozenset({"ok", "unbekannt", "ungueltig"}),
+    "portal_vorschau": frozenset({"ok", "keine", "unbekannt", "ungueltig"}),  # seit 1.11.44
 }
 
 # Seit 1.11.34: die Kopien (app/portal_kopien.py) -- nginx liefert sie aus dem internal-Block unter diesem Weg aus
@@ -434,6 +436,27 @@ def _datei(request: Request, freigabe: int, art: str):
 def datei_ansehen(request: Request, freigabe: int = Path(ge=1, le=FREIGABE_HOECHSTENS)):
     """„Ansehen“ im selben Tab (P2-16): inline."""
     return _datei(request, freigabe, "inline")
+
+
+@router.api_route("/datei/{freigabe}/vorschau", methods=LESEN_METHODEN, response_class=Response)
+def datei_vorschau(request: Request, freigabe: int = Path(ge=1, le=FREIGABE_HOECHSTENS)):
+    """Seit 1.11.44: die Vorschau eines Fotos (400 px) für die Bildreihe -- liest nur, ohne Anforderung (die Liste steht schon im Protokoll); sichtbar wie
+    die Datei. Ohne Vorschau, fremd, zurückgenommen, ruhend, unbekannt: 404 -- außen dasselbe."""
+    wert = _wert(request, COOKIE)
+    if wert is None:
+        return JSONResponse({"fehler": "sitzung"}, status_code=401)
+    ergebnis, name = _db(request).vorschau(pruefwerte.sitzung(wert), freigabe)
+    if _behandelt("portal_vorschau", ergebnis) == "ungueltig":
+        return JSONResponse({"fehler": "sitzung"}, status_code=401)
+    if ergebnis != "ok":
+        return JSONResponse({"fehler": "nicht_gefunden"}, status_code=404)
+    if not KOPIE_NAME.match(name or "") or not name.endswith(".jpg"):
+        raise UnbekanntesErgebnis("portal_vorschau")
+    return Response(b"", media_type="image/jpeg", headers={
+        "X-Accel-Redirect": INTERN + name,
+        "Content-Disposition": 'inline; filename="Vorschau.jpg"',
+        "Cache-Control": "private, no-store",
+    })
 
 
 @router.api_route("/datei/{freigabe}/herunterladen", methods=LESEN_METHODEN, response_class=Response)

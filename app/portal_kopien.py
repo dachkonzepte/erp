@@ -64,6 +64,9 @@ FOTO_SEKUNDEN = 60
 FOTO_PIXEL = 64_000_000
 FOTO_KANTE = 1600
 FOTO_QUALITAET = 82
+# Seit 1.11.44 (P2e; Bauplan P2, B5 „dazu eine Vorschau 400 px für Listen“): je Foto eine Vorschau aus der fertigen Kopie (derselbe Kindprozess, kleiner)
+VORSCHAU_KANTE = 400
+VORSCHAU_QUALITAET = 75
 KIND_WORT = {10: "nicht_lesbar", 11: "zu_gross"}  # jede andere Rückgabe (12 Speicher, 13 ohne Vorrang, Absturz, Zeit) ist „abbruch“
 
 # „Soll eine Kopie haben“ -- dieselbe Kette wie portal_sichtbar() ohne die Kopie selbst; dazu der Kunde nicht im Archiv
@@ -88,6 +91,7 @@ class Stand:
     entfernt: int = 0
     nachgeholt: int = 0     # Zeile mit fehlender Datei, Kopie neu
     waisen: int = 0
+    vorschauen: int = 0     # seit 1.11.44: Vorschau zu einer älteren Kopie nachgeholt
     fremd: int = 0          # unbekannte Dateien im Ordner (nicht angefasst)
     mehr: bool = False      # es wartet noch Arbeit -- der Postbote kommt gleich wieder
 
@@ -107,16 +111,16 @@ def _kind_umgebung() -> dict:
     return umgebung
 
 
-def kind_befehl(speicher: int = FOTO_SPEICHER, pixel: int = FOTO_PIXEL) -> list[str]:
+def kind_befehl(speicher: int = FOTO_SPEICHER, pixel: int = FOTO_PIXEL, kante: int = FOTO_KANTE, qualitaet: int = FOTO_QUALITAET) -> list[str]:
     """Der Aufruf des Kinds -- für foto_neu_kodieren() und das Prüfskript des Servers (scripts/pruefe_portal_foto.py) derselbe."""
-    return [sys.executable, "-I", str(KIND), str(speicher), str(pixel), str(FOTO_KANTE), str(FOTO_QUALITAET)]
+    return [sys.executable, "-I", str(KIND), str(speicher), str(pixel), str(kante), str(qualitaet)]
 
 
 def foto_neu_kodieren(daten: bytes, *, speicher: int = FOTO_SPEICHER, sekunden: float = FOTO_SEKUNDEN, pixel: int = FOTO_PIXEL,
-                      befehl: list[str] | None = None) -> bytes | str:
+                      befehl: list[str] | None = None, kante: int = FOTO_KANTE, qualitaet: int = FOTO_QUALITAET) -> bytes | str:
     """Das Foto als neues JPEG (bytes) oder ein Wort aus KOPIE_FEHLER. Der Kindprozess setzt seine Grenze für Speicher selbst; nach `sekunden` beendet
     ihn subprocess (kill). Ein Absturz oder die Zeitgrenze sind „abbruch“ -- der Aufrufer läuft weiter. `befehl` nur für Tests."""
-    befehl = befehl or kind_befehl(speicher, pixel)
+    befehl = befehl or kind_befehl(speicher, pixel, kante, qualitaet)
     try:
         lauf = subprocess.run(befehl, input=daten, capture_output=True, timeout=sekunden, env=_kind_umgebung(), check=False)
     except subprocess.TimeoutExpired:
@@ -128,6 +132,11 @@ def foto_neu_kodieren(daten: bytes, *, speicher: int = FOTO_SPEICHER, sekunden: 
     if typ_aus_inhalt(lauf.stdout) != "image/jpeg":
         return "abbruch"
     return lauf.stdout
+
+
+def vorschau_kodieren(jpeg: bytes) -> bytes | str:
+    """Seit 1.11.44: die Vorschau (längste Kante 400 px) aus der fertigen Kopie -- derselbe Kindprozess mit seinen Grenzen."""
+    return foto_neu_kodieren(jpeg, kante=VORSCHAU_KANTE, qualitaet=VORSCHAU_QUALITAET)
 
 
 # --- Quelle lesen --------------------------------------------------------------------------------------------------------------------------------------
@@ -289,22 +298,33 @@ def _entfernen(db: Session, ordner: Path, ids: list[int]) -> int:
     if not ids:
         return 0
     # die Namen vor dem Ändern lesen (unter Sperre): RETURNING gäbe den neuen Wert zurück, also keinen
-    zeilen = db.execute(select(PortalFreigabe.id, PortalFreigabe.kopie_name)
+    zeilen = db.execute(select(PortalFreigabe.id, PortalFreigabe.kopie_name, PortalFreigabe.kopie_vorschau)
                         .where(PortalFreigabe.id.in_(ids), PortalFreigabe.kopie_name.is_not(None)).order_by(PortalFreigabe.id).with_for_update()).all()
     if not zeilen:
         db.rollback()
         return 0
     db.execute(update(PortalFreigabe).where(PortalFreigabe.id.in_([z.id for z in zeilen]))
-               .values(kopie_name=None, kopie_typ=None, kopie_groesse=None, kopie_sha256=None, kopie_bereit_am=None)
+               .values(kopie_name=None, kopie_typ=None, kopie_groesse=None, kopie_sha256=None, kopie_bereit_am=None, kopie_vorschau=None)
                .execution_options(synchronize_session=False))
     db.commit()
-    namen = [z.kopie_name for z in zeilen]
-    for name in namen:
-        _loeschen(ordner, name)
-    return len(namen)
+    for z in zeilen:
+        _loeschen(ordner, z.kopie_name)
+        if z.kopie_vorschau:  # seit 1.11.44
+            _loeschen(ordner, z.kopie_vorschau)
+    return len(zeilen)
 
 
-def _anlegen(db: Session, ordner: Path, freigabe_id: int, stand: Stand, foto) -> None:
+def _vorschau(ordner: Path, inhalt: bytes, freigabe_id: int, vorschau) -> str | None:
+    """Seit 1.11.44: die Vorschau eines Fotos schreiben -- (Name) oder None, wenn sie scheitert (die Kopie gilt trotzdem; die Seite zeigt dann eine leere
+    Kachel). Nur die Klasse bzw. das Wort ins Protokoll."""
+    ergebnis = vorschau(inhalt)
+    if not isinstance(ergebnis, bytes):
+        logger.warning("Vorschau der Freigabe %s nicht angelegt (%s)", freigabe_id, ergebnis)
+        return None
+    return _schreiben(ordner, ergebnis, "image/jpeg")[0]
+
+
+def _anlegen(db: Session, ordner: Path, freigabe_id: int, stand: Stand, foto, vorschau=None) -> None:
     f = db.get(PortalFreigabe, freigabe_id)
     quelle, quelle_id = f.quelle, f.quelle_id
     try:
@@ -327,18 +347,50 @@ def _anlegen(db: Session, ordner: Path, freigabe_id: int, stand: Stand, foto) ->
         return
     inhalt, typ = ergebnis
     name, sha = _schreiben(ordner, inhalt, typ)
+    klein = _vorschau(ordner, inhalt, freigabe_id, vorschau or vorschau_kodieren) if typ == "image/jpeg" else None
     geaendert = db.execute(update(PortalFreigabe).where(*bedingung)
-                           .values(kopie_name=name, kopie_typ=typ, kopie_groesse=len(inhalt), kopie_sha256=sha, kopie_bereit_am=func.portal_jetzt())
+                           .values(kopie_name=name, kopie_typ=typ, kopie_groesse=len(inhalt), kopie_sha256=sha, kopie_bereit_am=func.portal_jetzt(),
+                                   kopie_vorschau=klein)
                            .execution_options(synchronize_session=False)).rowcount
     if geaendert != 1:  # inzwischen zurückgenommen oder schon erledigt
         db.rollback()
         _loeschen(ordner, name)
+        if klein:
+            _loeschen(ordner, klein)
         return
     db.commit()
     stand.angelegt += 1
 
 
-def abgleich(db: Session, ordner: Path, *, voll: bool = False, sekunden: float = 5.0, foto=foto_neu_kodieren) -> Stand:
+def _vorschauen_nachholen(db: Session, ordner: Path, stand: Stand, vorschau, ende: float) -> None:
+    """Seit 1.11.44, im vollen Lauf: zu einer Kopie eines Fotos ohne Vorschau (angelegt vor 1.11.44) die Vorschau aus der Kopie -- die Kopie bleibt dabei
+    sichtbar. Nur, wenn die Zeile danach noch dieselbe Kopie trägt; sonst ist die neue Datei sofort wieder weg."""
+    zeilen = db.execute(select(PortalFreigabe.id, PortalFreigabe.kopie_name)
+                        .where(PortalFreigabe.kopie_typ == "image/jpeg", PortalFreigabe.kopie_name.is_not(None), PortalFreigabe.kopie_vorschau.is_(None))
+                        .order_by(PortalFreigabe.id).limit(JE_DURCHGANG)).all()
+    db.rollback()
+    for freigabe_id, name in zeilen:
+        if time.monotonic() >= ende:
+            stand.mehr = True
+            return
+        pfad = ordner / name
+        if not NAME.match(name) or not pfad.is_file():
+            continue
+        klein = _vorschau(ordner, pfad.read_bytes(), freigabe_id, vorschau)
+        if klein is None:
+            continue
+        geaendert = db.execute(update(PortalFreigabe).where(PortalFreigabe.id == freigabe_id, PortalFreigabe.kopie_name == name,
+                                                            PortalFreigabe.kopie_vorschau.is_(None))
+                               .values(kopie_vorschau=klein).execution_options(synchronize_session=False)).rowcount
+        if geaendert != 1:
+            db.rollback()
+            _loeschen(ordner, klein)
+            continue
+        db.commit()
+        stand.vorschauen += 1
+
+
+def abgleich(db: Session, ordner: Path, *, voll: bool = False, sekunden: float = 5.0, foto=foto_neu_kodieren, vorschau=None) -> Stand:
     """Ein Durchgang (siehe oben). Höchstens `sekunden` Arbeit an neuen Kopien -- bleibt etwas übrig, Stand.mehr. Committet je Schritt."""
     stand = Stand()
     besitzer_pruefen(db, ordner)
@@ -348,9 +400,9 @@ def abgleich(db: Session, ordner: Path, *, voll: bool = False, sekunden: float =
     db.rollback()
     stand.entfernt = _entfernen(db, ordner, list(weg))
     if voll:
-        fehlend = [i for i, name in db.execute(select(PortalFreigabe.id, PortalFreigabe.kopie_name)
-                                               .where(PortalFreigabe.kopie_name.is_not(None)).order_by(PortalFreigabe.id)).all()
-                   if not (ordner / name).is_file()]
+        fehlend = [i for i, name, klein in db.execute(select(PortalFreigabe.id, PortalFreigabe.kopie_name, PortalFreigabe.kopie_vorschau)
+                                                      .where(PortalFreigabe.kopie_name.is_not(None)).order_by(PortalFreigabe.id)).all()
+                   if not (ordner / name).is_file() or (klein and not (ordner / klein).is_file())]
         db.rollback()
         stand.nachgeholt = _entfernen(db, ordner, fehlend)
     ende = time.monotonic() + sekunden
@@ -365,12 +417,16 @@ def abgleich(db: Session, ordner: Path, *, voll: bool = False, sekunden: float =
             if time.monotonic() >= ende:
                 stand.mehr = True
                 break
-            _anlegen(db, ordner, freigabe_id, stand, foto)
+            _anlegen(db, ordner, freigabe_id, stand, foto, vorschau)
         if stand.mehr:
             break
+    if voll and not stand.mehr:
+        _vorschauen_nachholen(db, ordner, stand, vorschau or vorschau_kodieren, ende)
     if voll:
-        bekannt = set(db.scalars(select(PortalFreigabe.kopie_name).where(PortalFreigabe.kopie_name.is_not(None))
-                                 .order_by(PortalFreigabe.id)).all())  # Menge: Reihenfolge egal
+        bekannt = set()  # Menge: Reihenfolge egal; seit 1.11.44 auch die Vorschauen
+        for name, klein in db.execute(select(PortalFreigabe.kopie_name, PortalFreigabe.kopie_vorschau).where(PortalFreigabe.kopie_name.is_not(None))
+                                      .order_by(PortalFreigabe.id)).all():
+            bekannt.update(n for n in (name, klein) if n)
         db.rollback()
         jetzt = time.time()
         for p in ordner.iterdir():

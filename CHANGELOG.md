@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.44 – Kundenportal P2e, Teil 2: Vorschau der Fotos
+
+Für die Bildreihe der Seite „Fotos“ (Entwurf: je 12 Fotos) legt der Postbote zu jedem Foto im Portal eine Vorschau an -- längste Kante 400 px, aus der fertigen Kopie, im selben Kindprozess mit seinen Grenzen (Bauplan P2, B5). Scheitert sie, gilt die Kopie trotzdem, und der volle Lauf holt sie nach -- ebenso für Fotos, die vor dieser Version kopiert wurden, ohne die Kopie anzufassen. Das Portal liefert sie über `GET /datei/<n>/vorschau` aus (nginx wie bei den Dateien), sichtbar wie die Datei selbst, aber ohne Anforderung und ohne Eintrag im Zugriffsprotokoll: die Liste der Fotos steht dort schon.
+
 ## 1.11.43 – Kundenportal P2e, Teil 1: der Betreff des Auftrags
 
 Die Gruppen im Portal heißen jetzt „Auftrag <Nummer> · <Betreff>“, darunter die Adresse (Antwort des Betriebs vom 27.11.2026 zu P2-10). Betreff ist der Titel des Auftrags -- der Text, den der Kunde auf Angebot und Auftragsbestätigung gedruckt hat --, nie der interne Projekttitel; ohne Text nur die Nummer. Die Funktionen der Datenbank für Unterlagen, Rechnungen, Termine und Übersicht geben ihn heraus (Migration `f8b2d6a4c9e1`, die Rückgabe ändert sich: DROP und CREATE, das Recht des Portals setzt `update.sh` danach neu), und der Reiter „Im Portal“ der Kundenakte gruppiert genauso; ohne Auftrag die Adresse des Objekts bzw. „Allgemeine Unterlagen“, darunter „ohne bestimmten Auftrag“.

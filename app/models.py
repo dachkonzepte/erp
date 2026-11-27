@@ -6811,6 +6811,7 @@ class PortalFreigabe(Base):
         CheckConstraint(portal_in("kopie_typ", portal_werte.KOPIE_TYPEN, leer=True), name="ck_portal_freigabe_kopie_typ"),
         CheckConstraint(portal_in("kopie_fehler", portal_werte.KOPIE_FEHLER, leer=True), name="ck_portal_freigabe_kopie_fehler"),
         UniqueConstraint("kopie_name", name="uq_portal_freigabe_kopie"),
+        UniqueConstraint("kopie_vorschau", name="uq_portal_freigabe_vorschau"),
         Index("uq_portal_freigabe_aktiv", "quelle", "quelle_id", unique=True,
               sqlite_where=text("zurueckgenommen_am IS NULL"), postgresql_where=text("zurueckgenommen_am IS NULL")),
     )
@@ -6836,6 +6837,8 @@ class PortalFreigabe(Base):
     kopie_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     kopie_bereit_am: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     kopie_fehler: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # seit 1.11.44 (P2e): bei einem Foto die Vorschau (längste Kante 400 px) im selben Ordner -- leer: keine (PDF, Vorschau gescheitert, noch nicht nachgeholt)
+    kopie_vorschau: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class PortalRechnung(Base):

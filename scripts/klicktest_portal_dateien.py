@@ -188,7 +188,8 @@ async def pruefen(tab, seed, p):
     while time.monotonic() < ende and len([x for x in kopien.iterdir() if x.suffix in (".pdf", ".jpg")]) < 3:
         await asyncio.sleep(0.3)
     namen = sorted(x.name for x in kopien.iterdir() if x.suffix in (".pdf", ".jpg"))
-    p.pruefe("Kopien angelegt (2 PDF, 1 Foto)", sorted(n.rsplit(".", 1)[1] for n in namen), ["jpg", "pdf", "pdf"])
+    # seit 1.11.44: zum Foto dazu seine Vorschau (400 px) im selben Ordner
+    p.pruefe("Kopien angelegt (2 PDF, 1 Foto mit Vorschau)", sorted(n.rsplit(".", 1)[1] for n in namen), ["jpg", "jpg", "pdf", "pdf"])
     foto = next((kopien / n for n in namen if n.endswith(".jpg")), None)
     p.pruefe("Foto ohne EXIF", foto is not None and GEHEIM.encode() not in foto.read_bytes(), True)
     p.pruefe("D: keine Verletzung der CSP", await tab.js("window.__dkErsatz?window.__dkErsatz.csp:0"), 0)

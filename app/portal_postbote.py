@@ -198,6 +198,8 @@ def kopien(db: Session, ordner, *, voll: bool, sekunden: float = KOPIEN_DURCHGAN
     if stand.angelegt or stand.entfernt or stand.nachgeholt or stand.waisen or stand.fehler:
         logger.info("Postbote: Kopien angelegt %s, entfernt %s, nachgeholt %s, Waisen %s, Fehler %s", stand.angelegt, stand.entfernt, stand.nachgeholt,
                     stand.waisen, dict(sorted(stand.fehler.items())))
+    if stand.vorschauen:  # seit 1.11.44
+        logger.info("Postbote: Vorschauen nachgeholt %s", stand.vorschauen)
     return stand.mehr
 
 

@@ -919,3 +919,20 @@ Probendatei `gegenprobe_11143.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.43-2 – Migration wörtlich (Schaufenster) | Text in der Migration geändert | rot (`test_migration_traegt_text_und_pruefung_woertlich`) |
 | 1.11.43-2 – Migration wörtlich (Unterlagen) | Text in der Migration geändert | rot (`test_v821::test_migration_traegt_anweisungen_und_checks_woertlich`) |
 | 1.11.43-2 – herab stellt vorher her | ohne VORHER | rot (`test_pg_migration_betreff_hinauf_herab_hinauf`) |
+
+## 1.11.44: Kundenportal P2e, Teil 2 -- Vorschau der Fotos
+
+Probendatei `gegenprobe_11144.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.44-1 – 400 px | Kante 1600 | rot (`test_derselbe_kindprozess_mit_400_px`) |
+| 1.11.44-1 – ein Foto bekommt eine Vorschau | keine | rot (`test_pg_foto_mit_vorschau_pdf_ohne_und_ruecknahme_nimmt_beide`) |
+| 1.11.44-3 – Rücknahme nimmt die Vorschau | Datei bleibt | rot (dieselbe) |
+| 1.11.44-2 – der volle Lauf holt nach | ohne Nachholen | rot (`test_pg_vorschau_scheitert_kopie_gilt_und_der_volle_lauf_holt_nach`) |
+| 1.11.44-3 – fehlende Datei: beides neu | nur die Kopie geprüft | rot (`test_pg_fehlende_vorschau_legt_beides_neu_an_waisen_ja_vorschauen_nein`) |
+| 1.11.44-3 – Vorschauen sind keine Waisen | nur Kopien bekannt | rot (dieselbe) |
+| 1.11.44-4 – nur, wenn sichtbar | Sichtbarkeit nicht geprüft | rot (`test_pg_vorschau_aussen_gleich_404_und_ohne_sitzung_401`) |
+| 1.11.44-4 – ohne Protokoll | Protokoll in der Funktion | rot (`test_funktion_liest_nur_und_jedes_wort_ist_behandelt`) |
+| 1.11.44-4 – ohne Vorschau 404 | „keine“ nicht behandelt | rot (dieselbe wie „nur, wenn sichtbar“: 500) |
+| 1.11.44-1 – Migration wörtlich | Text geändert | rot (`test_migration_traegt_den_text_woertlich`) |

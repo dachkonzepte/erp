@@ -15,6 +15,8 @@ dazu live, was die Unterlagen auch prüfen:
   Fotos) und die jüngste; Zahl der Fotos und wann zuletzt eins freigegeben wurde (in Berlin). Ein Aufruf, ein Eintrag im Protokoll.
 - **Betreff** (seit 1.11.43): neben der Auftragsnummer der Titel des Auftrags (Order.title -- was der Kunde auf Angebot und Auftragsbestätigung gedruckt
   hat, nie der Projekttitel), leer ohne Text.
+- **Vorschau** (seit 1.11.44): `portal_vorschau(sitzung, freigabe)` nennt die Vorschau eines sichtbaren Fotos (400 px) -- liest nur, ohne Anforderung und
+  ohne Protokoll (die Liste der Fotos steht schon im Protokoll und zählt die Bremse).
 - **Stand**: wann der Postbote das Schaufenster des Kunden zuletzt gerechnet hat (portal_schaufenster), in jeder Zeile -- auch bei „leer“.
 - **Kein GET schreibt** (P1): alle drei schreiben das Zugriffsprotokoll (Aktion „rechnungen“, „termine“ bzw. „uebersicht“) und zählen die Bremse der Listen
   ('liste:s:' je Sitzung, 120 je Stunde, dieselbe wie portal_unterlagen()) -- im Portal je ein POST.
@@ -145,8 +147,34 @@ _FUNKTIONEN = (
      "$$"),
 )
 
+# Seit 1.11.44 (P2e): die Vorschau eines Fotos -- liest nur (STABLE), ohne Anforderung und ohne Protokoll: sie gehört zur Liste, die schon im
+# Protokoll steht und die Bremse zählt; sichtbar wie die Datei selbst (portal_sichtbar()). „keine“: das Foto hat (noch) keine Vorschau.
+_FUNKTIONEN = _FUNKTIONEN + (
+    ("portal_vorschau", "p_sitzung text, p_freigabe integer",
+     "CREATE OR REPLACE FUNCTION portal_vorschau(p_sitzung text, p_freigabe integer)\n"
+     f"RETURNS TABLE (ergebnis text, name text) LANGUAGE plpgsql STABLE SECURITY DEFINER {_PFAD} AS $$\n"
+     "#variable_conflict use_column\n"
+     "DECLARE\n"
+     "  v_sitzung integer;\n"
+     "  v_kunde integer;\n"
+     "BEGIN\n"
+     "  SELECT k.sitzung, k.kunde INTO v_sitzung, v_kunde FROM portal_kunde_der_sitzung(p_sitzung) k;\n"
+     "  IF v_sitzung IS NULL OR p_freigabe IS NULL THEN\n"
+     "    RETURN QUERY SELECT 'ungueltig'::text, NULL::text;\n"
+     "    RETURN;\n"
+     "  END IF;\n"
+     "  IF NOT portal_sichtbar(p_freigabe, v_kunde) THEN\n"
+     "    RETURN QUERY SELECT 'unbekannt'::text, NULL::text;\n"
+     "    RETURN;\n"
+     "  END IF;\n"
+     "  RETURN QUERY SELECT (CASE WHEN f.kopie_vorschau IS NULL THEN 'keine' ELSE 'ok' END)::text, f.kopie_vorschau::text\n"
+     "    FROM portal_freigaben f WHERE f.id = p_freigabe;\n"
+     "END\n"
+     "$$"),
+)
+
 # Die Migrationen mit dem Text dieser Funktionen, älteste zuerst
-MIGRATIONEN = ("d7a3f9c2e5b1", "f8b2d6a4c9e1")  # f8b2d6a4c9e1 seit 1.11.43: der Betreff
+MIGRATIONEN = ("d7a3f9c2e5b1", "f8b2d6a4c9e1", "b3e7a1d9c5f2")  # f8b2d6a4c9e1 seit 1.11.43: der Betreff; b3e7a1d9c5f2 seit 1.11.44: die Vorschau
 
 # Name -> Argumente der Funktionen, die der Benutzer des Portals aufrufen darf (app/portal/rechte.py::FUNKTIONEN nimmt diese dazu)
 FUER_DAS_PORTAL = {name: argumente for name, argumente, _sql in _FUNKTIONEN}
@@ -171,7 +199,7 @@ def pg_anlegen(target, connection, **kw):
         return
     da = connection.exec_driver_sql(
         "SELECT to_regclass('portal_rechnungen') IS NOT NULL AND to_regclass('portal_termine') IS NOT NULL AND to_regclass('portal_schaufenster') IS NOT NULL "
-        "AND to_regclass('reminders') IS NOT NULL AND to_regclass('reminder_levels') IS NOT NULL AND to_regprocedure('portal_quelle(text, integer)') IS NOT NULL").scalar()
+        "AND to_regclass('reminders') IS NOT NULL AND to_regclass('reminder_levels') IS NOT NULL AND to_regprocedure('portal_sichtbar(integer, integer)') IS NOT NULL AND to_regprocedure('portal_quelle(text, integer)') IS NOT NULL").scalar()
     if not da:
         return
     schema = connection.exec_driver_sql("SELECT current_schema()").scalar()

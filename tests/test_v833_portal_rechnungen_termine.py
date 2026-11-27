@@ -39,6 +39,7 @@ AUSGABE = {  # Positivliste je Funktion: genau diese Felder
     "portal_uebersicht": ["ergebnis", "minuten", "stand", "offen_anzahl", "offen_summe", "faellig_titel", "faellig_nummer", "faellig_am", "einsatz_von",
                           "einsatz_bis", "einsatz_auftrag", "einsatz_betreff", "einsatz_objekt", "unterlagen", "unterlage_titel", "unterlage_datum", "fotos",
                           "foto_am"],
+    "portal_vorschau": ["ergebnis", "name"],  # seit 1.11.44
 }
 
 
@@ -59,7 +60,8 @@ def test_funktionen_fester_pfad_ohne_dynamisches_sql_und_rechte():
         assert not re.search(r"\bEXECUTE\b|\bformat\s*\(", a, re.I), a[:80]
     erzeugt = {re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1) for a in erzeugen}
     entzogen = {re.match(r"REVOKE ALL ON FUNCTION (\w+)\(", a).group(1) for a in schaufenster.ANWEISUNGEN if a.startswith("REVOKE")}
-    assert erzeugt == entzogen == set(schaufenster.FUER_DAS_PORTAL) == {"portal_rechnungen", "portal_termine", "portal_uebersicht"}
+    # seit 1.11.44 dazu portal_vorschau (eigene Prüfung in tests/test_v834_portal_vorschau.py)
+    assert erzeugt == entzogen == set(schaufenster.FUER_DAS_PORTAL) == {"portal_rechnungen", "portal_termine", "portal_uebersicht", "portal_vorschau"}
     assert set(schaufenster.FUER_DAS_PORTAL) <= set(FUNKTIONEN)
 
 
@@ -67,7 +69,7 @@ def test_ausgabe_genau_die_felder_der_positivliste():
     for a in schaufenster.ANWEISUNGEN:
         if a.startswith("CREATE"):
             name = re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1)
-            felder = re.search(r"RETURNS TABLE \((.*?)\)\s*\nLANGUAGE", a, re.S).group(1)
+            felder = re.search(r"RETURNS TABLE \((.*?)\)\s*\n?\s*LANGUAGE", a, re.S).group(1)
             assert [f.split()[0] for f in felder.replace("\n", " ").split(",")] == AUSGABE[name], name
 
 
@@ -82,16 +84,18 @@ def test_migration_traegt_text_und_pruefung_woertlich():
     modul = _migration()
     # seit 1.11.43: je Funktion die neueste Fassung aus schaufenster.MIGRATIONEN (f8b2d6a4c9e1 ersetzt alle drei: der Betreff, ANWEISUNGEN_SCHAUFENSTER)
     assert schaufenster.MIGRATIONEN[0] == MIGRATION
-    wirksam = list(modul.ANWEISUNGEN)
-    name = lambda a: re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1) if a.startswith("CREATE") else a  # noqa: E731
+    # seit 1.11.44 kommt eine Funktion dazu (b3e7a1d9c5f2): je Funktion die neueste Fassung, die Entzüge als Menge
+    name = lambda a: re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1)  # noqa: E731
+    wirksam = {name(a): a for a in modul.ANWEISUNGEN if a.startswith("CREATE")}
+    entzogen = {a for a in modul.ANWEISUNGEN if a.startswith("REVOKE")}
     for revision in schaufenster.MIGRATIONEN[1:]:
         for neu in _migration(revision).ANWEISUNGEN_SCHAUFENSTER:
             if neu.startswith("CREATE"):
-                (stelle,) = [i for i, a in enumerate(wirksam) if name(a) == name(neu)]
-                wirksam[stelle] = neu
+                wirksam[name(neu)] = neu
             else:
-                assert neu in wirksam, neu
-    assert tuple(wirksam) == schaufenster.ANWEISUNGEN
+                entzogen.add(neu)
+    assert wirksam == {name(a): a for a in schaufenster.ANWEISUNGEN if a.startswith("CREATE")}
+    assert entzogen == {a for a in schaufenster.ANWEISUNGEN if a.startswith("REVOKE")}
     assert modul.down_revision == "c4e8a2f6b1d3"
     assert modul.CHECKS == {"ck_portal_zugriff_aktion": portal_in("aktion", werte.AKTIONEN)}
     assert modul.AKTION_VORHER == portal_in("aktion", tuple(a for a in werte.AKTIONEN if a not in ("rechnungen", "termine", "uebersicht")))

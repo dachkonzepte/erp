@@ -193,7 +193,9 @@ def test_pg_kopie_je_zeile(w, zeile):
         assert typ == "application/pdf" and name.endswith(".pdf") and daten == inhalt  # byte-gleich
     if os.name == "posix":
         assert datei.stat().st_mode & 0o777 == 0o640
-    assert _dateien(w) == {name}
+    # seit 1.11.44: bei einem Foto dazu die Vorschau (tests/test_v834_portal_vorschau.py)
+    vorschau = w.erp("SELECT kopie_vorschau FROM portal_freigaben WHERE id = :i", i=fid)[0][0]
+    assert _dateien(w) == ({name, vorschau} if zeile in FOTO_ZEILEN else {name}) and (vorschau is None) == (zeile not in FOTO_ZEILEN)
     assert fid in _ids(w, sitz)
     assert _abgleich(w, voll=True).angelegt == 0  # nichts doppelt
 
