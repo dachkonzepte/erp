@@ -1,16 +1,22 @@
 {# „Im Portal zeigen“ (seit 1.11.38, Stufe P2c; Bauplan P2, B9; Nachtrag 6 des Betriebs): eine oder mehrere Unterlagen derselben Quelle für einen Kunden
    freigeben -- ein Dialog für jede Seite. Die Seite öffnet ihn mit
-       imPortalOeffnen({kunde, quelle, ids, titel, was, pdf, portalAus, vorschau, nachher})
+       imPortalOeffnen({kunde, quelle, ids, titel, was, pdf, portalAus, vorschau, auswahl, nachher})
    kunde = Kunde der Kette (die Seite kennt ihn aus „Im Portal“ bzw. GET /api/portal-freigaben/unterlagen), quelle und ids wie in portal_freigaben,
    titel = Vorschlag (leer bei mehreren: je Unterlage Kategorie und Datum), was = Text über dem Feld, pdf = Hinweis zu hochgeladenen PDFs (Bauplan B6),
-   portalAus = Hinweis „sieht es erst, wenn das Portal an ist“, vorschau = Adressen von Bildern (höchstens 6, über sichereBildquelle()), nachher = eine
-   Funktion, die die Seite danach über lesen() neu lädt. Freigeben ist abschließend (die Unterlage geht an den Kunden hinaus). Texte nur über textContent.
+   portalAus = Hinweis „sieht es erst, wenn das Portal an ist“, vorschau = Adressen von Bildern (höchstens 6, über sichereBildquelle()), auswahl = Liste
+   {id, vorschau, stand, freigebbar} zum Ankreuzen (mehrere Fotos auf einmal, Nachtrag 6 -- nichts vorgewählt), nachher = eine Funktion, die die Seite
+   danach über lesen() neu lädt. Freigeben ist abschließend (die Unterlage geht an den Kunden hinaus). Texte nur über textContent.
+   Seit 1.11.39 an den Dateien: die Seite setzt je Datei einen leeren Platz <span data-ip-quelle="…" data-ip-id="…" data-ip-was="…" data-ip-vorschau="…">
+   und ruft danach imPortalAnDateien(behälter, nachher) -- der Baustein fragt je Quelle einmal den Stand und setzt Kennzeichen und „Im Portal zeigen“ hinein.
+   imPortalFotos({quelle, fotos:[{id, vorschau}], nachher}) öffnet die Auswahl. Nur mit Modul und ab Büro – Auftrag (IM_PORTAL_DARF); sonst tut nichts etwas.
    Prüfen tut der Server (app/portal_freigaben.py); die Meldung steht im Dialog, die Eingabe bleibt. docs/archiv/webseite-und-kundenportal.md,
-   „Umsetzung 1.11.38“. #}
+   „Umsetzung 1.11.38“ und „Umsetzung 1.11.39“. #}
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 {% include "_aktionen.html" %}
 {% include "_links.html" %}
+{% set im_portal_darf = is_module_enabled('kundenportal') and can(request.state.erp_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+{% if im_portal_darf %}
 <style>
   #imPortalDialog{border:0;padding:0;width:min(560px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
   #imPortalDialog::backdrop{background:rgba(23,28,31,.45)}
@@ -22,30 +28,49 @@
   #imPortalDialog .ip-feld label{font-size:13px;font-weight:600}
   #imPortalDialog .ip-hinweis{margin:0;color:var(--ds-text-2);font-size:13px}
   #imPortalDialog .ip-vorschau{display:flex;gap:8px;flex-wrap:wrap}
-  #imPortalDialog .ip-vorschau img{width:96px;height:72px;object-fit:cover;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche-2)}
+  #imPortalDialog .ip-vorschau img,#imPortalDialog .ip-wahl img{width:96px;height:72px;object-fit:cover;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche-2)}
+  #imPortalDialog .ip-auswahl{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+  #imPortalDialog .ip-wahl{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ds-text-2);cursor:pointer}
+  #imPortalDialog .ip-wahl input{width:auto;min-height:0}
   #imPortalDialog .ip-knoepfe{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+  .ip-datei{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+  /* seit 1.11.39: eigene Stile im Dialog -- er steht auch auf Seiten, die nur ihre eigenen Klassen gestalten (Einsatzbericht) */
+  #imPortalDialog button{height:40px;padding:0 16px;border:0;border-radius:var(--ds-ecke-feld);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+  #imPortalDialog button.secondary{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+  #imPortalDialog #imPortalTitelFeld{width:100%;min-height:40px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);padding:8px 12px;font-family:var(--ds-schrift-text);font-size:14px;color:var(--ds-text);background:var(--ds-flaeche)}
 </style>
 <dialog id="imPortalDialog" aria-labelledby="imPortalTitel"><div class="ip">
   <div class="ip-kopf"><h3 id="imPortalTitel">Im Portal zeigen</h3><button type="button" class="secondary" data-klick="im-portal-zu" aria-label="Schließen">✕</button></div>
   <p class="ip-was" id="imPortalWas"></p>
   <div class="ip-vorschau" id="imPortalVorschau" hidden></div>
+  <div class="ip-auswahl" id="imPortalAuswahl" hidden></div>
   <div class="ip-feld"><label for="imPortalTitelFeld">Titel im Portal</label><input id="imPortalTitelFeld" maxlength="120" autocomplete="off">
     <p class="ip-hinweis" id="imPortalTitelHinweis">Diesen Titel sieht der Kunde – nie den Dateinamen.</p></div>
   <div class="notice warning" id="imPortalPdf" hidden>PDFs können Angaben enthalten, die nicht sichtbar sind (Verfasser, Kommentare, Fotos mit Ort) – im Zweifel als neues PDF speichern.</div>
   <div class="notice" id="imPortalAus" hidden>Das Kundenportal ist für diesen Kunden aus – er sieht die Unterlage erst, wenn es an ist.</div>
   <div class="ip-knoepfe"><span class="sml" id="imPortalStatus" role="status"></span><button type="button" class="secondary" data-klick="im-portal-zu">Abbrechen</button><button type="button" id="imPortalKnopf" data-klick="im-portal-freigeben">Im Portal zeigen</button></div>
 </div></dialog>
+{% endif %}
 <script>
-var imPortalAuftrag = null;
+const IM_PORTAL_DARF = "{{ 'ja' if im_portal_darf else 'nein' }}" === "ja";  // ungerendert (node-Tests) aus
+const IM_PORTAL_HOCHGELADEN = ['customer_documents', 'project_documents', 'property_documents', 'defect_files', 'order_acceptance_files'];
+const IM_PORTAL_CHIP = {sichtbar: ['chip-ok', 'Im Portal'], wird_vorbereitet: ['chip-info', 'Im Portal · wird vorbereitet'],
+  gescheitert: ['chip-warn', 'Im Portal · Kopie gescheitert'], ruht: ['chip-neutral', 'Im Portal · ruht']};
+var imPortalAuftrag = null, imPortalInfo = new Map(), imPortalNachher = new Map();
+function imPortalKnopfText() {
+  const a = imPortalAuftrag, n = a ? (a.auswahl ? imPortalGewaehlt().length : a.ids.length) : 0;
+  document.getElementById('imPortalKnopf').textContent = n > 1 ? n + ' im Portal zeigen' : 'Im Portal zeigen';
+}
+function imPortalGewaehlt() { return [...document.querySelectorAll('#imPortalAuswahl input:checked')].map(i => Number(i.dataset.id)); }
 function imPortalOeffnen(a) {
-  imPortalAuftrag = {kunde: Number(a.kunde), quelle: String(a.quelle), ids: (a.ids || []).map(Number), nachher: a.nachher || null};
-  const mehrere = imPortalAuftrag.ids.length > 1;
+  imPortalAuftrag = {kunde: Number(a.kunde), quelle: String(a.quelle), ids: (a.ids || []).map(Number), nachher: a.nachher || null, auswahl: !!a.auswahl};
+  const mehrere = imPortalAuftrag.auswahl || imPortalAuftrag.ids.length > 1;
   document.getElementById('imPortalWas').textContent = a.was || '';
   const feld = document.getElementById('imPortalTitelFeld');
   feld.value = a.titel || '';
   feld.placeholder = mehrere ? 'leer: je Unterlage Art bzw. Kategorie und Datum' : '';
   document.getElementById('imPortalTitelHinweis').textContent = mehrere
-    ? 'Diesen Titel sieht der Kunde bei jeder der ' + imPortalAuftrag.ids.length + ' Unterlagen – nie den Dateinamen. Leer: je Unterlage Art bzw. Kategorie und Datum.'
+    ? 'Diesen Titel sieht der Kunde bei jeder gewählten Unterlage – nie den Dateinamen. Leer: je Unterlage Art bzw. Kategorie und Datum.'
     : 'Diesen Titel sieht der Kunde – nie den Dateinamen.';
   document.getElementById('imPortalPdf').hidden = !a.pdf;
   document.getElementById('imPortalAus').hidden = !a.portalAus;
@@ -58,23 +83,97 @@ function imPortalOeffnen(a) {
   const vorschau = document.getElementById('imPortalVorschau');
   vorschau.replaceChildren(...bilder);
   vorschau.hidden = !bilder.length;
+  const wahl = (a.auswahl || []).map(f => {
+    const label = document.createElement('label'), box = document.createElement('input'), img = document.createElement('img'), stand = document.createElement('span');
+    label.className = 'ip-wahl';
+    box.type = 'checkbox'; box.dataset.id = String(Number(f.id)); box.disabled = !f.freigebbar; box.addEventListener('change', imPortalKnopfText);
+    img.alt = 'Foto'; img.src = sichereBildquelle(f.vorschau);
+    stand.textContent = f.stand || '';
+    label.append(box, img, stand);
+    return label;
+  });
+  const auswahl = document.getElementById('imPortalAuswahl');
+  auswahl.replaceChildren(...wahl);
+  auswahl.hidden = !wahl.length;
   document.getElementById('imPortalStatus').textContent = '';
-  document.getElementById('imPortalKnopf').textContent = mehrere ? imPortalAuftrag.ids.length + ' im Portal zeigen' : 'Im Portal zeigen';
+  imPortalKnopfText();
   document.getElementById('imPortalDialog').showModal();
   feld.focus();
 }
 aktion('im-portal-zu', () => document.getElementById('imPortalDialog').close());
 async function imPortalFreigeben() {
   const s = document.getElementById('imPortalStatus'), titel = document.getElementById('imPortalTitelFeld').value.trim(), auftrag = imPortalAuftrag;
-  if (!auftrag || !auftrag.ids.length) return;
-  if (!titel && auftrag.ids.length === 1) { s.textContent = 'Bitte einen Titel angeben.'; return; }
+  if (!auftrag) return;
+  const ids = auftrag.auswahl ? imPortalGewaehlt() : auftrag.ids;
+  if (!ids.length) { s.textContent = 'Bitte mindestens ein Foto ankreuzen.'; return; }
+  if (!titel && ids.length === 1 && !auftrag.auswahl) { s.textContent = 'Bitte einen Titel angeben.'; return; }
   s.textContent = '';
   const url = '/api/customers/' + auftrag.kunde + '/portal/freigaben';
-  const body = JSON.stringify(Object.assign({quelle: auftrag.quelle, quelle_ids: auftrag.ids}, titel ? {titel} : {}));
+  const body = JSON.stringify(Object.assign({quelle: auftrag.quelle, quelle_ids: ids}, titel ? {titel} : {}));
   try {
     await abschliessen('im-portal', () => api(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body}), {neuLaden: auftrag.nachher || (() => null)});
     document.getElementById('imPortalDialog').close();
   } catch (e) { s.textContent = e.message; }
 }
 aktion('im-portal-freigeben', imPortalFreigeben);
+
+// --- an den Dateien (seit 1.11.39) ----------------------------------------------------------------------------------------------------------------
+function imPortalAdresse(quelle, ids) { return '/api/portal-freigaben/unterlagen?quelle=' + encodeURIComponent(quelle) + ids.map(i => '&quelle_ids=' + Number(i)).join(''); }
+function imPortalPlatz(platz, info) {
+  const teile = [];
+  const b = info && info.bestehend;
+  if (b) {
+    const [klasse, wort] = b.anderer_kunde ? ['chip-neutral', 'Im Portal eines anderen Kunden'] : (IM_PORTAL_CHIP[b.zustand] || ['chip-neutral', b.zustand_text]);
+    const chip = document.createElement('span');
+    chip.className = 'chip ' + klasse; chip.textContent = wort;
+    if (b.grund) chip.title = b.grund;
+    teile.push(chip);
+  }
+  if (info && info.freigebbar) {
+    const knopf = document.createElement('button');
+    knopf.type = 'button'; knopf.className = 'secondary klein'; knopf.textContent = 'Im Portal zeigen';
+    knopf.dataset.klick = 'im-portal-datei'; knopf.dataset.ipQuelle = platz.dataset.ipQuelle; knopf.dataset.ipId = String(Number(platz.dataset.ipId));
+    knopf.dataset.ipWas = platz.dataset.ipWas || ''; knopf.dataset.ipVorschau = platz.dataset.ipVorschau || '';
+    teile.push(knopf);
+  }
+  platz.classList.add('ip-datei');
+  platz.replaceChildren(...teile);
+}
+async function imPortalAnDateien(behaelter, nachher) {
+  if (!IM_PORTAL_DARF || !behaelter) return;
+  const je = new Map();
+  behaelter.querySelectorAll('[data-ip-quelle][data-ip-id]').forEach(p => { const q = p.dataset.ipQuelle; if (!je.has(q)) je.set(q, []); je.get(q).push(p); });
+  for (const [quelle, plaetze] of je) {
+    const ids = [...new Set(plaetze.map(p => Number(p.dataset.ipId)))];
+    imPortalNachher.set(quelle, nachher || null);
+    await lesen('im-portal-' + quelle, () => api(imPortalAdresse(quelle, ids)), liste => {
+      liste.forEach(i => imPortalInfo.set(quelle + ':' + i.quelle_id, i));
+      plaetze.forEach(p => imPortalPlatz(p, imPortalInfo.get(quelle + ':' + Number(p.dataset.ipId))));
+    });
+  }
+}
+aktion('im-portal-datei', b => {
+  const quelle = b.dataset.ipQuelle, info = imPortalInfo.get(quelle + ':' + Number(b.dataset.ipId));
+  if (!info || !info.freigebbar) return;
+  imPortalOeffnen({kunde: info.customer_id, quelle, ids: [info.quelle_id], titel: info.titel_vorschlag, was: b.dataset.ipWas,
+    pdf: info.art === 'dokument' && IM_PORTAL_HOCHGELADEN.includes(quelle), vorschau: info.art === 'foto' && b.dataset.ipVorschau ? [b.dataset.ipVorschau] : [],
+    nachher: imPortalNachher.get(quelle) || null});
+});
+async function imPortalFotos(a) {
+  if (!IM_PORTAL_DARF || !a.fotos.length) return;
+  const ids = a.fotos.map(f => Number(f.id));
+  await lesen('im-portal-' + a.quelle, () => api(imPortalAdresse(a.quelle, ids)), liste => {
+    liste.forEach(i => imPortalInfo.set(a.quelle + ':' + i.quelle_id, i));
+  });
+  const infos = ids.map(id => imPortalInfo.get(a.quelle + ':' + id)).filter(Boolean);
+  const kunden = [...new Set(infos.filter(i => i.freigebbar).map(i => i.customer_id))];
+  const auswahl = a.fotos.map(f => {
+    const i = imPortalInfo.get(a.quelle + ':' + Number(f.id));
+    const b = i && i.bestehend;
+    return {id: f.id, vorschau: f.vorschau, freigebbar: !!(i && i.freigebbar && kunden.length === 1),
+      stand: b ? (b.anderer_kunde ? 'im Portal eines anderen Kunden' : 'schon im Portal (' + b.zustand_text + ')') : (i && i.freigebbar ? '' : (i && i.grund) || '')};
+  });
+  imPortalOeffnen({kunde: kunden[0] || 0, quelle: a.quelle, ids: [], auswahl, was: a.was || 'Fotos ankreuzen, die der Kunde im Portal sehen soll.', nachher: a.nachher});
+  if (!kunden.length) document.getElementById('imPortalStatus').textContent = 'Keines der Fotos lässt sich (noch) freigeben.';
+}
 </script>

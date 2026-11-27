@@ -829,3 +829,18 @@ danach byte-gleich zurück.
 | 1.11.38-7 – Titel bei einer Unterlage Pflicht | Prüfung weg | rot (Klicktest) |
 | 1.11.38-7 – Freigeben abschließend | `speichern()` statt `abschliessen()` | rot (`test_v399`) |
 | 1.11.38-4 – Vorschläge, Ruht, Zurückgenommen | -- | keine eigene: die Abschnitte prüft der Klicktest, ihre Daten die Server-Tests von 1.11.36/37 |
+
+## 1.11.39: „Im Portal zeigen“ an den Dateien (P2c, Teil 4)
+
+Probendatei `gegenprobe_11139.py` (Scratchpad, mit `--trocken` vorab geprüft); Änderungen in den Vorlagen mit Marker `GEGENPROBE` als Kommentar; rot = der
+Klicktest `klicktest_kundenportal_an_dateien.py` endet ungleich 0 mit einer XX-Zeile der geprüften Aussage; jede Datei danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.39-1 – Platz an der Datei | Platz der Kundenakte weg | rot (kein Knopf an der PDF) |
+| 1.11.39-2 – Knopf nur, wenn freigebbar | Knopf bei jeder Datei | rot (ZIP mit Knopf, freigegebene mit Knopf) |
+| 1.11.39-4 – Hinweis zu PDFs nur bei hochgeladenen PDFs | Hinweis immer | rot (auch am Bild) |
+| 1.11.39-3 – Auswahl ohne Vorwahl | alle vorgewählt | rot |
+| 1.11.39-3 – schon freigegebene nicht noch einmal | nie ausgegraut | rot |
+| 1.11.39-5 – Dialog nur fürs Büro | ohne Rollenprüfung | rot (Dialog bei der Monteurin) |
+| 1.11.39-2 – Beleg nur unverändert | Bedingung weg | rot (Knopf am Beleg ohne Datei) |

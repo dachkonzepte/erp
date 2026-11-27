@@ -223,7 +223,7 @@ function acceptanceHtml(a){
   if(a.protocol)lines.push(`<div class="acc-row" data-protocol-proof>Nachweis: <a href="${esc(sichererLink(a.protocol.url))}">Abnahmeprotokoll Nr. ${a.protocol.checklist_id}</a>, Unterschrift des Auftraggebers <span class="acc-sha" title="${esc(a.protocol.seal_sha256||'')}">SHA-256 ${esc((a.protocol.seal_sha256||'').slice(0,16))}…</span>${a.protocol.pdf_document_id?` · <a data-protocol-version href="/api/sent-documents/${a.protocol.pdf_document_id}/file" target="_blank" rel="noopener">Fassung ${esc(a.protocol.version_no)} (PDF)</a> <span class="acc-sha" title="${esc(a.protocol.pdf_sha256||'')}">SHA-256 ${esc((a.protocol.pdf_sha256||'').slice(0,16))}…</span>`:''}${a.protocol.check!=='unveraendert'?` <span class="acc-bad">⚠ ${esc(a.protocol.check_text||'')}</span>`:''}</div>`);
   if(a.contractor_objections)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Einwendungen des Auftragnehmers: ${esc(a.contractor_objections)}</div>`);
   if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
-  a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
+  a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}${f.status==='unveraendert'?` <span data-ip-quelle="order_acceptance_files" data-ip-id="${f.id}" data-ip-was="${esc(f.kind_label)}" data-ip-vorschau="/api/order-acceptances/${a.id}/files/${f.id}"></span>`:''}</div>`));
   if(!a.content_ok)lines.push('<div class="acc-row acc-bad">Der gespeicherte Inhalt weicht von seiner Prüfsumme ab – nachträglich verändert.</div>');
   const dq=a.defects;
   if(dq&&dq.missing)lines.push(`<div class="acc-row acc-warn">⚠ ${esc(dq.text)}</div>`);
@@ -239,6 +239,7 @@ function acceptanceHtml(a){
 function renderAcceptances(){
   document.getElementById('acceptanceList').className='';
   document.getElementById('acceptanceList').innerHTML=acceptances.length?acceptances.map(acceptanceHtml).join(''):'<div class="small muted">Noch keine Abnahme erfasst.</div>';
+  if(typeof imPortalAnDateien==='function')imPortalAnDateien(document.getElementById('acceptanceList'),renderAcceptances).catch(()=>{});  // seit 1.11.39: Belege der Abnahme
 }
 function showDiscard(id){const box=document.getElementById('accDiscard'+id);box.hidden=!box.hidden;if(!box.hidden)document.getElementById('accDiscardReason'+id).focus()}
 async function discardAcceptance(id,btn){

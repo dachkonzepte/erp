@@ -3974,6 +3974,57 @@ Gruppen, Kennzeichen, Grund, Ruht, Zurückgenommen, Vorschlag mit Titelpflicht u
 - Ein erster Seitentest in `test_v830` (Reiter nur mit Modul über `router_test_client`) war falsch gebaut -- ohne Anmeldeschranke liest der Modulschalter der
   Vorlage nicht die Testdatenbank; geprüft wird das jetzt im Klicktest.
 
+### Umsetzung 1.11.39 (P2c, Teil 4): „Im Portal zeigen“ an den Dateien
+
+- Baustein `_im_portal.html` erweitert: Dialog und Knöpfe nur mit Modul und ab Büro – Auftrag (`im_portal_darf` über `can()`; ungerendert ist
+  `IM_PORTAL_DARF` aus). Die Seite setzt je Datei einen leeren Platz `<span data-ip-quelle="…" data-ip-id="…" data-ip-was="…" data-ip-vorschau="…">` und ruft
+  danach `imPortalAnDateien(behälter, nachher)`: je Quelle eine Abfrage (`GET /api/portal-freigaben/unterlagen`), in den Platz das Kennzeichen einer
+  bestehenden Freigabe („Im Portal“, „· wird vorbereitet“, „· Kopie gescheitert“, „· ruht“, „Im Portal eines anderen Kunden“; der Grund als title) und, wenn
+  freigebbar, „Im Portal zeigen“. Der Dialog: Titel vorbelegt (Kategorie bzw. Art und Datum), Vorschau bei Bildern, Hinweis zu PDFs nur bei hochgeladenen
+  (Kundenakte, Projekt, Objekt, Mangel, Abnahme), Kunde aus der Kette (der Server prüft ihn ohnehin). Eigene Stile im Dialog (er steht auch auf Seiten, die
+  nur ihre eigenen Klassen gestalten).
+- Seiten: Kundenakte (Dokumente: `customer_documents`; danach auch der Reiter „Im Portal“ neu), Akte (Dateien: `project_documents`; Abnahme:
+  `order_acceptance_files`; Mängel: `defect_files`), Objekt (`property_documents`, die Dateien seiner Projekte als `project_documents`). An Belegen der Abnahme und
+  Dateien am Mangel nur, solange die Datei unverändert ist (Prüfsumme) -- sonst entstünde nur eine gescheiterte Kopie („fehlt“, „pruefsumme“).
+- Einsatzbericht: in der Zusammenfassung (Schritt „Unterschrift“) fürs Büro „Fotos im Portal zeigen …“ -- `imPortalFotos()`: Auswahl aller Fotos des Berichts
+  mit Vorschau, nichts vorgewählt (Nachtrag 6), schon freigegebene ausgegraut mit ihrem Stand, ohne Kreuz eine Meldung, der Knopf nennt die Zahl
+  („2 im Portal zeigen“); Titel leer = je Foto „Foto vom <Tag>“. Ein Klick legt alle gewählten zusammen an (alles oder nichts, 1.11.36).
+- Nicht gebaut: an der Checkliste des Abnahmeprotokolls (die Mängel dort zeigt die Akte) und an Fotos einzelner Prüfpunkte im Bericht (die Auswahl deckt alle
+  Fotos des Berichts ab).
+
+#### Festlegungen 1.11.39 (Bitte bestätigen)
+
+1. „Im Portal zeigen“ und das Kennzeichen stehen an jeder freigebbaren Datei der Kundenakte, der Akte (Dateien, Abnahme, Mängel) und des Objekts -- nur mit
+   Modul und ab Büro – Auftrag.
+2. Ein Knopf nur, wenn die Datei freigebbar ist; Belege der Abnahme und Dateien am Mangel nur, solange sie unverändert sind.
+3. Fotos des Einsatzberichts mehrere auf einmal über eine Auswahl mit Vorschau, nichts vorgewählt; schon freigegebene nicht noch einmal.
+4. Der Hinweis zu PDFs nur bei hochgeladenen PDFs, eine Vorschau nur bei Bildern.
+5. Die Monteurin sieht weder Knopf noch Dialog (auch nicht im Einsatzbericht).
+
+#### Abweichungen vom Bauplan (1.11.39)
+
+- B9 nennt „Fotos im Einsatzbericht und am Mangel“ einzeln an der Datei: im Einsatzbericht stattdessen eine Auswahl aller Fotos des Berichts in der
+  Zusammenfassung (Nachtrag 6: mehrere auf einmal) -- ein Knopf an jedem Foto der Schritte stünde mitten im Ablauf der Monteurin.
+- B9 „danach Kennzeichen „im Portal“ an der Datei“: dazu „wird vorbereitet“, „Kopie gescheitert“, „ruht“ und „Im Portal eines anderen Kunden“ (aus dem Stand
+  der Freigabe).
+- Nicht an der Checkliste des Abnahmeprotokolls (siehe oben).
+
+#### Tests und Prüfung 1.11.39
+
+`tests/test_v831_im_portal_an_dateien.py` (6: jede Quelle eines Platzes bekannt; die Seiten mit Dateien haben genau ihre Quellen und rufen den Baustein; der
+Bericht öffnet die Auswahl nur fürs Büro; jede Seite bindet den Baustein ein; der Dialog nur mit Modul und Büro-Rolle; Belege nur unverändert), Klicktest
+`scripts/klicktest_kundenportal_an_dateien.py` (30: PDF mit Hinweis, Bild mit Vorschau, ZIP ohne Knopf, Freigeben mit Kennzeichen und Zahl am Reiter, Titel nie
+der Dateiname; Akte Dateien; Beleg der Abnahme mit Datei mit, ohne Datei ohne Knopf; Objekt mit der Datei des Projekts schon im Portal; Auswahl der Fotos im
+Bericht; Monteurin ohne Knopf und Dialog). Gegenproben: 7, alle rot aus dem geprüften Grund. Angepasst: keine Erwartung. Ein Fund während des Baus: im
+Einsatzbericht waren Knöpfe und Feld des Dialogs ungestaltet -- seitdem eigene Stile im Dialog.
+
+### Abschluss P2c (1.11.36–1.11.39)
+
+P2c ist mit 1.11.39 gebaut: Freigeben und Zurücknehmen samt Gründen (1.11.36), automatische Regeln (1.11.37), Reiter „Im Portal“ und „vor dem Einladen“
+(1.11.38), „Im Portal zeigen“ an den Dateien (1.11.39) -- mit den drei vorgemerkten Punkten (klare Meldung bei einer ruhenden Freigabe eines anderen Kunden,
+1.11.36; mehrere Fotos auf einmal, 1.11.39; zeigen, was der Kunde ab dem Einladen sieht, 1.11.38). Nach P2c angehalten (Vorgabe 27.11.2026). Der Kunde sieht
+davon im Portal noch nichts: die Seiten des Portals kommen nach den Entwürfen des Betriebs (P2e), das Schaufenster mit Zahlstand und Terminen in P2d.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

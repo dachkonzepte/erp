@@ -255,6 +255,7 @@ select.feld-text{height:52px;padding:0 14px}
 {% include "_auswahl.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
+{% include "_im_portal.html" %}
 {% include "_fehlertext.html" %}
 <script>
 var REPORT_ID={{ report_id }};
@@ -807,6 +808,7 @@ function zusammenfassungHtml(){
   var text=(R.description||'').trim();
   html+=zl('Arbeiten',text?esc(text.length>140?text.slice(0,139)+'…':text):'<span style="color:var(--ds-text-2)">keine Beschreibung</span>');
   html+=zl('Befunde',BEFUNDE.length?BEFUNDE.map(function(f){var n=FOTOS.filter(function(x){return x.finding_id===f.id}).length;return esc(f.description)+(n?', mit Foto':', ohne Foto')}).join('<br>'):'keine');
+  if(IM_PORTAL_DARF&&DARF_BUERO&&FOTOS.length)html+=zl('Kundenportal','<button type="button" class="knopf" data-klick="ip-fotos">Fotos im Portal zeigen …</button>');  // seit 1.11.39
   html+=zl('Material',MATERIAL.length?MATERIAL.map(function(m){return esc(m.description+' '+zahlText(m.quantity)+' '+(m.unit||''))}).join(', '):'keins erfasst');
   if(MODUL_BETRIEBSMITTEL)html+=zl('Betriebsmittel',BETRIEBSMITTEL.length?BETRIEBSMITTEL.map(function(a){return esc(a.asset_name_snapshot)}).join(', '):'keins erfasst');
   html+=zeitenHtml();
@@ -974,6 +976,11 @@ function punkteLaden(){
 }
 function befundeLaden(){return lesen('befunde',()=>api('/api/service-reports/'+REPORT_ID+'/findings'),function(d){BEFUNDE=d})}
 function fotosLaden(){return lesen('fotos',()=>api('/api/service-reports/'+REPORT_ID+'/photos'),function(d){FOTOS=d})}
+// seit 1.11.39 (Stufe P2c, Nachtrag 6): Fotos des Berichts mehrere auf einmal im Kundenportal zeigen -- Auswahl mit Vorschau, nichts vorgewählt
+aktion('ip-fotos',function(){
+  return imPortalFotos({quelle:'service_report_photos',fotos:FOTOS.map(function(f){return {id:f.id,vorschau:'/api/service-report-photos/'+f.id+'/file'}}),
+    was:'Fotos dieses Berichts ankreuzen, die der Kunde im Portal sehen soll.',nachher:fotosLaden}).catch(function(e){meldung(e.message)});
+});
 function materialLaden(){return lesen('material',()=>api('/api/service-reports/'+REPORT_ID+'/materials'),function(d){MATERIAL=d})}
 function betriebsmittelLaden(){
   if(!MODUL_BETRIEBSMITTEL)return Promise.resolve();

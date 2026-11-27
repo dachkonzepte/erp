@@ -156,6 +156,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_im_portal.html" %}
 {% include "_nur_lesen.html" %}
 <script>
 const propertyId={{ property_id }};
@@ -317,6 +318,7 @@ function propertyDocumentRow(d){
     <td style="white-space:nowrap">
       <a href="${downloadUrl}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Laden</a>
       ${d.source==='property'?` <button type="button" class="danger" onclick="deletePropertyDocument(${d.id})">Löschen</button>`:''}
+      <span data-ip-quelle="${d.source==='property'?'property_documents':'project_documents'}" data-ip-id="${d.id}" data-ip-was="${esc(d.original_filename)}" data-ip-vorschau="${viewUrl}"></span>
     </td>
   </tr>`;
 }
@@ -325,6 +327,7 @@ async function loadPropertyDocuments(){
   await lesen('dokumente',()=>api(`/api/properties/${propertyId}/documents`).catch(()=>[]),docs=>{
     document.getElementById('propertyDocRows').innerHTML=docs.map(propertyDocumentRow).join('')||'<tr><td colspan="5" class="empty">Noch keine Dateien hinterlegt.</td></tr>';
   });
+  if(typeof imPortalAnDateien==='function')await imPortalAnDateien(document.getElementById('propertyDocRows'),loadPropertyDocuments).catch(()=>{});  // seit 1.11.39
 }
 
 // Seit 1.8.97 über lesen() (_speichern.html): Kategorien der Auswahl im Upload-Formular, eigener Bereich (kein Speichern ersetzt sie).
