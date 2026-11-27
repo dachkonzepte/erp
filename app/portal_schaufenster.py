@@ -32,6 +32,9 @@ from .models import (
 )
 
 NULL = Decimal("0.00")
+# Seit 1.11.45 (P2e, Entwurf Seite 3): der Titel im Portal wie auf dem PDF, kurz -- nicht die Art der Listen im ERP („2. Abschlag nach Leistungsstand“)
+TITEL = {"abschlag_pauschal": "Abschlagsrechnung", "abschlag_leistungsstand": "Abschlagsrechnung", "schluss": "Schlussrechnung", "aufwand": "Rechnung",
+         "storno": "Stornorechnung"}
 TEXT_ZUSTAND = {
     "offen": "offen", "teilweise_bezahlt": "teilweise bezahlt", "bezahlt": "bezahlt", "guthaben": "Guthaben", "enthalten": "in Schlussrechnung enthalten",
     "storniert": "storniert", "storno": "Storno", "ohne": "ohne Zahlung",
@@ -80,7 +83,7 @@ def sichtbare_rechnungen(db: Session, kunde: Customer) -> list[Invoice]:
 
 
 def rechnungen(db: Session, kunde: Customer) -> list[dict]:
-    from .invoices import compute_invoice_totals, invoice_overview_rows, rechnungsart_text  # lokal: app/invoices.py hängt an vielen Modulen
+    from .invoices import compute_invoice_totals, invoice_overview_rows  # lokal: app/invoices.py hängt an vielen Modulen
 
     liste = sichtbare_rechnungen(db, kunde)
     nummern = {r.id: r.invoice_number for r in liste}
@@ -90,7 +93,7 @@ def rechnungen(db: Session, kunde: Customer) -> list[dict]:
     aus = []
     for r, zeile in zip(liste, invoice_overview_rows(db, liste)):
         z, offen, ueber, bezug = zustand(r, zeile, nummern)
-        aus.append({"invoice_id": r.id, "order_id": r.order_id, "nummer": r.invoice_number or "", "art_text": rechnungsart_text(r)[:120], "datum": r.invoice_date,
+        aus.append({"invoice_id": r.id, "order_id": r.order_id, "nummer": r.invoice_number or "", "art_text": TITEL.get(r.invoice_type, "Rechnung"), "datum": r.invoice_date,
                     "faellig": r.due_date, "brutto": _d(compute_invoice_totals(r)["gross_total"]), "zustand": z, "offen": offen, "ueberfaellig": ueber,
                     "bezug_nummer": bezug})
     return aus

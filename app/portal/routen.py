@@ -42,7 +42,8 @@ from fastapi import APIRouter, Path, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
-from . import pruefwerte
+from . import bereiche, pruefwerte
+from ..berlin_time import berlin_today, utc_jetzt
 from .begruessung import begruessung
 from .seiten import DAUERHAFT
 from .werte import POST_STATUS
@@ -56,7 +57,8 @@ LESEN_METHODEN = ["GET", "HEAD"]
 OEFFENTLICH = {"/health", "/api/kontakt", "/api/link", "/", "/s/portal.js", "/s/portal.css"}  # die Seite seit 1.11.14
 VORSTUFE = {"/api/code", "/api/code/stand", "/api/code/pruefen"}
 SITZUNG = {"/api/sitzung/weiter", "/api/abmelden", "/api/willkommen", "/api/datei/anfordern", "/datei/{freigabe}", "/datei/{freigabe}/herunterladen",
-           "/datei/{freigabe}/vorschau"}  # die Vorschau seit 1.11.44
+           "/datei/{freigabe}/vorschau",  # die Vorschau seit 1.11.44
+           "/api/uebersicht", "/api/unterlagen", "/api/rechnungen", "/api/termine"}  # die Bereiche seit 1.11.45
 
 # Cookies (Bauplan 3.3): nur über diese Adresse (__Host-: Secure, Path=/, ohne Domain), nie für Skripte lesbar, nie bei Anfragen von fremden Seiten
 COOKIE = "__Host-dkportal"            # bestätigte Sitzung, 30 Tage gleitend
@@ -81,6 +83,10 @@ BEHANDELT = {
     "portal_datei_anfordern": frozenset({"ok", "bremse", "unbekannt", "ungueltig"}),  # seit 1.11.34
     "portal_datei": frozenset({"ok", "unbekannt", "ungueltig"}),
     "portal_vorschau": frozenset({"ok", "keine", "unbekannt", "ungueltig"}),  # seit 1.11.44
+    "portal_unterlagen": frozenset({"ok", "leer", "bremse", "ungueltig"}),  # seit 1.11.45: die Bereiche
+    "portal_rechnungen": frozenset({"ok", "leer", "bremse", "ungueltig"}),
+    "portal_termine": frozenset({"ok", "leer", "bremse", "ungueltig"}),
+    "portal_uebersicht": frozenset({"ok", "bremse", "ungueltig"}),
 }
 
 # Seit 1.11.34: die Kopien (app/portal_kopien.py) -- nginx liefert sie aus dem internal-Block unter diesem Weg aus
@@ -143,6 +149,122 @@ class StandOut(_Aus):
 
 class WillkommenOut(_Aus):
     begruessung: str
+
+
+# --- Bereiche (seit 1.11.45, Stufe P2e) -- jede Zahl und jeder Text fertig vom Server (app/portal/bereiche.py) -----------------------------------------
+
+class StandAus(_Aus):
+    text: str | None
+    alt: bool
+
+
+class UnterlageAus(_Aus):
+    freigabe: int
+    titel: str
+    art: str
+    art_text: str
+    datum: str
+
+
+class UnterlagenGruppe(_Aus):
+    titel: str
+    unter: str
+    zahl_text: str
+    zeilen: list[UnterlageAus]
+
+
+class FotoAus(_Aus):
+    freigabe: int
+    titel: str
+    datum: str
+    bildtext: str
+
+
+class FotoGruppe(_Aus):
+    titel: str
+    unter: str
+    zahl_text: str
+    zeilen: list[FotoAus]
+
+
+class UnterlagenOut(_Aus):
+    unterlagen: list[UnterlagenGruppe]
+    fotos: list[FotoGruppe]
+
+
+class MahnungAus(_Aus):
+    freigabe: int
+    titel: str
+    datum: str
+
+
+class RechnungAus(_Aus):
+    freigabe: int
+    art: str
+    titel: str
+    nummer: str
+    datum: str
+    betrag: str | None
+    kennzeichen: str | None
+    farbe: str | None
+    hinweis: list[str]
+    mahnungen: list[MahnungAus]
+
+
+class RechnungenGruppe(_Aus):
+    titel: str
+    unter: str
+    zahl_text: str
+    zeilen: list[RechnungAus]
+
+
+class RechnungenOut(_Aus):
+    stand: StandAus
+    offen: str | None
+    alles_bezahlt: bool
+    gruppen: list[RechnungenGruppe]
+
+
+class TerminAus(_Aus):
+    wann: str
+    dauer: str
+    heute: bool
+
+
+class TermineGruppe(_Aus):
+    titel: str
+    unter: str
+    zeilen: list[TerminAus]
+
+
+class TermineOut(_Aus):
+    stand: StandAus
+    kommend: list[TermineGruppe]
+    vergangen: list[TermineGruppe]
+
+
+class KachelRechnungen(_Aus):
+    offen: int
+    betrag: str | None
+    faellig: str | None
+
+
+class KachelEinsatz(_Aus):
+    wann: str
+    wo: str
+
+
+class KachelZahl(_Aus):
+    zahl: int
+    zuletzt: str | None
+
+
+class UebersichtOut(_Aus):
+    stand: StandAus
+    rechnungen: KachelRechnungen
+    einsatz: KachelEinsatz | None
+    unterlagen: KachelZahl
+    fotos: KachelZahl
 
 
 class CodeIn(_Ein):
@@ -373,6 +495,64 @@ def willkommen(request: Request):
     if zeile is None:
         return JSONResponse({"fehler": "sitzung"}, status_code=401)
     return {"begruessung": begruessung(zeile["anrede"], zeile["titel"], zeile["vorname"], zeile["nachname"], zeile["name"])}
+
+
+# --- Bereiche (seit 1.11.45, Stufe P2e) ------------------------------------------------------------------------------------------------------------
+# Je ein POST (kein GET schreibt): die Funktion der Datenbank schreibt das Zugriffsprotokoll und zählt die Bremse der Listen. Ohne gültige Sitzung 401 (das
+# Cookie wird gelöscht), die Bremse 429 mit Retry-After.
+
+def _bereich(request: Request, funktion: str, lesen):
+    """(Zeilen, Stand) oder eine fertige Antwort (401, 429). Das Ergebniswort der ersten Zeile entscheidet; ein unbekanntes Wort ist 500."""
+    wert = _wert(request, COOKIE)
+    if wert is None:
+        return _ohne_sitzung(COOKIE)
+    zeilen = lesen(_db(request), pruefwerte.sitzung(wert))
+    wort = _behandelt(funktion, zeilen[0]["ergebnis"] if zeilen else "")
+    if wort == "ungueltig":
+        return _ohne_sitzung(COOKIE)
+    if wort == "bremse":
+        return _bremse(zeilen[0]["minuten"])
+    stand = bereiche.stand(zeilen[0].get("stand"), utc_jetzt())
+    return ([] if wort == "leer" else zeilen), stand
+
+
+@router.post("/api/uebersicht", response_model=UebersichtOut)
+def uebersicht(request: Request):
+    """Die Startseite (Entwurf Seite 1): offene Rechnungen, nächster Einsatz, Unterlagen, Fotos -- eine Zeile, ein Eintrag im Protokoll."""
+    erg = _bereich(request, "portal_uebersicht", lambda db, s: db.uebersicht(s))
+    if not isinstance(erg, tuple):
+        return erg
+    zeilen, stand = erg
+    return {"stand": stand, **bereiche.uebersicht(zeilen[0])}
+
+
+@router.post("/api/unterlagen", response_model=UnterlagenOut)
+def unterlagen(request: Request):
+    """Unterlagen und Fotos (Entwürfe Seiten 2 und 4): je Gruppe, neueste zuerst; Rechnungen und Mahnungen stehen unter „Rechnungen“."""
+    erg = _bereich(request, "portal_unterlagen", lambda db, s: db.unterlagen(s))
+    if not isinstance(erg, tuple):
+        return erg
+    return bereiche.unterlagen(erg[0])
+
+
+@router.post("/api/rechnungen", response_model=RechnungenOut)
+def rechnungen(request: Request):
+    """Rechnungen mit Zahlstand (Entwurf Seite 3), Mahnungen unter ihrer Rechnung, offen insgesamt, Stand."""
+    erg = _bereich(request, "portal_rechnungen", lambda db, s: db.rechnungen(s))
+    if not isinstance(erg, tuple):
+        return erg
+    zeilen, stand = erg
+    return {"stand": stand, **bereiche.rechnungen(zeilen)}
+
+
+@router.post("/api/termine", response_model=TermineOut)
+def termine(request: Request):
+    """Die festen Tage je Auftrag (Entwurf Seite 4): kommende mit „heute“, vergangene; „heute“ in Berlin."""
+    erg = _bereich(request, "portal_termine", lambda db, s: db.termine(s))
+    if not isinstance(erg, tuple):
+        return erg
+    zeilen, stand = erg
+    return {"stand": stand, **bereiche.termine(zeilen, berlin_today())}
 
 
 # --- Dateien (seit 1.11.34, Stufe P2b) -------------------------------------------------------------------------------------------------------------

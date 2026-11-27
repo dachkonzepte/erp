@@ -936,3 +936,20 @@ Probendatei `gegenprobe_11144.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.44-4 – ohne Protokoll | Protokoll in der Funktion | rot (`test_funktion_liest_nur_und_jedes_wort_ist_behandelt`) |
 | 1.11.44-4 – ohne Vorschau 404 | „keine“ nicht behandelt | rot (dieselbe wie „nur, wenn sichtbar“: 500) |
 | 1.11.44-1 – Migration wörtlich | Text geändert | rot (`test_migration_traegt_den_text_woertlich`) |
+
+## 1.11.45: Kundenportal P2e, Teil 3a -- die Bereiche im Dienst
+
+Probendatei `gegenprobe_11145.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.45-3 – Tausenderpunkt | ohne | rot (`test_geld`) |
+| 1.11.45-3 – Stand in Berlin | UTC | rot (`test_stand_in_berlin_heute_anderer_tag_und_alt`) |
+| 1.11.45-5 – „fällig seit“ | immer „fällig am“ | rot (`test_zustand_je_rechnung_wie_der_entwurf`) |
+| 1.11.45-6 – Unterlagen ohne Fotos | Fotos dabei | rot (`test_unterlagen_und_fotos_getrennt_allgemein_am_ende`) |
+| 1.11.45-6 – Allgemeine Unterlagen am Ende | ohne Sortierung | rot (dieselbe) |
+| 1.11.45-7 – „heute“ | nie | rot (`test_termine_kommend_heute_vergangen`) |
+| 1.11.45-8 – Gruppe wie im ERP | anderer Trenner | rot (`test_gruppe_wie_im_erp`) |
+| 1.11.45-2 – je Weg die eigene Funktion | Termine rufen Rechnungen | rot (`test_pg_wege_antworten_protokoll_401_und_429`) |
+| 1.11.45-4 – Titel wie auf dem PDF | „Rechnung aus Aufwand“ | rot (`test_titel_der_rechnung_wie_auf_dem_pdf`) |
+| 1.11.45-1 – nur Text | -- | keine eigene Gegenprobe: die Seiten kommen mit 1.11.46 (dort Wächter und Klicktest) |

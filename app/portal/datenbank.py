@@ -80,6 +80,24 @@ class Datenbank:
         """Liest nur (STABLE): (Ergebnis, Name der Kopie, Typ, Größe, Titel)."""
         return tuple(self._lesend("SELECT ergebnis, name, typ, groesse, titel FROM portal_datei(:s, :f)", s=sitzung, f=freigabe))
 
+    # --- Bereiche (seit 1.11.45, Stufe P2e): schreiben das Zugriffsprotokoll und zählen die Bremse -- in einer Transaktion mit Commit ------------------
+
+    def _liste(self, sql: str, **werte) -> list[dict]:
+        with self.engine.begin() as c:
+            return [dict(z._mapping) for z in c.execute(text(sql), werte).all()]
+
+    def unterlagen(self, sitzung: str) -> list[dict]:
+        return self._liste("SELECT * FROM portal_unterlagen(:s)", s=sitzung)
+
+    def rechnungen(self, sitzung: str) -> list[dict]:
+        return self._liste("SELECT * FROM portal_rechnungen(:s)", s=sitzung)
+
+    def termine(self, sitzung: str) -> list[dict]:
+        return self._liste("SELECT * FROM portal_termine(:s)", s=sitzung)
+
+    def uebersicht(self, sitzung: str) -> list[dict]:
+        return self._liste("SELECT * FROM portal_uebersicht(:s)", s=sitzung)
+
     def vorschau(self, sitzung: str, freigabe: int) -> tuple[str, str | None]:
         """Seit 1.11.44: liest nur (STABLE): (Ergebnis, Name der Vorschau)."""
         return tuple(self._lesend("SELECT ergebnis, name FROM portal_vorschau(:s, :f)", s=sitzung, f=freigabe))

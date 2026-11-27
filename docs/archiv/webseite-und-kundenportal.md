@@ -4346,6 +4346,46 @@ Erwartet: „Vorschauen nachgeholt n“ (n = Zahl der Fotos mit Kopie, oder kein
 zwei gleiche Zahlen; `t`. Abbrechen bei „nicht angelegt“: die Zeile in den Chat (sie nennt nur Nummer und Wort). Rückweg: keiner nötig -- die Seiten nutzen die
 Vorschau erst ab P2e, Teil 3.
 
+### Umsetzung 1.11.45 (P2e, Teil 3a): die Bereiche im Dienst
+
+Bauplan P2, B10 („jede Zahl und jeder Text vom Server“), Entwürfe Seiten 1–5. Die Seiten selbst folgen mit 1.11.46.
+
+- **Wege** (`app/portal/routen.py`, Liste SITZUNG): `POST /api/uebersicht`, `/api/unterlagen` (Unterlagen und Fotos aus einer Liste), `/api/rechnungen`,
+  `/api/termine` -- je ein POST, weil die Funktion der Datenbank das Zugriffsprotokoll schreibt und die Bremse der Listen zählt (kein GET schreibt); je ein
+  eigenes Antwortschema (Positivliste, nichts darüber hinaus). Ohne gültige Sitzung 401 (Cookie gelöscht), Bremse 429 mit Retry-After; ein unbekanntes
+  Ergebniswort 500 (`BEHANDELT`).
+- **Texte** (`app/portal/bereiche.py`, reine Funktionen ohne Datenbank): Beträge mit Tausenderpunkt und Komma, kaufmännisch auf den Cent; Daten „20.11.2026“;
+  Stand in Berlin, „heute, …“ oder mit Datum, älter als eine Stunde „alt“ (die Seite sagt dann „wird in Kürze aktualisiert“); Tage „Mo 7. – Mi 9. Dezember“
+  (Übersicht kurz „Dez.“), Dauer in Tagen der Folge. Gruppe nach derselben Regel wie im ERP (Wächter gegen `gruppe_text()`). Unterlagen ohne Rechnungen,
+  Mahnungen und Fotos, „Allgemeine Unterlagen“ am Ende; Fotos je Gruppe mit Bildtext „Auftrag … · Datum“. Rechnungen je Auftrag, neueste zuerst, jede Mahnung
+  unter ihrer Rechnung (sonst als eigene Zeile); Kennzeichen offen, teilweise bezahlt, bezahlt, Guthaben mit Betrag, in Schlussrechnung enthalten, storniert,
+  Storno zu …; Hinweis „noch offen …“ und „fällig am …“ bzw. „fällig seit …“ (überfällig) -- keine Warnfarbe Rot; offen insgesamt bzw. „alles bezahlt“. Termine
+  kommend (enden heute oder später, „heute“ gekennzeichnet) und vergangen (die jüngsten zuerst). Übersicht: vier Kacheln aus der einen Zeile.
+- **Titel einer Rechnung im Portal** (`app/portal_schaufenster.py::TITEL`): wie auf ihrem PDF, kurz -- Abschlagsrechnung, Schlussrechnung, Rechnung (aus
+  Aufwand), Stornorechnung (Entwurf Seite 3); bis 1.11.44 stand dort die Art der Listen im ERP („2. Abschlag nach Leistungsstand“).
+
+#### Festlegungen 1.11.45 (Bitte bestätigen)
+
+1. Jede Zahl und jeder Text der Bereiche kommt fertig vom Server; die Seite setzt nur Text.
+2. Vier Wege, je ein POST mit eigenem Antwortschema; je Aufruf ein Eintrag im Zugriffsprotokoll; ohne Sitzung 401, Bremse 429.
+3. Beträge „2.380,00 €“, Daten „20.11.2026“, Stand in Berlin („heute, 14:05 Uhr“), älter als eine Stunde mit Hinweis.
+4. Eine Rechnung heißt im Portal wie auf ihrem PDF, kurz: Abschlagsrechnung, Schlussrechnung, Rechnung, Stornorechnung.
+5. Zustand: „noch offen …“ bei teilweise bezahlt, „fällig am …“ bzw. „fällig seit …“ bei überfällig; Guthaben mit Betrag, Storno mit Nummer; keine Warnfarbe Rot.
+6. Mahnung unter ihrer Rechnung, sonst als eigene Zeile; Unterlagen ohne Rechnungen, Mahnungen und Fotos; „Allgemeine Unterlagen“ am Ende.
+7. Termine kommend mit „heute“, vergangen die jüngsten zuerst; Dauer in Tagen der Folge.
+8. Die Gruppe im Portal folgt derselben Regel wie im Reiter „Im Portal“ (Wächter).
+
+#### Abweichungen vom Bauplan (1.11.45)
+
+- B10 nannte die Seiten U (Unterlagen) und F (Fotos) getrennt; der Dienst liefert beide aus einer Liste (`/api/unterlagen`) -- ein Aufruf, ein Eintrag im
+  Protokoll, die Seite teilt.
+
+#### Tests und Prüfung 1.11.45
+
+`tests/test_v835_portal_bereiche.py` neu (ohne Datenbank: Beträge, Stand über Mitternacht, Tage, Gruppe wie im ERP, Unterlagen und Fotos, Zustände, Termine,
+Übersicht, Wege nur POST, Titel wie auf dem PDF; unter PostgreSQL alle vier Wege gegen den echten Dienst mit Protokoll, 401, kein GET und 429).
+Gegenproben: 9, alle rot aus dem geprüften Grund.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
