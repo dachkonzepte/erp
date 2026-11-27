@@ -73,6 +73,9 @@ OHNE_VORAB = {
                                                            "die Sitzung ab",
     "/api/customers/{customer_id}/portal/sperren": "seit 1.11.13: Sperren des Kundenportals nimmt nur Zugang weg und geht auch im Archiv (Festlegung 1.11.0; "
                                                    "der Zugang ist kein Teil, KEIN_TEIL); schreibt keine Datei und keine Mail",
+    "/api/customers/{customer_id}/portal/freigaben/{freigabe_id}/zuruecknehmen": "seit 1.11.36 (P2c): Zurücknehmen einer Freigabe nimmt nur weg und geht "
+                                                                                 "auch im Archiv wie Sperren (die Freigabe ist kein Teil, KEIN_TEIL); "
+                                                                                 "schreibt keine Datei und keine Mail",
 }
 # Pfadparameter, die einen Teil nennen (in jedem Router dieselbe Bedeutung)
 NAMEN = {"customer_id", "property_id", "roof_area_id", "project_id", "quote_id", "inquiry_id", "participant_id"}

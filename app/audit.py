@@ -10,7 +10,7 @@ from .spaltenlaenge import laenge
 from .suchmuster import passt
 
 from .models import (
-    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Kontaktvermerk, PortalZugang,
+    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Kontaktvermerk, PortalFreigabe, PortalZugang,
     Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, OperationalAssetInspection, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, PlanningSlotEmployee, PlanningSlotResource, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, EmployeeTargetHours, Urlaubsanspruch, LohnStartwert, LohnartZuordnung, ArbeitszeitKalendertag, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
@@ -44,6 +44,7 @@ TYPE_LABELS = {
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
     SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage", Kontaktvermerk: "Kontakt",
     PortalZugang: "Zugang zum Kundenportal",  # seit 1.11.10 (app/kundenportal.py::ZUGANG_ART)
+    PortalFreigabe: "Freigabe im Kundenportal",  # seit 1.11.36 (app/portal_freigaben.py)
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
@@ -112,6 +113,9 @@ AUDITED_TYPES = (
     # Seit 1.11.10 (Stufe P1d): der Zugang zum Kundenportal -- Anlegen, Link erzeugt (Zeitpunkt, gültig bis, E-Mail), Sperren, Entsperren, Verlängern.
     # Ohne den Prüfwert des Links und ohne „zuletzt genutzt“ (schreibt das Portal; STILL_JE_ART).
     PortalZugang,
+    # Seit 1.11.36 (Stufe P2c): Freigaben fürs Kundenportal -- freigegeben (Quelle, Titel, von wem), zurückgenommen (wann, von wem, Grund); die Felder der
+    # Kopie schreibt der Postbote (STILL_JE_ART), ihr Name steht nie in der Historie.
+    PortalFreigabe,
 )
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
@@ -124,6 +128,8 @@ STILL_JE_ART = {
     ProjectDocument: {"category_id"}, CustomerDocument: {"category_id"},
     # Seit 1.11.10: der Prüfwert des Links nie in der Historie (Regel 18 sinngemäß), die verdeckte Anzeige läuft mit der E-Mail mit
     PortalZugang: {"link_sha256", "email_anzeige", "zuletzt_genutzt_am"},
+    # Seit 1.11.36: die Kopie einer Freigabe (Name, Typ, Größe, Prüfsumme, bereit, Fehler) -- Sache des Postboten, nicht des Büros
+    PortalFreigabe: {"kopie_name", "kopie_typ", "kopie_groesse", "kopie_sha256", "kopie_bereit_am", "kopie_fehler"},
 }
 # Seit 1.9.115: Inhalte eines privaten Termins nie in der Historie (sie liest jedes Büro) -- nur, dass sich etwas geändert hat.
 PRIVATE_TERMINFELDER = {"title", "location", "notes"}
@@ -285,6 +291,13 @@ FIELD_LABELS = {
     "gesperrt_am": "Zugang gesperrt am", "gesperrt_grund": "Grund der Sperre", "gesperrt_von_user_id": "Gesperrt von (Konto)",
     "gesperrt_von_name": "Gesperrt von", "angelegt_von_user_id": "Angelegt von (Konto)", "angelegt_von_name": "Angelegt von",
     "zuletzt_genutzt_am": "Zuletzt genutzt am", "angelegt_am": "Angelegt am",
+    # seit 1.11.36: Freigabe im Kundenportal (die Felder der Kopie stehen still, ihre Namen braucht die Historie trotzdem)
+    "quelle": "Quelle", "quelle_id": "Quelle (Nummer)", "titel": "Titel im Portal", "datum": "Datum der Unterlage", "regel": "Automatische Regel",
+    "freigegeben_am": "Freigegeben am", "freigegeben_von_user_id": "Freigegeben von (Konto)", "freigegeben_von_name": "Freigegeben von",
+    "zurueckgenommen_am": "Zurückgenommen am", "zurueckgenommen_von_user_id": "Zurückgenommen von (Konto)",
+    "zurueckgenommen_von_name": "Zurückgenommen von", "zurueckgenommen_grund": "Grund der Rücknahme", "kopie_name": "Kopie (Name)",
+    "kopie_typ": "Kopie (Typ)", "kopie_groesse": "Kopie (Größe)", "kopie_sha256": "Kopie (Prüfsumme)", "kopie_bereit_am": "Kopie bereit am",
+    "kopie_fehler": "Kopie gescheitert",
     "job_title": "Berufsbezeichnung",
     "labor_rate_override": "Verrechnungssatz (abweichend)",
     "last_year": "Letztes Jahr",

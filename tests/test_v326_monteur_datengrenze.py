@@ -468,6 +468,8 @@ QUERY_JE_ROUTE = {
     "/api/checklists": {"order_id": "@order_id"},
     # Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41)
     "/api/email-dispatches/delivery-recipients": {"document_type": "auftrag", "document_id": "@order_id"},
+    # „Im Portal zeigen“ (seit 1.11.36, P2c): nur ab Büro – Auftrag, der Monteur bekommt 403
+    "/api/portal-freigaben/unterlagen": {"quelle": "customer_documents", "quelle_ids": "1"},
     # Vorschlag zum Zahlungseingang (seit 1.8.78)
     "/api/invoices/{invoice_id}/payment-proposal": {"amount": "100", "received_on": "2026-10-01"},
     # Vorschau „Ende nachtragen“ (seit 1.9.44): die Gruppenzeit der Testdaten läuft seit gestern

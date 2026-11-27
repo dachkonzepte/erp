@@ -754,3 +754,31 @@ Probendatei `gegenprobe_11135.py` (Scratchpad, mit `--trocken` vorab geprüft); 
 | 1.11.35-3 – Aufruf mit dieser Grenze | Kind fest mit 1 GiB aufgerufen | rot |
 | 1.11.35-4 – JPEG verkleinert dekodiert | `draft` entfernt | rot („abbruch“ mit 200 MB) |
 | 1.11.35-5 – Spitze je Kind, Vorrang am laufenden Kind | -- | keine Gegenprobe möglich: `os.wait4` und `/proc` gibt es nur unter Linux; geprüft auf dem Server (P2b-4) |
+
+## 1.11.36: Freigeben und Zurücknehmen im ERP (P2c, Teil 1)
+
+Probendatei `gegenprobe_11136.py` (Scratchpad, mit `--trocken` vorab geprüft); unter `app/` mit Marker `GEGENPROBE` in der geänderten Zeile; geprüft wird
+„failed“ (nicht „error“) und der Grund im Text; jede Datei danach byte-gleich zurück (SHA-256 verglichen). Vier Proben (Grund, alles oder nichts, Kunde im
+Pfad, Archiv) waren im ersten Lauf aus dem richtigen Grund rot, nur der erwartete Text stand ohne die Klammern von pytest -- mit korrigiertem Text wiederholt.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.36-2 – fremd wie unbekannt | eine fremde Unterlage mit eigener Meldung | rot |
+| 1.11.36-2 – eine eigene, die nicht gilt: 409 mit Grund | Prüfung des Grunds entfernt | rot (200 statt 409) |
+| 1.11.36-10 – Kette: Mangel verworfen | Bedingung in Python entfernt | rot (Zelle „defect_files – Quelle ungültig“: Python gegen SQL) |
+| 1.11.36-10 – Kette: Projekt im Archiv | Bedingung in Python entfernt | rot (die Zellen „Projekt im Archiv“) |
+| 1.11.36-3 – nur PDF und Bilder | Prüfung des Typs entfernt | rot |
+| 1.11.36-3 – bis 25 MB | Prüfung der Größe entfernt | rot |
+| 1.11.36-4 – Titel nie der Dateiname | Vorschlag = Dateiname | rot |
+| 1.11.36-5 – alles oder nichts | eine fremde übersprungen | rot (200 statt 404) |
+| 1.11.36-6 – Meldung nennt den anderen Kunden | „Schon im Portal freigegeben.“ | rot |
+| 1.11.36-6 – gleichzeitig nie 500 | IntegrityError nicht gefangen | rot |
+| 1.11.36-7 – Freigabe nur des Kunden im Pfad | Vergleich mit dem Kunden entfernt | rot (200 statt 404) |
+| 1.11.36-8 – „erneut“ nur gescheitert | Prüfung entfernt | rot |
+| 1.11.36-8 – „erneut“ weckt den Postboten | Weckruf entfernt | rot |
+| 1.11.36-7 – Zurücknehmen auch im Archiv | `archiv_vorab` an der Route | rot (409 statt 200) |
+| 1.11.36-1 – ab Büro – Auftrag | Mindestrolle Monteurin | rot |
+| 1.11.36-1 – Modul aus 403 | Prüfung des Moduls entfernt | rot |
+| 1.11.36-12 – Historie ohne die Felder der Kopie | Felder nicht mehr still | rot |
+| 1.11.36-9 – Zustände | -- | durch die Proben zu 2, 8, 10 und den Wächter je Zelle mitgeprüft; keine eigene |
+| 1.11.36-11 – jede Quelle auch von Hand | -- | keine eigene: dieselben Prüfungen wie oben, über `customer_documents`, `project_documents`, `service_report_photos` |

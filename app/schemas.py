@@ -1302,6 +1302,73 @@ class PortalPostErledigtIn(BaseModel):
     post_id: int = Field(ge=INT4_MIN, le=INT4_MAX)
 
 
+# Seit 1.11.36 (Stufe P2c): Freigaben fürs Kundenportal im ERP (app/portal_freigaben.py) -- Quelle als Tabelle und ID wie in portal_freigaben.
+FREIGABE_QUELLE = Literal["sent_documents", "invoices", "reminders", "service_reports", "checklist_versions", "notice_letters", "service_report_photos",
+                          "customer_documents", "project_documents", "property_documents", "defect_files", "order_acceptance_files"]
+
+
+class PortalFreigabeIn(BaseModel):
+    """Eine oder mehrere Unterlagen derselben Quelle freigeben (mehrere auf einmal: Nachtrag 6); titel leer = je Unterlage der Vorschlag."""
+    model_config = ConfigDict(extra="forbid")
+    quelle: FREIGABE_QUELLE
+    quelle_ids: list[Annotated[int, Field(ge=1, le=INT4_MAX)]] = Field(min_length=1, max_length=200)
+    titel: PflichttextWennDa = Field(default=None, min_length=1, max_length=120)
+
+
+class PortalFreigabeZuruecknehmenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    grund: PflichttextWennDa = Field(default=None, min_length=1, max_length=500)
+
+
+class PortalFreigabeEintragOut(BaseModel):
+    id: int
+    art: str
+    art_text: str
+    quelle: str
+    quelle_id: int
+    titel: str
+    datum: date
+    automatisch: bool
+    freigegeben_am: datetime
+    freigegeben_von: str
+    zustand: str
+    zustand_text: str
+    grund: str | None = None
+    zurueckgenommen_am: datetime | None = None
+    zurueckgenommen_von: str | None = None
+    auftrag: str | None = None
+    objekt: str | None = None
+
+
+class PortalFreigabenOut(BaseModel):
+    """Was die Karte „Im Portal“ der Kundenakte zeigt (app/portal_freigaben.py::stand()); nach dem Freigeben dazu die neuen Freigaben."""
+    portal_aktiv: bool
+    kunde_archiv: bool
+    eintraege: list[PortalFreigabeEintragOut]
+    neu: list[int] = []
+    schon: int = 0
+
+
+class PortalUnterlageBestehendOut(BaseModel):
+    id: int
+    customer_id: int
+    zustand: str
+    zustand_text: str
+    grund: str | None = None
+    anderer_kunde: bool
+
+
+class PortalUnterlageOut(BaseModel):
+    """Für „Im Portal zeigen“ an einer Datei (app/portal_freigaben.py::unterlagen())."""
+    quelle_id: int
+    customer_id: int | None = None
+    freigebbar: bool
+    grund: str | None = None
+    art: str | None = None
+    titel_vorschlag: str | None = None
+    bestehend: PortalUnterlageBestehendOut | None = None
+
+
 class WebanfragenStandOut(BaseModel):
     """Stand des Abholens -- ohne Schlüssel und ohne Adresse der Schnittstelle."""
     eingerichtet: bool

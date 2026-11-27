@@ -76,6 +76,13 @@ _MENGE = "set(ordered_ids)!=set("  # Reihenfolge: genau die vorhandenen Einträg
 GEPRUEFT = {
     # --- Kundenportal (seit 1.11.9): „Erledigt“ nur an dem gescheiterten Versand, den der Hinweis auf „Start“ gerade zeigt ---
     "POST /api/kundenportal/postbote/erledigt post_id": ("portal_postbote.erledigen", 'grund != "fehler" or fehler_id != post_id'),
+    # Seit 1.11.36 (Stufe P2c): eine Unterlage nur, wenn ihre Kette heute zum Kunden im Pfad führt (fremd wie unbekannt 404); eine Freigabe nur des Kunden
+    # im Pfad
+    "POST /api/customers/{customer_id}/portal/freigaben quelle_ids": ("portal_freigaben.pruefen", "k.kunde != kunde_id"),
+    "POST /api/customers/{customer_id}/portal/freigaben/{freigabe_id}/zuruecknehmen freigabe_id":
+        ("portal_freigaben._freigabe_des_kunden", "f.customer_id != kunde_id"),
+    "POST /api/customers/{customer_id}/portal/freigaben/{freigabe_id}/erneut freigabe_id":
+        ("portal_freigaben._freigabe_des_kunden", "f.customer_id != kunde_id"),
     # --- Einsatzbericht (Befund 2a–2e, app/zugehoerigkeit.py) ---
     "POST /api/orders/{order_id}/service-reports roof_area_ids":
         ("zugehoerigkeit.require_in_order_property", "area is None or area.property_id != property_id"),

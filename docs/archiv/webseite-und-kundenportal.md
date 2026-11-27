@@ -3790,6 +3790,78 @@ geprüften Grund (`docs/archiv/gegenproben-portal.md`). Angepasste Erwartung:
   viermal), „alle Prüfungen wie erwartet“, zwei Zeilen „Messung:“ und „Grenze des Kinds 448 MB“.
 - `test_v805_portal_postbote.py::test_einheit_des_postboten` -- nur der Kommentar (1 GiB stand dort); Werte unverändert.
 
+### Umsetzung 1.11.36 (P2c, Teil 1): Freigeben und Zurücknehmen im ERP
+
+P2c kommt in vier Versionen: 1.11.36 Freigeben und Zurücknehmen (Modul und Wege), 1.11.37 die automatischen Regeln (B4.3), 1.11.38 die Karte „Im Portal“ in
+der Kundenakte und „vor dem Einladen“ (Nachtrag 6), 1.11.39 „Im Portal zeigen“ an den Dateien samt mehreren Fotos auf einmal (B9, Nachtrag 6).
+
+- `app/portal_freigaben.py`:
+  - `kette()`: je Quelle derselbe Weg wie `portal_quelle()` in SQL -- wohin die Kette heute führt (Kunde ohne die Bedingungen der Gültigkeit) und warum sie
+    nicht gilt (Grund in Worten: Rechnung im Entwurf, Mahnung nicht festgeschrieben bzw. ersetzt, Bericht nicht unterschrieben bzw. ohne feste Fassung, Fassung
+    überholt, Unterschrift verworfen, Mangel bzw. Abnahme verworfen, Projekt Mustervorgang bzw. im Archiv, Eingang der Webseite im Archiv). Dazu Art, Vorschlag
+    für den Titel, Datum, Auftrag, Objekt, gespeicherter Typ und Größe. Unter SQLite gibt es `portal_quelle()` nicht; das ERP braucht die Gründe für die Karte.
+    Eine Änderung an einer Kette gehört in beide -- `tests/test_v827_portal_freigaben_kette.py` vergleicht in jeder der 145 Zellen der Matrix aus 1.11.32
+    (gleiche Zustandswechsel) Python mit `portal_quelle()` und „sichtbar“ mit `portal_sichtbar()`.
+  - `freigeben()`: eine oder mehrere Unterlagen einer Quelle (bis 200) für den Kunden aus dem Pfad -- alles oder nichts; schon für ihn freigegebene zählen als
+    „schon“, ist keine neu, 409. Je Unterlage: führt die Kette heute nicht zu ihm (unbekannt oder ein anderer Kunde), 404 „Unterlage nicht gefunden.“ (Regel 25,
+    außen gleich); gilt sie nicht, 409 mit Grund; ein gespeicherter Typ außer PDF, JPEG, PNG, WebP, GIF oder mehr als 25 MB, 409 (ohne gespeicherten Typ
+    entscheidet der Postbote am Inhalt). Steht die Quelle noch bei einem anderen Kunden (dort ruht sie): 409 „Diese Unterlage ist noch bei Kunde <Nummer>
+    (<Name>) freigegeben (dort ruht sie) – erst beim bisherigen Kunden zurücknehmen.“ -- auch, wenn zwei zugleich freigeben (der Index „höchstens eine je
+    Quelle“ greift, die Meldung wird nachgeschlagen, nie 500). Titel: von Hand (1–120 Zeichen) oder je Unterlage der Vorschlag -- Kategorie bzw. Art und
+    Datum, nie der Dateiname.
+  - `zuruecknehmen()`: mit optionalem Grund, sofort unsichtbar (die Funktionen prüfen `zurueckgenommen_am`), die Kopie entfernt der Postbote (Auslöser);
+    die Zeile bleibt. Zweimal 409; eine Freigabe eines anderen Kunden als im Pfad 404.
+  - `erneut()`: nur eine gescheiterte Kopie einer nicht zurückgenommenen Freigabe -- `kopie_fehler` leer und ein Weckruf an den Postboten (`pg_notify`; der
+    Auslöser greift dort nicht).
+  - `zustand()`: zurückgenommen (Grund), ruht (die Unterlage gibt es nicht mehr / gehört heute zu einem anderen Kunden / Grund der Kette), gescheitert (Grund in
+    Worten), wird vorbereitet, sichtbar -- in derselben Reihenfolge, in der die Funktionen der Datenbank prüfen. `stand()` für die Karte, `unterlagen()` für
+    „Im Portal zeigen“ (liest nur).
+- Router `app/routers/portal_freigaben.py`, ab Büro – Auftrag, Modul aus 403:
+  `GET/POST /api/customers/{id}/portal/freigaben`, `POST …/freigaben/{freigabe_id}/zuruecknehmen` (auch im Archiv, `OHNE_VORAB`), `POST …/erneut`
+  (`archiv_vorab`), `GET /api/portal-freigaben/unterlagen?quelle=…&quelle_ids=…` (bis 500). Freigeben geht auch, solange das Portal des Kunden aus ist (B4.2;
+  der Stand nennt `portal_aktiv`).
+- Änderungshistorie: „Freigabe im Kundenportal“ (`PortalFreigabe` in `app/audit.py`), ohne die Felder der Kopie (`STILL_JE_ART`) -- ihr Name steht nie dort.
+- Bekannte Grenze: `stand()` liest je Freigabe ihre Kette einzeln (einige Abfragen je Zeile). Für einen Kunden mit wenigen Dutzend Freigaben unauffällig; bei
+  Hunderten je Kunde gehört es gebündelt.
+
+#### Festlegungen 1.11.36 (Bitte bestätigen)
+
+1. Freigeben, Zurücknehmen und „erneut versuchen“ ab Büro – Auftrag (P2-6), die Monteurin nie; Modul aus: 403.
+2. Freigegeben wird nur, was heute zum Kunden im Pfad führt -- unbekannt und fremd sind außen dasselbe 404; eine eigene, die nicht gilt, 409 mit Grund.
+3. Nur PDF und Rasterbilder (gespeicherter Typ; ohne Typ entscheidet der Postbote am Inhalt), bis 25 MB.
+4. Titel vorbelegt mit Kategorie bzw. Art und Datum, nie der Dateiname; von Hand 1–120 Zeichen; bei mehreren einer für alle oder je der Vorschlag.
+5. Mehrere auf einmal (bis 200): alles oder nichts; schon freigegebene desselben Kunden zählen als „schon“; ist keine neu, 409.
+6. Steht die Unterlage noch bei einem anderen Kunden, nennt die Meldung ihn (Nummer und Name) -- erst dort zurücknehmen; auch bei gleichzeitigem Freigeben nie 500.
+7. Zurücknehmen mit optionalem Grund, sofort unsichtbar, auch im Archiv; die Zeile bleibt.
+8. „Erneut versuchen“ nur für eine gescheiterte Kopie einer nicht zurückgenommenen Freigabe; es weckt den Postboten.
+9. Zustände im ERP: sichtbar, wird vorbereitet, gescheitert (Grund in Worten), ruht (Grund), zurückgenommen.
+10. Die Kette steht im ERP ein zweites Mal in Python; ein Wächter verlangt in jeder Zelle der Matrix dasselbe wie `portal_quelle()`.
+11. Jede Quelle lässt sich auch von Hand freigeben, auch die der automatischen Arten (für die Vorschläge, B4.3) -- dieselben Prüfungen.
+12. Änderungshistorie „Freigabe im Kundenportal“ ohne die Felder der Kopie.
+
+#### Abweichungen vom Bauplan (1.11.36)
+
+- B11 nennt für P2c ein Modul mit „freigeben, zurücknehmen, automatische Regeln, Gründe des Ruhens“ in einem Schritt -- hier in vier Versionen (oben); die
+  Regeln folgen in 1.11.37.
+- Neu gegenüber dem Bauplan: „erneut versuchen“ an einer gescheiterten Kopie (Festlegung 1.11.33-5 hatte es P2c zugewiesen, B9 nennt es nicht) und die Kette
+  ein zweites Mal in Python (B4.4 sagt „im ERP mit Grund angezeigt“, ohne zu sagen, woher der Grund kommt).
+- B4.3 trennt „automatisch“ und „einzeln“ je Art; von Hand freigeben lässt sich hier jede Quelle (Festlegung 11) -- sonst ginge ein Vorschlag (Angebot an eine
+  andere Adresse) nicht.
+
+#### Tests und Prüfung 1.11.36
+
+`tests/test_v827_portal_freigaben_kette.py` (147, PostgreSQL mit der Welt der Matrix: je Zelle Python gleich SQL und „sichtbar“ gleich `portal_sichtbar()`,
+jede ruhende Freigabe mit Grund; jede Quelle hat ihren Zweig; „erneut“ weckt den Postboten, gezählt nur Weckrufe dieser Verbindung),
+`tests/test_v828_portal_freigaben.py` (21, über den Router: einzeln mit Vorschlag und Historie, Titel von Hand, mehrere Fotos, alles oder nichts, fremd wie
+unbekannt, Grund, Typ und Größe, noch bei einem anderen Kunden samt gleichzeitigem Freigeben, Zurücknehmen, nur beim eigenen Kunden, Archiv, erneut,
+sichtbar und ruht, Dialog-Abfrage, Rollen, Modul aus). Gegenproben: 17, alle rot aus dem geprüften Grund (`docs/archiv/gegenproben-portal.md`). Eingeordnet:
+
+- `tests/test_v373_zugehoerigkeit_struktur.py::GEPRUEFT` -- `quelle_ids` beim Freigeben (`portal_freigaben.pruefen`, `k.kunde != kunde_id`), `freigabe_id`
+  beim Zurücknehmen und bei „erneut“ (`portal_freigaben._freigabe_des_kunden`, `f.customer_id != kunde_id`).
+- `tests/test_v793_archivschutz.py::OHNE_VORAB` -- Zurücknehmen (geht auch im Archiv, wie Sperren).
+- `tests/test_v326_monteur_datengrenze.py::QUERY_JE_ROUTE` -- Werte für `/api/portal-freigaben/unterlagen` (der Monteur bekommt 403).
+- Erster voller Lauf rot (2): `test_v436::test_jedes_protokollierte_feld_hat_einen_namen` und `test_v438::test_namen_der_historie_sind_lesbar` -- die 18 Felder einer Freigabe hatten in der Änderungshistorie keinen lesbaren Namen (auch die stillen der Kopie brauchen einen). Nachgetragen in `app/audit.py::FIELD_LABELS`, danach grün.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
