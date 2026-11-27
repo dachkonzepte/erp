@@ -64,6 +64,7 @@ a.link{color:var(--ds-link);font-weight:650;text-decoration:none}
 <main>
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {{ seitenkopf("Start", untertitel='Aufgaben, Kennzahlen und laufende Projekte auf einen Blick. Über „+ Widget hinzufügen" lässt sich das Dashboard anpassen.') }}
+<div class="portal-stau hidden" id="portalPflicht" role="status"><span class="portal-stau-text" id="portalPflichtText"></span><a href="/settings#general">Unternehmensdaten öffnen</a></div>
 <div class="portal-stau hidden" id="portalStau" role="status"><span class="portal-stau-text" id="portalStauText"></span><a href="/versandprotokoll?typ=portal_code">Versandprotokoll öffnen</a><button type="button" class="secondary" id="portalStauErledigt" data-klick="portal-stau-erledigt" hidden>Erledigt</button><span class="portal-stau-meldung" id="portalStauMeldung"></span></div>
 <div class="widgets" id="widgets"></div>
 <div class="widget-card" style="margin-top:14px">
@@ -400,10 +401,12 @@ function portalStauZeigen(d){
   document.getElementById('portalStauText').textContent=d.text||'';
   document.getElementById('portalStauErledigt').hidden=!d.erledigen;
   document.getElementById('portalStau').classList.toggle('hidden',!d.stau);
+  document.getElementById('portalPflichtText').textContent=d.pflicht||'';  // seit 1.11.47: Impressum und Datenschutz fehlen
+  document.getElementById('portalPflicht').classList.toggle('hidden',!d.pflicht);
 }
 async function portalStau(){
   if(!KUNDENPORTAL)return;
-  await lesen('portal-stau',()=>api('/api/kundenportal/postbote').catch(()=>({stau:null,text:null,post_id:null,erledigen:false})),portalStauZeigen);
+  await lesen('portal-stau',()=>api('/api/kundenportal/postbote').catch(()=>({stau:null,text:null,post_id:null,erledigen:false,pflicht:null})),portalStauZeigen);
 }
 async function portalStauErledigen(){
   const meldung=document.getElementById('portalStauMeldung');

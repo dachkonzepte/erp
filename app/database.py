@@ -74,6 +74,24 @@ if DATABASE_URL.startswith("sqlite") and fremdschluessel_pruefen():
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+
+def journal_im_speicher() -> bool:
+    """Seit 1.11.47: ERP_TEST_JOURNAL_SPEICHER=1 legt unter SQLite das Rücksetz-Journal in den Speicher (PRAGMA journal_mode=MEMORY) -- nur für
+    Test-Instanzen (ERP_ENV development oder test: Klicktests, Bildgrundlage), nie im Betrieb. Anlass (Endlauf 27.11.2026): SQLite legt sonst je
+    Transaktion eine Datei <db>-journal an und löscht sie danach; der Virenscanner des Entwicklungsrechners hält die eben geschlossene Datei kurz offen,
+    das Löschen scheitert mit Windows-Fehler 32 (SQLITE_IOERR_DELETE, „disk I/O error“) -- beim Befüllen eines Klicktests über tausend Mal in Sekunden
+    (create_all legt jede Tabelle und jeden Index in einer eigenen Transaktion an). Ein Journal im Speicher legt keine Datei an; die Sperren bleiben
+    dieselben wie mit der Datei (alle Modi mit Rücksetz-Journal teilen sie), verloren ginge nur die Wegwerf-Datenbank bei einem Absturz mitten im Schreiben."""
+    return os.getenv("ERP_TEST_JOURNAL_SPEICHER") == "1" and os.getenv("ERP_ENV") in ("development", "test")
+
+
+if DATABASE_URL.startswith("sqlite") and journal_im_speicher():
+    @event.listens_for(engine, "connect")
+    def _journal_im_speicher(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=MEMORY")
+        cursor.close()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 

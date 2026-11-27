@@ -1503,6 +1503,11 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   Im Verbindungsprotokoll wieder eine stille Verbindung (angenommen, keine Anfrage, 29,6 s) -- die dritte nach 1.11.21 und 1.11.22, die erste unter Python
   3.14; drei der letzten vier Endläufe hatten genau eine (b96a7b8, 5e5b6d7, 8c3c0b8; 0ddaa83 keine). 1.11.27 änderte nur die Python-Version. Stand:
   abgefangen durch die Wiederholung, Ursache offen (Abschnitt „Stille Verbindungen (1.11.25)“).
+- **29 Klicktests „Befüllen fehlgeschlagen“** -- 27.11.2026, Endlauf von 1.11.46 auf 6662aea4 (frische Arbeitskopie, zu viert): `sqlite3.OperationalError:
+  disk I/O error` bei `CREATE INDEX …` in `create_all()`, vor der ersten Prüfung; Wiederholung auf demselben Stand zu viert 27 der 29 grün, 5 wieder rot (davon 3,
+  die im ersten Lauf grün waren), diese 5 nacheinander grün. Ursache gefunden mit dem Protokoll von SQLite (`SQLITE_CONFIG_LOG`): `winDelete(…\erp.db-journal)`
+  mit Windows-Fehler 32 -- der Virenscanner hielt das eben geschlossene Journal offen. Am Nachmittag traf es auch die Suite (alembic-Kette in `test_v800`) und die
+  Datei der Reihenfolge („Permission denied“, INTERNALERROR). Stand: behoben mit 1.11.47 (Abschnitt „Journal von SQLite im Speicher (1.11.47)“).
 
 ## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
 
@@ -1750,3 +1755,39 @@ Festlegung 1.11.18 (bestätigt am 25.11.2026): Ein Test, der auf einen Weckruf v
 (über `pg_backend_pid()`), und prüft mit einem fremden Weckruf, dass er filtert.
 
 Gegenprobe: der Filter nach `pid` heraus -- `test_pg_code_anfordern_auftrag_und_notify_beim_commit` rot (zwei Weckrufe: der fremde und der eigene).
+
+## Journal von SQLite im Speicher, Reihenfolge offen gehalten (1.11.47)
+
+**Befund.** Im Endlauf vom 27.11.2026 scheiterten 29 von 168 Klicktests beim Befüllen mit „disk I/O error“ (Wackler oben). Gleiche Namen der Wegwerf-Datenbanken
+waren es nicht (jeder Klicktest hat seinen Arbeitsordner, `erp.db` darin). Das Protokoll von SQLite, über ein `sitecustomize` außerhalb des Repos an jeden
+Prozess gehängt (`sqlite3_config(SQLITE_CONFIG_LOG)` über die `sqlite3.dll` von Python), nannte bei jedem Fehler `SQLITE_IOERR_DELETE` (2570):
+`os_win.c: (32) winDelete(<Arbeitsordner>\erp.db-journal) - Der Prozess kann nicht auf die Datei zugreifen, da sie von einem anderen Prozess verwendet wird.`
+SQLite legt im Modus DELETE je Transaktion ein Journal an und löscht es danach; `create_all()` legt jede Tabelle und jeden Index in einer eigenen Transaktion an,
+über tausend Journale in Sekunden. Auf diesem Rechner läuft G DATA (im Sicherheitscenter gemeldet, Defender aus); er prüft eben geschlossene Dateien und hielt
+sie dabei offen -- SQLite gab nach seinen Wiederholungen auf. Ohne Chrome und Server (96 gleichzeitige `create_all()`) trat es nicht auf, neben echten
+Klicktests zu viert in drei Runden je zwei- bis dreimal. Am Nachmittag traf es auch die Suite (alembic-Kette auf einer Datei in `tmp_path`) und die Datei der
+Reihenfolge der Tests (`PermissionError` beim Anhängen, der ganze Lauf brach mit INTERNALERROR ab). Nebenbei gemessen: der Speicherpool des Kerns stand nach drei
+Wochen Laufzeit bei 3,7 GB (nicht auslagerbar) bzw. 3,9 GB (auslagerbar), keinem Prozess zugeordnet -- bei rund 32 GB Arbeitsspeicher ungewöhnlich hoch; der
+Fehler 1450 von PostgreSQL am 25.11. passt dazu. Abhilfe am Rechner (Sache des Betriebs): Ausnahmen im Virenscanner für `C:\DACHKONZEPTE-ERP\`,
+`%TEMP%\erp-klicktests`, `%TEMP%\pytest-of-User` und `%LOCALAPPDATA%\pgportable`, gelegentlich neu starten.
+
+**Umsetzung.**
+- `app/database.py::journal_im_speicher()`: `ERP_TEST_JOURNAL_SPEICHER=1` mit `ERP_ENV` development oder test legt unter SQLite das Journal in den Speicher
+  (`PRAGMA journal_mode=MEMORY`) -- nie im Betrieb. Das Klicktest-Werkzeug setzt den Schalter für Befüllen und Instanz (`_isolierte_umgebung()`, auch
+  Bildgrundlage); `alembic/env.py` folgt ihm; `tests/conftest.py` setzt ihn für Kindprozesse und hält jede SQLite-Verbindung des Testprozesses selbst im Speicher
+  (`_journal_im_speicher`, Ereignis „connect“ an jeder Engine). Die Sperren sind dieselben wie mit Datei (alle Modi mit Rücksetz-Journal teilen sie); verloren
+  ginge nur eine Wegwerf-Datenbank bei einem Absturz mitten im Schreiben.
+- `tests/reihenfolge.py::_schreiben()`: die Datei bleibt für den ganzen Lauf offen (jede Zeile mit flush); scheitert das Öffnen, wartet der Prozess und versucht
+  es bis zu zwanzigmal, danach endet nur die Reihenfolge dieses Prozesses (Meldung auf stderr), nie der Lauf; ebenso beim Leeren des Ordners zu Beginn.
+- Gemessen: dieselben 13 Klicktests zu viert -- vorher in drei Runden je 2–3 rot, mit dem Schalter dreimal 13 von 13.
+
+**Festlegungen 1.11.47 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Klicktests, Bildgrundlage, Suite und alembic in Tests halten das Journal von SQLite im Speicher (`ERP_TEST_JOURNAL_SPEICHER`, nur development/test).
+2. Die Datei der Reihenfolge bleibt für den Lauf offen; ein gesperrtes Öffnen wartet und beendet notfalls nur die Reihenfolge, nie den Lauf.
+3. Der Endlauf läuft zu zweit (`klicktest_alle.py --gleichzeitig 2`), bis der Betrieb wieder zu viert freigibt; er muss in einem Durchgang grün sein.
+
+**Gegenproben** (`gegenprobe_11147.py`, Dateien danach byte-gleich): Schalter liefert immer False -- `test_v836::test_schalter_nur_fuer_test_instanzen[1-development-memory]`
+und `test_befuellen_ohne_journal_datei` rot; das Werkzeug setzt ihn nicht -- `test_das_werkzeug_setzt_den_schalter` rot; der Hook in conftest setzt DELETE --
+`test_testprozess_journal_im_speicher` rot; `alembic/env.py` ohne Hook -- `test_alembic_mit_schalter_ohne_journal_datei` rot (Journal gesehen); die Reihenfolge fängt
+den Fehler nicht -- `test_reihenfolge_wartet_auf_eine_gesperrte_datei` rot. Festlegung 3 ist Arbeitsweise (keine Gegenprobe).

@@ -27,11 +27,11 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, event, pool
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.database import Base  # noqa: E402
+from app.database import Base, journal_im_speicher  # noqa: E402
 from app import models  # noqa: E402,F401  (Import registriert alle Tabellen)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -72,6 +72,14 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+    if connectable.dialect.name == "sqlite" and journal_im_speicher():
+        # Seit 1.11.47: nur Test-Instanzen (ERP_TEST_JOURNAL_SPEICHER=1 und ERP_ENV development/test, nie im Betrieb) -- das Journal von SQLite im
+        # Speicher wie in app/database.py; eine Migrationskette schreibt sonst Hunderte Journale, deren Löschen der Virenscanner blockieren kann.
+        @event.listens_for(connectable, "connect")
+        def _journal_im_speicher(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.close()
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
         with context.begin_transaction():

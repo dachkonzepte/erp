@@ -1,6 +1,6 @@
 """Prüft das Neukodieren der Fotos für das Kundenportal auf dem Rechner, auf dem es läuft (seit 1.11.33, Stufe P2b; Server-Schritt P2b-4).
 
-Ohne Datenbank, ohne Dateien, schreibt nichts: erfundene Bilder, im Speicher erzeugt, gehen durch denselben Kindprozess wie im Postboten
+Ohne Datenbank: erfundene Bilder gehen durch denselben Kindprozess wie im Postboten
 (app/portal_kopien.py::foto_neu_kodieren() bzw. kind_befehl(), app/portal_foto_kind.py):
 
     1. ein Foto mit EXIF (samt GPS) und Kommentar      -> ein JPEG ohne APP1–APP15 und ohne Kommentar
@@ -8,21 +8,28 @@ Ohne Datenbank, ohne Dateien, schreibt nichts: erfundene Bilder, im Speicher erz
     3. ein Bild, das die Grenze für Speicher sprengt    -> „abbruch“ (unter Linux greift RLIMIT_AS, unter Windows das Job-Objekt)
     4. nur unter Linux (seit 1.11.35): das Kind steht für den OOM-Killer an erster Stelle -- /proc/<pid>/oom_score_adj des laufenden Kinds ist 1000
     Messung (Bauplan P2, B12; seit 1.11.35 je Kind, nicht über alle): ein Foto mit 48 Mio. Bildpunkten (Rauschen, JPEG) und ein PNG mit 36 Mio.
-    Bildpunkten und Alpha, je mit der Grenze des Postboten -- Ergebnis, Dauer und unter Linux die Spitze des Speichers dieses Kinds (wait4); keine Prüfung
+    Bildpunkten und Alpha, je mit der Grenze des Postboten -- Ergebnis, Dauer und unter Linux die Spitze des Speichers dieses Kinds (wait4); keine Prüfung.
+    Seit 1.11.47 die Spitze genau des Kinds: Linux übernimmt beim Start eines Programms den Höchststand des startenden Prozesses in dessen Spitze
+    (ru_maxrss, fs/exec.c: exec_mmap); bis 1.11.46 startete dieses Skript das Kind selbst, nachdem es die Testbilder im eigenen Speicher erzeugt hatte --
+    gemessen wurden rund 320 MB, die Spitze dieses Skripts, nicht die des Kinds. Jetzt erzeugt ein eigener Prozess die beiden Testbilder in einem
+    Wegwerf-Ordner (danach gelöscht), und ein kleiner Messprozess (MESSER, nur Standardbibliothek, hält kein Bild) startet das Kind und gibt ihm die Datei.
 
 Auf dem Server als Benutzer des ERP, im Repo-Ordner:
 
     cd /home/tobias/erp && .venv/bin/python scripts/pruefe_portal_foto.py
 
 Ausgabe: je Prüfung eine Zeile „ok“ bzw. „!!!“ (unter Windows „--“ für Prüfung 4), die Zeile mit der Grenze, zwei Zeilen „Messung: …“ und am Ende
-„alle Prüfungen wie erwartet“; Rückgabe 0, sonst 1. Braucht kurz bis zu rund 450 MB Speicher (außerhalb der Einheit des Postboten).
+„alle Prüfungen wie erwartet“; Rückgabe 0, sonst 1. Braucht kurz bis zu rund 450 MB Speicher (außerhalb der Einheit des Postboten); schreibt nur die
+beiden Testbilder in einen Wegwerf-Ordner unter dem Ordner für temporäre Dateien.
 """
 
 import io
+import json
 import os
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -91,25 +98,45 @@ def _vorrang() -> bool:
             kind.wait()
 
 
-def _messen(daten: bytes) -> tuple[str, float, str]:
-    """Ein Lauf des Kinds mit der Grenze des Postboten: Ergebnis, Dauer, unter Linux die Spitze genau dieses Kinds (wait4, nicht über alle Kinder)."""
-    from app.portal_kopien import KIND_WORT, _kind_umgebung, kind_befehl
-    start = time.monotonic()
-    kind = subprocess.Popen(kind_befehl(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=_kind_umgebung())
-    kind.stdin.write(daten)  # das Kind liest erst alles, schreibt dann
-    kind.stdin.close()
-    aus = kind.stdout.read()
+# Seit 1.11.47: erzeugt die beiden großen Testbilder in einem eigenen Prozess (so hält dieses Skript sie nie im Speicher)
+ERZEUGER = r"""
+import sys
+from PIL import Image
+ordner = sys.argv[1]
+Image.effect_noise((8000, 6000), 60).convert("RGB").save(ordner + "/gross.jpg", "JPEG", quality=90)
+Image.new("RGBA", (6000, 6000), (10, 20, 30, 255)).save(ordner + "/gross.png", "PNG")
+"""
+
+# Seit 1.11.47: der kleine Messprozess -- nur Standardbibliothek, hält kein Bild; startet das Kind mit der Datei als Eingabe und meldet Ergebnis, Länge,
+# Dauer und unter Linux die Spitze genau des Kinds (wait4). Weil er selbst klein ist, erbt das Kind beim Start keinen großen Höchststand.
+MESSER = r"""
+import json, os, subprocess, sys, time
+datei, befehl = sys.argv[1], sys.argv[2:]
+start = time.monotonic()
+with open(datei, "rb") as ein:
+    kind = subprocess.Popen(befehl, stdin=ein, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    laenge = len(kind.stdout.read())
     kind.stdout.close()
-    spitze = ""
-    if hasattr(os, "wait4"):
-        _pid, status, nutzung = os.wait4(kind.pid, 0)
-        kind.returncode = os.waitstatus_to_exitcode(status)
-        spitze = f", Spitze {nutzung.ru_maxrss / 1024:.0f} MB"  # Linux: KB
-    else:
-        kind.wait()
-    dauer = time.monotonic() - start
-    ergebnis = f"JPEG {len(aus) // 1024} KB" if kind.returncode == 0 else KIND_WORT.get(kind.returncode, "abbruch")
-    return ergebnis, dauer, spitze
+spitze = None
+if hasattr(os, "wait4"):
+    _pid, status, nutzung = os.wait4(kind.pid, 0)
+    rc, spitze = os.waitstatus_to_exitcode(status), nutzung.ru_maxrss
+else:
+    rc = kind.wait()
+print(json.dumps({"rc": rc, "laenge": laenge, "dauer": time.monotonic() - start, "spitze_kb": spitze}))
+"""
+
+
+def _messen(pfad: Path) -> tuple[str, float, str]:
+    """Ein Lauf des Kinds mit der Grenze des Postboten, gestartet vom kleinen Messprozess (MESSER): Ergebnis, Dauer, unter Linux die Spitze genau dieses
+    Kinds (wait4, nicht über alle Kinder und ohne den Höchststand dieses Skripts)."""
+    from app.portal_kopien import KIND_WORT, _kind_umgebung, kind_befehl
+    lauf = subprocess.run([sys.executable, "-I", "-c", MESSER, str(pfad), *kind_befehl()], capture_output=True, text=True, timeout=300,
+                          env=_kind_umgebung())
+    w = json.loads(lauf.stdout.strip().splitlines()[-1])
+    spitze = f", Spitze {w['spitze_kb'] / 1024:.0f} MB" if w["spitze_kb"] is not None else ""  # Linux: KB
+    ergebnis = f"JPEG {w['laenge'] // 1024} KB" if w["rc"] == 0 else KIND_WORT.get(w["rc"], "abbruch")
+    return ergebnis, w["dauer"], spitze
 
 
 def main(ausgabe=print) -> int:
@@ -127,13 +154,13 @@ def main(ausgabe=print) -> int:
     if not sys.platform.startswith("linux"):
         ausgabe("--  Vorrang für den OOM-Killer: entfällt (nur unter Linux)")
     ausgabe(f"Grenze des Kinds {FOTO_SPEICHER // 2**20} MB (MemoryHigh der Einheit minus {POSTBOTE_RAUM // 2**20} MB für den Postboten)")
-    from PIL import Image
-    gross = io.BytesIO()
-    Image.effect_noise((8000, 6000), 60).convert("RGB").save(gross, "JPEG", quality=90)
-    ergebnis, dauer, spitze = _messen(gross.getvalue())
-    ausgabe(f"Messung: JPEG 48 Mio. Bildpunkte, {len(gross.getvalue()) / 2**20:.0f} MB -> {ergebnis}, {dauer:.1f} s{spitze}")
-    ergebnis, dauer, spitze = _messen(_gross())
-    ausgabe(f"Messung: PNG 36 Mio. Bildpunkte mit Alpha -> {ergebnis}, {dauer:.1f} s{spitze}")
+    with tempfile.TemporaryDirectory(prefix="pruefe_portal_foto_") as ordner:  # seit 1.11.47: Testbilder aus einem eigenen Prozess, danach gelöscht
+        subprocess.run([sys.executable, "-I", "-c", ERZEUGER, ordner], check=True, timeout=300, capture_output=True)
+        jpg, png = Path(ordner) / "gross.jpg", Path(ordner) / "gross.png"
+        ergebnis, dauer, spitze = _messen(jpg)
+        ausgabe(f"Messung: JPEG 48 Mio. Bildpunkte, {jpg.stat().st_size / 2**20:.0f} MB -> {ergebnis}, {dauer:.1f} s{spitze}")
+        ergebnis, dauer, spitze = _messen(png)
+        ausgabe(f"Messung: PNG 36 Mio. Bildpunkte mit Alpha -> {ergebnis}, {dauer:.1f} s{spitze}")
     alle = all(ok for _n, ok in ergebnisse)
     ausgabe("alle Prüfungen wie erwartet" if alle else "NICHT wie erwartet -- nicht in Betrieb nehmen, bitte melden")
     return 0 if alle else 1

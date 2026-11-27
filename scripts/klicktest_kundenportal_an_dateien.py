@@ -45,6 +45,8 @@ def befuellen(db, k):
     auf = AppUser(username="auri", display_name="Auri Auftrag", role="buero_auftrag", password_hash=k.passwort())
     mon = AppUser(username="moni", display_name="Moni Monteurin", role="field", password_hash=k.passwort(), employee_id=monteurin.id)
     db.add_all([auf, mon, EnabledModule(module_key="kundenportal", enabled=True)])
+    from app.settings import load_general_settings
+    load_general_settings(db).website = "www.muster-bedachung.example"  # seit 1.11.47: ohne Webseite kein Portal (Impressum und Datenschutz sind Pflicht)
     kategorie = db.query(DocumentCategory).order_by(DocumentCategory.id).first()
     c = Customer(name="Herr Max Muster", salutation="Herr", first_name="Max", last_name="Muster", email="kunde@example.invalid", portal_aktiv=True)
     db.add(c)

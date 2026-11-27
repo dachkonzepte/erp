@@ -10,7 +10,9 @@ import pytest
 
 from app.models import Customer, EnabledModule, PortalPost, PortalSitzung, PortalZugang
 from app.portal_postbote import STAU_TEXTE, stau
+from app.kundenportal import PFLICHT_HINWEIS
 from app.routers import kundenportal
+from tests.portal_webseite import webseite_setzen
 from tests.vorlagen_js import zusammensetzen
 
 JETZT = datetime(2026, 11, 24, 9, 0)
@@ -74,8 +76,11 @@ def test_schnittstelle_nur_mit_modul(router_test_client, threaded_db_session):
     assert client.get("/api/kundenportal/postbote").status_code == 403  # ab Werk aus (AB_WERK_AUS)
     db.add(EnabledModule(module_key="kundenportal", enabled=True))
     db.commit()
-    # seit 1.11.9 mit Auftrag und „erledigen“ (Antwort 1.11.7-1)
-    assert client.get("/api/kundenportal/postbote").json() == {"stau": None, "text": None, "post_id": None, "erledigen": False}
+    # seit 1.11.9 mit Auftrag und „erledigen“ (Antwort 1.11.7-1); seit 1.11.47 mit dem Hinweis, wenn Impressum und Datenschutz fehlen
+    assert client.get("/api/kundenportal/postbote").json() == {"stau": None, "text": None, "post_id": None, "erledigen": False,
+                                                               "pflicht": PFLICHT_HINWEIS}
+    webseite_setzen(db)
+    assert client.get("/api/kundenportal/postbote").json() == {"stau": None, "text": None, "post_id": None, "erledigen": False, "pflicht": None}
 
 
 def test_startseite_fragt_nur_mit_modul():

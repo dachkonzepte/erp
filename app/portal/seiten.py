@@ -115,6 +115,13 @@ class Seiten:
         self.version = {name: hashlib.sha256(inhalt).hexdigest()[:10] for name, inhalt in self._dateien.items()}
         self.version["ds.css"] = pruefsumme("ds.css")
 
+    @staticmethod
+    def pflicht_da(kontakt: dict | None) -> bool:
+        """Seit 1.11.47: Impressum und Datenschutz lassen sich verlinken (gültige Webseite in den Firmendaten) -- sonst zeigt das Portal statt jeder Seite
+        die Fehlerseite „technisch“ (routen.seite_antwort(); Entscheidung des Betriebs 27.11.2026: beide sind Pflicht). Bis 1.11.46 fehlten sie dann still."""
+        f = firma(kontakt)
+        return bool(f.impressum and f.datenschutz)
+
     def seite(self, kontakt: dict | None, fall: str = "") -> str:
         if fall and fall not in FAELLE:
             raise ValueError("unbekannter Fall der Fehlerseite")

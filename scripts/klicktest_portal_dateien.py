@@ -102,7 +102,7 @@ def befuellen(erp, daten: Path) -> dict:
         db.commit()
         s = load_general_settings(db)
         s.company_name, s.street, s.postal_code, s.city = "Muster Bedachung GmbH", "Dachweg 1", "12345", "Musterstadt"
-        s.phone, s.email = "0123 456789", "info@example.invalid"
+        s.phone, s.email, s.website = "0123 456789", "info@example.invalid", "www.muster-bedachung.example"  # Webseite seit 1.11.47 Pflicht (Impressum, Datenschutz)
         db.add(EnabledModule(module_key="kundenportal", enabled=True))
         m = load_smtp_settings(db)
         m.send_method = "graph_oauth2"

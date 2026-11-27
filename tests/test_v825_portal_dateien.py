@@ -85,7 +85,7 @@ def test_internal_block_vollstaendig():
     block = nginx_attrappe.internal_block(NGINX)
     assert block["internal"] and block["typen"] == {"pdf": "application/pdf", "jpg": "image/jpeg"} and block["vorgabe"] == "application/octet-stream"
     conf = NGINX.read_text(encoding="utf-8")
-    teil = conf[conf.index("location /_portal_dateien/ {"):]
+    teil = conf[conf.index("location ^~ /_portal_dateien/ {"):]  # seit 1.11.47 mit ^~ (tests/test_v837_portal_pflicht_und_orte.py)
     teil = teil[:teil.index("\n    }") + 6]
     assert "alias /srv/dk-portal/dateien/;" in _zeilen(teil)
     assert len(re.findall(r"add_header", "\n".join(_zeilen(teil)))) == len(block["kopf"])  # jede add_header mit always

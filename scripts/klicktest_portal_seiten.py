@@ -21,6 +21,8 @@ Der Postbote (app/portal_postbote.py) läuft in diesem Prozess als Benutzer des 
     Ablauf 6 (seit 1.11.16)     der Postbote hält an, die Uhr 31 s und dann 10 Minuten weiter: C „Der Code konnte gerade nicht gesendet werden …“ mit Telefon
     Fehlerseite E               unbekannter, gesperrter und abgelaufener Link: dieselbe Seite; 429, 500, 502 (Ersatz-Antwort im Browser -- die
                                 echten liefern test_v802 bzw. nginx); /gibt-es-nicht (404 vom Dienst); ohne JavaScript (noscript)
+    Fuß (seit 1.11.47)          in jedem Zustand A bis E und jeder hellen Ansicht Impressum und Datenschutz als sichtbare Links auf die Webseite der
+                                Unternehmensdaten, auch ohne JavaScript (Pflicht -- ohne gültige Webseite zeigt das Portal nur „technisch“, test_v837)
     Bilder                      jeder Zustand in 390 px hell und dunkel, 1280 px hell und dunkel, 360 px hell (Ordner der Screenshots, Namen
                                 <zustand>_<breite>_<hell|dunkel>.png); 360 und 390 px ohne Überlauf; nirgends eine Verletzung der CSP, kein JS-Fehler
 
@@ -64,6 +66,11 @@ POSTBOTE_HAELT = threading.Event()  # seit 1.11.16: gesetzt erledigt der Postbot
 LINKS = {name: secrets.token_urlsafe(32) for name in ("muster", "erika", "firma", "alex", "bremse", "gesperrt", "alt", "langsam", "zehn")}
 UNBEKANNT = secrets.token_urlsafe(32)
 BILDER = {"an": True}  # unter einer Gegenprobe (Regel 24: höchstens 2 min) ohne Bilder -- die Prüfungen bleiben
+# seit 1.11.47: der Fuß jeder Seite -- Text, Ziel und sichtbar je Link (Impressum und Datenschutz sind Pflicht)
+FUSS = ("[...document.querySelectorAll('footer.fuss a')].map(a=>[a.textContent,a.getAttribute('href'),"
+        "a.getClientRects().length>0&&getComputedStyle(a).visibility!=='hidden'])")
+WEBSEITE = "www.example.invalid"
+FUSS_SOLL = [["Impressum", f"https://{WEBSEITE}/impressum", True], ["Datenschutz", f"https://{WEBSEITE}/datenschutz", True]]
 ANSICHTEN = [(390, 844, True, "light"), (390, 844, True, "dark"), (1280, 900, False, "light"), (1280, 900, False, "dark"), (360, 740, True, "light")]
 
 
@@ -137,7 +144,7 @@ def befuellen(erp) -> dict:
         db.commit()
         s = load_general_settings(db)
         s.company_name, s.street, s.postal_code, s.city = "Muster Bedachung GmbH", "Dachweg 1", "12345", "Musterstadt"
-        s.phone, s.email, s.website = "0123 456789", "info@example.invalid", "www.example.invalid"
+        s.phone, s.email, s.website = "0123 456789", "info@example.invalid", WEBSEITE
         db.add(EnabledModule(module_key="kundenportal", enabled=True))
         m = load_smtp_settings(db)
         m.send_method = "graph_oauth2"
@@ -289,6 +296,8 @@ async def bilder(tab, p, name: str, *, fenster_nur: bool = False) -> None:
         await ansicht(tab, breite, hoehe, mobil, thema)
         if mobil:
             p.pruefe(f"{name}: {breite} px ohne Überlauf", await tab.ueberlauf(), [])
+        if thema == "light":
+            p.pruefe(f"{name}: {breite} px Impressum und Datenschutz", await tab.js(FUSS), FUSS_SOLL)
         datei = f"{name}_{breite}_{'hell' if thema == 'light' else 'dunkel'}"
         if not BILDER["an"]:
             continue
@@ -548,6 +557,8 @@ async def pruefen(tab, seed, p):
     html_ = (await tab.cmd("DOM.getOuterHTML", nodeId=wurzel))["outerHTML"]
     p.pruefe("ohne JavaScript: Hinweis in der Seite", ("JavaScript ist ausgeschaltet" in html_, "Bitte schalten Sie JavaScript ein, um das Kundenportal zu nutzen." in html_),
              (True, True))
+    p.pruefe("ohne JavaScript: Impressum und Datenschutz im Fuß", [f'href="https://{WEBSEITE}/{z}"' in html_ for z in ("impressum", "datenschutz")],
+             [True, True])
     for breite, hoehe, mobil, thema in ANSICHTEN:
         await tab.fenster(breite, hoehe, mobil=mobil)
         await tab.cmd("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": thema}])

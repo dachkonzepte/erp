@@ -282,6 +282,7 @@ dialog.blatt .text { font-size: 15px; }
   .kacheln .kachel-karte:first-child { border-radius: 16px 16px 0 0; }
   .kacheln .kachel-karte:last-child { border-radius: 0 0 16px 16px; }
   .kachel-wert { font-size: 17px; margin-top: 0; }
+  .kachel-wert, .kachel-satz { flex-basis: 100%; }  /* seit 1.11.47: Zahl und Satz untereinander in jeder Kachel, auch wenn der Satz kurz ist (Fotos) */
   .zeile-art-breit, .zeile-datum { display: none; }
   .datei-knoepfe .ansehen { display: none; }
   .zeile-text { cursor: pointer; }

@@ -77,6 +77,22 @@ class ZugangFehlt(Exception):
     """Der Kunde hat keinen Zugang (Router 404)."""
 
 
+# Seit 1.11.47 (Entscheidung des Betriebs 27.11.2026): Impressum und Datenschutz sind im Portal Pflicht. Beide verlinkt das Portal als
+# https://<Webseite>/impressum bzw. /datenschutz aus den Unternehmensdaten (wie die Mails, app/portal_mails.py::firma()); ohne gültige Webseite gehen
+# Modul einschalten, Portal am Kunden einschalten und Link senden nicht (409 mit diesem Grund), „Start“ zeigt den Hinweis (PFLICHT_HINWEIS), und das Portal
+# selbst zeigt statt jeder Seite „Gerade klappt etwas nicht“ (app/portal/seiten.py::Seiten.pflicht_da()).
+PFLICHT_FEHLT = ("Im Kundenportal fehlen sonst Impressum und Datenschutz: in den Unternehmensdaten steht keine gültige Webseite -- bitte zuerst unter "
+                 "Einstellungen → Unternehmensdaten die Webseite eintragen.")
+PFLICHT_HINWEIS = ("Im Kundenportal fehlen Impressum und Datenschutz: in den Unternehmensdaten steht keine gültige Webseite. Bis dahin zeigt das Portal "
+                   "statt seiner Seiten „Gerade klappt etwas nicht“, und es geht kein Link hinaus.")
+
+
+def pflicht_grund(db: Session) -> str | None:
+    """Seit 1.11.47: None, wenn Impressum und Datenschutz verlinkt werden können; sonst der Grund (PFLICHT_FEHLT)."""
+    f = portal_mails.firma(db)
+    return None if f.impressum and f.datenschutz else PFLICHT_FEHLT
+
+
 def email_anzeige(email: str) -> str:
     """Die verdeckte Anzeige für das Portal: erstes Zeichen, „***“, die Domain („m***@beispiel.de“). Die Adresse selbst sieht das Portal nie."""
     lokal, _, domain = email.rpartition("@")
@@ -172,6 +188,8 @@ def schalten(db: Session, kunde: Customer, an: bool, jetzt_: datetime) -> None:
     from . import portal_freigaben
 
     _nicht_im_archiv(kunde)
+    if an and (grund := pflicht_grund(db)):  # seit 1.11.47: ausschalten geht immer
+        raise PortalNicht(grund)
     zugang = zugang_von(db, kunde.id, sperren=True)
     kunde.portal_aktiv = an
     if not an and zugang is not None:
@@ -218,6 +236,8 @@ def link_senden(db: Session, kunde: Customer, email: str, dispatch_key: str, jet
         return Gesendet(ergebnis=DispatchResult(dispatch=vorher, newly_sent=False), neu=False)
     if not kunde.portal_aktiv:
         raise PortalNicht("Erst das Kundenportal für diesen Kunden einschalten.")
+    if grund := pflicht_grund(db):  # seit 1.11.47: kein Link in ein Portal ohne Impressum und Datenschutz
+        raise PortalNicht(grund)
     zugang = zugang_von(db, kunde.id, sperren=True)
     if zugang is None:
         raise ZugangFehlt("Der Kunde hat noch keinen Zugang.")

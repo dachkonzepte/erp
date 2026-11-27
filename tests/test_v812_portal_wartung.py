@@ -26,7 +26,9 @@ def _ort() -> list[str]:
 def test_seite_ohne_skript_und_ohne_fremdes():
     klein = SEITE.lower()
     assert SEITE.startswith("<!DOCTYPE html>") and "<script" not in klein and not re.search(r"\son[a-z]+\s*=", klein)
-    assert "src=" not in klein and "href=" not in klein and "url(" not in klein and "@import" not in klein and "<link" not in klein
+    # seit 1.11.47 genau zwei Links: Impressum und Datenschutz im Fuß (Pflicht) -- bis dahin gar keiner
+    assert "src=" not in klein and "url(" not in klein and "@import" not in klein and "<link" not in klein
+    assert re.findall(r'href="([^"]*)"', SEITE) == ["https://dachkonzepte.gmbh/impressum", "https://dachkonzepte.gmbh/datenschutz"]
     assert klein.count("<style>") == 1 and ' style="' not in klein
     assert "<h1>Gleich wieder da</h1>" in SEITE and "<p>Das Kundenportal ist in wenigen Minuten wieder erreichbar.</p>" in SEITE
     assert "prefers-color-scheme: dark" in SEITE
@@ -54,3 +56,15 @@ def test_csp_mit_der_pruefsumme_des_stils():
     for z in ("add_header X-Frame-Options DENY always;", "add_header X-Content-Type-Options nosniff always;", "add_header Referrer-Policy no-referrer always;",
               "add_header Cache-Control no-store always;", 'add_header Strict-Transport-Security "max-age=31536000" always;'):
         assert z in _ort(), z
+
+
+def test_fuss_wie_im_portal():
+    """Seit 1.11.47: Impressum und Datenschutz wie im Portal -- dieselbe Form, die das Portal aus der Webseite der Unternehmensdaten bildet
+    (app/portal/seiten.py::firma()), für die Webseite des Betriebs: die Domain über der festen Adresse des Portals (kunde.dachkonzepte.gmbh, F1)."""
+    from app.portal.seiten import firma
+    from app.portal_mails import PORTAL_ADRESSE
+
+    webseite = PORTAL_ADRESSE.removeprefix("https://").split(".", 1)[1]
+    f = firma({"company_name": "Betrieb", "website": webseite})
+    assert re.findall(r'<a href="([^"]*)">(Impressum|Datenschutz)</a>', SEITE) == [(f.impressum, "Impressum"), (f.datenschutz, "Datenschutz")]
+    assert '<footer><div class="fuss">' in SEITE

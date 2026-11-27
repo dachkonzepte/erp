@@ -968,3 +968,27 @@ Probendatei `gegenprobe_11146.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.46-1 – am Handy die Leiste unten | nicht fest unten | rot (Klicktest „… unten die Leiste der Bereiche“) |
 | 1.11.46-5 – Wortlaut der Entwürfe | ein Satz geändert | rot (`test_wortlaut_der_entwuerfe`) |
 | 1.11.46-6 – genau zwei Stellen | eine dritte | rot (`test_skript_nur_text_keine_gefaehrlichen_aufrufe`) |
+
+## 1.11.47: Impressum und Datenschutz als Pflicht, Orte von nginx, Kleinigkeiten nach P2e
+
+Probendatei `gegenprobe_11147.py` (Scratchpad); jede Datei danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.47-1 – ohne Webseite jede Seite „technisch“ | Prüfung in `seite_antwort()` aus | rot (`test_ohne_gueltige_webseite_jede_seite_technisch`) |
+| 1.11.47-2 – Modul einschalten nur mit Webseite | Prüfung im Router aus | rot (`test_modul_einschalten_nur_mit_webseite`) |
+| 1.11.47-2 – Portal am Kunden nur mit Webseite | Prüfung in `schalten()` aus | rot (`test_portal_am_kunden_nur_mit_webseite`) |
+| 1.11.47-2 – Link senden nur mit Webseite | Prüfung in `link_senden()` aus | rot (`test_link_senden_nur_mit_webseite`) |
+| 1.11.47-3 – Hinweis auf „Start“ (Schnittstelle) | `pflicht` immer None | rot (`test_v806::test_schnittstelle_nur_mit_modul`) |
+| 1.11.47-3 – Hinweis auf „Start“ (Seite) | Hinweis nie gezeigt | rot (Klicktest „Ohne Webseite, Büro – Finanzen: Hinweis …“) |
+| 1.11.47-4 – Wartungsseite mit beiden Links | Link „Datenschutz“ weg | rot (`test_v812::test_fuss_wie_im_portal`) |
+| 1.11.47-5 – Fuß im Portal (Dienst) | Link „Datenschutz“ weg | rot (`test_mit_webseite_beide_links_im_fuss`) |
+| 1.11.47-5 – Fuß sichtbar in jedem Bereich | Links unsichtbar (CSS) | rot (Klicktest „… Impressum und Datenschutz“) |
+| 1.11.47-6 – Block der Dateien mit `^~` | ohne `^~` | rot (`test_block_der_dateien_mit_praefix_vorrang`) |
+| 1.11.47-7 – Attrappe: `^~` beendet die Suche | `^~` wie ein Präfix | rot (`test_mit_praefix_vorrang_gewinnt_der_block_gegen_einen_regex`) |
+| 1.11.47-7 – Attrappe: X-Accel nur in den Block | Prüfung in `_datei()` aus | rot (`test_attrappe_waehlt_den_ort_wie_nginx[echt-/falsch-500]`) |
+| 1.11.47-8 – „Allgemeine Fotos“ | Name wie bei Unterlagen | rot (`test_fotos_ohne_auftrag_heissen_allgemeine_fotos`) |
+| 1.11.47-9 – Kachel: Zahl und Satz untereinander | Regel im Stil weg | rot (Klicktest „… Zahl und Satz untereinander in jeder Kachel“) |
+| 1.11.47-10 – Messung: Kind aus kleinem Messprozess | Kind direkt aus dem Skript | erst grün (Attrappe des Kinds maß den Starter von .venv), Test nachgezogen, dann rot (`test_messung_startet_das_kind_aus_einem_kleinen_prozess`) |
+
+Die Gegenproben der Festlegungen zu Werkzeug und Testablauf (Journal im Speicher, Reihenfolge) stehen im Archiv „Testablauf und Klicktests“.

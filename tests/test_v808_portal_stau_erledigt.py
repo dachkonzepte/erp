@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.models import AuditLog, Customer, EnabledModule, PortalPost, PortalSitzung, PortalZugang
 from app.portal_postbote import ERLEDIGT_AKTION, STAU_TEXTE, STAU_TEXTE_ADMIN, StauVeraltet, erledigen, stau, stau_stand
 from app.routers import kundenportal
+from tests.portal_webseite import webseite_setzen
 from tests.vorlagen_js import zusammensetzen
 
 JETZT = datetime(2026, 11, 24, 9, 0)
@@ -21,6 +22,7 @@ JETZT = datetime(2026, 11, 24, 9, 0)
 @pytest.fixture
 def welt(threaded_db_session):
     db = threaded_db_session
+    webseite_setzen(db)  # seit 1.11.47: sonst stünde der Hinweis auf fehlende Pflichtangaben in jeder Antwort
     db.add(EnabledModule(module_key="kundenportal", enabled=True))
     kunde = Customer(name="Herr Max Muster", salutation="Herr", first_name="Max", last_name="Muster", portal_aktiv=True)
     db.add(kunde)
@@ -96,21 +98,23 @@ def test_schnittstelle_je_rolle(welt, router_test_client):
     fehler = auftrag("fehler", 10)
     buero = router_test_client(db, kundenportal.router, role="buero_auftrag")
     admin = router_test_client(db, kundenportal.router, role="admin", user_id=7, display_name="Admin Muster")
-    assert buero.get("/api/kundenportal/postbote").json() == {"stau": "fehler", "text": STAU_TEXTE["fehler"], "post_id": fehler, "erledigen": False}
-    assert admin.get("/api/kundenportal/postbote").json() == {"stau": "fehler", "text": STAU_TEXTE["fehler"], "post_id": fehler, "erledigen": True}
+    assert buero.get("/api/kundenportal/postbote").json() == {"stau": "fehler", "text": STAU_TEXTE["fehler"], "post_id": fehler, "erledigen": False,
+                                                              "pflicht": None}
+    assert admin.get("/api/kundenportal/postbote").json() == {"stau": "fehler", "text": STAU_TEXTE["fehler"], "post_id": fehler, "erledigen": True,
+                                                              "pflicht": None}
     for rolle in ("buero_auftrag", "buero_finanzen"):
         r = router_test_client(db, kundenportal.router, role=rolle).post("/api/kundenportal/postbote/erledigt", json={"post_id": fehler})
         assert r.status_code == 403
     assert admin.post("/api/kundenportal/postbote/erledigt", json={"post_id": fehler + 1}).status_code == 409
     r = admin.post("/api/kundenportal/postbote/erledigt", json={"post_id": fehler})
-    assert r.status_code == 200 and r.json() == {"stau": None, "text": None, "post_id": None, "erledigen": False}
+    assert r.status_code == 200 and r.json() == {"stau": None, "text": None, "post_id": None, "erledigen": False, "pflicht": None}
     [eintrag] = db.scalars(select(AuditLog).where(AuditLog.action == ERLEDIGT_AKTION)).all()
     assert (eintrag.entity_id, eintrag.actor_name, eintrag.actor_user_id) == (str(fehler), "Admin Muster", 7)
     assert admin.post("/api/kundenportal/postbote/erledigt", json={"post_id": fehler}).status_code == 409  # schon erledigt
     auftrag("wartet", 5)
     assert buero.get("/api/kundenportal/postbote").json()["text"] == STAU_TEXTE["wartet"]
     assert admin.get("/api/kundenportal/postbote").json() == {"stau": "wartet", "text": STAU_TEXTE_ADMIN["wartet"], "post_id": None,
-                                                              "erledigen": False}
+                                                              "erledigen": False, "pflicht": None}
 
 
 def test_erledigt_nur_mit_modul(welt, router_test_client):

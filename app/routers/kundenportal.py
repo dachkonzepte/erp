@@ -42,7 +42,8 @@ def _stand(db: Session, user: AppUser) -> dict:
     grund, post_id = stau_stand(db, utc_jetzt())
     admin = has_role(user, ROLE_ADMIN)
     texte = STAU_TEXTE_ADMIN if admin else STAU_TEXTE  # seit 1.11.9: den Dienst nennt nur der Text für den Admin
-    return {"stau": grund, "text": texte.get(grund) if grund else None, "post_id": post_id, "erledigen": admin and grund == "fehler"}
+    return {"stau": grund, "text": texte.get(grund) if grund else None, "post_id": post_id, "erledigen": admin and grund == "fehler",
+            "pflicht": kp.PFLICHT_HINWEIS if kp.pflicht_grund(db) else None}  # seit 1.11.47
 
 
 @router.get("/api/kundenportal/postbote", response_model=PortalPostboteOut)

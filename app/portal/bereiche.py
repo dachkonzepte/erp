@@ -4,7 +4,8 @@ Die Funktionen der Datenbank liefern Zeilen (app/portal/unterlagen.py, app/porta
 Text kommt vom Server, die Seite setzt ihn nur als Text (textContent). Nichts hier liest die Datenbank; reine Funktionen, ohne Datenbank testbar.
 
 - Gruppe: „Auftrag <Nummer> · <Betreff>“, darunter die Adresse; ohne Auftrag die Adresse, darunter „ohne bestimmten Auftrag“; ohne beides „Allgemeine
-  Unterlagen“ (am Ende) -- dieselbe Regel wie im ERP (app/portal_freigaben.py::gruppe_text(), tests/test_v835 vergleicht beide).
+  Unterlagen“ (am Ende) -- dieselbe Regel wie im ERP (app/portal_freigaben.py::gruppe_text(), tests/test_v835 vergleicht beide); unter „Fotos“ heißt diese
+  Gruppe seit 1.11.47 „Allgemeine Fotos“.
 - Beträge deutsch mit Tausenderpunkt („2.380,00 €“), Daten „20.11.2026“, Stand in Berlin („heute, 14:05 Uhr“ bzw. „26.11.2026, 9:12 Uhr“), älter als eine
   Stunde: alt (Hinweis auf der Seite).
 - Zustand einer Rechnung (Entwurf Seite 5): Kennzeichen und Hinweis -- „fällig seit“ statt „fällig am“, wenn überfällig; keine roten Warnfarben.
@@ -18,6 +19,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from ..berlin_time import to_berlin
 
 ALLGEMEIN = "Allgemeine Unterlagen"
+ALLGEMEIN_FOTOS = "Allgemeine Fotos"  # seit 1.11.47: so heißt die Gruppe ohne Auftrag und Objekt unter „Fotos“
 OHNE_AUFTRAG = "ohne bestimmten Auftrag"
 WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 MONAT = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
@@ -60,13 +62,13 @@ def stand(am: datetime | None, jetzt: datetime) -> dict:
     return {"text": f"heute, {uhr}" if b.date() == h.date() else f"{datum(b.date())}, {uhr}", "alt": jetzt - am > STAND_ALT}
 
 
-def gruppe(auftrag: str | None, betreff: str | None, objekt: str | None) -> tuple[str, str]:
+def gruppe(auftrag: str | None, betreff: str | None, objekt: str | None, allgemein: str = ALLGEMEIN) -> tuple[str, str]:
     betreff = (betreff or "").strip()
     if auftrag:
         return (f"Auftrag {auftrag} · {betreff}" if betreff else f"Auftrag {auftrag}"), objekt or ""
     if objekt:
         return objekt, OHNE_AUFTRAG
-    return ALLGEMEIN, OHNE_AUFTRAG
+    return allgemein, OHNE_AUFTRAG
 
 
 def zahl_text(n: int, eins: str, viele: str) -> str:
@@ -87,13 +89,13 @@ def tage(von: date, bis: date, *, kurz: bool = False) -> str:
     return f"{tag(von, True)} – {tag(bis, True)}"
 
 
-def _gruppen(zeilen: list[dict], schluessel) -> list[dict]:
-    """Zeilen je Gruppe in der Reihenfolge des ersten Auftretens; „Allgemeine Unterlagen“ am Ende."""
+def _gruppen(zeilen: list[dict], schluessel, allgemein: str = ALLGEMEIN) -> list[dict]:
+    """Zeilen je Gruppe in der Reihenfolge des ersten Auftretens; die allgemeine Gruppe („Allgemeine Unterlagen“ bzw. „Allgemeine Fotos“) am Ende."""
     gruppen: dict[tuple, dict] = {}
     for z in zeilen:
-        titel, unter = gruppe(z.get("auftrag"), z.get("betreff"), z.get("objekt"))
+        titel, unter = gruppe(z.get("auftrag"), z.get("betreff"), z.get("objekt"), allgemein)
         gruppen.setdefault((titel, unter), {"titel": titel, "unter": unter, "zeilen": []})["zeilen"].append(schluessel(z))
-    return sorted(gruppen.values(), key=lambda g: g["titel"] == ALLGEMEIN)
+    return sorted(gruppen.values(), key=lambda g: g["titel"] == allgemein)
 
 
 # --- Unterlagen und Fotos (portal_unterlagen) ---------------------------------------------------------------------------------------------------------
@@ -107,7 +109,8 @@ def unterlagen(zeilen: list[dict]) -> dict:
     for g in u:
         g["zahl_text"] = zahl_text(len(g["zeilen"]), "Unterlage", "Unterlagen")
     f = _gruppen(fotos, lambda z: {"freigabe": z["freigabe"], "titel": z["titel"], "datum": datum(z["datum"]),
-                                   "bildtext": " · ".join(t for t in (f"Auftrag {z['auftrag']}" if z.get("auftrag") else "", datum(z["datum"])) if t)})
+                                   "bildtext": " · ".join(t for t in (f"Auftrag {z['auftrag']}" if z.get("auftrag") else "", datum(z["datum"])) if t)},
+                 ALLGEMEIN_FOTOS)
     for g in f:
         g["zahl_text"] = zahl_text(len(g["zeilen"]), "Foto", "Fotos")
     return {"unterlagen": u, "fotos": f}

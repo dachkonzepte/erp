@@ -6,10 +6,12 @@ Auftrag „Steildachsanierung mit Aufsparrendämmung“ (A-2026-0118, Musterweg 
 eine offen), festen Baustellentagen ab heute und vergangenen, einem PDF der Kundenakte und zwei Fotos -- je mit Freigabe.
 
     Übersicht    Gruß, vier Kacheln mit den Zahlen vom Server, Stand „heute, …“; eine Kachel führt in ihren Bereich
+                 seit 1.11.47: am Handy (390 px) in jeder Kachel Zahl und Satz untereinander
     Rechnungen   Gruppe „Auftrag A-2026-0118 · Steildachsanierung mit Aufsparrendämmung“, darunter die Adresse; Kennzeichen je Rechnung; offen insgesamt
     Termine      kommende Tage mit „heute“, vergangene darunter; Hinweis zu Regen und Sturm
     Unterlagen   „Allgemeine Unterlagen“; „Ansehen“ öffnet das PDF im selben Tab, „Zurück“ führt in den Bereich zurück; zurückgenommen: „Nicht mehr verfügbar.“
     Fotos        Vorschauen laden (400 px), ein Foto groß (800 px), weiter und zurück
+    Fuß          seit 1.11.47 in jedem Bereich (1280 und 390 px hell) Impressum und Datenschutz als sichtbare Links auf die Webseite (Pflicht)
     Bilder       jeder Bereich in 1280 px hell und dunkel und 390 px hell; 390 px ohne Überlauf, unten die Leiste der Bereiche; keine Verletzung der CSP
 
 AUFRUF (aus dem Projektordner; braucht ERP_TEST_POSTGRES_URL und die Testrolle dkportal_test):
@@ -47,6 +49,7 @@ if str(ROOT) not in sys.path:
 
 LINK = secrets.token_urlsafe(32)
 BETREFF = "Steildachsanierung mit Aufsparrendämmung"
+WEBSEITE = "www.muster-bedachung.example"  # seit 1.11.47 Pflicht: Impressum und Datenschutz im Fuß jeder Seite
 
 
 def _foto(breite=800, hoehe=600, farbe=(120, 90, 60)) -> bytes:
@@ -90,7 +93,7 @@ def befuellen(erp, daten: Path) -> dict:
         db.commit()
         s = load_general_settings(db)
         s.company_name, s.street, s.postal_code, s.city = "Muster Bedachung GmbH", "Dachweg 1", "12345", "Musterstadt"
-        s.phone, s.email = "0123 456789", "info@example.invalid"
+        s.phone, s.email, s.website = "0123 456789", "info@example.invalid", WEBSEITE  # Webseite seit 1.11.47 Pflicht (Impressum, Datenschutz)
         db.add(EnabledModule(module_key="kundenportal", enabled=True))
         m = load_smtp_settings(db)
         m.send_method = "graph_oauth2"
@@ -200,6 +203,9 @@ async def alle_bilder(tab, p, name: str) -> None:
         p.pruefe(f"{name}: {breite} px {thema}", await tab.js("document.documentElement.getAttribute('data-theme')"), {"hell": "light", "dunkel": "dark"}[thema])
         await asyncio.sleep(0.3)
         await tab.bild(f"{name}_{breite}_{thema}")
+        if thema == "hell":  # seit 1.11.47: Impressum und Datenschutz in jedem Bereich (Pflicht)
+            p.pruefe(f"{name}: {breite} px Impressum und Datenschutz", await tab.js(seiten.FUSS),
+                     [["Impressum", f"https://{WEBSEITE}/impressum", True], ["Datenschutz", f"https://{WEBSEITE}/datenschutz", True]])
         if mobil:
             p.pruefe(f"{name}: 390 px ohne Überlauf", await tab.ueberlauf(), [])
             p.pruefe(f"{name}: unten die Leiste der Bereiche", await tab.js(
@@ -230,6 +236,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Übersicht: nächster Einsatz mit Betreff", (await tab.js(_t("k-einsatz-satz"))), f"{BETREFF} · Musterweg 12, 52531 Übach-Palenberg")
     p.pruefe("Übersicht: Stand heute", (await tab.js(_t("d-stand"))).startswith("Stand: heute, "), True)
     await alle_bilder(tab, p, "uebersicht")
+    await seiten.ansicht(tab, 390, 844, True, "light")  # seit 1.11.47: am Handy in jeder Kachel Zahl und Satz untereinander (auch „Fotos“)
+    p.pruefe("Übersicht 390 px: Zahl und Satz untereinander in jeder Kachel", await tab.js(
+        "[...document.querySelectorAll('.kachel-karte')].map(k=>{const w=k.querySelector('.kachel-wert').getBoundingClientRect(),"
+        "s=k.querySelector('.kachel-satz').getBoundingClientRect();return [k.dataset.bereich,s.top>=w.bottom-1]})"),
+             [["rechnungen", True], ["termine", True], ["unterlagen", True], ["fotos", True]])
+    await seiten.ansicht(tab, 1280, 900, False, "light")
 
     # Rechnungen (über die Kachel)
     await tab.js("document.querySelector('.kachel-karte[data-bereich=\"rechnungen\"]').click()")

@@ -20,6 +20,7 @@ from app.portal import pruefwerte
 from app.routers import kundenportal
 from tests.test_v321_email_dispatch import _configure_graph, _configure_smtp
 from tests.test_v804_portal_mails import GraphMitAnfrage
+from tests.portal_webseite import webseite_setzen
 
 LINK_IM_TEXT = re.compile(r'href="(https://kunde\.dachkonzepte\.gmbh/#z=([A-Za-z0-9_-]{43}))"')
 
@@ -34,6 +35,7 @@ def graph(monkeypatch):
 @pytest.fixture
 def welt(threaded_db_session, router_test_client, graph):
     db = threaded_db_session
+    webseite_setzen(db)  # seit 1.11.47: ohne Webseite kein Portal (Impressum und Datenschutz sind Pflicht)
     db.add(EnabledModule(module_key="kundenportal", enabled=True))
     kunde = Customer(name="Herr Max Muster", salutation="Herr", first_name="Max", last_name="Muster", email="max@example.invalid")
     db.add(kunde)

@@ -377,6 +377,9 @@ def seite_antwort(request: Request, fall: str = "", status: int = 200) -> HTMLRe
     except Exception as exc:  # noqa: BLE001 -- die Ursache gehört ins Journal (nur die Klasse), nicht in die Seite
         logger.error("Seite ohne Firmendaten: %s", type(exc).__name__)
         return HTMLResponse(seiten.seite(None, "technisch"), status_code=500, headers={"X-Robots-Tag": "noindex"})
+    if not seiten.pflicht_da(kontakt):  # seit 1.11.47: nie eine Seite ohne Impressum und Datenschutz -- sie sind Pflicht (Entscheidung 27.11.2026)
+        logger.error("Seite ohne Impressum und Datenschutz: in den Firmendaten fehlt eine gültige Webseite")
+        return HTMLResponse(seiten.seite(kontakt, "technisch"), status_code=500, headers={"X-Robots-Tag": "noindex"})
     return HTMLResponse(seiten.seite(kontakt, fall), status_code=status, headers={"X-Robots-Tag": "noindex"})
 
 

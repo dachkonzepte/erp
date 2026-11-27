@@ -31,6 +31,7 @@ from app.models import (
 from app.routers import kundenportal, portal_freigaben
 from tests.quellangebot import quell_angebot
 from tests.test_v828_portal_freigaben import Welt
+from tests.portal_webseite import webseite_setzen
 
 EMAIL = "kunde@example.invalid"
 
@@ -99,6 +100,7 @@ class Regeln(Welt):
 @pytest.fixture
 def r(threaded_db_session, router_test_client):
     db = threaded_db_session
+    webseite_setzen(db)  # seit 1.11.47: ohne Webseite kein Portal (Impressum und Datenschutz sind Pflicht)
     db.add(EnabledModule(module_key="kundenportal", enabled=True))
     db.commit()
     return Regeln(db, router_test_client(db, portal_freigaben.router, kundenportal.router, role="buero_auftrag", user_id=11, display_name="Auri Auftrag"))

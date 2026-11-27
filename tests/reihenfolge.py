@@ -24,6 +24,7 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +33,7 @@ LAUF = "ERP_TEST_REIHENFOLGE_LAUF"  # gesetzt vom Hauptprozess eines Laufs, geer
 AUS = "ERP_TEST_REIHENFOLGE_AUS"  # gesetzt von einem solchen verschachtelten pytest, geerbt von seinen Arbeitsprozessen: sie schreiben nicht
 _ziel: Path | None = None
 _laufend: dict[str, tuple[datetime, str]] = {}
+_datei = None  # seit 1.11.47: für den ganzen Lauf offen (_schreiben())
 
 
 def ordner(config) -> Path:
@@ -54,7 +56,16 @@ def einrichten(config) -> None:
             return
         os.environ[LAUF] = str(os.getpid())
         for alt in o.glob("*.txt"):
-            alt.unlink()
+            for versuch in range(20):  # seit 1.11.47: ein Virenscanner kann die Datei kurz halten -- warten statt den Lauf abzubrechen
+                try:
+                    alt.unlink()
+                    break
+                except FileNotFoundError:
+                    break
+                except OSError:
+                    time.sleep(0.05 * (versuch + 1))
+            else:
+                sys.stderr.write(f"Reihenfolge: {alt.name} nicht gelöscht -- die Datei blieb gesperrt, neue Zeilen kommen dahinter\n")
         if (getattr(config.option, "dist", "no") or "no") != "no":
             return
     _ziel = o / f"{arbeitsprozess or 'haupt'}.txt"
@@ -78,8 +89,33 @@ def bericht(report) -> None:
     _laufend[report.nodeid] = (beginn, ergebnis)
     if report.when == "teardown":
         _laufend.pop(report.nodeid, None)
-        with open(_ziel, "a", encoding="utf-8") as f:
-            f.write(f"{beginn:%H:%M:%S.%f}"[:-3] + f"\t{ergebnis}\t{report.nodeid}\n")
+        _schreiben(f"{beginn:%H:%M:%S.%f}"[:-3] + f"\t{ergebnis}\t{report.nodeid}\n")
+
+
+def _schreiben(zeile: str) -> None:
+    """Seit 1.11.47: die Datei bleibt für den ganzen Lauf offen, jede Zeile geht sofort an das Betriebssystem (flush -- ein abgestürzter Prozess
+    hinterlässt sie trotzdem). Bis 1.11.46 je Test öffnen, anhängen, schließen: der Virenscanner des Entwicklungsrechners prüft jede eben geschlossene
+    Datei und hielt sie dabei offen -- das nächste Öffnen scheiterte mit „Permission denied“ (Windows-Fehler 32) und brach den ganzen Lauf ab
+    (INTERNALERROR, 27.11.2026). Scheitert das Öffnen trotzdem, wartet der Prozess kurz und versucht es wieder; danach gibt er nur die Reihenfolge
+    auf, nie den Lauf."""
+    global _datei, _ziel
+    for versuch in range(20):
+        try:
+            if _datei is None:
+                _datei = open(_ziel, "a", encoding="utf-8")
+            _datei.write(zeile)
+            _datei.flush()
+            return
+        except OSError:
+            if _datei is not None:
+                try:
+                    _datei.close()
+                except OSError:
+                    pass
+                _datei = None
+            time.sleep(0.05 * (versuch + 1))
+    _ziel = None
+    sys.stderr.write(f"Reihenfolge: {zeile.strip()} nicht geschrieben -- die Datei blieb gesperrt, die Reihenfolge dieses Prozesses endet hier\n")
 
 
 def dateien(datei: Path, bis: str | None = None) -> list[str]:

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..kundenportal import pflicht_grund
 from ..deps import require_admin
 from ..models import AppUser
 from ..modules import list_module_states, set_module_enabled
@@ -30,6 +31,8 @@ def get_modules(db: Session = Depends(get_db, scope="function"), _role: AppUser 
 @router.put("/api/modules/{module_key}", response_model=ModuleStateOut)
 def update_module(module_key: str, payload: ModuleStateUpdate, db: Session = Depends(get_db, scope="function"),
                    _admin=Depends(require_admin("Nur Administratoren dürfen Module ein- oder ausschalten."))):
+    if module_key == "kundenportal" and payload.enabled and (grund := pflicht_grund(db)):  # seit 1.11.47: Impressum und Datenschutz sind Pflicht
+        raise HTTPException(status_code=409, detail=grund)
     try:
         return set_module_enabled(db, module_key, payload.enabled)
     except ValueError as exc:

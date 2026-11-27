@@ -2,6 +2,8 @@
 
     Modul aus           kein Hinweis, keine Anfrage an /api/kundenportal/postbote
     Modul an            ohne Aufträge kein Hinweis
+    ohne Webseite       seit 1.11.47: Hinweis „Impressum und Datenschutz fehlen“ mit Link „Unternehmensdaten öffnen“ (/settings#general), für jede
+                        Büro-Rolle; mit Webseite (in die Datenbank geschrieben) weg
     wartet              ein Auftrag wartet seit 3 Minuten -> Hinweis „wartet seit über 2 Minuten“: Büro „bitte den Administrator informieren“ (Büro –
                         Finanzen und Büro – Auftrag), der Admin mit dem Dienst; Warnhinweis (Fläche und Rand) mit Link „Versandprotokoll öffnen“,
                         kein „Erledigt“
@@ -43,6 +45,12 @@ GELADEN = "document.querySelector('#widgets .widget-card')"
 WARTET_BUERO = "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte den Administrator informieren."
 WARTET_ADMIN = "Kundenportal: Ein Anmeldecode wartet seit über 2 Minuten auf den Versand – bitte prüfen, ob der Postbote läuft (Dienst erp-portalpost)."
 FEHLER = "Kundenportal: Der letzte Anmeldecode ging nicht hinaus – bitte im Versandprotokoll nachsehen."
+# seit 1.11.47: der Hinweis, wenn Impressum und Datenschutz fehlen (app/kundenportal.py::PFLICHT_HINWEIS)
+PFLICHT = ("(()=>{const b=document.getElementById('portalPflicht');const a=b&&b.querySelector('a');"
+           "return b?[!b.classList.contains('hidden')&&b.offsetParent!==null,document.getElementById('portalPflichtText').textContent,"
+           "a.textContent,a.getAttribute('href')]:null})()")
+PFLICHT_TEXT = ("Im Kundenportal fehlen Impressum und Datenschutz: in den Unternehmensdaten steht keine gültige Webseite. Bis dahin zeigt das Portal "
+                "statt seiner Seiten „Gerade klappt etwas nicht“, und es geht kein Link hinaus.")
 
 
 def befuellen(db, k):
@@ -102,6 +110,16 @@ async def pruefen(tab, seed, p):
     await _start(tab, p, "modul_an")
     p.pruefe("Modul an, ohne Aufträge: Anfrage gestellt", _anfragen(tab) >= 1, True)
     p.pruefe("Modul an, ohne Aufträge: kein Hinweis", await tab.js(SICHTBAR), False)
+    p.pruefe("Ohne Webseite, Büro – Finanzen: Hinweis zu Impressum und Datenschutz", await tab.js(PFLICHT),
+             [True, PFLICHT_TEXT, "Unternehmensdaten öffnen", "/settings#general"])
+    await tab.bild("pflicht_ohne_webseite")
+    await tab.anmelden(seed["auf"])
+    await _start(tab, p, "pflicht_auftrag")
+    p.pruefe("Ohne Webseite, Büro – Auftrag: Hinweis sichtbar", (await tab.js(PFLICHT))[0], True)
+    _sql(seed, "UPDATE general_settings SET website = 'www.muster-bedachung.example'")
+    await _start(tab, p, "mit_webseite")
+    p.pruefe("Mit Webseite: kein Hinweis zu Impressum und Datenschutz", (await tab.js(PFLICHT))[0], False)
+    await tab.anmelden(seed["fin"])
 
     _sql(seed, "INSERT INTO portal_post (art, zugang_id, sitzung_id, angefordert_am, status) VALUES ('code', ?, ?, '2026-11-24 08:57:00', 'wartet')",
          seed["zugang"], seed["sitzung"])

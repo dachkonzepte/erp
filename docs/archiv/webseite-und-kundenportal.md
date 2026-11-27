@@ -4438,6 +4438,135 @@ Betreff (1.11.43), Vorschau der Fotos (1.11.44), Bereiche im Dienst (1.11.45) un
 Nach P2e angehalten (Vorgabe vom 27.11.2026). Offen für P2f (Inbetriebnahme): Server-Schritte P2d-1, P2d-2, P2e-1, P2e-2 nach dem Einspielen, Rauchtest am Rechner
 und auf dem Handy (Safari, Android), neue Fassung der Datenschutzerklärung (B8).
 
+### Antworten des Betriebs zu den Berichten 1.11.40 bis 1.11.46 (27.11.2026)
+
+- Bestätigt: 1.11.40-1 bis -3, 1.11.41-1 bis -9, 1.11.42-1 bis -6, 1.11.43-1 bis -3, 1.11.44-1 bis -4, 1.11.45-1 bis -8, 1.11.46-1 bis -7, auch die
+  Abweichungen (kein Merker „veraltet“, Vorschau ohne Protokoll, Termine am Rechner in voller Breite). Berichte und das ZIP p2d_p2e_6662aea4 seit 27.11.2026 im
+  Archiv der Berichte.
+- Speicher (P2b-4 auf 592022b): JPEG 48 Mio. Bildpunkte 324 MB, PNG 36 Mio. mit Alpha 343 MB, Postbote 106 MB. MemoryHigh 640M, MemoryMax 768M und 448 MB fürs
+  Kind bleiben -- keine Version dafür. Frage: vor 1.11.35 maß dasselbe JPEG 323 MB, das verkleinerte Dekodieren (1.11.35-4) zeigt sich unter Linux nicht --
+  zählt die Messung das Erzeugen des Testbilds mit, oder greift draft() nicht? (beantwortet unter 1.11.47)
+- Zuerst die Server-Schritte N1, P2d-1, P2d-2, P2e-1, P2e-2 und der Zählbefehl zu Order.title als Datei (`bildgrundlage/server_schritte_p2de_6662aea4.txt`),
+  je Schritt mit Erwartung; der Betrieb prüft sie vor dem Ausführen.
+- 404: die Erklärung aus 1.11.40 passt nicht -- angefragt war genau `/_portal_dateien/.datenbank` (mit Schrägstrich), zurück kam die Seite des Portals
+  (15 155 Byte). Dann greift für Pfade unter `/_portal_dateien/` ein anderer Ort als der internal-Block (etwa ein Regex-Ort, der vor Präfixen gewinnt) -- das
+  träfe auch X-Accel-Redirect, und die Attrappe bildet die Reihenfolge von nginx nicht nach. Die nginx-Datei prüfen (ggf. `location ^~ /_portal_dateien/`), in
+  N1 Befehle, die es am Server belegen; vor dem Rauchtest geklärt.
+- Als 1.11.47: 1. Fuß des Portals -- belegen, dass Impressum und Datenschutz auf jeder Seite stehen, wenn sie gesetzt sind, und was ohne sie geschieht (sie sind
+  Pflicht); 2. Fotos: die Gruppe ohne Auftrag heißt „Allgemeine Fotos“; 3. Übersicht am Handy: in der Kachel Fotos Zahl und „Zuletzt hinzugefügt …“ untereinander;
+  4. „disk I/O error“: Ursache suchen, bis dahin Endlauf zu zweit, der nächste Endlauf in einem Durchgang grün. Danach anhalten. Für P2f vormerken, je als Datei:
+  die Rauchtest-Liste und die Stichpunkte für die neue Datenschutzerklärung (B8, Stand heute).
+- Entscheidung auf Rückfrage (27.11.2026): ohne gültige Webseite sperrt das ERP Modul einschalten, Portal am Kunden einschalten und Link senden (409 mit Grund,
+  Hinweis auf „Start“), das Portal zeigt statt jeder Seite „Gerade klappt etwas nicht“ (500); die Wartungsseite trägt die Links fest auf dachkonzepte.gmbh.
+  Neu gefasst damit 1.11.8-5 und 1.11.14-5 („ohne gültige Webseite keine Links“).
+
+### Umsetzung 1.11.47: Impressum und Datenschutz als Pflicht, Orte von nginx, Kleinigkeiten nach P2e
+
+- **Pflicht im Portal** (`app/portal/seiten.py::Seiten.pflicht_da()`, `app/portal/routen.py::seite_antwort()`): lassen sich Impressum und Datenschutz nicht aus der
+  Webseite der Unternehmensdaten bilden (`firma()`, dieselbe Regel wie die Mails), antwortet jede Seite -- auch die 404 einer unbekannten Adresse -- mit der
+  Fehlerseite „technisch“ (500) samt Kontakt; im Journal „Seite ohne Impressum und Datenschutz …“. Dateien unter `/datei/…` sind Unterlagen, keine Seiten.
+- **Pflicht im ERP** (`app/kundenportal.py::pflicht_grund()`, Text `PFLICHT_FEHLT`): `schalten(an=True)`, `link_senden()` und `PUT /api/modules/kundenportal` mit
+  `enabled: true` lehnen ohne gültige Webseite mit 409 ab; ausschalten geht immer. „Start“: `GET /api/kundenportal/postbote` trägt `pflicht` (Text
+  `PFLICHT_HINWEIS`), die Seite zeigt ihn als Warnhinweis mit „Unternehmensdaten öffnen“ (`/settings#general`; Unternehmensdaten speichert ab Büro – Auftrag).
+- **Belege**: `klicktest_portal_seiten.py` prüft in jedem Zustand A bis E und jeder hellen Ansicht (390, 1280, 360 px) beide Links mit Text, Ziel und
+  Sichtbarkeit, ohne JavaScript im DOM; `klicktest_portal_bereiche.py` in jedem Bereich (1280 und 390 px); `klicktest_portal_stau.py` den Hinweis auf „Start“
+  (Büro – Finanzen und Büro – Auftrag, mit Webseite weg). Die übrigen Klicktests des Portals tragen eine erfundene Webseite im Seed.
+- **Wartungsseite** (`scripts/server/portal-wartung.html`): Fuß mit `https://dachkonzepte.gmbh/impressum` und `/datenschutz` -- fest (die Seite liest keine
+  Einstellungen), in derselben Form wie das Portal, für die Domain über der festen Adresse des Portals (Wächter `test_v812::test_fuss_wie_im_portal`); neue
+  Prüfsumme des Stils in der CSP (`nginx-kunde.conf`). Eingespielt mit N2.
+- **404 auf `/_portal_dateien/.datenbank` (Befund)**: mit der Datei aus dem Repo kann diese Anfrage den Dienst nicht erreichen -- der 443-Server kennt nur
+  Präfix-Orte und exakte Orte, keinen Regex-Ort (das include von Let's Encrypt setzt nur ssl_*); der Block ist internal, von außen antwortet nginx selbst
+  (rund 150 Byte, CSP `default-src 'none'; frame-ancestors 'none'`). Die 15 155 Byte sind die Fehlerseite „Diese Seite gibt es nicht“ des Dienstes (404 für jede
+  unbekannte Adresse). Auf dem Server gilt also etwas anderes als die Datei aus dem Repo -- welche Datei, welche Konfiguration gelesen, ob das letzte Neuladen
+  griff, zeigt N1a (unten); offen bis zur Ausgabe des Betriebs. Der Dienst führt kein Zugriffsprotokoll (P1) -- den Nachweis „kam beim Dienst an“ liefern die
+  Kopfzeilen (seine CSP trägt `script-src 'self'`) und dieselbe Größe wie die Anfrage direkt an 127.0.0.1:8010. Meine Erklärung in 1.11.40 (nur ohne
+  Schrägstrich) war geraten, nicht belegt.
+- **`^~` und Attrappe** (unabhängig vom Befund): `location ^~ /_portal_dateien/` -- kein Regex-Ort, auch ein künftiger aus einem include, nimmt dem Block eine
+  Adresse oder den internen Weg eines X-Accel-Redirect. `scripts/nginx_attrappe.py` liest alle Orte des 443-Servers (`orte()`) und wählt wie nginx
+  (`ort_waehlen()`: exakt, längster Präfix, `^~` beendet die Suche, sonst der erste passende Regex-Ort, sonst der Präfix) -- von außen und für das Ziel eines
+  X-Accel-Redirect; landet das nicht im Block der Dateien, antwortet sie 500. Wächter `test_v837`: mit eingefügtem Regex-Ort nimmt ohne `^~` der Regex die
+  Datei, mit `^~` der Block.
+- **Fotos**: unter „Fotos“ heißt die Gruppe ohne Auftrag und Objekt „Allgemeine Fotos“ (`bereiche.ALLGEMEIN_FOTOS`); unter „Unterlagen“ und im Reiter „Im Portal“
+  (dort stehen Unterlagen und Fotos zusammen) bleibt „Allgemeine Unterlagen“.
+- **Kachel am Handy**: `.kachel-wert` und `.kachel-satz` je volle Breite unter 600 px -- Zahl und Satz untereinander, auch wenn der Satz kurz ist.
+- **Messung (Antwort zur Frage)**: `draft()` greift -- lokal dekodiert das JPEG 8000 × 6000 als 4000 × 3000 (angefordert 3200 × 2400 für die Kante 1600), das
+  Dekodieren kostet so rund 72 MB, ohne `draft()` rund 256 MB, bei gleicher Ausgabe (410 KB). Die 323/324 MB vom Server sind nicht die Spitze des Kinds: Linux
+  übernimmt beim Start eines Programms den Höchststand des startenden Prozesses in dessen `ru_maxrss` (`fs/exec.c`, `exec_mmap()` -- bei `vfork`, mit dem Python
+  unter Linux startet, der Höchststand des Elternprozesses). Das Skript hatte vorher selbst das Rauschbild erzeugt (48 Mio. Bildpunkte, intern 4 Byte je Punkt)
+  und die Module des ERP geladen -- gemessen wurde sein Höchststand, vor und nach 1.11.35 gleich. Die 343 MB des PNG sind dagegen wohl echt (lokal kostet das
+  PNG mit Alpha rund 320 MB über der Grundlast: kein verkleinertes Dekodieren für PNG). Seit 1.11.47 erzeugt `pruefe_portal_foto.py` die Testbilder in einem
+  eigenen Prozess (Wegwerf-Ordner) und startet das Kind aus einem kleinen Messprozess (`MESSER`) -- die Spitze ist dann die des Kinds. Beleg am Server ohne
+  dieses Skript: `.venv/bin/python -c "import os, subprocess; b = b'\x01' * (300 * 2**20); p = subprocess.Popen(['/bin/true']); print(os.wait4(p.pid, 0)[2].ru_maxrss // 1024, 'MB')"`
+  -- erwartet über 300 MB für `/bin/true`.
+- **„disk I/O error“**: Ursache und Abhilfe im Archiv „Testablauf und Klicktests“, „Journal von SQLite im Speicher (1.11.47)“.
+
+#### Festlegungen 1.11.47 (Bitte bestätigen)
+
+1. Impressum und Datenschutz sind im Portal Pflicht: ohne gültige Webseite in den Unternehmensdaten zeigt jede Seite „Gerade klappt etwas nicht“ (500) --
+   neu gefasst 1.11.8-5 und 1.11.14-5.
+2. Ohne gültige Webseite gehen Modul „Kundenportal“ einschalten, Portal am Kunden einschalten und Link senden nicht (409 mit Grund); ausschalten geht immer.
+3. „Start“ zeigt ab Büro – Auftrag, solange die Webseite fehlt, den Hinweis mit „Unternehmensdaten öffnen“ (nur mit Modul).
+4. Die Wartungsseite trägt Impressum und Datenschutz fest auf `https://dachkonzepte.gmbh/…` -- dieselbe Form wie im Portal (Wächter).
+5. Beide Links stehen in jedem Zustand A bis E und jedem Bereich, am Rechner und am Handy, auch ohne JavaScript (belegt in den Klicktests).
+6. Der Block der Dateien in nginx trägt `^~`.
+7. Die Attrappe von nginx wählt den Ort jeder Adresse wie nginx; ein X-Accel-Redirect außerhalb des Blocks der Dateien ist dort ein Fehler (500).
+8. Unter „Fotos“ heißt die Gruppe ohne Auftrag und Objekt „Allgemeine Fotos“.
+9. Am Handy stehen in jeder Kachel der Übersicht Zahl und Satz untereinander.
+10. `pruefe_portal_foto.py` misst die Spitze genau des Kinds: Testbilder aus einem eigenen Prozess, das Kind aus einem kleinen Messprozess.
+
+Dazu drei Festlegungen zu Werkzeug und Testablauf im Archiv „Testablauf und Klicktests“ (Regel 28).
+
+#### Abweichungen vom Bauplan (1.11.47)
+
+- Bauplan P1, Abschnitt 5 E „Wartung“ („ohne Skript, nichts von außen“): die Wartungsseite trägt jetzt zwei Links -- sie laden nichts, die CSP bleibt.
+- Neu gefasst (Entscheidung 27.11.2026): 1.11.8-5 und 1.11.14-5 -- statt „ohne gültige Webseite keine Links“ keine Seite und keine Einladung ohne die Links.
+
+#### Tests und Prüfung 1.11.47
+
+Neu: `tests/test_v836_journal_im_speicher.py` (12), `tests/test_v837_portal_pflicht_und_orte.py` (17), Testhelfer `tests/portal_webseite.py`. Angepasste
+Erwartungen (Regel 28): `test_v806::test_schnittstelle_nur_mit_modul` -- alt die Antwort mit vier Schlüsseln, neu dazu `pflicht` (ohne Webseite der Hinweis, mit
+Webseite None); `test_v808::test_schnittstelle_je_rolle` -- dazu `"pflicht": None` (Testdaten mit Webseite); `test_v812::test_seite_ohne_skript_und_ohne_fremdes`
+-- alt kein `href`, neu genau die zwei Links; nur Aufbau: `test_v809`, `test_v829` (Testdaten mit erfundener Webseite), `test_v825::test_internal_block_vollstaendig`
+(Block mit `^~`). Klicktests: `klicktest_portal_seiten` 132 -> 193 Prüfungen (Fuß je Zustand und heller Ansicht, ohne JavaScript), `klicktest_portal_bereiche`
+59 -> 70 (Fuß je Bereich, Kachel am Handy), `klicktest_portal_stau` 42 -> 47 (Hinweis); nur Aufbau (Webseite im Seed): `klicktest_kundenportal_karte`,
+`klicktest_kundenportal_an_dateien`, `klicktest_kundenportal_im_portal`, `klicktest_portal_dateien`. Gegenproben: 21, alle rot aus dem geprüften Grund -- die
+der Messung erst im zweiten Anlauf (die Attrappe des Kinds sah unter Windows den Starter `.venv\Scripts\python.exe` als Elternprozess; Test nachgezogen).
+
+#### Server-Schritt N1 (neu gefasst am 27.11.2026): der Befund zur 404
+
+Steht mit P2d-1 bis P2e-2 in `bildgrundlage/server_schritte_p2de_6662aea4.txt` (nach der Bestätigung im Archiv der Berichte): N1a nur lesend vor update.sh --
+von außen mit Kopfzeilen und Größe, dieselbe Adresse direkt an den Dienst, das Protokoll von nginx, die installierte Datei gegen e99c99a, `nginx -T` (Dateien,
+Server, Orte) und `nginx -t`, ob die Arbeitsprozesse jünger sind als die Datei und kein Neuladen scheiterte; Fall A (alles wie das Repo) oder B1–B4 (andere
+Datei, Regex-Ort, anderer Server-Block, Neuladen griff nicht). N1b nur nach Fall A (Datei von 6662aea4), N1c der Befund danach.
+
+#### Server-Schritt N2 (nach dem Einspielen von 1.11.47): nginx mit `^~`, Wartungsseite mit Fuß, Messung des Kinds
+
+Nach N1 (Fall A). Die Einheiten ändern sich nicht.
+
+```bash
+sudo cp /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.47
+sudo cp /etc/nginx/dk-portal/wartung.html /root/wartung.html.vor-1.11.47
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/nginx-kunde.conf /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
+sudo install -D -m 644 -o root -g root /home/tobias/erp/scripts/server/portal-wartung.html /etc/nginx/dk-portal/wartung.html
+sudo nginx -t && sudo systemctl reload nginx
+sudo nginx -T 2>/dev/null | grep -nE 'location \^~ /_portal_dateien/|sha256-'
+grep -o 'href="[^"]*"' /etc/nginx/dk-portal/wartung.html
+for p in /_portal_dateien/.datenbank /_portal_dateien; do printf '%s ' "$p"; curl -s -D /tmp/n2.kopf -o /dev/null -w '%{http_code} %{size_download} ' "https://kunde.dachkonzepte.gmbh$p"; grep -i '^content-security-policy' /tmp/n2.kopf | cut -c1-60; done
+cd /home/tobias/erp && .venv/bin/python scripts/pruefe_portal_foto.py
+```
+
+Erwartet: „syntax is ok“, „test is successful“; die Zeile `location ^~ /_portal_dateien/` und `style-src 'sha256-EUOIZUiA0RHUezIOf/dViQX7Z4IFebx5X8TNA/xQOCo='`;
+die zwei Links `href="https://dachkonzepte.gmbh/impressum"` und `href="https://dachkonzepte.gmbh/datenschutz"`; die beiden Adressen wie in N1c; das Skript mit
+„alle Prüfungen wie erwartet“ und zwei Messungen -- die Spitze des JPEG jetzt die des Kinds (lokal geschätzt rund 140 MB), die des PNG wie bisher um 340 MB.
+Abbrechen, wenn `nginx -t` einen Fehler meldet: `sudo cp /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.47 /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo cp
+/root/wartung.html.vor-1.11.47 /etc/nginx/dk-portal/wartung.html && sudo nginx -t && sudo systemctl reload nginx`, Ausgabe in den Chat. Rückweg: dieselbe Zeile.
+
+#### Für P2f vorgemerkt (27.11.2026)
+
+Zwei Dateien in `bildgrundlage/`: `p2f_rauchtest.txt` (Rechner mit Chrome, Firefox, Edge, Safari am Mac, iPhone, Android: Anmelden, jede Seite, Ansehen,
+Herunterladen, Foto groß, Zurück, Abmelden, Kopfzeilen mit curl ohne den Wert des Cookies, Fehlerseiten, Protokoll im ERP) und
+`p2f_datenschutz_stichpunkte.md` (B8, Stand 1.11.47, ergänzt die Stichpunkte vom 25.11.2026). Nach 1.11.47 angehalten (Vorgabe vom 27.11.2026).
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

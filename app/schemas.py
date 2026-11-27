@@ -1227,6 +1227,7 @@ class PortalPostboteOut(BaseModel):
     text: str | None = None
     post_id: int | None = None
     erledigen: bool = False
+    pflicht: str | None = None  # seit 1.11.47: Hinweis, wenn Impressum und Datenschutz fehlen (keine gültige Webseite in den Unternehmensdaten)
 
 
 # --- Kundenportal am Kunden (seit 1.11.10, Stufe P1d) -----------------------------------------------------------------------------------------------

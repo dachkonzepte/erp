@@ -1556,6 +1556,7 @@ def _isolierte_umgebung(ordner: Path) -> dict:
         "ERP_SECRET_KEY": secrets.token_urlsafe(32),
         "ERP_ENV": "development",
         "ERP_TEST_FREMDSCHLUESSEL": "1",  # seit 1.9.363: die Instanz prüft Fremdschlüssel wie PostgreSQL (app/database.py::fremdschluessel_pruefen())
+        "ERP_TEST_JOURNAL_SPEICHER": "1",  # seit 1.11.47: kein <db>-journal, das der Virenscanner beim Löschen offen hält (app/database.py::journal_im_speicher())
         "PYTHONIOENCODING": "utf-8",
     })
     return env

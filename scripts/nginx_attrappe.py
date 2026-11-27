@@ -7,7 +7,8 @@ macht (scripts/server/nginx-kunde.conf):
   dabei aus der Antwort des Dienstes übernimmt (UEBERNOMMEN: wie die Tabelle der Kopfzeilen von nginx, Feld „redirect“), und mit genau den add_header des
   internal-Blocks, gelesen aus der nginx-Datei selbst (so laufen Attrappe und Datei nicht auseinander); den Typ nimmt sie wie nginx aus der Antwort des
   Dienstes, sonst aus „types“ nach der Endung, sonst default_type;
-- /_portal_dateien/ direkt ist 404 (internal), ebenso ein Name, der nicht wie eine Kopie aussieht, oder eine fehlende Datei;
+- /_portal_dateien/ direkt ist 404 (internal), ebenso ein Name, der nicht wie eine Kopie aussieht, oder eine fehlende Datei; seit 1.11.47 wählt sie den Ort
+  jeder Adresse wie nginx (ort_waehlen(): exakt, längster Präfix, ^~, Regex) -- von außen und für das Ziel eines X-Accel-Redirect;
 - Range und HEAD wie nginx für eine statische Datei (eine Spanne „bytes=a-b“; sonst die ganze Datei).
 
 Startet nur mit ERP_ENV development oder test und bindet nur an 127.0.0.1. Gebraucht von tests/test_v825_portal_dateien.py und
@@ -21,6 +22,7 @@ import os
 import re
 import sys
 import threading
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -33,19 +35,66 @@ UEBERNOMMEN = ("content-type", "content-disposition", "cache-control", "expires"
 HOP = {"connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade", "proxy-authenticate", "proxy-authorization"}
 
 
-def internal_block(conf: Path = NGINX) -> dict:
-    """add_header, types und default_type des Blocks location /_portal_dateien/ aus der nginx-Datei."""
-    text = conf.read_text(encoding="utf-8")
-    start = text.index("location /_portal_dateien/ {")
-    tiefe, i = 0, start
-    while True:
+ORT = re.compile(r"\blocation\s+(?:(=|\^~|~\*|~)\s+)?(\S+)\s*\{")
+
+
+def _ohne_kommentare(conf: Path) -> str:
+    return "\n".join(z.split("#")[0] for z in conf.read_text(encoding="utf-8").splitlines())
+
+
+def _ende(text: str, auf: int) -> int:
+    """Index der schließenden Klammer zum „{“ an der Stelle auf (Blöcke dürfen verschachtelt sein, etwa types { … })."""
+    tiefe = 0
+    for i in range(auf, len(text)):
         if text[i] == "{":
             tiefe += 1
         elif text[i] == "}":
             tiefe -= 1
             if tiefe == 0:
-                break
-        i += 1
+                return i
+    raise ValueError("Block ohne Ende")
+
+
+@dataclass(frozen=True)
+class Ort:
+    art: str        # "=", "^~", "~", "~*" oder "" (Präfix ohne Zeichen)
+    muster: str
+    internal: bool
+
+
+def orte(conf: Path = NGINX) -> list[Ort]:
+    """Seit 1.11.47: die Orte (location) des Servers für Port 443 in der Reihenfolge der Datei, je mit internal."""
+    text = _ohne_kommentare(conf)
+    anfang = text.rfind("server {", 0, text.index("listen 443"))
+    server = text[anfang:_ende(text, text.index("{", anfang)) + 1]
+    gefunden = []
+    for m in ORT.finditer(server):
+        inhalt = server[m.end():_ende(server, m.end() - 1)]
+        gefunden.append(Ort(m.group(1) or "", m.group(2), re.search(r"\binternal\s*;", inhalt) is not None))
+    return gefunden
+
+
+def ort_waehlen(pfad: str, orte_: list[Ort]) -> Ort | None:
+    """Seit 1.11.47: welcher Ort eine Adresse nimmt -- in der Reihenfolge von nginx (ngx_http_core_find_location): ein exakter Ort (=) gewinnt sofort;
+    sonst der längste passende Präfix-Ort; trägt er ^~, endet die Suche dort; sonst der erste passende Regex-Ort (~, ~* ohne Groß und klein) in der
+    Reihenfolge der Datei; ohne ihn der längste Präfix-Ort. So nimmt die Attrappe von außen und beim X-Accel-Redirect denselben Ort wie nginx."""
+    for o in orte_:
+        if o.art == "=" and pfad == o.muster:
+            return o
+    praefix = max((o for o in orte_ if o.art in ("", "^~") and pfad.startswith(o.muster)), key=lambda o: len(o.muster), default=None)
+    if praefix is not None and praefix.art == "^~":
+        return praefix
+    for o in orte_:
+        if o.art in ("~", "~*") and re.search(o.muster, pfad, re.IGNORECASE if o.art == "~*" else 0):
+            return o
+    return praefix
+
+
+def internal_block(conf: Path = NGINX) -> dict:
+    """add_header, types und default_type des Blocks location ^~ /_portal_dateien/ aus der nginx-Datei (bis 1.11.46 ohne ^~)."""
+    text = conf.read_text(encoding="utf-8")
+    start = re.search(r"\blocation\s+(?:\^~\s+)?/_portal_dateien/\s*\{", text).start()
+    i = _ende(text, text.index("{", start))
     block = "\n".join(z.split("#")[0] for z in text[start:i + 1].splitlines())
     kopf = [(m.group(1), m.group(2) if m.group(2) is not None else m.group(3))
             for m in re.finditer(r'add_header\s+(\S+)\s+(?:"([^"]*)"|(\S+))\s+always\s*;', block)]
@@ -63,7 +112,7 @@ class Attrappe:
     def __init__(self, oben_port: int, ordner: Path, conf: Path = NGINX):
         if os.environ.get("ERP_ENV") not in ("development", "test"):
             raise RuntimeError("Die Attrappe von nginx läuft nur mit ERP_ENV development oder test.")
-        self.oben_port, self.ordner, self.block = oben_port, Path(ordner), internal_block(conf)
+        self.oben_port, self.ordner, self.block, self.orte = oben_port, Path(ordner), internal_block(conf), orte(conf)
         attrappe = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -109,7 +158,8 @@ class Attrappe:
             h.wfile.write(koerper)
 
     def bearbeiten(self, h) -> None:
-        if h.path.split("?", 1)[0].startswith(INTERN):
+        ort = ort_waehlen(h.path.split("?", 1)[0], self.orte)  # seit 1.11.47 wie nginx; bis dahin nur „beginnt mit /_portal_dateien/“
+        if ort is None or ort.internal:
             self._senden(h, 404, [("Content-Type", "text/html")], b"<html><body>404 Not Found</body></html>")
             return
         laenge = int(h.headers.get("Content-Length") or 0)
@@ -135,6 +185,10 @@ class Attrappe:
         self._datei(h, ziel, kopf)
 
     def _datei(self, h, ziel: str, kopf_oben: list[tuple[str, str]]) -> None:
+        ort = ort_waehlen(ziel.split("?", 1)[0], self.orte)
+        if ort is None or ort.muster != INTERN or not ort.internal:  # seit 1.11.47: der interne Weg muss im Block der Dateien landen, sonst ein Fehler
+            self._senden(h, 500, [("Content-Type", "text/plain")], f"X-Accel-Redirect landet nicht im Block der Dateien: {ort}".encode())
+            return
         name = ziel[len(INTERN):] if ziel.startswith(INTERN) else ""
         pfad = self.ordner / name
         if not NAME.match(name) or not pfad.is_file():

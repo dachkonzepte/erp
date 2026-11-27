@@ -91,6 +91,8 @@ def befuellen(db, k):
     auf = AppUser(username="auri", display_name="Auri Auftrag", role="buero_auftrag", password_hash=k.passwort())
     mon = AppUser(username="moni", display_name="Moni Monteurin", role="field", password_hash=k.passwort())
     db.add_all([adm, auf, mon, EnabledModule(module_key="kundenportal", enabled=True)])
+    from app.settings import load_general_settings
+    load_general_settings(db).website = "www.muster-bedachung.example"  # seit 1.11.47: ohne Webseite kein Portal (Impressum und Datenschutz sind Pflicht)
     jetzt = datetime(2026, 11, 24, 9, 0)
     kunden = {}
 

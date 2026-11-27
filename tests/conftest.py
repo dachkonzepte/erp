@@ -36,6 +36,10 @@ os.environ["ERP_DATA_DIR"] = str(_TEST_SCRATCH / "data")
 # schickte es nie zurück. create_all() beim Import von app.main läuft wie bisher (nur production schaltet es ab).
 os.environ["ERP_ENV"] = "test"
 os.environ.pop("ERP_COOKIE_SECURE", None)
+# Seit 1.11.47: Kindprozesse (alembic, app.main, uvicorn) legen das Journal von SQLite in den Speicher (app/database.py::journal_im_speicher(),
+# alembic/env.py) -- wie dieser Prozess (_journal_im_speicher unten). Anlass: der Virenscanner des Entwicklungsrechners hielt eben geschlossene
+# Journale offen, ihr Löschen scheiterte mit „disk I/O error“ (27.11.2026, tests/test_v836_journal_im_speicher.py).
+os.environ["ERP_TEST_JOURNAL_SPEICHER"] = "1"
 
 import pytest  # noqa: E402 -- erst nach dem Umlenken der Datenbank
 from fastapi import FastAPI
@@ -65,6 +69,18 @@ def _fremdschluessel_pruefen(dbapi_connection, connection_record):
     if type(dbapi_connection).__module__.startswith("sqlite3"):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
+@event.listens_for(Engine, "connect")
+def _journal_im_speicher(dbapi_connection, connection_record):
+    """Seit 1.11.47: jede SQLite-Verbindung dieses Testprozesses hält ihr Rücksetz-Journal im Speicher (PRAGMA journal_mode=MEMORY) -- keine Datei
+    <db>-journal je Transaktion, die der Virenscanner des Entwicklungsrechners nach dem Schließen kurz offen hält (ihr Löschen scheiterte mit
+    „disk I/O error“, 27.11.2026). Die Sperren sind dieselben wie mit der Datei. Kindprozesse bekommen den Schalter ERP_TEST_JOURNAL_SPEICHER (oben).
+    Wächter: tests/test_v836_journal_im_speicher.py."""
+    if type(dbapi_connection).__module__.startswith("sqlite3"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=MEMORY")
         cursor.close()
 
 
