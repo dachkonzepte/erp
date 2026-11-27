@@ -318,7 +318,7 @@ function propertyDocumentRow(d){
     <td style="white-space:nowrap">
       <a href="${downloadUrl}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Laden</a>
       ${d.source==='property'?` <button type="button" class="danger" onclick="deletePropertyDocument(${d.id})">Löschen</button>`:''}
-      <span data-ip-quelle="${d.source==='property'?'property_documents':'project_documents'}" data-ip-id="${d.id}" data-ip-was="${esc(d.original_filename)}" data-ip-vorschau="${viewUrl}"></span>
+      <span data-ip-quelle="${d.source==='property'?'property_documents':'project_documents'}" data-ip-id="${d.id}" data-ip-kunde="${Number(property&&property.customer_id)||''}" data-ip-was="${esc(d.original_filename)}" data-ip-vorschau="${viewUrl}"></span>
     </td>
   </tr>`;
 }

@@ -53,6 +53,7 @@
 {% endif %}
 <script>
 const IM_PORTAL_DARF = "{{ 'ja' if im_portal_darf else 'nein' }}" === "ja";  // ungerendert (node-Tests) aus
+const IM_PORTAL_KEIN_FOTO = 'Bitte mindestens ein Foto ankreuzen.';
 const IM_PORTAL_HOCHGELADEN = ['customer_documents', 'project_documents', 'property_documents', 'defect_files', 'order_acceptance_files'];
 const IM_PORTAL_CHIP = {sichtbar: ['chip-ok', 'Im Portal'], wird_vorbereitet: ['chip-info', 'Im Portal · wird vorbereitet'],
   gescheitert: ['chip-warn', 'Im Portal · Kopie gescheitert'], ruht: ['chip-neutral', 'Im Portal · ruht']};
@@ -60,6 +61,8 @@ var imPortalAuftrag = null, imPortalInfo = new Map(), imPortalNachher = new Map(
 function imPortalKnopfText() {
   const a = imPortalAuftrag, n = a ? (a.auswahl ? imPortalGewaehlt().length : a.ids.length) : 0;
   document.getElementById('imPortalKnopf').textContent = n > 1 ? n + ' im Portal zeigen' : 'Im Portal zeigen';
+  const s = document.getElementById('imPortalStatus');  // seit 1.11.40: die Meldung „mindestens ein Foto“ geht, sobald eins gewählt ist
+  if (a && a.auswahl && n && s.textContent === IM_PORTAL_KEIN_FOTO) s.textContent = '';
 }
 function imPortalGewaehlt() { return [...document.querySelectorAll('#imPortalAuswahl input:checked')].map(i => Number(i.dataset.id)); }
 function imPortalOeffnen(a) {
@@ -105,7 +108,7 @@ async function imPortalFreigeben() {
   const s = document.getElementById('imPortalStatus'), titel = document.getElementById('imPortalTitelFeld').value.trim(), auftrag = imPortalAuftrag;
   if (!auftrag) return;
   const ids = auftrag.auswahl ? imPortalGewaehlt() : auftrag.ids;
-  if (!ids.length) { s.textContent = 'Bitte mindestens ein Foto ankreuzen.'; return; }
+  if (!ids.length) { s.textContent = IM_PORTAL_KEIN_FOTO; return; }
   if (!titel && ids.length === 1 && !auftrag.auswahl) { s.textContent = 'Bitte einen Titel angeben.'; return; }
   s.textContent = '';
   const url = '/api/customers/' + auftrag.kunde + '/portal/freigaben';
@@ -122,14 +125,18 @@ function imPortalAdresse(quelle, ids) { return '/api/portal-freigaben/unterlagen
 function imPortalPlatz(platz, info) {
   const teile = [];
   const b = info && info.bestehend;
+  // seit 1.11.40: nennt der Platz den Kunden der Seite (data-ip-kunde, Objekt), gibt es für eine Unterlage eines anderen Kunden keinen Knopf -- eine Datei
+  // aus dem Projekt eines anderen Kunden auf diesem Objekt (Bauplan A2.2, U2/U3) gibt man in dessen Akte frei
+  const soll = platz.dataset.ipKunde ? Number(platz.dataset.ipKunde) : null;
+  const fremd = !!(soll && info && info.customer_id !== soll);
   if (b) {
-    const [klasse, wort] = b.anderer_kunde ? ['chip-neutral', 'Im Portal eines anderen Kunden'] : (IM_PORTAL_CHIP[b.zustand] || ['chip-neutral', b.zustand_text]);
+    const [klasse, wort] = b.anderer_kunde || fremd ? ['chip-neutral', 'Im Portal eines anderen Kunden'] : (IM_PORTAL_CHIP[b.zustand] || ['chip-neutral', b.zustand_text]);
     const chip = document.createElement('span');
     chip.className = 'chip ' + klasse; chip.textContent = wort;
     if (b.grund) chip.title = b.grund;
     teile.push(chip);
   }
-  if (info && info.freigebbar) {
+  if (info && info.freigebbar && !fremd) {
     const knopf = document.createElement('button');
     knopf.type = 'button'; knopf.className = 'secondary klein'; knopf.textContent = 'Im Portal zeigen';
     knopf.dataset.klick = 'im-portal-datei'; knopf.dataset.ipQuelle = platz.dataset.ipQuelle; knopf.dataset.ipId = String(Number(platz.dataset.ipId));

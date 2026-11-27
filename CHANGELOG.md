@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.40 – Kundenportal: Kleinigkeiten nach P2c
+
+Aus den Antworten des Betriebs vom 27.11.2026: der Block des Portals in nginx schaltet HTTP/2 mit eigener Anweisung ein (`http2 on;`) -- „listen … http2“ ist seit nginx 1.25.1 veraltet und warnte bei `nginx -t`. Im Fotodialog des Einsatzberichts verschwindet „Bitte mindestens ein Foto ankreuzen.“, sobald ein Foto angekreuzt ist. Auf der Objektseite hat die Datei eines Projekts eines anderen Kunden keinen Knopf „Im Portal zeigen“ mehr -- sie gibt man in dessen Akte frei. Der Klicktest belegt mit echten Testbildern, dass die Vorschauen laden.
+
 ## 1.11.39 – Kundenportal P2c, Teil 4: „Im Portal zeigen“ an den Dateien
 
 An jeder freigebbaren Datei steht jetzt „Im Portal zeigen“ bzw. ihr Kennzeichen („Im Portal“, „wird vorbereitet“, „Kopie gescheitert“, „ruht“): an den Dokumenten der Kundenakte, den Dateien der Akte und des Objekts, den Belegen der Abnahme und den Dateien am Mangel -- dort nur, solange die Datei unverändert ist. Der Dialog nimmt den Titel aus Kategorie bzw. Art und Datum, zeigt bei Bildern eine Vorschau und bei hochgeladenen PDFs den Hinweis auf unsichtbare Angaben. Im Einsatzbericht öffnet „Fotos im Portal zeigen …“ eine Auswahl mit Vorschau, nichts vorgewählt; schon freigegebene Fotos lassen sich dort nicht noch einmal ankreuzen. Den Knopf und den Dialog gibt es nur mit dem Modul „Kundenportal“ und ab Büro – Auftrag; die Monteurin sieht nichts davon. Damit ist Stufe P2c fertig.

@@ -4025,6 +4025,75 @@ P2c ist mit 1.11.39 gebaut: Freigeben und Zurücknehmen samt Gründen (1.11.36),
 1.11.36; mehrere Fotos auf einmal, 1.11.39; zeigen, was der Kunde ab dem Einladen sieht, 1.11.38). Nach P2c angehalten (Vorgabe 27.11.2026). Der Kunde sieht
 davon im Portal noch nichts: die Seiten des Portals kommen nach den Entwürfen des Betriebs (P2e), das Schaufenster mit Zahlstand und Terminen in P2d.
 
+### Antworten des Betriebs zu den Berichten 1.11.35 bis 1.11.39 (27.11.2026)
+
+- Bestätigt: 1.11.35-1 bis -5 (auch die Änderung von 1.11.33-3), 1.11.36-1 bis -12, 1.11.37-1 bis -8, 1.11.38-1 bis -7, 1.11.39-1 bis -5. Berichte und das ZIP
+  p2c_592022b seit 27.11.2026 im Archiv der Berichte.
+- Server, 27.11.2026 auf e99c99a: P2b-0 bis P2b-6 eingespielt, alles wie erwartet. P2b-4: 48 Mio. Bildpunkte, 33 MB -> JPEG 410 KB, 0,6 s, Spitze des Kinds
+  323 MB (noch mit der Grenze 1 GiB, vor 1.11.35). nginx: `/_portal_dateien/.datenbank` 404, `/datei/1` 401, `/health` 200, POST 401, Protokoll ohne IP und
+  internen Weg. Danach: update.sh auf 592022b, die Einheit des Postboten neu und P2b-4 noch einmal; MemoryHigh/MemoryMax gibt der Betrieb danach vor.
+- Kleinigkeiten (Kleines gleich beheben, im nächsten Bericht beantworten): 1. portal_rechte meldet seit 1.11.33 46 statt 45 Anweisungen; 2. `nginx -t`
+  warnt „listen … http2 is deprecated“ (Zeile 36) -- auf „http2 on;“, Wächter anpassen; 3. die 404 von außen auf `/_portal_dateien/…` hat rund 15 KB -- welche
+  Seite; 4. Fotodialog: die Meldung steht trotz zwei Kreuzen da; Vorschauen im Bild kaputt -- im Klicktest mit echten Testbildern belegen; 5. Objektseite: an
+  Dateien eines Projekts eines anderen Kunden auf diesem Objekt (U2/U3) kein „Im Portal zeigen“, Test mit Gegenprobe. -> 1.11.40.
+- P2e: die Entwürfe sind freigegeben (5 PNG in `bildgrundlage/Entwürfe/P2/`). **Änderung zu P2-10:** Gruppenüberschrift „Auftrag <Nummer> · <Betreff>“,
+  darunter die Adresse. Betreff ist nur der Text, den der Kunde schon gedruckt auf Angebot bzw. Auftragsbestätigung hat -- nie der interne Projekttitel. Befund
+  dazu im Bericht zu P2d (welches Feld, verlässlich gefüllt?), Umsetzung mit P2e; ohne Betreff nur die Nummer. Gilt auch für den Reiter „Im Portal“.
+- Weiter mit P2d, dann P2e nach den Entwürfen; nach P2e anhalten.
+
+### Umsetzung 1.11.40: Kleinigkeiten nach P2c
+
+- Zu 1 (Antwort): seit 1.11.33 gibt es im Schema die Funktion des Weckrufs `portal_freigabe_geweckt()` (Migration a7c3e9f1d2b4). `scripts/portal_rechte.py
+  --setzen` nimmt jeder eigenen Funktion des Schemas das Recht für alle (`app/portal/rechte.py::setzen()`, eine Zeile `REVOKE ALL ON FUNCTION … FROM PUBLIC` je
+  Funktion aus `_eigene_funktionen()`) -- die 46. Anweisung ist `REVOKE ALL ON FUNCTION public.portal_freigabe_geweckt() FROM PUBLIC`. Der Benutzer des Portals
+  bekommt auf sie kein Recht (sie ist keine aus `FUNKTIONEN`). Mit P2d kommen weitere Auslöser-Funktionen dazu; die Zahl steigt dann wieder.
+- Zu 2: `listen 443 ssl;` und `http2 on;` (nginx ab 1.25.1; der Server hat 1.28.3). `tests/test_v815_nginx_nur_ipv4.py`: alt `listen 443 ssl http2;`, neu
+  `listen 443 ssl;` und im zweiten Block genau `http2 on;`, keine Zeile `listen … http2`. Hinweis: lauschen andere Blöcke des Servers auf 443 noch mit
+  „listen … http2“, kann `nginx -t` „protocol options redefined“ melden -- nur eine Warnung.
+- Zu 3 (Antwort, hier nicht nachstellbar -- kein nginx lokal): eine Anfrage, die der internal-Block abweist, beantwortet nginx mit seiner eingebauten Seite (rund
+  150 Byte; die Konfiguration hat für 404 keine eigene Seite, `error_page` nur für 502/504). Rund 15 KB passen dagegen zur Seite des Portals (`portal.html`,
+  13,5 KB, die der Dienst für unbekannte Pfade mit 404 liefert) -- dann kam die Anfrage beim Dienst an. Das geschieht für jeden Pfad, der nicht mit
+  `/_portal_dateien/` (mit Schrägstrich) beginnt, z. B. `/_portal_dateien` ohne ihn (`location /`). Klären mit den Befehlen im Server-Schritt N1 unten.
+- Zu 4: die Meldung „Bitte mindestens ein Foto ankreuzen.“ geht mit dem ersten Kreuz (`imPortalKnopfText()`); der Klicktest legt echte Testbilder an (Fotos des
+  Berichts und Bild der Kundenakte) und prüft, dass jede Vorschau lädt (`complete` und `naturalWidth > 0`) -- im Bild von 1.11.39 fehlten die Dateien der
+  Testdaten, die Seite selbst war richtig.
+- Zu 5: ein Platz kann den Kunden der Seite nennen (`data-ip-kunde`); führt die Unterlage zu einem anderen Kunden, gibt es keinen Knopf (Kennzeichen einer
+  bestehenden Freigabe: „Im Portal eines anderen Kunden“). Die Objektseite nennt den Kunden des Objekts -- die Datei eines Projekts eines anderen Kunden auf
+  diesem Objekt (Bauplan A2.2, U2/U3) gibt man in dessen Akte frei. Der Server hätte sie ohnehin nur für den Kunden ihrer Kette freigegeben (1.11.36).
+
+#### Festlegungen 1.11.40 (Bitte bestätigen)
+
+1. Der Block des Portals schaltet HTTP/2 mit `http2 on;` ein, kein „listen … http2“ (Wächter).
+2. Die Meldung „Bitte mindestens ein Foto ankreuzen.“ steht nur, solange keins angekreuzt ist.
+3. Auf der Objektseite keinen Knopf „Im Portal zeigen“ an der Datei eines Projekts eines anderen Kunden; ein Platz kann dafür den Kunden der Seite nennen.
+
+#### Abweichungen vom Bauplan (1.11.40)
+
+- Keine.
+
+#### Tests und Prüfung 1.11.40
+
+`tests/test_v815_nginx_nur_ipv4.py` angepasst (alt: `listen 443 ssl http2;`; neu: `listen 443 ssl;` und `http2 on;`, keine Zeile `listen … http2`). Klicktest
+`klicktest_kundenportal_an_dateien.py` 34 (vorher 30): die Vorschau des Bilds lädt, jede Vorschau im Fotodialog lädt, die Meldung geht mit dem ersten Kreuz,
+Datei des Projekts eines anderen Kunden am Objekt ohne Knopf. Gegenproben: 4, alle rot aus dem geprüften Grund.
+
+#### Server-Schritt N1 (nach dem Einspielen von 1.11.40): nginx mit `http2 on;`, dazu die 404 klären
+
+```bash
+sudo cp /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.40
+sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/nginx-kunde.conf /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
+sudo nginx -t && sudo systemctl reload nginx
+curl -s -o /dev/null -w '%{http_version} %{http_code}\n' https://kunde.dachkonzepte.gmbh/health
+for p in /_portal_dateien/x.pdf /_portal_dateien; do printf '%s ' "$p"; curl -s -o /dev/null -w '%{http_code} %{size_download}\n' "https://kunde.dachkonzepte.gmbh$p"; done
+curl -sI https://kunde.dachkonzepte.gmbh/_portal_dateien/x.pdf | grep -i -E '^content-(type|length|security-policy)'
+```
+
+Erwartet: `nginx -t` ohne die Warnung zu „listen … http2“ in dieser Datei („protocol options redefined“ von anderen Blöcken ist nur eine Warnung); `2 200`;
+`/_portal_dateien/x.pdf 404` mit rund 150 Byte und CSP `default-src 'none'; frame-ancestors 'none'` (die Seite von nginx aus dem internal-Block);
+`/_portal_dateien 404` mit rund 13–15 KB (die Seite des Portals). Zeigt die erste Zeile rund 15 KB, bitte die Ausgabe in den Chat. Abbruch, wenn `nginx -t` einen
+Fehler meldet: `sudo cp /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.40 /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo nginx -t && sudo systemctl reload
+nginx`. Rückweg: dieselbe Zeile.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

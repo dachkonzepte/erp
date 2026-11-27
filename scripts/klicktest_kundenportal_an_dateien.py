@@ -4,9 +4,10 @@
                     nach dem Freigeben das Kennzeichen „Im Portal · wird vorbereitet“ an der Datei und die Zahl am Reiter „Im Portal“
     Akte            Dateien des Projekts: Knopf, Freigeben, Kennzeichen; Abnahme: der Beleg mit Knopf
     Objekt          Dateien des Objekts: Knopf, Freigeben, Kennzeichen
-    Einsatzbericht  „Fotos im Portal zeigen …“ in der Zusammenfassung (nur Büro): Auswahl mit Vorschau, nichts vorgewählt, ohne Kreuz eine Meldung, zwei
-                    angekreuzt -> „2 im Portal zeigen“ -> zwei Freigaben; danach sind beide als „schon im Portal“ nicht mehr ankreuzbar; die Monteurin sieht
-                    den Knopf nicht
+    Einsatzbericht  „Fotos im Portal zeigen …“ in der Zusammenfassung (nur Büro): Auswahl mit Vorschau (echte Testbilder, jede Vorschau lädt), nichts
+                    vorgewählt, ohne Kreuz eine Meldung, die mit dem ersten Kreuz verschwindet (seit 1.11.40), zwei angekreuzt -> „2 im Portal zeigen“ -> zwei
+                    Freigaben; danach sind beide als „schon im Portal“ nicht mehr ankreuzbar; die Monteurin sieht den Knopf nicht
+    Objekt (1.11.40) die Datei eines Projekts eines anderen Kunden auf diesem Objekt hat keinen Knopf (Bauplan A2.2, U2/U3)
     Sonst           keine JS-Fehler
 
 Alles in der Wegwerf-SQLite dieses Laufs (Regel 16); kein Postbote -- „wird vorbereitet“ bleibt so. Stehende Uhr 27.11.2026 10:00.
@@ -71,6 +72,22 @@ def befuellen(db, k):
 
     dok = {"pdf": kundendok("dachplan.pdf", "application/pdf"), "bild": kundendok("schaden.jpg", "image/jpeg"),
            "zip": kundendok("archiv.zip", "application/zip")}
+    import io
+
+    from PIL import Image
+
+    from app.customer_documents import document_path
+    from app.service_report_photos import photo_path
+
+    def jpeg(farbe):  # erfundene Testbilder -- die Vorschauen sollen wirklich laden (seit 1.11.40)
+        aus = io.BytesIO()
+        Image.new("RGB", (160, 120), farbe).save(aus, "JPEG")
+        return aus.getvalue()
+
+    bild = db.get(CustomerDocument, dok["bild"])
+    pfad = document_path(bild)
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    pfad.write_bytes(jpeg("orange"))
     pd = ProjectDocument(project_id=p.id, category_id=kategorie.id, category=kategorie.label, original_filename="aufmass.pdf", stored_filename=uuid.uuid4().hex,
                          content_type="application/pdf", file_size=10, document_date=date(2026, 11, 21))
     od = PropertyDocument(property_id=o.id, category_id=kategorie.id, original_filename="lageplan.pdf", stored_filename=uuid.uuid4().hex,
@@ -98,9 +115,25 @@ def befuellen(db, k):
     fotos = [ServiceReportPhoto(service_report_id=b.id, kind="allgemein", file_path=f"{uuid.uuid4().hex}.jpg") for _ in range(3)]
     db.add_all(fotos)
     db.flush()
+    for foto, farbe in zip(fotos, ("red", "green", "blue")):
+        pfad = photo_path(foto.file_path)
+        pfad.parent.mkdir(parents=True, exist_ok=True)
+        pfad.write_bytes(jpeg(farbe))
+    # seit 1.11.40: ein Projekt eines anderen Kunden auf diesem Objekt (Bauplan A2.2, U2/U3) mit einer Datei
+    andere = Customer(name="Frau Erika Beispiel", salutation="Frau", first_name="Erika", last_name="Beispiel", email="andere@example.invalid")
+    db.add(andere)
+    db.flush()
+    fremdes = Project(project_number="P-2026-0043", name="Fremdes Projekt", customer_id=andere.id, property_id=o.id, status="anfrage",
+                      pipeline_column_id=default_pipeline_column_id(db))
+    db.add(fremdes)
+    db.flush()
+    fremd_dok = ProjectDocument(project_id=fremdes.id, category_id=kategorie.id, category=kategorie.label, original_filename="fremd.pdf",
+                                stored_filename=uuid.uuid4().hex, content_type="application/pdf", file_size=10, document_date=date(2026, 11, 21))
+    db.add(fremd_dok)
+    db.flush()
     return {"auf": k.cookies(auf), "mon": k.cookies(mon), "kunde": c.id, "projekt": p.id, "auftrag": a.id, "objekt": o.id, "bericht": b.id, "dok": dok,
             "projektdok": pd.id, "objektdok": od.id, "fotos": [f.id for f in fotos], "db_url": os.environ["DATABASE_URL"], "beleg": echt.id,
-            "beleg_ohne": ohne.id}
+            "beleg_ohne": ohne.id, "fremd_dok": fremd_dok.id}
 
 
 def _abfrage(seed, sql, *werte):
@@ -141,6 +174,8 @@ async def pruefen(tab, seed, p):
     await tab.js(f"({PLATZ})('customer_documents',{seed['dok']['bild']}).querySelector('button').click()")
     p.pruefe("Bild: Vorschau, ohne Hinweis zu PDFs", await tab.js(
         "[document.querySelectorAll('#imPortalVorschau img').length,document.getElementById('imPortalPdf').hidden]"), [1, True])
+    p.pruefe("Bild: die Vorschau lädt (echtes Testbild)", await tab.warten(
+        "(()=>{const i=document.querySelector('#imPortalVorschau img');return !!i&&i.complete&&i.naturalWidth>0})()", 5), True)
     await tab.js("document.querySelector('[data-klick=\"im-portal-zu\"]').click()")
     await tab.js(f"({PLATZ})('customer_documents',{seed['dok']['pdf']}).querySelector('button').click()")
     p.pruefe("PDF: Hinweis zu PDFs", await tab.js("document.getElementById('imPortalPdf').hidden"), False)
@@ -168,6 +203,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Objekt: Knopf an der Datei", ok, True)
     await tab.warte_auf_ruhe()
     p.pruefe("Objekt: die Datei des Projekts schon im Portal", await _platz(tab, "project_documents", seed["projektdok"]), ["Im Portal · wird vorbereitet", False])
+    p.pruefe("Objekt: Datei eines Projekts eines anderen Kunden ohne Knopf", await _platz(tab, "project_documents", seed["fremd_dok"]), ["", False])
     await _freigeben(tab, p, "Objekt Datei", "property_documents", seed["objektdok"])
 
     ok = await tab.oeffnen(f"/service-reports/{seed['bericht']}#unterschrift", "!!document.querySelector('[data-klick=\"ip-fotos\"]')")
@@ -177,9 +213,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bericht: Auswahl mit drei Fotos, nichts vorgewählt", await tab.js(
         "[document.getElementById('imPortalDialog').open,document.querySelectorAll('#imPortalAuswahl input').length,"
         "document.querySelectorAll('#imPortalAuswahl input:checked').length]"), [True, 3, 0])
+    p.pruefe("Bericht: jede Vorschau lädt (echte Testbilder)", await tab.warten(
+        "[...document.querySelectorAll('#imPortalAuswahl img')].every(i=>i.complete&&i.naturalWidth>0)", 5), True)
     await tab.js("document.getElementById('imPortalKnopf').click()")
     p.pruefe("Bericht: ohne Kreuz eine Meldung", await tab.js("document.getElementById('imPortalStatus').textContent"), "Bitte mindestens ein Foto ankreuzen.")
     await tab.js("const b=[...document.querySelectorAll('#imPortalAuswahl input')];b[0].click();b[2].click()")
+    p.pruefe("Bericht: die Meldung geht mit dem ersten Kreuz", await tab.js("document.getElementById('imPortalStatus').textContent"), "")
     p.pruefe("Bericht: Knopf nennt die Zahl", await tab.js("document.getElementById('imPortalKnopf').textContent"), "2 im Portal zeigen")
     await tab.bild("dialog_fotos")
     ok = await tab.warte_auf_neu_geladene_liste("document.getElementById('imPortalKnopf').click()")

@@ -844,3 +844,14 @@ Klicktest `klicktest_kundenportal_an_dateien.py` endet ungleich 0 mit einer XX-Z
 | 1.11.39-3 – schon freigegebene nicht noch einmal | nie ausgegraut | rot |
 | 1.11.39-5 – Dialog nur fürs Büro | ohne Rollenprüfung | rot (Dialog bei der Monteurin) |
 | 1.11.39-2 – Beleg nur unverändert | Bedingung weg | rot (Knopf am Beleg ohne Datei) |
+
+## 1.11.40: Kleinigkeiten nach P2c
+
+Probendatei `gegenprobe_11140.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.40-1 – `http2 on;` | wieder `listen 443 ssl http2;` | rot (`test_v815`) |
+| 1.11.40-2 – Meldung geht mit dem ersten Kreuz | Zeile weg | rot (Klicktest) |
+| 1.11.40-3 – kein Knopf an der Datei eines anderen Kunden | Prüfung weg | rot (Klicktest) |
+| Zu 4 – die Vorschauen laden | falsche Adresse der Vorschau | rot (Klicktest: „jede Vorschau lädt“) |
