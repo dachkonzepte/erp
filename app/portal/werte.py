@@ -23,6 +23,9 @@ AKTIONEN = (
     "ueberall_abgemeldet",  # alle Geräte des Zugangs abgemeldet
     "unterlagen",           # seit 1.11.31 (P2a): Liste der Unterlagen geladen
     "datei_angefordert",    # seit 1.11.31 (P2a): eine Unterlage angefordert (objekt_art „freigabe“, objekt_id = Freigabe)
+    "rechnungen",           # seit 1.11.42 (P2d): Liste der Rechnungen geladen
+    "termine",              # seit 1.11.42 (P2d): Liste der Termine geladen
+    "uebersicht",           # seit 1.11.42 (P2d): Übersicht geladen
 )
 ERGEBNISSE = (
     "ok",

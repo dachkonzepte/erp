@@ -80,10 +80,10 @@ def test_pg_skript_als_kindprozess_setzen_dann_pruefen(schema_von_alembic):
     for _ in range(2):  # update.sh setzt und prüft bei jedem Einspielen
         gesetzt = _skript(url, schema, "--setzen")
         assert gesetzt.returncode == 0, gesetzt.stdout + gesetzt.stderr
-        assert gesetzt.stdout.startswith(f"Rechte für {TESTROLLE} gesetzt: 2 Tabellen (nur Lesen), 11 Funktionen, "), gesetzt.stdout  # seit 1.11.31: 8 + 3 (P2a)
+        assert gesetzt.stdout.startswith(f"Rechte für {TESTROLLE} gesetzt: 2 Tabellen (nur Lesen), 14 Funktionen, "), gesetzt.stdout  # seit 1.11.31: 8 + 3 (P2a), seit 1.11.42: + 3 (P2d)
         assert gesetzt.stderr == ""
         geprueft = _skript(url, schema, "--pruefen")
         assert (geprueft.returncode, geprueft.stdout, geprueft.stderr) == (0, f"Rechte für {TESTROLLE} stimmen.\n", "")
-        assert _rechte(engine, schema) == (9, 11)  # seit 1.11.31: 8 + 3 Funktionen (P2a)
+        assert _rechte(engine, schema) == (9, 14)  # seit 1.11.31: 8 + 3 Funktionen (P2a), seit 1.11.42: + 3 (P2d)
     for ausgabe in (vorher, gesetzt, geprueft):
         assert "postgresql" not in ausgabe.stdout + ausgabe.stderr  # nie die Verbindungszeichenfolge

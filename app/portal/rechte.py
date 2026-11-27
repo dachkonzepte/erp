@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from .funktionen import FUER_DAS_PORTAL
+from .schaufenster import FUER_DAS_PORTAL as SCHAUFENSTER_FUER_DAS_PORTAL
 from .unterlagen import FUER_DAS_PORTAL as UNTERLAGEN_FUER_DAS_PORTAL
 
 ROLLE = "dkportal"
@@ -28,7 +29,8 @@ LESEN: dict[str, tuple[str, ...]] = {
 # Funktionen, die der Benutzer des Portals aufrufen darf: Name -> Argumente (wie pg_get_function_identity_arguments()). Seit 1.11.1 genau die
 # SECURITY-DEFINER-Funktionen aus app/portal/funktionen.py -- für Link und Sitzung (Nachtrag N1); die Helfer dort darf er nicht.
 # Seit 1.11.31 (P2a) dazu die Funktionen für die Unterlagen (app/portal/unterlagen.py).
-FUNKTIONEN: dict[str, str] = {**FUER_DAS_PORTAL, **UNTERLAGEN_FUER_DAS_PORTAL}
+# Seit 1.11.42 (P2d) dazu die Funktionen für Rechnungen und Termine (app/portal/schaufenster.py).
+FUNKTIONEN: dict[str, str] = {**FUER_DAS_PORTAL, **UNTERLAGEN_FUER_DAS_PORTAL, **SCHAUFENSTER_FUER_DAS_PORTAL}
 
 _NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 

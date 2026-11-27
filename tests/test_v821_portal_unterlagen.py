@@ -87,7 +87,7 @@ def test_migration_traegt_anweisungen_und_checks_woertlich():
     assert tuple(wirksam) == unterlagen.ANWEISUNGEN
     # seit 1.11.33: je Prüfung die Fassung der neuesten Migration, die sie setzt (a7c3e9f1d2b4: kopie_fehler mit „fehlt“)
     checks = dict(modul.CHECKS)
-    for revision in ("a7c3e9f1d2b4",):
+    for revision in ("a7c3e9f1d2b4", "d7a3f9c2e5b1"):  # d7a3f9c2e5b1 seit 1.11.42: Aktionen „rechnungen“, „termine“, „uebersicht“
         checks.update(_migration(revision).CHECKS)
     assert checks == {
         "ck_portal_freigabe_art": portal_in("art", werte.FREIGABE_ARTEN),

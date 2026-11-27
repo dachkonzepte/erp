@@ -159,9 +159,15 @@ def test_feste_werte_als_check_wie_in_der_migration():
     spec = importlib.util.spec_from_file_location("migration_unterlagen", neu_pfad)
     neu = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(neu)
+    # seit 1.11.42 (P2d): drei Aktionen dazu -- der neueste Stand in d7a3f9c2e5b1, dort der vorige (den von e5c8a1f3b9d2) als AKTION_VORHER
+    neuer_pfad = next((ROOT / "alembic" / "versions").glob("d7a3f9c2e5b1_*.py"))
+    spec = importlib.util.spec_from_file_location("migration_schaufenster_funktionen", neuer_pfad)
+    neuer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(neuer)
     for (tabelle, name), sql in erwartet.items():
         assert _check(tabelle, name) == sql, name
-        assert (neu if name == "ck_portal_zugriff_aktion" else modul).CHECKS[name] == sql, f"Migration {name}"
+        assert (neuer if name == "ck_portal_zugriff_aktion" else modul).CHECKS[name] == sql, f"Migration {name}"
+    assert neuer.AKTION_VORHER == neu.CHECKS["ck_portal_zugriff_aktion"]
     assert modul.CHECKS["ck_portal_zugriff_aktion"] == neu.AKTION_VORHER
     assert set(modul.CHECKS) == {n for _t, n in erwartet}
 

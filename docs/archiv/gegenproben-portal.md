@@ -877,3 +877,27 @@ Probendatei `gegenprobe_11141.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.41-7 – Weckruf der Freigaben | nicht gehört | rot (PostgreSQL: „zurückgenommen: Zeile weg“) |
 | 1.11.41-9 – Fehler hält nicht an | ohne try | rot (`test_ein_fehler_im_schaufenster_haelt_den_postboten_nicht_an`) |
 | 1.11.41-1 – Migration wörtlich | FOR EACH ROW in der Migration | rot (`test_migration_traegt_die_anweisungen_woertlich`) |
+
+## 1.11.42: Kundenportal P2d, Teil 2 -- Rechnungen, Termine und Übersicht aus der Datenbank
+
+Probendatei `gegenprobe_11142.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.42-2 – nur sichtbare Rechnungen | nur der Kunde der Freigabe geprüft | rot (`test_pg_rechnungen_mit_zahlstand_mahnung_und_stand`) |
+| 1.11.42-2 – Zahlstand nur für den eigenen Kunden | Kunde der Zeile nicht geprüft | rot (`test_pg_zahlstand_eines_anderen_kunden_zaehlt_nicht`) |
+| 1.11.42-3 – Mahnung heißt wie ihre Stufe | Titel der Freigabe | rot (`test_pg_rechnungen_mit_zahlstand_mahnung_und_stand`) |
+| 1.11.42-3 – nur an einer sichtbaren Rechnung | Sichtbarkeit der Rechnung nicht geprüft | rot (dieselbe) |
+| 1.11.42-4 – laufend oder pausiert | Status nicht geprüft | rot (`test_pg_termine_mit_auftrag_und_adresse_live_geprueft`) |
+| 1.11.42-4 – Projekt offen | Projekt nicht geprüft | rot (dieselbe) |
+| 1.11.42-4 – Auftrag des Kunden | Kunde des Auftrags nicht geprüft | rot (dieselbe) |
+| 1.11.42-5 – offen nur offen und teilweise bezahlt | jeder Zustand | rot (`test_pg_uebersicht_in_einer_zeile`) |
+| 1.11.42-5 – nächster Einsatz endet heute oder später | auch vergangene | rot (dieselbe) |
+| 1.11.42-5 – Unterlagen ohne Rechnungen, Mahnungen, Fotos | alle | rot (dieselbe) |
+| 1.11.42-5 – heute in Berlin | -- | keine Gegenprobe: die Uhr der Datenbank lässt sich im Test nicht stellen |
+| 1.11.42-6 – Protokoll | ohne Eintrag | rot (`test_pg_ungueltig_leer_mit_stand_bremse_und_protokoll`) |
+| 1.11.42-6 – Bremse | ohne Bremse | rot (dieselbe) |
+| 1.11.42-1 – Positivliste der Ausgabe | ein Feld mehr | rot (`test_ausgabe_genau_die_felder_der_positivliste`) |
+| 1.11.42-1 – das Portal darf die Funktionen | nicht in `FUNKTIONEN` | rot (`test_funktionen_fester_pfad_ohne_dynamisches_sql_und_rechte`) |
+| 1.11.42-6 – Texte der Karte | ohne Text | rot (`test_karte_nennt_die_neuen_aktionen`) |
+| 1.11.42-1 – Migration wörtlich | Sortierung in der Migration geändert | rot (`test_migration_traegt_text_und_pruefung_woertlich`) |

@@ -4181,6 +4181,70 @@ Erwartet: „Postbote bereit (LISTEN portal_post, portal_freigabe, portal_schauf
 (mit eingeschaltetem Modul; ausgeschaltet `0|…`). Abbrechen, wenn „Schaufenster nicht gerechnet“ erscheint: die Zeile in den Chat (sie nennt nur die Klasse). Rückweg:
 keiner nötig -- das Portal liest die Tabellen erst ab 1.11.42.
 
+### Umsetzung 1.11.42 (P2d, Teil 2): Rechnungen, Termine und Übersicht aus der Datenbank
+
+Bauplan P2, B3 („die Funktionen lesen nur das“) und B10 (Seiten D, R, T), mit den freigegebenen Entwürfen (Seiten 1, 3 und 5). Wie die Unterlagen: SECURITY
+DEFINER, fester search_path, kein dynamisches SQL, Text wörtlich in der Migration `d7a3f9c2e5b1`, für alle entzogen; der Benutzer des Portals darf genau diese drei
+dazu (`app/portal/rechte.py::FUNKTIONEN`) und liest keine der Tabellen. Sie rechnen nichts -- Zahlstand und Termine stammen aus dem Schaufenster (1.11.41).
+
+- **`portal_rechnungen(sitzung)`**: jede Rechnung, die als Unterlage sichtbar ist (Freigabe für den Kunden der Sitzung, nicht zurückgenommen, Kopie bereit, Kette
+  heute zu ihm -- dieselbe Prüfung wie `portal_unterlagen()`), mit Art in Worten, Nummer, Datum, Fälligkeit, Betrag, Zustand, offenem Betrag bzw. Guthaben,
+  überfällig, Bezug; hat der Postbote sie noch nicht gerechnet (Sekunden nach der Freigabe), ohne Zustand und Betrag, mit dem Titel der Freigabe. Eine Zeile des
+  Schaufensters zählt nur für ihren Kunden. Dazu jede sichtbare Mahnung: sie heißt, wie ihre Stufe im ERP heißt (Bezeichnung der Mahnstufe, z. B.
+  „Zahlungserinnerung“; Entwurf Seite 5 „Mahnungen heißen, wie sie im ERP heißen“), mit Nummer und Datum, und nennt die Freigabe ihrer Rechnung
+  (`zu_freigabe`) -- nur, wenn die Rechnung selbst sichtbar ist. Neueste zuerst; gruppieren nach Auftrag tut die Seite (P2e).
+- **`portal_termine(sitzung)`**: die Folgen aus `portal_termine` mit Auftragsnummer und Adresse des Objekts, live dazu: der Auftrag gehört heute dem Kunden,
+  läuft oder ist pausiert, das Projekt ist offen -- in den Sekunden bis zum nächsten Lauf des Postboten zeigt das Portal nichts, was nicht mehr gilt.
+- **`portal_uebersicht(sitzung)`**: eine Zeile für die Startseite (Entwurf Seite 1): Zahl und Summe der offenen Rechnungen (Zustand offen oder teilweise bezahlt,
+  offener Betrag über 0) und die zuerst fällige; der nächste Einsatz (die erste Folge, die heute oder später endet -- „heute“ in Berlin aus `portal_jetzt()`); Zahl
+  der Unterlagen (ohne Rechnungen, Mahnungen und Fotos) und die jüngste nach Datum; Zahl der Fotos und der Tag, an dem zuletzt eins freigegeben wurde (Berlin).
+  Ein Aufruf der Startseite schreibt so genau einen Eintrag ins Protokoll.
+- **Stand** in jeder Zeile (wann der Postbote das Schaufenster des Kunden zuletzt rechnete), auch bei „leer“; nie gerechnet: leer.
+- **Protokoll und Bremse**: neue Aktionen „rechnungen“, „termine“, „uebersicht“ (CHECK ersetzt; in der Karte „Rechnungen geöffnet“, „Termine geöffnet“,
+  „Übersicht geöffnet“); alle drei zählen die Bremse der Listen (`liste:s:` je Sitzung, 120 je Stunde, gemeinsam mit den Unterlagen).
+- `portal_rechte.py --setzen` meldet danach 53 Anweisungen (1.11.41: 47; je neuer Funktion ein Recht für das Portal und ein Entzug für alle).
+- Der Betreff (Änderung zu P2-10) kommt mit P2e: die Funktionen geben dann zusätzlich den Titel des Auftrags heraus (Befund bei 1.11.41).
+
+#### Festlegungen 1.11.42 (Bitte bestätigen)
+
+1. Drei Funktionen der Datenbank für das Portal (Rechnungen, Termine, Übersicht) lesen nur das Schaufenster und rechnen nichts; das Portal darf genau diese dazu.
+2. Rechnungen: nur, was als Unterlage sichtbar ist; ohne gerechneten Zahlstand ohne Zustand; eine Zeile des Schaufensters zählt nur für ihren Kunden.
+3. Eine Mahnung heißt wie ihre Stufe im ERP und hängt an der Freigabe ihrer Rechnung, wenn die sichtbar ist.
+4. Termine live geprüft: Auftrag des Kunden, läuft oder pausiert, Projekt offen.
+5. Übersicht in einer Zeile: offen (Zahl, Summe, zuerst fällig), nächster Einsatz (endet heute oder später, Berlin), Unterlagen ohne Rechnungen, Mahnungen und Fotos, Fotos mit dem Tag der letzten Freigabe.
+6. Jede schreibt eine Zeile ins Zugriffsprotokoll (Aktionen rechnungen, termine, uebersicht) und zählt die Bremse der Listen; Stand in jeder Zeile.
+
+#### Abweichungen vom Bauplan (1.11.42)
+
+- B10 D („Überblick je Bereich“): eine eigene Funktion `portal_uebersicht()` statt die Startseite aus den drei Listen zusammenzusetzen -- sonst schriebe jeder
+  Aufruf drei Einträge ins Protokoll und zählte dreimal die Bremse.
+- Name der Mahnung: aus der Bezeichnung ihrer Stufe (live), nicht der Titel der Freigabe („1. Mahnung M-…“, P2c) -- so verlangt es der Entwurf. Die Liste der
+  Unterlagen und der Reiter „Im Portal“ zeigen weiter den Titel der Freigabe; ob der Titel der Regel für Mahnungen dazu passend werden soll, klärt P2e.
+- Der Betreff fehlt noch (Vorgabe: Umsetzung mit P2e).
+
+#### Tests und Prüfung 1.11.42
+
+`tests/test_v833_portal_rechnungen_termine.py` neu (ohne Datenbank: Pfad, kein dynamisches SQL, Rechte, Positivliste der Ausgabe, keine Namen, Migration wörtlich,
+Texte der Karte; unter PostgreSQL mit der Testrolle: Rechnungen samt Mahnungen und Stand, Zahlstand eines anderen Kunden, Termine live geprüft, Übersicht,
+ungültig/leer/Bremse/Protokoll, Rechte). Angepasste Erwartung: `tests/test_v800_portal_funktionen.py::test_pg_create_all_legt_die_funktionen_an` -- alt 14 + Helfer +
+Funktionen + 2 (= 26 Funktionen nach `create_all()`), neu dazu die drei aus `app/portal/schaufenster.py` (= 29); `test_v800::test_security_definer_genau_die_rechte_des_portals_und_keine_fuer_alle`
+-- alt `FUNKTIONEN` = P1 + Unterlagen, neu dazu die drei des Schaufensters; `tests/test_v816_portal_rechte_skript.py` -- alt „11 Funktionen“ und Rechte (9, 11), neu
+„14 Funktionen“ und (9, 14). Nur Aufbau: `tests/test_v821_portal_unterlagen.py` und `tests/test_v799_portal_rechte.py` lesen die Prüfung der Aktionen aus
+`d7a3f9c2e5b1` (der neueste Stand; dort der vorige als `AKTION_VORHER`). Gegenproben: 16, alle rot aus dem geprüften Grund; „heute in Berlin“ ohne eigene Gegenprobe (die Uhr der
+Datenbank lässt sich im Test nicht stellen; dieselbe Umrechnung wie überall im Portal).
+
+#### Server-Schritt P2d-2 (nach dem Einspielen von 1.11.42)
+
+`update.sh` spielt die Migration ein und setzt die Rechte des Portals (`portal_rechte.py --setzen`). Danach nur lesend:
+
+```bash
+sudo -u postgres psql -d dachkonzepte -tAX -c "select has_function_privilege('dkportal', f, 'EXECUTE') from unnest(array['portal_rechnungen(text)', 'portal_termine(text)', 'portal_uebersicht(text)']) f"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select has_table_privilege('dkportal', t, 'SELECT') from unnest(array['portal_rechnungen', 'portal_termine', 'portal_schaufenster']) t"
+```
+
+Erwartet: dreimal `t`, dann dreimal `f`. Abbrechen bei einem anderen Ergebnis: die Ausgabe in den Chat. Rückweg: keiner nötig -- das Portal ruft die Funktionen erst ab
+P2e auf.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

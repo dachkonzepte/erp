@@ -58,6 +58,7 @@ AKTION_TEXT = {
     "angemeldet": "Angemeldet", "verlaengert": "Anmeldung verlängert", "abgemeldet": "Abgemeldet",
     "ueberall_abgemeldet": "Auf allen Geräten abgemeldet",
     "unterlagen": "Unterlagen geöffnet", "datei_angefordert": "Unterlage angefordert",  # seit 1.11.31 (P2a)
+    "rechnungen": "Rechnungen geöffnet", "termine": "Termine geöffnet", "uebersicht": "Übersicht geöffnet",  # seit 1.11.42 (P2d)
 }
 ERGEBNIS_TEXT = {
     "ok": "", "unbekannt": "unbekannter Link", "gesperrt": "Zugang gesperrt", "abgelaufen": "Link abgelaufen", "portal_aus": "Portal aus",
