@@ -446,7 +446,8 @@ def stand(db: Session, kunde: Customer, *, modul_an: bool = True) -> dict:
     """Was die Karte „Im Portal“ zeigt: je Freigabe des Kunden ein Eintrag, die jüngste zuerst; dazu, ob der Kunde das Portal sieht."""
     zeilen = db.scalars(select(PortalFreigabe).where(PortalFreigabe.customer_id == kunde.id)
                         .order_by(PortalFreigabe.freigegeben_am.desc(), PortalFreigabe.id.desc())).all()
-    return {"portal_aktiv": bool(kunde.portal_aktiv), "kunde_archiv": kunde.archiviert_am is not None, "eintraege": [eintrag(db, f) for f in zeilen]}
+    return {"portal_aktiv": bool(kunde.portal_aktiv), "kunde_archiv": kunde.archiviert_am is not None, "eintraege": [eintrag(db, f) for f in zeilen],
+            "vorschlaege": vorschlaege(db, kunde)}  # seit 1.11.37
 
 
 def unterlagen(db: Session, quelle: str, quelle_ids: list[int]) -> list[dict]:
@@ -472,4 +473,201 @@ def unterlagen(db: Session, quelle: str, quelle_ids: list[int]) -> list[dict]:
                          "anderer_kunde": b.customer_id != k.kunde}
         aus.append({"quelle_id": qid, "customer_id": k.kunde, "freigebbar": grund is None and (b is None), "grund": grund,
                     "art": k.art if k.kunde is not None else None, "titel_vorschlag": k.titel or None, "bestehend": bestehend})
+    return aus
+
+
+# --- Automatische Regeln (seit 1.11.37, Bauplan P2, B4.3; Entscheidungen P2-3 bis P2-5) -------------------------------------------------------------
+#
+# „Automatisch“ heißt: eine Zeile mit Regel entsteht ohne Klick -- beim Einschalten des Portals am Kunden (app/kundenportal.py::schalten()) und danach im
+# vollen Lauf des Postboten (alle 15 Minuten, app/portal_postbote.py), auch für alles, was vor der Einladung entstand (P2-3). Sie steht im ERP wie eine
+# einzelne und lässt sich zurücknehmen. Von einer Person zurückgenommen legt die Regel sie nie wieder an; vom System als überholt zurückgenommen (eine neuere
+# Fassung derselben Unterlage ist die jüngste) schon, wenn sie wieder die jüngste ist. Kein stilles Umhängen: steht die Quelle noch beim bisherigen Kunden,
+# legt die Regel nichts an (die Karte zeigt dort „ruht“).
+
+REGELN = ("rechnung", "mahnung", "angebot", "auftrag", "vertrag", "abnahmeprotokoll", "einsatzbericht", "brief")
+REGEL_VON = "automatisch"       # freigegeben_von_name einer Zeile der Regel (ohne Konto)
+SYSTEM = "System"               # zurueckgenommen_von_name, wenn die Regel eine überholte Fassung zurücknimmt
+UEBERHOLT = "neuere Fassung versendet"
+
+
+@dataclass(frozen=True)
+class Kandidat:
+    quelle: str
+    quelle_id: int
+    regel: str
+    gruppe: tuple | None = None  # nur die jüngste Fassung einer Gruppe gilt (Angebot, Auftragsbestätigung, Vertrag je Dokument; Abnahmeprotokoll je Checkliste)
+
+
+def _an_den_kunden(d, email: str | None) -> bool:
+    """Ging dieser Versand an den Kunden? Nachgetragen: an den Auftraggeber (delivered_to_client); per Mail: seine Adresse steht unter An (P2-4)."""
+    from .email_dispatch import MANUAL_CHANNELS, parse_recipients
+
+    if d.channel in MANUAL_CHANNELS:
+        return d.delivered_to_client is True
+    if not email:
+        return False
+    try:
+        an = {a.lower() for a in parse_recipients(d.to_recipients, label="An")}
+    except ValueError:
+        return False
+    return email.strip().lower() in an
+
+
+def _ablage(db: Session, kunde: Customer) -> tuple[list[Kandidat], list[dict], dict[tuple, int]]:
+    """Angebot, Auftragsbestätigung, Vertrag: je Dokument die zuletzt versendete Fassung (P2-4) -- an den Kunden: Kandidat, sonst Vorschlag. Dazu je Gruppe
+    die jüngste Fassung (für „überholt“)."""
+    from sqlalchemy import and_, or_
+
+    from .email_dispatch import MANUAL_CHANNELS, dispatch_outcomes
+    from .models import EmailDispatch
+
+    angebote = select(Quote.id).join(Project, Project.id == Quote.project_id).where(Project.customer_id == kunde.id)
+    auftraege = select(Order.id).where(Order.customer_id == kunde.id)
+    vertraege = select(OrderContract.id).where(OrderContract.order_id.in_(auftraege))
+    zeilen = db.execute(
+        select(EmailDispatch, SentDocument).join(SentDocument, SentDocument.id == EmailDispatch.sent_document_id)
+        .where(EmailDispatch.status == "gesendet", or_(
+            and_(SentDocument.document_type == "angebot", SentDocument.document_id.in_(angebote)),
+            and_(SentDocument.document_type == "auftrag", SentDocument.document_id.in_(auftraege)),
+            and_(SentDocument.document_type == "vertrag", SentDocument.document_id.in_(vertraege))))
+        .order_by(EmailDispatch.created_at, EmailDispatch.id)).all()
+    ergebnisse = dispatch_outcomes(db, [d.id for d, _s in zeilen])
+    juengste: dict[tuple, tuple] = {}
+    for d, s in zeilen:
+        e = ergebnisse.get(d.id)
+        if e is not None and e.outcome == "unzustellbar":
+            continue
+        juengste[(s.document_type, s.document_id)] = (d, s)  # aufsteigend sortiert: die letzte gewinnt
+    liste, vorschlaege_ = [], []
+    for gruppe, (d, s) in juengste.items():
+        if _an_den_kunden(d, kunde.email):
+            liste.append(Kandidat("sent_documents", s.id, s.document_type, gruppe))
+        else:
+            vorschlaege_.append({"quelle": "sent_documents", "quelle_id": s.id, "art": s.document_type, "am": _tag(d.finished_at or d.created_at),
+                                 "an": None if d.channel in MANUAL_CHANNELS else d.to_recipients})
+    return liste, vorschlaege_, {g: s.id for g, (_d, s) in juengste.items()}
+
+
+def kandidaten(db: Session, kunde: Customer) -> tuple[list[Kandidat], list[dict], dict[tuple, int]]:
+    """Was die Regeln für diesen Kunden freigeben würden (B4.3), was nur Vorschlag ist (an eine andere Adresse versendet), und je Gruppe die jüngste Fassung.
+    Jeder Kandidat führt heute über seine Kette zu genau diesem Kunden und gilt (kette()). Liest nur."""
+    from .email_dispatch import document_reached_on
+    from .notice_letters import delivered_dispatches
+    from .protocol_dispatch import protocol_version
+    from .reminders import reached_map
+
+    liste: list[Kandidat] = []
+    rechnungen = db.scalars(select(Invoice).where(Invoice.customer_id == kunde.id, Invoice.status != "entwurf").order_by(Invoice.id)).all()
+    erreicht = document_reached_on(db, "rechnung", rechnungen)
+    liste += [Kandidat("invoices", i.id, "rechnung") for i in rechnungen if i.id in erreicht]
+    mahnungen = db.scalars(select(Reminder).join(Invoice, Invoice.id == Reminder.invoice_id)
+                           .where(Invoice.customer_id == kunde.id, Reminder.status == "versendet", Reminder.replaced_by_id.is_(None))
+                           .order_by(Reminder.id)).all()
+    erreicht = reached_map(db, mahnungen)
+    liste += [Kandidat("reminders", r.id, "mahnung") for r in mahnungen if r.id in erreicht]
+    ablage, vorschlaege_, juengste = _ablage(db, kunde)
+    liste += ablage
+    protokolle = db.scalars(select(Checklist).join(Order, Order.id == Checklist.order_id)
+                            .join(ChecklistTemplateVersion, ChecklistTemplateVersion.id == Checklist.template_version_id)
+                            .where(Order.customer_id == kunde.id, ChecklistTemplateVersion.purpose == "abnahme").order_by(Checklist.id)).all()
+    for c in protokolle:
+        v = protocol_version(db, c)  # die jüngste gültige Fassung mit der Unterschrift des Auftraggebers -- sonst None
+        if v is not None:
+            liste.append(Kandidat("checklist_versions", v.id, "abnahmeprotokoll", ("abnahmeprotokoll", c.id)))
+            juengste[("abnahmeprotokoll", c.id)] = v.id
+    berichte = db.scalars(select(ServiceReport.id).join(Order, Order.id == ServiceReport.order_id)
+                          .where(Order.customer_id == kunde.id, ServiceReport.status == "unterschrieben", ServiceReport.pdf_document_id.is_not(None))
+                          .order_by(ServiceReport.id)).all()
+    liste += [Kandidat("service_reports", i, "einsatzbericht") for i in berichte]
+    briefe = db.scalars(select(NoticeLetter).join(Checklist, Checklist.id == NoticeLetter.checklist_id).join(Order, Order.id == Checklist.order_id)
+                        .where(Order.customer_id == kunde.id).order_by(NoticeLetter.id)).all()
+    angekommen: dict[tuple, set] = {}
+    for n in briefe:
+        schluessel = (n.kind, n.checklist_id)
+        if schluessel not in angekommen:
+            angekommen[schluessel] = {d.sent_document_id for d in delivered_dispatches(db, n.kind, n.checklist_id)}
+        if n.sent_document_id in angekommen[schluessel]:
+            liste.append(Kandidat("notice_letters", n.id, "brief"))
+    gueltig = []
+    for k in liste:
+        kt = kette(db, k.quelle, k.quelle_id)
+        if kt.gilt and kt.kunde == kunde.id:
+            gueltig.append(k)
+    return gueltig, vorschlaege_, juengste
+
+
+def _gruppe(db: Session, f: PortalFreigabe) -> tuple | None:
+    if f.quelle == "sent_documents":
+        s = db.get(SentDocument, f.quelle_id)
+        return (s.document_type, s.document_id) if s is not None else None
+    if f.quelle == "checklist_versions" and f.regel == "abnahmeprotokoll":
+        v = db.get(ChecklistVersion, f.quelle_id)
+        return ("abnahmeprotokoll", v.checklist_id) if v is not None else None
+    return None
+
+
+@dataclass
+class Angewandt:
+    neu: int = 0
+    ueberholt: int = 0
+
+
+def regeln_anwenden(db: Session, kunde: Customer) -> Angewandt:
+    """Legt fehlende Zeilen der Regeln an und nimmt überholte Fassungen zurück (ein Commit). Ein gleichzeitiges Freigeben (Index „höchstens eine je
+    Quelle“) überspringt die eine Zeile, nicht den Rest."""
+    stand = Angewandt()
+    liste, _vorschlaege, juengste = kandidaten(db, kunde)
+    jetzt_ = utc_jetzt()
+    for k in liste:
+        zeilen = db.scalars(select(PortalFreigabe).where(PortalFreigabe.quelle == k.quelle, PortalFreigabe.quelle_id == k.quelle_id)
+                            .order_by(PortalFreigabe.id)).all()
+        if any(z.zurueckgenommen_am is None for z in zeilen):
+            continue  # schon freigegeben -- hier oder (ruhend) bei einem anderen Kunden
+        if any(z.zurueckgenommen_von_user_id is not None for z in zeilen):
+            continue  # von einer Person zurückgenommen: die Regel legt sie nie wieder an
+        kt = kette(db, k.quelle, k.quelle_id)
+        try:
+            with db.begin_nested():
+                db.add(PortalFreigabe(customer_id=kunde.id, art=kt.art, quelle=k.quelle, quelle_id=k.quelle_id, titel=(kt.titel or ART_TEXT[kt.art])[:120],
+                                      datum=kt.datum or berlin_today(), regel=k.regel, freigegeben_am=jetzt_, freigegeben_von_user_id=None,
+                                      freigegeben_von_name=REGEL_VON))
+            stand.neu += 1
+        except IntegrityError:
+            pass  # eben von Hand freigegeben (gleichzeitig)
+    for f in db.scalars(select(PortalFreigabe).where(PortalFreigabe.customer_id == kunde.id, PortalFreigabe.regel.is_not(None),
+                                                    PortalFreigabe.zurueckgenommen_am.is_(None)).order_by(PortalFreigabe.id)).all():
+        g = _gruppe(db, f)
+        if g is not None and g in juengste and juengste[g] != f.quelle_id:
+            f.zurueckgenommen_am, f.zurueckgenommen_von_user_id, f.zurueckgenommen_von_name, f.zurueckgenommen_grund = jetzt_, None, SYSTEM, UEBERHOLT
+            stand.ueberholt += 1
+    db.commit()
+    return stand
+
+
+def regeln_alle(db: Session) -> Angewandt:
+    """Für den Postboten: jeder Kunde mit Portal an und nicht im Archiv -- nur mit eingeschaltetem Modul."""
+    from .modules import is_module_enabled
+
+    gesamt = Angewandt()
+    if not is_module_enabled(db, "kundenportal"):
+        return gesamt
+    for kunde in db.scalars(select(Customer).where(Customer.portal_aktiv.is_(True), Customer.archiviert_am.is_(None)).order_by(Customer.id)).all():
+        stand = regeln_anwenden(db, kunde)
+        gesamt.neu += stand.neu
+        gesamt.ueberholt += stand.ueberholt
+    return gesamt
+
+
+def vorschlaege(db: Session, kunde: Customer) -> list[dict]:
+    """An eine andere Adresse versendete jüngste Fassungen (Angebot, Auftragsbestätigung, Vertrag): nur von Hand freigeben (P2-4). Ohne die schon
+    freigegebenen und ohne die, deren Kette heute nicht gilt. Liest nur."""
+    _liste, liste, _j = kandidaten(db, kunde)
+    aus = []
+    for v in liste:
+        if _bestehend(db, v["quelle"], v["quelle_id"]) is not None:
+            continue
+        kt = kette(db, v["quelle"], v["quelle_id"])
+        if not (kt.gilt and kt.kunde == kunde.id):
+            continue
+        aus.append({**v, "titel": kt.titel, "art_text": ART_TEXT[v["art"]]})
     return aus

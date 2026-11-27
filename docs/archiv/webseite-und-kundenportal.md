@@ -3862,6 +3862,68 @@ sichtbar und ruht, Dialog-Abfrage, Rollen, Modul aus). Gegenproben: 17, alle rot
 - `tests/test_v326_monteur_datengrenze.py::QUERY_JE_ROUTE` -- Werte für `/api/portal-freigaben/unterlagen` (der Monteur bekommt 403).
 - Erster voller Lauf rot (2): `test_v436::test_jedes_protokollierte_feld_hat_einen_namen` und `test_v438::test_namen_der_historie_sind_lesbar` -- die 18 Felder einer Freigabe hatten in der Änderungshistorie keinen lesbaren Namen (auch die stillen der Kopie brauchen einen). Nachgetragen in `app/audit.py::FIELD_LABELS`, danach grün.
 
+### Umsetzung 1.11.37 (P2c, Teil 2): die automatischen Regeln
+
+- `app/portal_freigaben.py::kandidaten()` (liest nur) -- je Regel, was für diesen Kunden heute freigegeben wäre (`REGELN`, gespeichert in
+  `portal_freigaben.regel`):
+  - **rechnung**: `Invoice.customer_id` = Kunde, nicht Entwurf (auch Storno, Schlussrechnung), mindestens einmal angekommen
+    (`app/email_dispatch.py::document_reached_on()`, Versand oder nachgetragene Zustellung).
+  - **mahnung**: festgeschrieben (`versendet`), nicht ersetzt, hinausgegangen (`app/reminders.py::reached_map()`).
+  - **angebot**, **auftrag**, **vertrag**: je Dokument die Fassung des jüngsten gesendeten Versands (nicht unzustellbar). Ging er per Mail und steht die
+    Adresse des Kunden unter An (ohne Groß- und Kleinschreibung), bzw. wurde er nachgetragen an den Auftraggeber zugestellt: Kandidat; sonst ein Vorschlag
+    (P2-4) -- nur von Hand freizugeben, gezeigt in der Karte (`vorschlaege()`, im Stand unter `vorschlaege`). Der Vertrag: jede Fassung und die
+    unterschriebene Abschrift liegen als Art „vertrag“ in der Ablage; es gilt die zuletzt versendete.
+  - **abnahmeprotokoll**: je Abnahmeprotokoll die Fassung aus `app/protocol_dispatch.py::protocol_version()` -- die jüngste gültige mit der gültigen
+    Unterschrift des Auftraggebers.
+  - **einsatzbericht**: unterschrieben mit fester Fassung (Rapport wie Wartung, P2-5).
+  - **brief**: der Brief, dessen Fassung beim Auftraggeber ankam (`app/notice_letters.py::delivered_dispatches()`).
+  - Jeder Kandidat führt über seine Kette heute zu genau diesem Kunden und gilt (`kette()`); die Abfragen filtern vorab, die Kette entscheidet.
+- `regeln_anwenden()` (ein Commit): fehlende Zeilen anlegen (`freigegeben_von_name` „automatisch“, ohne Konto); ausgelassen, wenn eine Zeile der Quelle
+  aktiv ist (hier oder ruhend bei einem anderen Kunden -- kein stilles Umhängen, B4.4) oder eine Person sie zurückgenommen hat (B4.2). Eine ältere Fassung
+  derselben Gruppe (Angebot, Auftragsbestätigung, Vertrag je Dokument; Abnahmeprotokoll je Checkliste) nimmt das System zurück („neuere Fassung versendet“,
+  von „System“) -- wird sie wieder die jüngste (die neuere Unterschrift verworfen), legt die Regel sie neu an. Ein gleichzeitiges Freigeben von Hand
+  überspringt die eine Zeile (SAVEPOINT), nicht den Rest.
+- Wann: beim Einschalten des Portals am Kunden (`app/kundenportal.py::schalten()`, auch für alles vor der Einladung, P2-3 -- so zeigt die Karte vor dem
+  Einladen, was der Kunde sieht) und im vollen Lauf des Postboten (`app/portal_postbote.py::regeln()`, beim Start und alle 15 Minuten, vor den Kopien) für
+  jeden Kunden mit Portal an, nicht im Archiv, nur mit eingeschaltetem Modul (`regeln_alle()`). Neue Zeilen wecken über den Auslöser die Kopien. Ein Fehler in
+  den Regeln beendet den Postboten nicht (nur die Klasse ins Protokoll, nächster Versuch im nächsten vollen Lauf). Portal aus nimmt nichts zurück -- ohne
+  Sitzung sieht der Kunde ohnehin nichts.
+- Bekannt (Nebenbefund N2, Entscheidung P2-19 „erst nach P2“): bei Rechnung und Mahnung zählt jede gesendete Mail als angekommen, auch an eine andere
+  Adresse -- dieselbe Lesart wie die Mahnstufen. Die Rechnung gehört dem Kunden ohnehin (`Invoice.customer_id`); bei Angebot, Auftragsbestätigung und
+  Vertrag prüft die Regel die Adresse (P2-4).
+- Gegenprobe „nicht im Archiv“: ohne den Filter bricht der Archivschutz das Anlegen für einen archivierten Kunden ab (ImArchiv) -- im Postboten hielte ein
+  einziger archivierter Kunde mit Portal an die Regeln aller übrigen an. Der Filter bleibt deshalb nötig, auch wenn das Archiv selbst nichts anlegen ließe.
+
+#### Festlegungen 1.11.37 (Bitte bestätigen)
+
+1. Automatisch freigegeben nach B4.3: Rechnung (angekommen), Mahnung (hinausgegangen, nicht ersetzt), je Angebot, Auftragsbestätigung und Vertrag die
+   zuletzt versendete Fassung an die Adresse des Kunden, die jüngste gültige Fassung des Abnahmeprotokolls mit der Unterschrift des Auftraggebers,
+   unterschriebene Einsatzberichte mit fester Fassung, angekommene Briefe der Anzeigen -- jeweils nur, wenn die Kette heute zum Kunden führt und gilt.
+2. „An die Adresse des Kunden“ = per Mail mit seiner heutigen E-Mail-Adresse unter An, oder nachgetragen an den Auftraggeber zugestellt; sonst nur Vorschlag.
+3. Die Regeln laufen beim Einschalten des Portals am Kunden und alle 15 Minuten im Postboten -- nur für Kunden mit Portal an, nicht im Archiv, mit Modul.
+4. Eine ältere Fassung nimmt das System als überholt zurück („neuere Fassung versendet“); wird sie wieder die jüngste, legt die Regel sie neu an.
+5. Was eine Person zurückgenommen hat, legt keine Regel wieder an (von Hand freigeben geht weiter).
+6. Kein stilles Umhängen: ist eine Unterlage noch bei einem anderen Kunden freigegeben, legt die Regel nichts an.
+7. Zeilen einer Regel: von „automatisch“, ohne Konto; Portal aus nimmt nichts zurück.
+8. Ein Fehler in den Regeln hält den Postboten nicht an (Klasse ins Protokoll).
+
+#### Abweichungen vom Bauplan (1.11.37)
+
+- B4.3 nennt „Termine automatisch (feste Einsatztage)“ -- die kommen mit dem Schaufenster in P2d, nicht hier.
+- B4.3 Vertrag „die festgeschriebene Fassung, nach der Unterschrift die unterschriebene Abschrift -- je nach Versand wie Angebot“: umgesetzt als „die zuletzt
+  versendete“ (Fassung und Abschrift sind dieselbe Art in der Ablage); eine nie versendete Abschrift erscheint nicht.
+- B4.3 Abnahmeprotokoll „An war fest der Auftraggeber“: die Regel verlangt keinen Versand, nur die gültige Unterschrift des Auftraggebers in der Fassung
+  (er hat sie unterschrieben).
+- Neu: „überholt“ durch das System (B4.3 sagt „je Angebot die zuletzt versendete Fassung“, nicht, was mit der älteren geschieht).
+
+#### Tests und Prüfung 1.11.37
+
+`tests/test_v829_portal_regeln.py` (16, SQLite über den Router; einer gegen PostgreSQL mit dem echten Postboten): je Regel, ungültige Kette, Vorschläge,
+überholt und wieder da, von einer Person zurückgenommen, kein stilles Umhängen, zweimal angewandt, Portal an, nur Portal an/Archiv/Modul, Name der Regel
+passt in die Spalte, Fehler hält den Postboten nicht an. Gegenproben: 17, alle rot aus dem geprüften Grund (zwei über Abfrage und Kette zugleich -- die Kette
+allein trägt; `docs/archiv/gegenproben-portal.md`). Angepasst: keine Erwartung; `test_v809` (Karte Kundenportal) unverändert grün -- Portal an wendet jetzt die
+Regeln an, dort ohne Unterlagen.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

@@ -1340,11 +1340,23 @@ class PortalFreigabeEintragOut(BaseModel):
     objekt: str | None = None
 
 
+class PortalVorschlagOut(BaseModel):
+    """Seit 1.11.37: an eine andere Adresse versendete jüngste Fassung (Angebot, Auftragsbestätigung, Vertrag) -- nur von Hand freigeben (P2-4)."""
+    quelle: str
+    quelle_id: int
+    art: str
+    art_text: str
+    titel: str
+    am: date | None = None
+    an: str | None = None
+
+
 class PortalFreigabenOut(BaseModel):
     """Was die Karte „Im Portal“ der Kundenakte zeigt (app/portal_freigaben.py::stand()); nach dem Freigeben dazu die neuen Freigaben."""
     portal_aktiv: bool
     kunde_archiv: bool
     eintraege: list[PortalFreigabeEintragOut]
+    vorschlaege: list[PortalVorschlagOut] = []
     neu: list[int] = []
     schon: int = 0
 

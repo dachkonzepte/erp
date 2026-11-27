@@ -782,3 +782,32 @@ Pfad, Archiv) waren im ersten Lauf aus dem richtigen Grund rot, nur der erwartet
 | 1.11.36-12 – Historie ohne die Felder der Kopie | Felder nicht mehr still | rot |
 | 1.11.36-9 – Zustände | -- | durch die Proben zu 2, 8, 10 und den Wächter je Zelle mitgeprüft; keine eigene |
 | 1.11.36-11 – jede Quelle auch von Hand | -- | keine eigene: dieselben Prüfungen wie oben, über `customer_documents`, `project_documents`, `service_report_photos` |
+
+## 1.11.37: die automatischen Regeln (P2c, Teil 2)
+
+Probendatei `gegenprobe_11137.py` (Scratchpad, mit `--trocken` vorab geprüft); unter `app/` mit Marker `GEGENPROBE`; geprüft „failed“ und der Grund im Text;
+jede Datei danach byte-gleich zurück. Im ersten Lauf: sechs Proben aus dem richtigen Grund rot, nur der Text ohne die Klammern von pytest; „Mahnung nicht
+ersetzt“ blieb grün (die Kette lässt eine ersetzte Mahnung ohnehin ruhen) -- die Probe nimmt seitdem Abfrage und Kette zugleich weg, ebenso die neue Probe zum
+Einsatzbericht; „nicht im Archiv“ wurde durch den Archivschutz rot (ImArchiv) statt durch die Zählung -- das belegt, dass der Filter nötig ist (ein
+archivierter Kunde hielte sonst alle Regeln im Postboten an). Wiederholt mit korrigiertem Text bzw. Probe.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.37-1 – Rechnung nur angekommen | jede festgeschriebene | rot |
+| 1.11.37-1 – Mahnung nicht ersetzt | Filter in Abfrage und Kette weg | rot (nur die Abfrage: grün, die Kette trägt) |
+| 1.11.37-2 – Ablage nur an den Kunden, sonst Vorschlag | jede Adresse zählt | rot |
+| 1.11.37-2 – nachgetragen nur an den Auftraggeber | jede Zustellung zählt | rot |
+| 1.11.37-4 – ältere Fassung überholt | nie zurückgenommen | rot |
+| 1.11.37-1 – nur mit gültiger Kette | Kettenfilter weg | rot (Projekt im Archiv bzw. Mustervorgang) |
+| 1.11.37-1 – Einsatzbericht nur mit fester Fassung | Filter in Abfrage und Kette weg | rot |
+| 1.11.37-1 – Brief nur angekommen | jeder Brief | rot |
+| 1.11.37-1 – Abnahmeprotokoll: die jüngste gültige | die erste Fassung | rot |
+| 1.11.37-5 – von einer Person zurückgenommen: nie wieder | Prüfung weg | rot |
+| 1.11.37-4 – vom System überholt kommt wieder | jede Rücknahme sperrt | rot |
+| 1.11.37-6 – kein stilles Umhängen | die Zeile beim anderen Kunden zurückgenommen | rot |
+| 1.11.37-3 – Portal an wendet die Regeln an | Aufruf weg | rot |
+| 1.11.37-3 – nicht im Archiv | Filter weg | rot (ImArchiv aus dem Archivschutz) |
+| 1.11.37-3 – nur mit Modul | Prüfung weg | rot |
+| 1.11.37-3 – Postbote im vollen Lauf | Aufruf weg | rot (PostgreSQL, echter Postbote) |
+| 1.11.37-8 – ein Fehler hält den Postboten nicht an | Ausnahme nicht gefangen | rot |
+| 1.11.37-7 – von „automatisch“, Portal aus nimmt nichts zurück | -- | keine eigene: geprüft in `test_rechnung_nur_wenn_angekommen` und `test_portal_an_wendet_die_regeln_gleich_an` |

@@ -1459,7 +1459,7 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   (`klicktest_daten_im_html`, `klicktest_verbindungsprotokoll`, ohne Bilder, grün) -- ein Vorgang außerhalb des Projekts, der leere Ordner unter
   `%TEMP%` aufräumt. Auf demselben Stand die vier 4 von 4, danach alle Klicktests noch einmal (siehe Bericht). Stand: Umgebung, kein Fund im Code;
   fällt es wieder auf, legt `cdp_klicktest` den Ordner vor jedem Bild an.
-- Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.
+- Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben. Erneut 27.11.2026, zweiter voller Lauf vor dem Commit von 1.11.36 (Arbeitskopie auf 00f6f82 mit 1.11.36): 34 Anfragen 503 nach rund 3,5 s -- während dieses Laufs liefen in der Hauptkopie zugleich 407 Tests mit 6 Prozessen (meine Last); allein auf demselben Stand 4 von 4, der dritte volle Lauf ohne Parallellast grün. Lehre: neben einem vollen Lauf nichts anderes gegen die Spielwiese.
 - **`klicktest_plantafel_konflikte`** -- 21.11.2026, Klicktests vor dem Commit von 1.10.18 (Hauptarbeitskopie, alle zu viert): 47 von 58 -- nach „Abbrechen:
   zurück im Dialog“ wurde das zweite `saveNew()` („Trotzdem planen“) in 15 s nicht fertig, ohne offene Anfrage im Netzprotokoll; die übrigen zehn Abweichungen
   folgten daraus (die Tafel blieb einen Einsatz zurück). Einzeln auf demselben Stand 58 von 58; die Version änderte an Plantafel und Planung nichts (Suche,

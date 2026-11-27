@@ -165,13 +165,19 @@ def _nicht_im_archiv(kunde: Customer) -> None:
 
 
 def schalten(db: Session, kunde: Customer, an: bool, jetzt_: datetime) -> None:
-    """Portal am Kunden an oder aus. Aus beendet alle Sitzungen des Zugangs (Grund portal_aus)."""
+    """Portal am Kunden an oder aus. Aus beendet alle Sitzungen des Zugangs (Grund portal_aus). Seit 1.11.37 (Stufe P2c): An wendet gleich die
+    automatischen Regeln an (app/portal_freigaben.py::regeln_anwenden(), auch für alles, was vor der Einladung entstand) -- so zeigt die Karte vor dem
+    Einladen, was der Kunde dann sieht; danach hält der Postbote sie aktuell."""
+    from . import portal_freigaben
+
     _nicht_im_archiv(kunde)
     zugang = zugang_von(db, kunde.id, sperren=True)
     kunde.portal_aktiv = an
     if not an and zugang is not None:
         _sitzungen_beenden(db, zugang.id, "portal_aus", jetzt_)
     db.commit()
+    if an:
+        portal_freigaben.regeln_anwenden(db, kunde)
 
 
 def zugang_anlegen(db: Session, kunde: Customer, email: str, jetzt_: datetime, *, user_id: int | None, user_name: str | None) -> PortalZugang:

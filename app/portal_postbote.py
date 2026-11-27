@@ -15,6 +15,9 @@ Der Postbote
    Kopien, dann wieder die Codes; bleibt etwas übrig, kommt er ohne Warten wieder. Ohne Ordner (PORTAL_DATEIEN nicht gesetzt) keine Kopien, die Codes gehen
    weiter. Ein Fehler am Ordner (fehlt, keine Rechte, gehört einer anderen Datenbank) beendet den Postboten nicht: protokolliert (nur die Klasse), nächster
    Versuch im nächsten vollen Lauf.
+6. seit 1.11.37 (Stufe P2c): wendet im vollen Lauf (beim Start, danach alle 15 Minuten) die automatischen Regeln an (app/portal_freigaben.py::regeln_alle(),
+   Bauplan P2, B4.3) -- für jeden Kunden mit Portal an; neue Zeilen wecken über den Auslöser die Kopien. Ein Fehler darin beendet den Postboten nicht (die
+   Codes gehen vor): nur die Klasse ins Protokoll, nächster Versuch im nächsten vollen Lauf.
 
 Genau ein Postbote: er hält eine Sperre der Datenbank (pg_try_advisory_lock je Schema -- auf dem Server eines, in Tests jedes Wegwerf-Schema für
 sich) -- ein zweiter bricht ab. Ein Auftrag geht nie zweimal hinaus: der
@@ -194,6 +197,20 @@ def kopien(db: Session, ordner, *, voll: bool, sekunden: float = KOPIEN_DURCHGAN
     return stand.mehr
 
 
+def regeln(db: Session) -> None:
+    """Die automatischen Regeln für jeden Kunden mit Portal an (seit 1.11.37). Ein Fehler darin beendet den Postboten nicht: nur die Klasse ins Protokoll."""
+    from . import portal_freigaben
+
+    try:
+        stand = portal_freigaben.regeln_alle(db)
+    except Exception as e:  # noqa: BLE001 -- die Codes gehen vor; der nächste volle Lauf versucht es wieder
+        db.rollback()
+        logger.error("Postbote: Regeln nicht angewandt (%s)", type(e).__name__)
+        return
+    if stand.neu or stand.ueberholt:
+        logger.info("Postbote: Regeln -- %s neu freigegeben, %s überholt", stand.neu, stand.ueberholt)
+
+
 def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehen: float = NACHSEHEN_SEKUNDEN,
            aufraeumen_alle: float = AUFRAEUMEN_SEKUNDEN, ordner=None, kopien_voll_alle: float = KOPIEN_VOLL_SEKUNDEN, foto=None) -> None:
     """Die Schleife des Dienstes: Sperre nehmen (sonst AndererPostbote), LISTEN, dann je Weckruf oder spätestens nach `nachsehen` Sekunden alle
@@ -221,7 +238,7 @@ def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehe
 
 def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, kopien_voll_alle, foto) -> None:
     """Die Arbeit von laufen() zwischen LISTEN und Ende."""
-    zuletzt_aufgeraeumt = zuletzt_voll = None
+    zuletzt_aufgeraeumt = zuletzt_voll = zuletzt_regeln = None
     geweckt = mehr = False
     while not halt():
         with Session(engine) as db:
@@ -230,6 +247,9 @@ def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, 
                 zahlen = aufraeumen(db)
                 zuletzt_aufgeraeumt = time.monotonic()
                 logger.info("Postbote: aufgeräumt %s", zahlen)
+            if zuletzt_regeln is None or time.monotonic() - zuletzt_regeln >= kopien_voll_alle:  # seit 1.11.37: im vollen Lauf, vor den Kopien
+                regeln(db)
+                zuletzt_regeln = time.monotonic()
             if ordner is not None:
                 voll = zuletzt_voll is None or time.monotonic() - zuletzt_voll >= kopien_voll_alle
                 if voll or geweckt or mehr:
