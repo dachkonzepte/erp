@@ -4245,6 +4245,55 @@ sudo -u postgres psql -d dachkonzepte -tAX -c "select has_table_privilege('dkpor
 Erwartet: dreimal `t`, dann dreimal `f`. Abbrechen bei einem anderen Ergebnis: die Ausgabe in den Chat. Rückweg: keiner nötig -- das Portal ruft die Funktionen erst ab
 P2e auf.
 
+### Umsetzung 1.11.43 (P2e, Teil 1): der Betreff des Auftrags
+
+Antwort des Betriebs vom 27.11.2026 (Änderung zu P2-10), Befund bei 1.11.41.
+
+- **Feld:** `Order.title` (beim Beauftragen aus `Quote.title`; gedruckt auf Angebot und Auftragsbestätigung), ohne Leerzeichen am Rand, leer -> kein Betreff. Nie
+  `Project.name`. Die Nummer eines Auftrags ist eindeutig (seit 1.8.77); die Funktionen holen den Titel über die Nummer aus `portal_quelle()`.
+- **Datenbank** (Migration `f8b2d6a4c9e1`): `portal_unterlagen()`, `portal_rechnungen()`, `portal_termine()` und `portal_uebersicht()` geben `betreff` neben der
+  Auftragsnummer heraus (Übersicht: `einsatz_betreff`). Die Rückgabe ändert sich, deshalb DROP und CREATE (CREATE OR REPLACE geht dafür nicht); das Recht des
+  Portals auf die neuen Funktionen setzt `portal_rechte.py --setzen` aus `update.sh` danach neu. Herab stellt die Fassungen von vorher wieder her (`VORHER`).
+  `portal_quelle()` bleibt unverändert.
+- **ERP, Reiter „Im Portal“:** `app/portal_freigaben.py::gruppe_text()` gibt Überschrift und Zeile darunter: mit Auftrag „Auftrag <Nummer> · <Betreff>“ (ohne
+  Betreff „Auftrag <Nummer>“), darunter die Adresse des Objekts; ohne Auftrag mit Objekt die Adresse, darunter „ohne bestimmten Auftrag“; ohne beides
+  „Allgemeine Unterlagen“, darunter „ohne bestimmten Auftrag“ (Entwurf Seite 5). Die Kundenakte zeigt beides; die Seiten des Portals gruppieren in P2e, Teil 3
+  genauso.
+
+#### Festlegungen 1.11.43 (Bitte bestätigen)
+
+1. Betreff ist der Titel des Auftrags (`Order.title`), ohne Leerzeichen am Rand; leer heißt kein Betreff -- nie der Projekttitel.
+2. Die vier Funktionen des Portals geben den Betreff neben der Auftragsnummer heraus.
+3. Gruppe: „Auftrag <Nummer> · <Betreff>“ (ohne Betreff nur die Nummer), darunter die Adresse; ohne Auftrag die Adresse bzw. „Allgemeine Unterlagen“, darunter „ohne bestimmten Auftrag“ -- im Portal wie im Reiter „Im Portal“.
+
+#### Abweichungen vom Bauplan (1.11.43)
+
+- P2-10 (Gruppe „Adresse des Objekts und Auftragsnummer“) wie vom Betrieb am 27.11.2026 geändert. Eine Unterlage ohne Auftrag, aber mit Objekt, steht unter
+  ihrer Adresse (der Entwurf nennt nur „Allgemeine Unterlagen“ für eine Unterlage ohne Auftrag) -- so bleiben die Unterlagen verschiedener Objekte getrennt.
+
+#### Tests und Prüfung 1.11.43
+
+`tests/test_v833_portal_rechnungen_termine.py`: neu „Betreff ist der Titel des Auftrags, nie der Projekttitel“ (alle vier Funktionen, leer ohne Text) und
+„Migration hinauf, herab, hinauf“ (Rückgabe mit und ohne Betreff, keine Funktion für alle ausführbar); angepasst die Positivliste der Ausgabe (alt ohne, neu mit
+`betreff` bzw. `einsatz_betreff`), Rechnungen, Termine und Übersicht (alt ohne, neu mit Betreff „Dach“) und das Lesen der Migrationen (neueste Fassung je
+Funktion). Angepasste Erwartungen: `tests/test_v821_portal_unterlagen.py::test_pg_gruppe_und_jeder_zweig` -- alt `(…, "A-2026-0042", "Hafenweg 3, …")`, neu
+`(…, "A-2026-0042", "Dach", "Hafenweg 3, …")`; `tests/test_v830_im_portal_karte.py::test_gruppe_wie_im_portal` -- alt „Auftrag A-… · Hafenweg 3, …“, „Objekt
+Hafenweg 3“, „Ohne Auftrag und Objekt“, neu („Auftrag A-… · Dach“, „Hafenweg 3, …“), („Hafenweg 3“, „ohne bestimmten Auftrag“), („Allgemeine Unterlagen“, „ohne
+bestimmten Auftrag“); Klicktest `klicktest_kundenportal_im_portal.py` „Gruppen wie im Portal“ -- alt [„Auftrag A-2026-0042 · Hafenweg 3, 12345 Musterstadt“,
+„Ohne Auftrag und Objekt“], neu [[„Auftrag A-2026-0042 · Dach“, „Hafenweg 3, 12345 Musterstadt“], [„Allgemeine Unterlagen“, „ohne bestimmten Auftrag“]].
+Gegenproben: 11, alle rot aus dem geprüften Grund.
+
+#### Server-Schritt P2e-1 (nach dem Einspielen von 1.11.43)
+
+`update.sh` spielt die Migration ein und setzt danach die Rechte des Portals. Danach nur lesend:
+
+```bash
+sudo -u postgres psql -d dachkonzepte -tAX -c "select p.proname, pg_get_function_result(p.oid) like '%betreff%', has_function_privilege('dkportal', p.oid, 'EXECUTE') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('portal_unterlagen', 'portal_rechnungen', 'portal_termine', 'portal_uebersicht') order by 1"
+```
+
+Erwartet: vier Zeilen, jede `…|t|t`. Abbrechen, wenn eine `f` zeigt: `cd /home/tobias/erp && ( set -a; . ./.env; set +a; .venv/bin/python scripts/portal_rechte.py
+--setzen && .venv/bin/python scripts/portal_rechte.py --pruefen )` (wie in `update.sh`) und die Ausgabe in den Chat. Rückweg: keiner nötig -- die Seiten nutzen den Betreff erst ab P2e, Teil 3.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

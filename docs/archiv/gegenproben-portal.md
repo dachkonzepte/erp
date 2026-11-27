@@ -901,3 +901,21 @@ Probendatei `gegenprobe_11142.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.42-1 – das Portal darf die Funktionen | nicht in `FUNKTIONEN` | rot (`test_funktionen_fester_pfad_ohne_dynamisches_sql_und_rechte`) |
 | 1.11.42-6 – Texte der Karte | ohne Text | rot (`test_karte_nennt_die_neuen_aktionen`) |
 | 1.11.42-1 – Migration wörtlich | Sortierung in der Migration geändert | rot (`test_migration_traegt_text_und_pruefung_woertlich`) |
+
+## 1.11.43: Kundenportal P2e, Teil 1 -- der Betreff des Auftrags
+
+Probendatei `gegenprobe_11143.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.43-1 – Titel des Auftrags (Unterlagen) | Projekttitel | rot (`test_pg_betreff_ist_der_titel_des_auftrags_nie_der_projekttitel`) |
+| 1.11.43-1 – Titel des Auftrags (Rechnungen) | Projekttitel | rot (dieselbe) |
+| 1.11.43-1 – ohne Text kein Betreff | Titel ungekürzt | rot (dieselbe) |
+| 1.11.43-2 – Betreff der Termine | leer | rot (`test_pg_termine_mit_auftrag_und_adresse_live_geprueft`) |
+| 1.11.43-2 – Betreff des nächsten Einsatzes | leer | rot (`test_pg_uebersicht_in_einer_zeile`) |
+| 1.11.43-3 – Gruppe mit Betreff | ohne Betreff | rot (`test_gruppe_wie_im_portal`) |
+| 1.11.43-3 – Gruppe ohne Auftrag | „Objekt …“ | rot (dieselbe) |
+| 1.11.43-3 – Adresse unter der Gruppe im Reiter | Zeile weg | rot (Klicktest „Gruppen wie im Portal“) |
+| 1.11.43-2 – Migration wörtlich (Schaufenster) | Text in der Migration geändert | rot (`test_migration_traegt_text_und_pruefung_woertlich`) |
+| 1.11.43-2 – Migration wörtlich (Unterlagen) | Text in der Migration geändert | rot (`test_v821::test_migration_traegt_anweisungen_und_checks_woertlich`) |
+| 1.11.43-2 – herab stellt vorher her | ohne VORHER | rot (`test_pg_migration_betreff_hinauf_herab_hinauf`) |

@@ -14,6 +14,7 @@ die drei Funktionen unten aufrufen (app/portal/rechte.py::FUNKTIONEN) und hat au
   portal_datei() liest nur: sie nennt die Kopie nur nach einer Anforderung derselben Sitzung für diese Freigabe in den letzten 30 Minuten (Range-Abrufe eines
   PDF-Betrachters kommen so durch).
 - **Ausgabe** nur die Felder unten (Positivliste); die Gruppe ist Auftragsnummer und Adresse des Objekts (Entscheidung P2-10), nie der Projekttitel.
+  Seit 1.11.43 dazu der Betreff: der Titel des Auftrags (Order.title -- was auf Angebot und Auftragsbestätigung gedruckt steht), leer ohne Text.
 
 Seit 1.11.32 (Matrix je Quelle × Fall, tests/test_v822_portal_unterlagen_matrix.py): ein Brief ruht, sobald die Unterschrift dahinter verworfen ist (wie
 die Fassung einer Checkliste), ein Foto am Mangel, sobald der Mangel verworfen ist -- portal_quelle() neu in der Migration f2b7d4a9c1e3 (CREATE OR REPLACE).
@@ -134,14 +135,14 @@ _HELFER = (
      "$$"),
 )
 
-_LEER_LISTE = "NULL::integer, NULL::integer, NULL::text, NULL::text, NULL::date, NULL::text, NULL::integer, NULL::text, NULL::text"
+_LEER_LISTE = "NULL::integer, NULL::integer, NULL::text, NULL::text, NULL::date, NULL::text, NULL::integer, NULL::text, NULL::text, NULL::text"
 
 # Die Funktionen für den Benutzer des Portals (SECURITY DEFINER): (Name, Argumente, SQL)
 _FUNKTIONEN = (
     ("portal_unterlagen", "p_sitzung text",
      "CREATE OR REPLACE FUNCTION portal_unterlagen(p_sitzung text)\n"
      "RETURNS TABLE (ergebnis text, minuten integer, freigabe integer, art text, titel text, datum date, typ text, groesse integer, auftrag text,\n"
-     f"  objekt text) LANGUAGE plpgsql SECURITY DEFINER {_PFAD} AS $$\n"
+     f"  betreff text, objekt text) LANGUAGE plpgsql SECURITY DEFINER {_PFAD} AS $$\n"
      "#variable_conflict use_column\n"
      "DECLARE\n"
      "  v_zugang integer;\n"
@@ -161,7 +162,8 @@ _FUNKTIONEN = (
      "    RETURN;\n"
      "  END IF;\n"
      "  PERFORM portal_protokoll(v_zugang, v_sitzung, 'unterlagen', 'ok');\n"
-     "  RETURN QUERY SELECT 'ok'::text, NULL::integer, f.id, f.art::text, f.titel::text, f.datum, f.kopie_typ::text, f.kopie_groesse, q.auftrag, q.objekt\n"
+     "  RETURN QUERY SELECT 'ok'::text, NULL::integer, f.id, f.art::text, f.titel::text, f.datum, f.kopie_typ::text, f.kopie_groesse, q.auftrag,\n"
+     "           (SELECT nullif(btrim(ob.title), '') FROM orders ob WHERE ob.order_number = q.auftrag)::text, q.objekt\n"
      "    FROM portal_freigaben f CROSS JOIN LATERAL portal_quelle(f.quelle, f.quelle_id) q\n"
      "    WHERE f.customer_id = v_kunde AND f.zurueckgenommen_am IS NULL AND f.kopie_bereit_am IS NOT NULL AND f.kopie_name IS NOT NULL\n"
      "      AND q.kunde = v_kunde\n"
@@ -234,7 +236,7 @@ _FUNKTIONEN = (
 )
 
 # Die Migrationen mit dem Text dieser Funktionen, älteste zuerst (seit 1.11.32): e5c8a1f3b9d2 legt alle an, jede weitere ersetzt einzelne
-MIGRATIONEN = ("e5c8a1f3b9d2", "f2b7d4a9c1e3")
+MIGRATIONEN = ("e5c8a1f3b9d2", "f2b7d4a9c1e3", "f8b2d6a4c9e1")  # f8b2d6a4c9e1 seit 1.11.43: der Betreff
 
 # Name -> Argumente der Funktionen, die der Benutzer des Portals aufrufen darf (app/portal/rechte.py::FUNKTIONEN nimmt diese dazu)
 FUER_DAS_PORTAL = {name: argumente for name, argumente, _sql in _FUNKTIONEN}

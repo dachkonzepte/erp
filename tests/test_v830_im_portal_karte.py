@@ -68,9 +68,11 @@ def test_gruppe_wie_im_portal(r):
     r.versand("rechnung", i.id)
     r.anwenden()
     d = r.freigeben(r.a, "customer_documents", [r.dokument(r.a).id])
-    gruppen = {e["titel"]: e["gruppe"] for e in d.json()["eintraege"]}
-    assert gruppen[next(t for t in gruppen if t.endswith(i.invoice_number))] == f"Auftrag {r.o.order_number} · Hafenweg 3, 12345 Musterstadt"
+    gruppen = {e["titel"]: (e["gruppe"], e["gruppe_unter"]) for e in d.json()["eintraege"]}
+    # seit 1.11.43: „Auftrag <Nummer> · <Betreff>“, darunter die Adresse (Betreff = Titel des Auftrags, nie der Projekttitel)
+    assert gruppen[next(t for t in gruppen if t.endswith(i.invoice_number))] == (f"Auftrag {r.o.order_number} · Dach", "Hafenweg 3, 12345 Musterstadt")
     assert "Interner Titel" not in str(gruppen)  # nie der Projekttitel (P2-10)
-    assert pf.gruppe_text(None, "Hafenweg 3") == "Objekt Hafenweg 3" and pf.gruppe_text("A-1", None) == "Auftrag A-1"
-    assert pf.gruppe_text(None, None) == "Ohne Auftrag und Objekt"
+    assert pf.gruppe_text("A-1", "  ", None) == ("Auftrag A-1", "") and pf.gruppe_text("A-1", None, "Hafenweg 3") == ("Auftrag A-1", "Hafenweg 3")
+    assert pf.gruppe_text(None, None, "Hafenweg 3") == ("Hafenweg 3", "ohne bestimmten Auftrag")
+    assert pf.gruppe_text(None, None, None) == ("Allgemeine Unterlagen", "ohne bestimmten Auftrag")
 

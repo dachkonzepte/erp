@@ -312,7 +312,8 @@ def test_pg_gruppe_und_jeder_zweig(w):
     _freigabe(w.db, w.kunde, "sent_documents", s.id, art="auftrag", titel="Auftragsbestätigung")
     w.db.commit()
     (zeile,) = _liste(w)
-    assert zeile[3:] == ("auftrag", "Auftragsbestätigung", date(2026, 11, 20), "application/pdf", 1234, "A-2026-0042", "Hafenweg 3, 12345 Musterstadt")
+    # seit 1.11.43 dazu der Betreff (der Titel des Auftrags „Dach“, nie der Projekttitel)
+    assert zeile[3:] == ("auftrag", "Auftragsbestätigung", date(2026, 11, 20), "application/pdf", 1234, "A-2026-0042", "Dach", "Hafenweg 3, 12345 Musterstadt")
     assert "Interner Titel" not in repr(zeile)
     for quelle in werte.FREIGABE_QUELLEN:
         assert w.pg.erp("SELECT * FROM portal_quelle(:q, 0)", q=quelle) == [], quelle

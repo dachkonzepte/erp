@@ -118,6 +118,7 @@ input[type=checkbox],input[type=radio]{width:auto!important;min-height:0!importa
 .notice.warning{background:var(--ds-warn-hell);border-left-color:var(--ds-warn-text)}
 /* seit 1.11.38: Reiter „Im Portal“ -- Gruppen wie im Portal, je Freigabe Titel, Angaben, Zustand, Knöpfe */
 .ip-gruppe{margin:4px 0 0;font-size:13px;font-weight:600;color:var(--ds-text-2)}
+.ip-gruppe-unter{display:block;font-weight:400;color:var(--ds-text-3)}
 .ip-zeile{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--ds-linie)}
 .ip-zeile .ip-titel{font-weight:600;overflow-wrap:anywhere}
 .ip-zeile .ip-angaben{font-size:13px;color:var(--ds-text-2);overflow-wrap:anywhere}
@@ -631,10 +632,13 @@ function freigabenZeigen(d){
   el('ipHinweis').hidden=!hinweis;el('ipHinweis').textContent=hinweis;
   el('ipZahlen').textContent=d.zahlen_text?'Der Kunde sieht: '+d.zahlen_text+'.':'Noch nichts im Portal.';
   const gruppen=new Map();  // je Gruppe (Text vom Server) in der Reihenfolge des ersten Auftretens -- die jüngste Freigabe zuerst
-  for(const e of aktiv){if(!gruppen.has(e.gruppe))gruppen.set(e.gruppe,[]);gruppen.get(e.gruppe).push(e)}
+  for(const e of aktiv){const s=e.gruppe+'\n'+e.gruppe_unter;if(!gruppen.has(s))gruppen.set(s,[]);gruppen.get(s).push(e)}
   const liste=[];
-  for(const [gruppe,zeilen] of gruppen)for(const e of zeilen){
-    if(e===zeilen[0]){const g=document.createElement('p');g.className='ip-gruppe';g.textContent=gruppe;liste.push(g)}
+  for(const zeilen of gruppen.values())for(const e of zeilen){
+    if(e===zeilen[0]){  // seit 1.11.43: „Auftrag <Nummer> · <Betreff>“, darunter die Adresse -- wie im Portal
+      const g=document.createElement('p');g.className='ip-gruppe';g.textContent=e.gruppe;
+      if(e.gruppe_unter){const u=document.createElement('span');u.className='ip-gruppe-unter';u.textContent=e.gruppe_unter;g.append(u)}
+      liste.push(g)}
     const knoepfe=[];
     if(e.zustand==='gescheitert'&&!d.kunde_archiv)knoepfe.push(ipKnopf('Erneut versuchen','ip-erneut',e.id));
     knoepfe.push(ipKnopf('Zurücknehmen','ip-zuruecknehmen-dialog',e.id,{lesen:true}));

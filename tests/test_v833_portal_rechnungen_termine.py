@@ -34,15 +34,16 @@ D = Decimal
 
 AUSGABE = {  # Positivliste je Funktion: genau diese Felder
     "portal_rechnungen": ["ergebnis", "minuten", "stand", "freigabe", "art", "titel", "nummer", "datum", "faellig", "betrag", "zustand", "offen",
-                          "ueberfaellig", "bezug", "zu_freigabe", "auftrag", "objekt"],
-    "portal_termine": ["ergebnis", "minuten", "stand", "auftrag", "objekt", "von", "bis"],
+                          "ueberfaellig", "bezug", "zu_freigabe", "auftrag", "betreff", "objekt"],
+    "portal_termine": ["ergebnis", "minuten", "stand", "auftrag", "betreff", "objekt", "von", "bis"],
     "portal_uebersicht": ["ergebnis", "minuten", "stand", "offen_anzahl", "offen_summe", "faellig_titel", "faellig_nummer", "faellig_am", "einsatz_von",
-                          "einsatz_bis", "einsatz_auftrag", "einsatz_objekt", "unterlagen", "unterlage_titel", "unterlage_datum", "fotos", "foto_am"],
+                          "einsatz_bis", "einsatz_auftrag", "einsatz_betreff", "einsatz_objekt", "unterlagen", "unterlage_titel", "unterlage_datum", "fotos",
+                          "foto_am"],
 }
 
 
-def _migration():
-    pfad = next((ROOT / "alembic" / "versions").glob(f"{MIGRATION}_*.py"))
+def _migration(revision=MIGRATION):
+    pfad = next((ROOT / "alembic" / "versions").glob(f"{revision}_*.py"))
     spec = importlib.util.spec_from_file_location("migration_schaufenster_funktionen", pfad)
     modul = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(modul)
@@ -79,7 +80,18 @@ def test_kein_feld_mit_namen_oder_inhalt():
 
 def test_migration_traegt_text_und_pruefung_woertlich():
     modul = _migration()
-    assert modul.ANWEISUNGEN == schaufenster.ANWEISUNGEN and schaufenster.MIGRATIONEN == (MIGRATION,)
+    # seit 1.11.43: je Funktion die neueste Fassung aus schaufenster.MIGRATIONEN (f8b2d6a4c9e1 ersetzt alle drei: der Betreff, ANWEISUNGEN_SCHAUFENSTER)
+    assert schaufenster.MIGRATIONEN[0] == MIGRATION
+    wirksam = list(modul.ANWEISUNGEN)
+    name = lambda a: re.match(r"CREATE OR REPLACE FUNCTION (\w+)\(", a).group(1) if a.startswith("CREATE") else a  # noqa: E731
+    for revision in schaufenster.MIGRATIONEN[1:]:
+        for neu in _migration(revision).ANWEISUNGEN_SCHAUFENSTER:
+            if neu.startswith("CREATE"):
+                (stelle,) = [i for i, a in enumerate(wirksam) if name(a) == name(neu)]
+                wirksam[stelle] = neu
+            else:
+                assert neu in wirksam, neu
+    assert tuple(wirksam) == schaufenster.ANWEISUNGEN
     assert modul.down_revision == "c4e8a2f6b1d3"
     assert modul.CHECKS == {"ck_portal_zugriff_aktion": portal_in("aktion", werte.AKTIONEN)}
     assert modul.AKTION_VORHER == portal_in("aktion", tuple(a for a in werte.AKTIONEN if a not in ("rechnungen", "termine", "uebersicht")))
@@ -142,9 +154,9 @@ def test_pg_rechnungen_mit_zahlstand_mahnung_und_stand(w):
     je = {z["freigabe"]: z for z in zeilen}
     assert set(je) == {f_mit.id, f_ohne.id, f_m1.id, f_m2.id}
     z = je[f_mit.id]
-    assert (z["art"], z["titel"], z["nummer"], z["faellig"], z["betrag"], z["zustand"], z["offen"], z["ueberfaellig"], z["auftrag"], z["objekt"]) == (
-        "rechnung", "Abschlagsrechnung", mit.invoice_number, date(2026, 12, 4), D("2380.00"), "teilweise_bezahlt", D("1380.00"), False, "A-2026-0118",
-        "Hafenweg 3, 12345 Musterstadt")
+    assert (z["art"], z["titel"], z["nummer"], z["faellig"], z["betrag"], z["zustand"], z["offen"], z["ueberfaellig"], z["auftrag"], z["betreff"],
+            z["objekt"]) == ("rechnung", "Abschlagsrechnung", mit.invoice_number, date(2026, 12, 4), D("2380.00"), "teilweise_bezahlt", D("1380.00"), False,
+                             "A-2026-0118", "Dach", "Hafenweg 3, 12345 Musterstadt")
     z = je[f_ohne.id]  # sichtbar, der Postbote hat sie noch nicht gerechnet: ohne Zustand, der Titel der Freigabe
     assert (z["titel"], z["zustand"], z["betrag"], z["offen"]) == (f"Rechnung {ohne_stand.invoice_number}", None, None, None)
     z = je[f_m1.id]  # heißt wie die Stufe im ERP, hängt an seiner Rechnung
@@ -178,10 +190,10 @@ def test_pg_termine_mit_auftrag_und_adresse_live_geprueft(w):
     _termin(w, b, date(2026, 12, 1), date(2026, 12, 1))
     _termin(w, a, date(2026, 12, 14), date(2026, 12, 14))
     _stand(w)
-    assert [(z["auftrag"], z["objekt"], z["von"], z["bis"]) for z in _termine(w)] == [
-        ("A-2026-0121", "Musterweg 12, 12345 Musterstadt", date(2026, 12, 1), date(2026, 12, 1)),
-        ("A-2026-0120", "Hafenweg 3, 12345 Musterstadt", date(2026, 12, 7), date(2026, 12, 11)),
-        ("A-2026-0120", "Hafenweg 3, 12345 Musterstadt", date(2026, 12, 14), date(2026, 12, 14)),
+    assert [(z["auftrag"], z["betreff"], z["objekt"], z["von"], z["bis"]) for z in _termine(w)] == [
+        ("A-2026-0121", "Dach", "Musterweg 12, 12345 Musterstadt", date(2026, 12, 1), date(2026, 12, 1)),
+        ("A-2026-0120", "Dach", "Hafenweg 3, 12345 Musterstadt", date(2026, 12, 7), date(2026, 12, 11)),
+        ("A-2026-0120", "Dach", "Hafenweg 3, 12345 Musterstadt", date(2026, 12, 14), date(2026, 12, 14)),
     ]
     assert [z["ergebnis"] for z in _termine(w, w.sitz2)] == ["leer"]
     for aenderung, zurueck in (
@@ -256,8 +268,8 @@ def test_pg_uebersicht_in_einer_zeile(w):
     z = _uebersicht(w)
     assert (z["offen_anzahl"], z["offen_summe"], z["faellig_titel"], z["faellig_nummer"], z["faellig_am"]) == (
         2, D("3380.00"), "Schlussrechnung", frueh.invoice_number, date(2026, 12, 4))
-    assert (z["einsatz_von"], z["einsatz_bis"], z["einsatz_auftrag"], z["einsatz_objekt"]) == (
-        heute, heute + timedelta(days=2), "A-2026-0118", "Hafenweg 3, 12345 Musterstadt")
+    assert (z["einsatz_von"], z["einsatz_bis"], z["einsatz_auftrag"], z["einsatz_betreff"], z["einsatz_objekt"]) == (
+        heute, heute + timedelta(days=2), "A-2026-0118", "Dach", "Hafenweg 3, 12345 Musterstadt")
     assert (z["unterlagen"], z["unterlage_titel"], z["unterlage_datum"], z["fotos"], z["foto_am"]) == (2, "Abnahmeprotokoll", date(2026, 11, 18), 1, heute)
     assert z["stand"] == datetime(2026, 11, 27, 9, 0)
     assert _uebersicht(w, w.sitz2)["offen_anzahl"] == 0
@@ -270,3 +282,70 @@ def _dokument(w, auftrag):
     d = PropertyDocument(property_id=o.project.property_id, category_id=w.kategorie, original_filename="foto.jpg", stored_filename=uuid.uuid4().hex)
     w.db.add(d); w.db.flush()
     return d.id
+
+
+def test_pg_betreff_ist_der_titel_des_auftrags_nie_der_projekttitel(w):
+    """Seit 1.11.43 (Änderung zu P2-10): der Betreff ist der Titel des Auftrags (gedruckt auf Angebot und Auftragsbestätigung), nie der Projekttitel
+    („Interner Titel“); nur Leerzeichen oder leer: kein Betreff -- auch in der Liste der Unterlagen."""
+    from tests.test_v821_portal_unterlagen import _ablage
+    a = _auftrag(w, _projekt(w, objekt=_objekt(w)), nr="A-2026-0130")
+    r = _rechnung(w, a)
+    _freigabe(w.db, w.kunde, "invoices", r.id, art="rechnung")
+    s = _ablage(w, "auftrag", a.id)
+    _freigabe(w.db, w.kunde, "sent_documents", s.id, art="auftrag", titel="Auftragsbestätigung")
+    w.db.commit()
+    _termin(w, a, berlin_today(), berlin_today())
+    unterlagen = lambda: {z[3]: z[9] for z in w.pg.als_portal("SELECT * FROM portal_unterlagen(:s)", s=pruefwerte.sitzung(w.sitz))}  # noqa: E731
+    assert (_rechnungen(w)[0]["betreff"], _termine(w)[0]["betreff"], _uebersicht(w)["einsatz_betreff"], unterlagen()) == (
+        "Dach", "Dach", "Dach", {"rechnung": "Dach", "auftrag": "Dach"})
+    assert "Interner Titel" not in repr(_rechnungen(w)) + repr(_termine(w)) + repr(_uebersicht(w))
+    w.pg.erp("UPDATE orders SET title = '   ' WHERE id = :o", o=a.id)
+    assert (_rechnungen(w)[0]["betreff"], _termine(w)[0]["betreff"], _uebersicht(w)["einsatz_betreff"], unterlagen()) == (
+        None, None, None, {"rechnung": None, "auftrag": None})
+
+
+def test_pg_migration_betreff_hinauf_herab_hinauf():
+    """Seit 1.11.43: f8b2d6a4c9e1 ändert die Rückgabe (DROP und CREATE) -- herab stellt die Fassungen von vorher wieder her; nach jedem Schritt ist keine
+    Funktion des Portals für alle ausführbar."""
+    import os
+    import uuid as _uuid
+
+    from sqlalchemy import create_engine
+
+    from tests.test_v380_nummern_eindeutig import _alembic, _ok
+    url_pg = os.getenv("ERP_TEST_POSTGRES_URL")
+    if not url_pg:
+        pytest.skip("ERP_TEST_POSTGRES_URL nicht gesetzt -- PostgreSQL-Testlauf ist bewusst opt-in.")
+    schema = f"pgtest_mig_betreff_{_uuid.uuid4().hex[:8]}"
+    admin = create_engine(url_pg)
+    with admin.begin() as c:
+        c.execute(text(f"CREATE SCHEMA {schema}"))
+    url = f"{url_pg}{'&' if '?' in url_pg else '?'}options=-csearch_path={schema}"
+    engine = create_engine(url_pg, connect_args={"options": f"-csearch_path={schema}", "application_name": schema})
+    namen = ("portal_unterlagen", "portal_rechnungen", "portal_termine", "portal_uebersicht")
+
+    def stand():
+        with engine.connect() as c:
+            rueckgabe = dict(c.execute(text("SELECT p.proname, pg_get_function_result(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+                                            "WHERE n.nspname = :s AND p.proname = ANY(:n)"), {"s": schema, "n": list(namen)}).all())
+            offen = c.execute(text("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = :s "
+                                   "AND p.proname LIKE 'portal!_%' ESCAPE '!' AND (p.proacl IS NULL OR p.proacl::text LIKE '{=X%' "
+                                   "OR p.proacl::text LIKE '%,=X%')"), {"s": schema}).scalar()
+        assert set(rueckgabe) == set(namen) and offen == 0, (rueckgabe, offen)
+        return {n: "betreff" in r for n, r in rueckgabe.items()}
+
+    try:
+        _ok(_alembic(url, "upgrade", "d7a3f9c2e5b1"))
+        assert stand() == {n: False for n in namen}
+        _ok(_alembic(url, "upgrade", "f8b2d6a4c9e1"))
+        assert stand() == {n: True for n in namen}
+        _ok(_alembic(url, "downgrade", "d7a3f9c2e5b1"))
+        assert stand() == {n: False for n in namen}
+        _ok(_alembic(url, "upgrade", "head"))
+        assert stand() == {n: True for n in namen}
+    finally:
+        engine.dispose()
+        with admin.begin() as c:
+            c.execute(text("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = :n"), {"n": schema})
+            c.execute(text(f"DROP SCHEMA {schema} CASCADE"))
+        admin.dispose()

@@ -437,26 +437,35 @@ def _adresse(db: Session, objekt_id: int | None) -> str | None:
     return ", ".join(x for x in (pr.street, ort) if x) or None
 
 
-def gruppe_text(auftrag: str | None, objekt: str | None) -> str:
-    """Wie das Portal gruppiert (Entscheidung P2-10): Auftragsnummer und Adresse des Objekts, nie der Projekttitel."""
-    if auftrag and objekt:
-        return f"Auftrag {auftrag} · {objekt}"
+def gruppe_text(auftrag: str | None, betreff: str | None, objekt: str | None) -> tuple[str, str]:
+    """Wie das Portal gruppiert -- (Überschrift, Zeile darunter). Seit 1.11.43 (Änderung zu P2-10, Antwort vom 27.11.2026): „Auftrag <Nummer> · <Betreff>“,
+    darunter die Adresse; Betreff ist der Titel des Auftrags (gedruckt auf Angebot und Auftragsbestätigung), nie der Projekttitel -- ohne Betreff nur die
+    Nummer. Ohne Auftrag mit Objekt: die Adresse, darunter „ohne bestimmten Auftrag“; ohne beides „Allgemeine Unterlagen“ (Entwurf P2, Seite 5)."""
+    betreff = (betreff or "").strip()
     if auftrag:
-        return f"Auftrag {auftrag}"
+        return (f"Auftrag {auftrag} · {betreff}" if betreff else f"Auftrag {auftrag}"), objekt or ""
     if objekt:
-        return f"Objekt {objekt}"
-    return "Ohne Auftrag und Objekt"
+        return objekt, "ohne bestimmten Auftrag"
+    return "Allgemeine Unterlagen", "ohne bestimmten Auftrag"
+
+
+def _betreff(db: Session, auftrag: str | None) -> str | None:
+    """Der Titel des Auftrags mit dieser Nummer (Nummern sind eindeutig) -- wie die Funktionen der Datenbank (app/portal/unterlagen.py)."""
+    if not auftrag:
+        return None
+    return db.scalar(select(Order.title).where(Order.order_number == auftrag).limit(1))
 
 
 def eintrag(db: Session, f: PortalFreigabe) -> dict:
     k = kette(db, f.quelle, f.quelle_id)
     z, grund = zustand(db, f, k)
     objekt = _adresse(db, k.objekt_id)
+    gruppe, gruppe_unter = gruppe_text(k.auftrag, _betreff(db, k.auftrag), objekt)
     return {
         "id": f.id, "art": f.art, "art_text": ART_TEXT.get(f.art, f.art), "quelle": f.quelle, "quelle_id": f.quelle_id, "titel": f.titel, "datum": f.datum,
         "automatisch": f.regel is not None, "freigegeben_am": f.freigegeben_am, "freigegeben_von": f.freigegeben_von_name, "zustand": z,
         "zustand_text": ZUSTAND_TEXT[z], "grund": grund, "zurueckgenommen_am": f.zurueckgenommen_am, "zurueckgenommen_von": f.zurueckgenommen_von_name,
-        "auftrag": k.auftrag, "objekt": objekt, "gruppe": gruppe_text(k.auftrag, objekt),
+        "auftrag": k.auftrag, "objekt": objekt, "gruppe": gruppe, "gruppe_unter": gruppe_unter,
     }
 
 

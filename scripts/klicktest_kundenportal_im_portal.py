@@ -134,7 +134,7 @@ async def _bild(tab, name, element="document.getElementById('reiter-importal')")
 
 
 ZEILEN = "[...document.querySelectorAll('#ipListe .ip-zeile')].map(z=>[z.querySelector('.ip-titel').textContent,z.querySelector('.chip').textContent])"
-GRUPPEN = "[...document.querySelectorAll('#ipListe .ip-gruppe')].map(g=>g.textContent)"
+GRUPPEN = "[...document.querySelectorAll('#ipListe .ip-gruppe')].map(g=>[g.firstChild.textContent,(g.querySelector('.ip-gruppe-unter')||{}).textContent||''])"
 KNOEPFE = "(t=>[...document.querySelectorAll('#ipListe .ip-zeile')].filter(z=>z.querySelector('.ip-titel').textContent===t)[0].querySelectorAll('button'))"
 
 
@@ -169,7 +169,8 @@ async def pruefen(tab, seed, p):
 
     p.pruefe("Zahl am Reiter", await tab.js("document.getElementById('zahlImPortal').textContent"), "2")
     p.pruefe("Der Kunde sieht", await tab.js("document.getElementById('ipZahlen').textContent"), "Der Kunde sieht: 1 Rechnung · 1 Dokument.")
-    p.pruefe("Gruppen wie im Portal", await tab.js(GRUPPEN), ["Auftrag A-2026-0042 · Hafenweg 3, 12345 Musterstadt", "Ohne Auftrag und Objekt"])
+    p.pruefe("Gruppen wie im Portal", await tab.js(GRUPPEN), [["Auftrag A-2026-0042 · Dach", "Hafenweg 3, 12345 Musterstadt"],
+                                                                ["Allgemeine Unterlagen", "ohne bestimmten Auftrag"]])
     p.pruefe("Zeilen mit Kennzeichen", sorted(await tab.js(ZEILEN)), sorted([["Rechnung R-2026-0101", "Wird vorbereitet"],
                                                                                ["Dachplan Süd", "Sichtbar"], ["Foto vom Schaden", "Kopie gescheitert"]]))
     p.pruefe("gescheitert: Grund in Worten", await tab.js(

@@ -1338,7 +1338,8 @@ class PortalFreigabeEintragOut(BaseModel):
     zurueckgenommen_von: str | None = None
     auftrag: str | None = None
     objekt: str | None = None
-    gruppe: str = ""  # seit 1.11.38: wie das Portal gruppiert (P2-10)
+    gruppe: str = ""  # seit 1.11.38: wie das Portal gruppiert (P2-10); seit 1.11.43 „Auftrag <Nummer> · <Betreff>“
+    gruppe_unter: str = ""  # seit 1.11.43: die Zeile darunter (Adresse bzw. „ohne bestimmten Auftrag“)
 
 
 class PortalFreigabeZahlOut(BaseModel):

@@ -13,6 +13,8 @@ dazu live, was die Unterlagen auch prüfen:
 - **Übersicht** (Entwurf P2, Seite 1) in einer Zeile: Zahl und Summe der offenen Rechnungen (nur offen und teilweise bezahlt, mit offenem Betrag) und die
   zuerst fällige; der nächste Einsatz (die erste Folge, die heute oder später endet -- heute in Berlin); Zahl der Unterlagen (ohne Rechnungen, Mahnungen,
   Fotos) und die jüngste; Zahl der Fotos und wann zuletzt eins freigegeben wurde (in Berlin). Ein Aufruf, ein Eintrag im Protokoll.
+- **Betreff** (seit 1.11.43): neben der Auftragsnummer der Titel des Auftrags (Order.title -- was der Kunde auf Angebot und Auftragsbestätigung gedruckt
+  hat, nie der Projekttitel), leer ohne Text.
 - **Stand**: wann der Postbote das Schaufenster des Kunden zuletzt gerechnet hat (portal_schaufenster), in jeder Zeile -- auch bei „leer“.
 - **Kein GET schreibt** (P1): alle drei schreiben das Zugriffsprotokoll (Aktion „rechnungen“, „termine“ bzw. „uebersicht“) und zählen die Bremse der Listen
   ('liste:s:' je Sitzung, 120 je Stunde, dieselbe wie portal_unterlagen()) -- im Portal je ein POST.
@@ -26,10 +28,10 @@ from .funktionen import _typen
 _PFAD = "SET search_path = pg_catalog, @SCHEMA@, pg_temp"
 
 _LEER_RECHNUNG = ("NULL::integer, NULL::text, NULL::text, NULL::text, NULL::date, NULL::date, NULL::numeric, NULL::text, NULL::numeric, NULL::boolean, "
-                  "NULL::text, NULL::integer, NULL::text, NULL::text")
-_LEER_TERMIN = "NULL::text, NULL::text, NULL::date, NULL::date"
-_LEER_UEBERSICHT = ("NULL::integer, NULL::numeric, NULL::text, NULL::text, NULL::date, NULL::date, NULL::date, NULL::text, NULL::text, NULL::integer, "
-                    "NULL::text, NULL::date, NULL::integer, NULL::date")
+                  "NULL::text, NULL::integer, NULL::text, NULL::text, NULL::text")
+_LEER_TERMIN = "NULL::text, NULL::text, NULL::text, NULL::date, NULL::date"
+_LEER_UEBERSICHT = ("NULL::integer, NULL::numeric, NULL::text, NULL::text, NULL::date, NULL::date, NULL::date, NULL::text, NULL::text, NULL::text, "
+                    "NULL::integer, NULL::text, NULL::date, NULL::integer, NULL::date")
 
 
 def _kopf(aktion: str, leer: str) -> str:
@@ -67,12 +69,13 @@ _FUNKTIONEN = (
     ("portal_rechnungen", "p_sitzung text",
      "CREATE OR REPLACE FUNCTION portal_rechnungen(p_sitzung text)\n"
      "RETURNS TABLE (ergebnis text, minuten integer, stand timestamp, freigabe integer, art text, titel text, nummer text, datum date, faellig date,\n"
-     "  betrag numeric, zustand text, offen numeric, ueberfaellig boolean, bezug text, zu_freigabe integer, auftrag text, objekt text)\n"
+     "  betrag numeric, zustand text, offen numeric, ueberfaellig boolean, bezug text, zu_freigabe integer, auftrag text, betreff text, objekt text)\n"
      f"LANGUAGE plpgsql SECURITY DEFINER {_PFAD} AS $$\n"
      + _kopf("rechnungen", _LEER_RECHNUNG) +
      "  RETURN QUERY\n"
      "    SELECT 'ok'::text, NULL::integer, v_stand, f.id, 'rechnung'::text, coalesce(r.art_text, f.titel)::text, r.nummer::text, coalesce(r.datum, f.datum),\n"
-     "           r.faellig, r.brutto, r.zustand::text, r.offen, r.ueberfaellig, r.bezug_nummer::text, NULL::integer, q.auftrag, q.objekt\n"
+     "           r.faellig, r.brutto, r.zustand::text, r.offen, r.ueberfaellig, r.bezug_nummer::text, NULL::integer, q.auftrag,\n"
+     "           (SELECT nullif(btrim(ob.title), '') FROM orders ob WHERE ob.order_number = q.auftrag)::text, q.objekt\n"
      "      FROM portal_freigaben f CROSS JOIN LATERAL portal_quelle(f.quelle, f.quelle_id) q\n"
      "      LEFT JOIN portal_rechnungen r ON r.invoice_id = f.quelle_id AND r.customer_id = v_kunde\n"
      f"      WHERE f.quelle = 'invoices' AND {_SICHTBAR}\n"
@@ -83,7 +86,7 @@ _FUNKTIONEN = (
      "           NULL::numeric, NULL::boolean, NULL::text,\n"
      "           (SELECT g.id FROM portal_freigaben g WHERE g.quelle = 'invoices' AND g.quelle_id = m.invoice_id AND portal_sichtbar(g.id, v_kunde)\n"
      "             ORDER BY g.id DESC LIMIT 1),\n"
-     "           q.auftrag, q.objekt\n"
+     "           q.auftrag, (SELECT nullif(btrim(ob.title), '') FROM orders ob WHERE ob.order_number = q.auftrag)::text, q.objekt\n"
      "      FROM portal_freigaben f CROSS JOIN LATERAL portal_quelle(f.quelle, f.quelle_id) q JOIN reminders m ON m.id = f.quelle_id\n"
      f"      WHERE f.quelle = 'reminders' AND {_SICHTBAR}\n"
      "    ORDER BY 8 DESC, 4 DESC;\n"
@@ -94,11 +97,11 @@ _FUNKTIONEN = (
      "$$"),
     ("portal_termine", "p_sitzung text",
      "CREATE OR REPLACE FUNCTION portal_termine(p_sitzung text)\n"
-     "RETURNS TABLE (ergebnis text, minuten integer, stand timestamp, auftrag text, objekt text, von date, bis date)\n"
+     "RETURNS TABLE (ergebnis text, minuten integer, stand timestamp, auftrag text, betreff text, objekt text, von date, bis date)\n"
      f"LANGUAGE plpgsql SECURITY DEFINER {_PFAD} AS $$\n"
      + _kopf("termine", _LEER_TERMIN) +
      "  RETURN QUERY\n"
-     "    SELECT 'ok'::text, NULL::integer, v_stand, o.order_number::text, portal_adresse(p.property_id), t.von, t.bis\n"
+     "    SELECT 'ok'::text, NULL::integer, v_stand, o.order_number::text, nullif(btrim(o.title), '')::text, portal_adresse(p.property_id), t.von, t.bis\n"
      "      FROM portal_termine t JOIN orders o ON o.id = t.order_id JOIN projects p ON p.id = o.project_id\n"
      "      WHERE t.customer_id = v_kunde AND o.customer_id = v_kunde AND o.status IN ('laeuft', 'pausiert') AND portal_projekt_offen(p.id)\n"
      "    ORDER BY t.von, t.order_id, t.id;\n"
@@ -110,8 +113,8 @@ _FUNKTIONEN = (
     ("portal_uebersicht", "p_sitzung text",
      "CREATE OR REPLACE FUNCTION portal_uebersicht(p_sitzung text)\n"
      "RETURNS TABLE (ergebnis text, minuten integer, stand timestamp, offen_anzahl integer, offen_summe numeric, faellig_titel text, faellig_nummer text,\n"
-     "  faellig_am date, einsatz_von date, einsatz_bis date, einsatz_auftrag text, einsatz_objekt text, unterlagen integer, unterlage_titel text,\n"
-     "  unterlage_datum date, fotos integer, foto_am date)\n"
+     "  faellig_am date, einsatz_von date, einsatz_bis date, einsatz_auftrag text, einsatz_betreff text, einsatz_objekt text, unterlagen integer,\n"
+     "  unterlage_titel text, unterlage_datum date, fotos integer, foto_am date)\n"
      f"LANGUAGE plpgsql SECURITY DEFINER {_PFAD} AS $$\n"
      + _kopf("uebersicht", _LEER_UEBERSICHT).replace("  v_stand timestamp;\n", "  v_stand timestamp;\n  v_heute date;\n") +
      "  v_heute := ((portal_jetzt() AT TIME ZONE 'utc') AT TIME ZONE 'Europe/Berlin')::date;\n"
@@ -125,7 +128,7 @@ _FUNKTIONEN = (
      "        WHERE s.quelle = 'invoices' AND r.customer_id = v_kunde AND r.zustand IN ('offen', 'teilweise_bezahlt') AND r.offen > 0),\n"
      "    faellig AS (SELECT o.art_text, o.nummer, o.faellig FROM offen o ORDER BY o.faellig NULLS LAST, o.datum, o.invoice_id LIMIT 1),\n"
      "    einsatz AS (\n"
-     "      SELECT t.von, t.bis, o.order_number, portal_adresse(p.property_id) AS objekt\n"
+     "      SELECT t.von, t.bis, o.order_number, nullif(btrim(o.title), '') AS betreff, portal_adresse(p.property_id) AS objekt\n"
      "        FROM portal_termine t JOIN orders o ON o.id = t.order_id JOIN projects p ON p.id = o.project_id\n"
      "        WHERE t.customer_id = v_kunde AND o.customer_id = v_kunde AND o.status IN ('laeuft', 'pausiert') AND portal_projekt_offen(p.id)\n"
      "          AND t.bis >= v_heute\n"
@@ -133,7 +136,8 @@ _FUNKTIONEN = (
      "    unterlagen AS (SELECT s.id, s.titel, s.datum FROM sichtbar s WHERE s.art NOT IN ('rechnung', 'mahnung', 'foto')),\n"
      "    letzte AS (SELECT u.titel, u.datum FROM unterlagen u ORDER BY u.datum DESC, u.id DESC LIMIT 1)\n"
      "    SELECT 'ok'::text, NULL::integer, v_stand, (SELECT count(*)::integer FROM offen), (SELECT coalesce(sum(o.offen), 0) FROM offen o),\n"
-     "           fa.art_text::text, fa.nummer::text, fa.faellig, e.von, e.bis, e.order_number::text, e.objekt, (SELECT count(*)::integer FROM unterlagen),\n"
+     "           fa.art_text::text, fa.nummer::text, fa.faellig, e.von, e.bis, e.order_number::text, e.betreff::text, e.objekt,\n"
+     "           (SELECT count(*)::integer FROM unterlagen),\n"
      "           l.titel::text, l.datum, (SELECT count(*)::integer FROM sichtbar s WHERE s.art = 'foto'),\n"
      "           (SELECT ((max(s.freigegeben_am) AT TIME ZONE 'utc') AT TIME ZONE 'Europe/Berlin')::date FROM sichtbar s WHERE s.art = 'foto')\n"
      "      FROM (SELECT 1) AS eins LEFT JOIN faellig fa ON true LEFT JOIN einsatz e ON true LEFT JOIN letzte l ON true;\n"
@@ -142,7 +146,7 @@ _FUNKTIONEN = (
 )
 
 # Die Migrationen mit dem Text dieser Funktionen, älteste zuerst
-MIGRATIONEN = ("d7a3f9c2e5b1",)
+MIGRATIONEN = ("d7a3f9c2e5b1", "f8b2d6a4c9e1")  # f8b2d6a4c9e1 seit 1.11.43: der Betreff
 
 # Name -> Argumente der Funktionen, die der Benutzer des Portals aufrufen darf (app/portal/rechte.py::FUNKTIONEN nimmt diese dazu)
 FUER_DAS_PORTAL = {name: argumente for name, argumente, _sql in _FUNKTIONEN}
