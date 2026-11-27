@@ -58,7 +58,8 @@ KEIN_ZUGRIFF = frozenset({
     'outlook_delete_orders', 'outlook_series_occurrences', 'outlook_sync_settings', 'payment_allocations', 'payment_refund_sources', 'payment_terms',
     'payments', 'personalnummern_vergeben', 'planning_holidays', 'planning_region_settings', 'planning_school_holiday_sync',
     'planning_school_holidays', 'planning_settings', 'planning_slot_capacity', 'planning_slot_employees', 'planning_slot_resources',
-    'planning_slots', 'portal_bremsen', 'portal_codes', 'portal_freigaben', 'portal_post', 'portal_sitzungen', 'portal_zugaenge', 'portal_zugriffe',
+    'planning_slots', 'portal_bremsen', 'portal_codes', 'portal_freigaben', 'portal_post', 'portal_rechnungen', 'portal_schaufenster', 'portal_sitzungen',
+    'portal_termine', 'portal_zugaenge', 'portal_zugriffe',
     'productive_hours_settings', 'project_documents', 'project_participants', 'project_pipeline_columns', 'project_profiles', 'projects',
     'properties', 'property_documents', 'quote_document_meta', 'quote_employee_assignments', 'quote_item_calculations', 'quote_item_layouts',
     'quote_item_material_calculations', 'quote_items', 'quote_sections', 'quotes', 'recurring_cost_documents', 'recurring_cost_settings',
@@ -89,6 +90,7 @@ VERBOTEN = frozenset({
     'orders', 'order_items', 'invoices', 'invoice_items', 'payments', 'payment_allocations', 'reminders', 'defects', 'defect_events', 'defect_files',
     'service_reports', 'service_report_photos', 'calendar_events', 'tasks',
     'portal_zugaenge', 'portal_sitzungen', 'portal_codes', 'portal_post', 'portal_zugriffe', 'portal_bremsen', 'portal_freigaben',
+    'portal_rechnungen', 'portal_termine', 'portal_schaufenster',  # seit 1.11.41 (P2d): das Schaufenster liest nur eine Funktion der Datenbank
 })
 # LESEN genau so (Bauplan P1 mit Nachtrag N1) -- eine weitere Tabelle nur nach Entscheidung des Betriebs
 LESEN_GENAU = {

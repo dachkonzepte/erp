@@ -855,3 +855,25 @@ Probendatei `gegenprobe_11140.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.40-2 – Meldung geht mit dem ersten Kreuz | Zeile weg | rot (Klicktest) |
 | 1.11.40-3 – kein Knopf an der Datei eines anderen Kunden | Prüfung weg | rot (Klicktest) |
 | Zu 4 – die Vorschauen laden | falsche Adresse der Vorschau | rot (Klicktest: „jede Vorschau lädt“) |
+
+## 1.11.41: Kundenportal P2d, Teil 1 -- das Schaufenster
+
+Probendatei `gegenprobe_11141.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.41-3 – offen nur, was das ERP mahnt | Einbehalt nicht abgezogen | rot (`test_einbehalt_und_skonto_nie_offen_nie_ueberfaellig`) |
+| 1.11.41-2 – Zustand wie das ERP | „teilweise bezahlt“ nie | rot (`test_zustaende_wie_erwartet_und_wie_das_erp`) |
+| 1.11.41-4 – nur mit Freigabe | alle Rechnungen des Kunden | rot (`test_nur_rechnungen_mit_gueltiger_freigabe_fuer_den_kunden`) |
+| 1.11.41-4 – Kette gilt heute | Kette nicht geprüft | rot (dieselbe) |
+| 1.11.41-5 – nur feste Einsätze | Status nicht geprüft | rot (`test_termine_feste_baustellentage_je_auftrag_mit_unterbrechung`) |
+| 1.11.41-5 – laufende und pausierte Aufträge | Auftragsstatus nicht geprüft | rot (`test_termine_nie[storniert]`) |
+| 1.11.41-5 – offene Projekte | Projekt nicht geprüft | rot (`test_termine_nie[archiv]`) |
+| 1.11.41-5 – Tage je Person | alle Tage des Einsatzes | rot (`test_termine_feste_baustellentage_je_auftrag_mit_unterbrechung`) |
+| 1.11.41-8 – Modul aus leert | Modul nicht geprüft | rot (`test_alle_nur_portal_an_nicht_archiv_und_modul_aus_leert`) |
+| 1.11.41-6 – Liste der Tabellen | `payments` aus der Liste | rot (Liste und gelesene Tabellen) |
+| 1.11.41-6 – jede Tabelle weckt | kein Auslöser an `orders` | rot (`test_pg_jede_tabelle_weckt_je_anweisung_einmal[orders]`) |
+| 1.11.41-7 – Weckruf des Schaufensters | nicht gehört | rot (PostgreSQL: „Portal aus: Zeile weg“) |
+| 1.11.41-7 – Weckruf der Freigaben | nicht gehört | rot (PostgreSQL: „zurückgenommen: Zeile weg“) |
+| 1.11.41-9 – Fehler hält nicht an | ohne try | rot (`test_ein_fehler_im_schaufenster_haelt_den_postboten_nicht_an`) |
+| 1.11.41-1 – Migration wörtlich | FOR EACH ROW in der Migration | rot (`test_migration_traegt_die_anweisungen_woertlich`) |

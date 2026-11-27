@@ -54,3 +54,7 @@ FREIGABE_QUELLEN = ("sent_documents", "invoices", "reminders", "service_reports"
 KOPIE_FEHLER = ("zu_gross", "nicht_lesbar", "falscher_typ", "pruefsumme", "abbruch", "fehlt")
 # Typ einer Kopie (ab P2b): nur PDF und JPEG (Fotos werden neu kodiert, Bauplan P2, B5/B6).
 KOPIE_TYPEN = ("application/pdf", "image/jpeg")
+# Zustand einer Rechnung im Schaufenster (seit 1.11.41, Stufe P2d; Bauplan P2, B3, Entscheidung P2-7): wie das ERP sie zählt (app/portal_schaufenster.py)
+# -- „offen“ ist nur, was das ERP mahnen würde; ein offener Einbehalt oder ein genutztes Skonto ist nie offen. „ohne“: eine Rechnung, die nie offen ist (über
+# 0 € oder weniger, keine Endrechnung).
+RECHNUNG_ZUSTAENDE = ("offen", "teilweise_bezahlt", "bezahlt", "guthaben", "enthalten", "storniert", "storno", "ohne")

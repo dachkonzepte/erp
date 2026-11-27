@@ -25,10 +25,31 @@ ANWEISUNGEN = (
 )
 
 
-def anweisungen(schema: str) -> list[str]:
+# Seit 1.11.41 (Stufe P2d; Bauplan P2, B3, Nachtrag 2 des Betriebs): das Schaufenster (Zahlstand, Termine) rechnet der Postbote neu, sobald sich an einer
+# dieser Tabellen etwas ändert -- ein Auslöser auf Anweisungsebene je Tabelle, NOTIFY portal_schaufenster ohne Inhalt. Anders als ein Listener am Flush sieht er
+# auch Massen-Updates, Skripte und SQL in Migrationen. Er kennt die geänderten Zeilen nicht -- der Postbote rechnet deshalb jeden Kunden mit Portal neu (wenige).
+# Kein Merker in einer Tabelle: er wäre eine Zeile, an der jeder Schreibweg dieser Tabellen auf den anderen wartete; nach einem Neustart rechnet der Postbote
+# ohnehin alles neu, dazu alle 15 Minuten. Eine neue Tabelle, die Zahlstand oder Termine ändert, kommt in TABELLEN_SCHAUFENSTER (mit neuer Migration).
+KANAL_SCHAUFENSTER = "portal_schaufenster"
+TABELLEN_SCHAUFENSTER = ("invoices", "invoice_items", "invoice_deductions", "payments", "payment_allocations", "orders", "projects", "customers",
+                         "planning_slots", "planning_slot_employees")
+ANWEISUNGEN_SCHAUFENSTER = (
+    "CREATE OR REPLACE FUNCTION portal_schaufenster_geweckt() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, @SCHEMA@, pg_temp AS $$\n"
+    "BEGIN\n"
+    f"  PERFORM pg_notify('{KANAL_SCHAUFENSTER}', '');\n"
+    "  RETURN NULL;\n"
+    "END\n"
+    "$$",
+    *(f"CREATE OR REPLACE TRIGGER portal_schaufenster_geweckt AFTER INSERT OR UPDATE OR DELETE ON {t}\n"
+      "FOR EACH STATEMENT EXECUTE FUNCTION portal_schaufenster_geweckt()" for t in TABELLEN_SCHAUFENSTER),
+    "REVOKE ALL ON FUNCTION portal_schaufenster_geweckt() FROM PUBLIC",
+)
+
+
+def anweisungen(schema: str, liste: tuple = ANWEISUNGEN) -> list[str]:
     from .rechte import _name
     schema = _name(schema)
-    return [a.replace("@SCHEMA@", schema) for a in ANWEISUNGEN]
+    return [a.replace("@SCHEMA@", schema) for a in liste]
 
 
 def pg_anlegen(target, connection, **kw):
@@ -40,3 +61,7 @@ def pg_anlegen(target, connection, **kw):
     schema = connection.exec_driver_sql("SELECT current_schema()").scalar()
     for a in anweisungen(schema):
         connection.exec_driver_sql(a)
+    # seit 1.11.41: das Schaufenster -- nur, wenn alle Tabellen der Liste da sind (create_all() für einzelne Tabellen)
+    if all(connection.exec_driver_sql(f"SELECT to_regclass('{t}') IS NOT NULL").scalar() for t in TABELLEN_SCHAUFENSTER):
+        for a in anweisungen(schema, ANWEISUNGEN_SCHAUFENSTER):
+            connection.exec_driver_sql(a)

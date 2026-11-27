@@ -158,6 +158,7 @@ FESTE_WERTE = {
     "portal_sitzungen.beendet_grund": [("app.portal.werte", "mod.SITZUNG_ENDE")],
     "portal_zugriffe.aktion": [("app.portal.werte", "mod.AKTIONEN")],
     "portal_zugriffe.ergebnis": [("app.portal.werte", "mod.ERGEBNISSE")],
+    "portal_rechnungen.zustand": [("app.portal.werte", "mod.RECHNUNG_ZUSTAENDE")],  # seit 1.11.41 (P2d): Schaufenster
     "inspection_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],
     "inspection_items.result": [("app.service_report_pdf", "mod.RESULT_LABELS")],
     "inspection_template_items.item_type": [("app.inspection_templates", "mod.ITEM_TYPES")],

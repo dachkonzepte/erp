@@ -61,6 +61,10 @@ KEIN_TEIL = {
                                         "Funktionen der Datenbank prüfen das Archiv des Kunden selbst; ein neuer Zugang ist ein neuer Verweis (abgelehnt)",
     ("portal_freigaben", "customer_id"): "Freigabe fürs Kundenportal (seit 1.11.31, P2a): Zurücknehmen muss auch im Archiv gehen; im Archiv sieht der Kunde "
                                          "nichts (keine Sitzung); eine neue Freigabe ist ein neuer Verweis (abgelehnt)",
+    # seit 1.11.41 (P2d): das Schaufenster rechnet der Postbote -- für einen Kunden im Archiv leert er es (nur löschen), neue Zeilen nur für Kunden außerhalb
+    ("portal_rechnungen", "customer_id"): "Schaufenster des Kundenportals: abgeleitet, der Postbote leert es für einen Kunden im Archiv",
+    ("portal_termine", "customer_id"): "Schaufenster des Kundenportals: abgeleitet, der Postbote leert es für einen Kunden im Archiv",
+    ("portal_schaufenster", "customer_id"): "Schaufenster des Kundenportals: abgeleitet, der Postbote leert es für einen Kunden im Archiv",
 }
 
 # Schreibende Routen, deren Pfad einen Teil nennt, ohne archiv_vorab() -- je mit Grund

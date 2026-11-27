@@ -6838,6 +6838,57 @@ class PortalFreigabe(Base):
     kopie_fehler: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
 
+class PortalRechnung(Base):
+    """Schaufenster des Kundenportals (seit 1.11.41, Stufe P2d; Bauplan P2, B3): je festgeschriebener Rechnung eines Kunden mit Portal ihr Zahlstand, wie das
+    ERP ihn zeigt (app/portal_schaufenster.py aus app/invoices.py::invoice_overview_rows()). Die Funktionen der Datenbank lesen nur das und rechnen keinen
+    Zahlstand nach. Der Postbote legt die Zeilen eines Kunden je Lauf neu an; ohne Fremdschlüssel auf Rechnung und Auftrag (wie portal_freigaben). Der Benutzer
+    des Portals hat auf die Tabelle kein Recht (app/portal/rechte.py)."""
+
+    __tablename__ = "portal_rechnungen"
+    __table_args__ = (
+        CheckConstraint(portal_in("zustand", portal_werte.RECHNUNG_ZUSTAENDE), name="ck_portal_rechnung_zustand"),
+        UniqueConstraint("invoice_id", name="uq_portal_rechnung_invoice"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    invoice_id: Mapped[int] = mapped_column()
+    order_id: Mapped[int] = mapped_column()
+    nummer: Mapped[str] = mapped_column(String(50))
+    art_text: Mapped[str] = mapped_column(String(120))
+    datum: Mapped[date] = mapped_column(Date)
+    faellig: Mapped[date | None] = mapped_column(Date, nullable=True)
+    brutto: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    zustand: Mapped[str] = mapped_column(String(20))
+    offen: Mapped[Decimal] = mapped_column(Numeric(12, 2), server_default="0")  # offen (mahnfähig) bzw. beim Guthaben der Betrag des Guthabens
+    ueberfaellig: Mapped[bool] = mapped_column(Boolean, server_default="0")
+    bezug_nummer: Mapped[str | None] = mapped_column(String(50), nullable=True)  # die Schlussrechnung (enthalten) bzw. die stornierte Rechnung (Storno)
+    stand_am: Mapped[datetime] = mapped_column(DateTime)
+
+
+class PortalTermin(Base):
+    """Schaufenster des Kundenportals (seit 1.11.41, Stufe P2d; Bauplan P2, B3, Entscheidung P2-8): je Auftrag eines Kunden mit Portal die Folgen von Tagen
+    eines festen Einsatzes der Art Baustelle, an denen jemand eingeplant ist -- ohne Namen, Kolonne, Gerät oder Notiz; vorläufige nie."""
+
+    __tablename__ = "portal_termine"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    order_id: Mapped[int] = mapped_column()
+    von: Mapped[date] = mapped_column(Date)
+    bis: Mapped[date] = mapped_column(Date)
+    stand_am: Mapped[datetime] = mapped_column(DateTime)
+
+
+class PortalSchaufenster(Base):
+    """Seit 1.11.41 (P2d): wann der Postbote das Schaufenster eines Kunden zuletzt gerechnet hat -- das Portal zeigt „Stand: …“, auch ohne eine Zeile."""
+
+    __tablename__ = "portal_schaufenster"
+
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), primary_key=True)
+    stand_am: Mapped[datetime] = mapped_column(DateTime)
+
+
 # Seit 1.10.23 (Antwort F10): ein Vorgang im Archiv ist nur lesbar -- der Archivschutz hängt sich an jeden Flush (vor das Änderungsprotokoll). Hier
 # eingebunden, damit jede Sitzung ihn hat, sobald die Modelle geladen sind (App, Tests, Skripte).
 from . import archivschutz  # noqa: E402,F401

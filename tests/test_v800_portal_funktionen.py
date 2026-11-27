@@ -466,9 +466,10 @@ def test_pg_create_all_legt_die_funktionen_an():
             namen = [r[0] for r in c.execute(text(
                 "SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = :s AND p.proname LIKE 'portal!_%' "
                 "ESCAPE '!' AND array_to_string(p.proconfig, ',') = :cfg ORDER BY 1"), {"s": schema, "cfg": f"search_path=pg_catalog, {schema}, pg_temp"})]
-        # 14 aus P1, seit 1.11.31 dazu Helfer und Funktionen der Unterlagen (P2a), seit 1.11.33 die Funktion des Weckrufs (P2b, app/portal/weckruf.py)
-        assert len(namen) == 14 + len(unterlagen._HELFER) + len(unterlagen._FUNKTIONEN) + 1 and set(rechte.FUNKTIONEN) <= set(namen)
-        assert "portal_freigabe_geweckt" in namen
+        # 14 aus P1, seit 1.11.31 dazu Helfer und Funktionen der Unterlagen (P2a), seit 1.11.33 die Funktion des Weckrufs (P2b, app/portal/weckruf.py),
+        # seit 1.11.41 die des Weckrufs des Schaufensters (P2d)
+        assert len(namen) == 14 + len(unterlagen._HELFER) + len(unterlagen._FUNKTIONEN) + 2 and set(rechte.FUNKTIONEN) <= set(namen)
+        assert {"portal_freigabe_geweckt", "portal_schaufenster_geweckt"} <= set(namen)
     finally:
         engine.dispose()
         with admin.begin() as c:

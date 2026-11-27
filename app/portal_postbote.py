@@ -18,6 +18,10 @@ Der Postbote
 6. seit 1.11.37 (Stufe P2c): wendet im vollen Lauf (beim Start, danach alle 15 Minuten) die automatischen Regeln an (app/portal_freigaben.py::regeln_alle(),
    Bauplan P2, B4.3) -- für jeden Kunden mit Portal an; neue Zeilen wecken über den Auslöser die Kopien. Ein Fehler darin beendet den Postboten nicht (die
    Codes gehen vor): nur die Klasse ins Protokoll, nächster Versuch im nächsten vollen Lauf.
+7. seit 1.11.41 (Stufe P2d): rechnet das Schaufenster (Zahlstand, Termine) jedes Kunden mit Portal neu (app/portal_schaufenster.py::alle()) -- auf den
+   Weckruf portal_schaufenster (LISTEN; Auslöser an den Tabellen aus app/portal/weckruf.py::TABELLEN_SCHAUFENSTER) und den der Freigaben, beim Start und
+   alle 15 Minuten. Ein
+   Fehler darin beendet den Postboten nicht (nur die Klasse ins Protokoll).
 
 Genau ein Postbote: er hält eine Sperre der Datenbank (pg_try_advisory_lock je Schema -- auf dem Server eines, in Tests jedes Wegwerf-Schema für
 sich) -- ein zweiter bricht ab. Ein Auftrag geht nie zweimal hinaus: der
@@ -42,7 +46,7 @@ from . import portal_kopien, portal_mails
 from .audit import record_audit_entry
 from .email_dispatch import DispatchConflict
 from .models import Customer, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang, PortalZugriff
-from .portal import pruefwerte
+from .portal import pruefwerte, weckruf
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +215,19 @@ def regeln(db: Session) -> None:
         logger.info("Postbote: Regeln -- %s neu freigegeben, %s überholt", stand.neu, stand.ueberholt)
 
 
+def schaufenster(db: Session) -> None:
+    """Das Schaufenster jedes Kunden mit Portal neu (seit 1.11.41). Ein Fehler darin beendet den Postboten nicht: nur die Klasse ins Protokoll."""
+    from . import portal_schaufenster
+
+    try:
+        lauf = portal_schaufenster.alle(db)
+    except Exception as e:  # noqa: BLE001 -- die Codes gehen vor; der nächste Weckruf bzw. volle Lauf versucht es wieder
+        db.rollback()
+        logger.error("Postbote: Schaufenster nicht gerechnet (%s)", type(e).__name__)
+        return
+    logger.debug("Postbote: Schaufenster -- %s Kunden, %s Zeilen geleert", lauf.kunden, lauf.geleert)
+
+
 def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehen: float = NACHSEHEN_SEKUNDEN,
            aufraeumen_alle: float = AUFRAEUMEN_SEKUNDEN, ordner=None, kopien_voll_alle: float = KOPIEN_VOLL_SEKUNDEN, foto=None) -> None:
     """Die Schleife des Dienstes: Sperre nehmen (sonst AndererPostbote), LISTEN, dann je Weckruf oder spätestens nach `nachsehen` Sekunden alle
@@ -221,8 +238,9 @@ def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehe
             raise AndererPostbote("Es läuft schon ein Postbote.")
         hoerer.exec_driver_sql(f"LISTEN {KANAL}")
         hoerer.exec_driver_sql(f"LISTEN {portal_kopien.KANAL}")
+        hoerer.exec_driver_sql(f"LISTEN {weckruf.KANAL_SCHAUFENSTER}")  # seit 1.11.41
         roh = hoerer.connection.driver_connection
-        logger.info("Postbote bereit (LISTEN %s, %s)", KANAL, portal_kopien.KANAL)
+        logger.info("Postbote bereit (LISTEN %s, %s, %s)", KANAL, portal_kopien.KANAL, weckruf.KANAL_SCHAUFENSTER)
         if ordner is None:
             logger.warning("Postbote: PORTAL_DATEIEN nicht gesetzt -- keine Kopien für das Kundenportal")
         try:
@@ -239,7 +257,7 @@ def laufen(engine: Engine, *, halt: Callable[[], bool] = lambda: False, nachsehe
 def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, kopien_voll_alle, foto) -> None:
     """Die Arbeit von laufen() zwischen LISTEN und Ende."""
     zuletzt_aufgeraeumt = zuletzt_voll = zuletzt_regeln = None
-    geweckt = mehr = False
+    geweckt = mehr = schaufenster_geweckt = False
     while not halt():
         with Session(engine) as db:
             n = alle(db)
@@ -247,9 +265,12 @@ def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, 
                 zahlen = aufraeumen(db)
                 zuletzt_aufgeraeumt = time.monotonic()
                 logger.info("Postbote: aufgeräumt %s", zahlen)
-            if zuletzt_regeln is None or time.monotonic() - zuletzt_regeln >= kopien_voll_alle:  # seit 1.11.37: im vollen Lauf, vor den Kopien
+            voller_lauf = zuletzt_regeln is None or time.monotonic() - zuletzt_regeln >= kopien_voll_alle
+            if voller_lauf:  # seit 1.11.37: im vollen Lauf, vor den Kopien
                 regeln(db)
                 zuletzt_regeln = time.monotonic()
+            if voller_lauf or schaufenster_geweckt or geweckt:  # seit 1.11.41: dazu auf den Weckruf des Schaufensters und der Freigaben
+                schaufenster(db)
             if ordner is not None:
                 voll = zuletzt_voll is None or time.monotonic() - zuletzt_voll >= kopien_voll_alle
                 if voll or geweckt or mehr:
@@ -258,9 +279,14 @@ def _schleife(engine: Engine, roh, *, halt, nachsehen, aufraeumen_alle, ordner, 
                         zuletzt_voll = time.monotonic()
         if n:
             logger.info("Postbote: %s Aufträge erledigt", n)
-        geweckt = False
+        geweckt = schaufenster_geweckt = False
         for nachricht in roh.notifies(timeout=0 if mehr else nachsehen, stop_after=1):
             geweckt = geweckt or nachricht.channel == portal_kopien.KANAL
+            schaufenster_geweckt = schaufenster_geweckt or nachricht.channel == weckruf.KANAL_SCHAUFENSTER
+        if geweckt or schaufenster_geweckt:  # seit 1.11.41: was schon wartet, gleich mit -- ein Lauf statt einer je Transaktion
+            for nachricht in roh.notifies(timeout=0):
+                geweckt = geweckt or nachricht.channel == portal_kopien.KANAL
+                schaufenster_geweckt = schaufenster_geweckt or nachricht.channel == weckruf.KANAL_SCHAUFENSTER
 
 
 # Seit 1.11.7: der Hinweis auf „Start“ (fester Text, die Oberfläche setzt ihn nur als Text)

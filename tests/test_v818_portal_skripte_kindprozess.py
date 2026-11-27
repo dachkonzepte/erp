@@ -4,7 +4,7 @@ Bis dahin liefen beide in Tests nur im Testprozess bzw. ohne Datenbank -- diesel
 
     e4          ohne Aufruf Rückgabe 1 „0 Anschlüsse, 0 Aufrufe“ und „Noch kein Aufruf“; mit zwei erfundenen Anschlüssen (je zwei Aufrufe in der Bremse
                 des Links) Rückgabe 0 „2 Anschlüsse, 4 Aufrufe“ und „Erwartet nach dem Nachweis mit zwei Geräten: 2“
-    Postbote    „Postbote bereit (LISTEN portal_post, portal_freigabe)“ (seit 1.11.33 auch der Weckruf der Kopien) und „aufgeräumt“; ein zweiter daneben endet mit Rückgabe 3 („Es läuft schon ein Postbote“); der erste
+    Postbote    „Postbote bereit (LISTEN portal_post, portal_freigabe, portal_schaufenster)“ (seit 1.11.33 auch der Weckruf der Kopien, seit 1.11.41 der des Schaufensters) und „aufgeräumt“; ein zweiter daneben endet mit Rückgabe 3 („Es läuft schon ein Postbote“); der erste
                 wird über seine eigene PID beendet (Regel 12)
     Kopien      (seit 1.11.33) mit PORTAL_DATEIEN legt der Postbote zu einer Freigabe die Kopie an -- PDF byte-gleich, Zeile bereit, Kennung des Ordners;
                 ohne Weckruf schon im ersten vollen Lauf
@@ -117,7 +117,7 @@ def test_pg_postbote_als_kindprozess(schema_von_alembic, tmp_path):
     leser = threading.Thread(target=lambda: zeilen.extend(z.rstrip() for z in erster.stdout), daemon=True)
     leser.start()
     try:
-        _bis(lambda: any("Postbote bereit (LISTEN portal_post, portal_freigabe)" in z for z in zeilen), "„Postbote bereit“", erster, zeilen)
+        _bis(lambda: any("Postbote bereit (LISTEN portal_post, portal_freigabe, portal_schaufenster)" in z for z in zeilen), "„Postbote bereit“", erster, zeilen)
         _bis(lambda: any("Postbote: aufgeräumt" in z for z in zeilen), "„aufgeräumt“", erster, zeilen)
         _bis(lambda: any("Postbote: Kopien angelegt 1" in z for z in zeilen), "„Kopien angelegt 1“", erster, zeilen)
         with engine.connect() as c:

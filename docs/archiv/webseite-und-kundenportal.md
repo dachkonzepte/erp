@@ -4094,6 +4094,93 @@ Erwartet: `nginx -t` ohne die Warnung zu „listen … http2“ in dieser Datei 
 Fehler meldet: `sudo cp /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.40 /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo nginx -t && sudo systemctl reload
 nginx`. Rückweg: dieselbe Zeile.
 
+### Umsetzung 1.11.41 (P2d, Teil 1): das Schaufenster
+
+Bauplan P2, B3, mit den Antworten P2-7, P2-8, P2-11 und Nachtrag 2 („Trigger auf Anweisungsebene prüfen“). Das ERP rechnet, die Funktionen der Datenbank lesen
+nur (ab 1.11.42).
+
+- **Tabellen** (Migration `c4e8a2f6b1d3`): `portal_rechnungen` (je Rechnung: Nummer, Art in Worten, Datum, Fälligkeit, Brutto, Zustand, offener Betrag bzw.
+  Guthaben, überfällig, Bezug -- die Schlussrechnung, in der sie enthalten ist, bzw. die stornierte Rechnung --, Stand), `portal_termine` (je Auftrag Folgen von
+  Tagen: von, bis -- keine Spalte für Namen, Kolonne, Gerät, Uhrzeit oder Notiz), `portal_schaufenster` (Stand je Kunde, auch ohne eine Zeile). Kein Recht für
+  den Benutzer des Portals (`KEIN_ZUGRIFF`, `VERBOTEN`), nicht im Archivschutz (abgeleitet; der Postbote leert sie für einen Kunden im Archiv).
+- **Zustand** (`app/portal_schaufenster.py::zustand()`, P2-7) aus `invoice_overview_rows()` -- derselben Rechnung wie Finanzen, Kundenakte und Rechnungslisten:
+  storniert; Storno (mit der Nummer der stornierten); in Schlussrechnung enthalten (mit ihrer Nummer); Guthaben (mit Betrag); sonst offen = offen minus offener
+  Einbehalt -- 0 heißt bezahlt, sonst teilweise bezahlt (mit Zahlung oder Skonto) bzw. offen. „Überfällig“ genau wie die Rechnungsliste (`is_overdue`: mahnfähiger
+  Betrag nach der Fälligkeit). Ein Einbehalt oder ein genutztes Skonto ist damit nie offen und nie überfällig. Dazu „ohne“: eine Rechnung, die nie offen ist
+  (über 0 € oder weniger und keine Endrechnung -- seit 1.8.95 lässt das ERP sie nicht mehr festschreiben, nur Altbestand).
+- **Nur sichtbare Rechnungen** (B7: „Schaufenster-Zeilen nur für sichtbare Rechnungen“): eine Rechnung mit Freigabe für den Kunden, nicht zurückgenommen, deren
+  Kette heute zu ihm führt (`app/portal_freigaben.py::kette()`, wie `portal_quelle()`). Ob ihre Kopie bereit ist, prüft die Funktion der Datenbank.
+- **Termine** (P2-8, P2-11): je laufendem oder pausiertem Auftrag des Kunden (`Order.customer_id`) in einem offenen Projekt (kein Mustervorgang, nicht im Archiv)
+  die Tage fester Einsätze der Art Baustelle, an denen jemand eingeplant ist (Tage je Person wie die Plantafel, `_tage_der_zeile()`), als Folgen von Tagen -- ein
+  leerer Tag in der Mitte trennt. Vorläufige, Kranvermietungen, Einsätze ohne Besetzung, abgeschlossene und stornierte Aufträge nie.
+- **Wann** (`app/portal/weckruf.py::TABELLEN_SCHAUFENSTER`): an zehn Tabellen (`invoices`, `invoice_items`, `invoice_deductions`, `payments`, `payment_allocations`,
+  `orders`, `projects`, `customers`, `planning_slots`, `planning_slot_employees`) ein Auslöser auf Anweisungsebene -- `NOTIFY
+  portal_schaufenster` ohne Inhalt, auch für Massen-Updates, Skripte und SQL in Migrationen. Der Postbote rechnet darauf jeden Kunden mit Portal an und nicht im
+  Archiv neu (wenige) und leert das Schaufenster der übrigen; ebenso auf den Weckruf der Freigaben (eine Rechnung wird sichtbar oder nicht), beim Start und alle
+  15 Minuten (dann auch „überfällig“ nach Mitternacht). Was beim Aufwachen schon wartet, nimmt er in denselben Lauf. Modul aus: alles leer. Ein Fehler darin hält
+  ihn nicht an (nur die Klasse ins Protokoll). Wächter: jede Tabelle, die das Schaufenster liest, steht in der Liste oder mit Grund in `OHNE_WECKRUF`, und
+  jede Tabelle der Liste wird gelesen (`tests/test_v832_portal_schaufenster.py`, gemessen am SQL eines Laufs) -- `payment_refund_sources` deshalb nicht: eine
+  Erstattung aus einem Rest schreibt ohnehin eine Zahlung.
+- Zu Kleinigkeit 1 (1.11.40): mit dieser Version kommt `portal_schaufenster_geweckt()` dazu -- `portal_rechte.py --setzen` meldet danach 47 Anweisungen.
+
+#### Befund: der Betreff für die Gruppen (Änderung zu P2-10, Umsetzung mit P2e)
+
+- **Feld:** `Order.title` (auf der Auftragsbestätigung gedruckt: „Auftragsbestätigung“ und darunter der Titel, `app/order_pdf.py`), beim Beauftragen aus
+  `Quote.title` übernommen (`app/orders.py`) -- auf dem Angebot die Überschrift (`app/quote_framed_pdf.py`). Beide `String(255)`, NOT NULL: jeder Auftrag hat
+  einen. Gesetzt wird `Quote.title` beim Anlegen eines Angebots aus der Eingabe (Neues Angebot, Anfrage übernehmen); danach änderbar, bis zur Beauftragung.
+- **Verlässlich gefüllt -- mit einer Ausnahme:** Schnellauftrag und Kranvermietung nach Aufwand (`app/quick_service_orders.py`) setzen den Titel des Angebots
+  gleich dem Namen des Projekts -- dort ist der Betreff zugleich der interne Projekttitel. Er steht aber auch dort auf dem Angebot bzw. der Auftragsbestätigung,
+  die der Kunde bekam (wenn er sie bekam). Vorschlag für P2e: immer `Order.title` des Auftrags (das, was gedruckt wurde), nie `Project.name`; leer oder nur
+  Leerzeichen -> nur die Nummer. Zählen auf dem Server (nur lesend): `sudo -u postgres psql -d dachkonzepte -tAX -c "select count(*), count(*) filter (where
+  trim(o.title) = ''), count(*) filter (where o.title = p.name) from orders o join projects p on p.id = o.project_id"` -- Aufträge, davon ohne Titel, davon Titel
+  gleich dem Projektnamen.
+
+#### Festlegungen 1.11.41 (Bitte bestätigen)
+
+1. Zahlstand und Termine rechnet nur das ERP; der Postbote legt sie in `portal_rechnungen`, `portal_termine`, `portal_schaufenster` ab, der Benutzer des Portals hat darauf kein Recht.
+2. Zustände einer Rechnung: offen, teilweise bezahlt, bezahlt, Guthaben, in Schlussrechnung enthalten, storniert, Storno (mit Nummer), „ohne“ für Altbestand, der nie offen ist.
+3. Offen ist nur der mahnfähige Betrag (offen minus Einbehalt), überfällig wie die Rechnungsliste -- Einbehalt und Skonto nie offen, nie überfällig.
+4. Zeilen nur für sichtbare Rechnungen (Freigabe für den Kunden, nicht zurückgenommen, Kette gilt heute).
+5. Termine: feste Baustellentage laufender und pausierter Aufträge in offenen Projekten, Tage je Person, ein leerer Tag trennt; ohne Namen, Kolonne, Gerät, Uhrzeit.
+6. Aktualität über Auslöser auf Anweisungsebene an zehn Tabellen (Weckruf ohne Inhalt); jede gelesene Tabelle steht in der Liste oder mit Grund daneben, jede der Liste wird gelesen.
+7. Der Postbote rechnet alle Kunden mit Portal neu: auf beide Weckrufe, beim Start, alle 15 Minuten; wartende Weckrufe in einem Lauf.
+8. Modul aus: Schaufenster leer; Portal aus oder Kunde im Archiv: seine Zeilen weg.
+9. Ein Fehler im Schaufenster hält den Postboten nicht an; im Protokoll nur die Klasse.
+
+#### Abweichungen vom Bauplan (1.11.41)
+
+- B3 und Nachtrag 2: **kein Merker** `portal_veraltet`. Der Auslöser setzt nur `NOTIFY`. Grund: ein Merker wäre eine Zeile, an der jeder Schreibweg der zehn
+  Tabellen auf den anderen wartete (Sperre bis zum Commit); der Postbote rechnet ohnehin alle Kunden mit Portal neu, nach einem Neustart alles, dazu alle 15
+  Minuten. Geht ein Weckruf verloren (Postbote steht), holt der Start bzw. der nächste volle Lauf ihn nach; „Stand“ zeigt das Alter.
+- B3 „jeder Schreibweg markiert (Listener am Flush)“: statt eines Listeners ein Auslöser je Tabelle (wie Nachtrag 2 vorschlägt) -- er sieht auch Massen-Updates,
+  Skripte und SQL in Migrationen. Der Wächter prüft statt der Schreibwege die gelesenen Tabellen.
+- P2-8 („kommende und die der laufenden Aufträge“): alle Tage laufender und pausierter Aufträge, auch vergangene (die Seite „Termine“ hat den Zustand „nur
+  vergangene“); abgeschlossene Aufträge ohne Termine -- wie die Plantafel.
+- Zustand „ohne“ ist neu (nur Altbestand); die Seite zeigt dann keinen Zustand.
+
+#### Tests und Prüfung 1.11.41
+
+`tests/test_v832_portal_schaufenster.py` neu (Wächter B3 mit Abschlag, Teilzahlung, Skonto, Einbehalt, Storno, Schlussrechnung mit Abzug und Guthaben gegen
+`dunning_state()` und `invoice_to_dict()`; nur sichtbare Rechnungen; Termine; Lauf; Liste der Tabellen; gelesene Tabellen; Migration; unter PostgreSQL je Tabelle
+ein Weckruf je Anweisung und der Postbote auf beide Weckrufe). Angepasst, nur Aufbau: `tests/test_v799_portal_rechte.py` (die drei Tabellen in `KEIN_ZUGRIFF` und
+`VERBOTEN`), `tests/test_v793_archivschutz.py` (in `KEIN_TEIL`), `tests/test_v364_feste_werte_spaltenlaenge.py` (`portal_rechnungen.zustand`),
+`tests/test_v805_portal_postbote.py` (`LEEREN`: das Schaufenster vor den Kunden). Angepasste Erwartung: `tests/test_v800_portal_funktionen.py::test_pg_create_all_legt_die_funktionen_an` -- alt 14 + Helfer + Funktionen + 1 (= 25 Funktionen nach `create_all()`), neu + 2 (= 26, dazu `portal_schaufenster_geweckt`); `tests/test_v818_portal_skripte_kindprozess.py::test_pg_postbote_als_kindprozess` -- alt „Postbote bereit (LISTEN portal_post,
+portal_freigabe)“, neu „…, portal_schaufenster)“ (der dritte Kanal). Gegenproben: 15, alle rot aus dem geprüften Grund.
+
+#### Server-Schritt P2d-1 (nach dem Einspielen von 1.11.41)
+
+`update.sh` spielt die Migration ein und startet den Postboten neu. Danach nur lesend:
+
+```bash
+journalctl -u erp-portalpost --since "-3 min" --no-pager | grep -E "Postbote bereit|Schaufenster"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select count(*) from pg_trigger where tgname = 'portal_schaufenster_geweckt'"
+sudo -u postgres psql -d dachkonzepte -tAX -c "select (select count(*) from portal_schaufenster), (select count(*) from customers where portal_aktiv and archiviert_am is null)"
+```
+
+Erwartet: „Postbote bereit (LISTEN portal_post, portal_freigabe, portal_schaufenster)“ und keine Zeile „Schaufenster nicht gerechnet“; `10`; zwei gleiche Zahlen
+(mit eingeschaltetem Modul; ausgeschaltet `0|…`). Abbrechen, wenn „Schaufenster nicht gerechnet“ erscheint: die Zeile in den Chat (sie nennt nur die Klasse). Rückweg:
+keiner nötig -- das Portal liest die Tabellen erst ab 1.11.42.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
@@ -4139,7 +4226,7 @@ journalctl -u erp-portalpost --since "-3 min" --no-pager | grep -E "Postbote ber
 ls -la /srv/dk-portal/dateien
 ```
 
-Erwartet: `active`; `MemoryHigh=671088640`, `MemoryMax=805306368`, `UMask=0027`, `OOMPolicy=continue` (seit 1.11.35); „Postbote bereit (LISTEN portal_post, portal_freigabe)“, kein „PORTAL_DATEIEN nicht
+Erwartet: `active`; `MemoryHigh=671088640`, `MemoryMax=805306368`, `UMask=0027`, `OOMPolicy=continue` (seit 1.11.35); „Postbote bereit (LISTEN portal_post, portal_freigabe)“ (ab 1.11.41 dazu „, portal_schaufenster“), kein „PORTAL_DATEIEN nicht
 gesetzt“, kein „Kopien nicht abgeglichen“; im Ordner nur `.datenbank` (`-rw-r----- tobias www-data`). Abbruch bei „Kopien nicht abgeglichen“ (Klasse in den
 Chat). Rückweg: `git show bd0474f:scripts/server/erp-portalpost.service | sudo tee /etc/systemd/system/erp-portalpost.service > /dev/null` (Stand 1.11.32),
 daemon-reload, Neustart.

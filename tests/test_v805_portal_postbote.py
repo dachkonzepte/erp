@@ -31,7 +31,8 @@ from tests.test_v804_portal_mails import GraphMitAnfrage
 
 PG_URL = os.getenv("ERP_TEST_POSTGRES_URL")
 ROOT = Path(__file__).resolve().parents[1]
-LEEREN = ("portal_zugriffe", "portal_codes", "portal_post", "portal_sitzungen", "portal_zugaenge", "portal_bremsen", "email_dispatches", "customers")
+LEEREN = ("portal_zugriffe", "portal_codes", "portal_post", "portal_sitzungen", "portal_zugaenge", "portal_bremsen", "email_dispatches", "portal_rechnungen",
+          "portal_termine", "portal_schaufenster", "customers")  # seit 1.11.41: das Schaufenster des Postboten vor den Kunden
 
 
 @pytest.fixture(scope="module")
