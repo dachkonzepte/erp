@@ -110,18 +110,11 @@ input.code[aria-invalid="true"] { border: 2px solid var(--ds-fehler); }
 .gruss-satz { font-size: 15px; color: var(--ds-text-2); max-width: 640px; }
 .d-raster { display: flex; flex-direction: column; gap: 16px; }
 .d-seite { display: contents; }
-.bald { order: 2; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
 .kontakt { order: 1; }
 .anmeldung { order: 3; }
-.bald-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kennzeichen { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-ecke-rund);
                background: var(--ds-flaeche-2); color: var(--ds-text-2); font-size: 12px; font-weight: 600; text-align: center; }
 .kennzeichen svg { width: 10px; height: 10px; flex: none; }
-.bald-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; font-size: 15px; }
-.bald-liste li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid var(--ds-linie); }
-.bald-liste li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.bald-titel { font-weight: 400; }
-.bald-fuss { padding-top: 12px; border-top: 1px solid var(--ds-linie); }
 .kontakt { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .anschrift { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ds-stark); }
 .kontakt-knopf {
@@ -173,13 +166,8 @@ dialog.blatt .text { font-size: 15px; }
   .gruss-satz { font-size: 17px; color: var(--ds-stark); }
   .d-raster { flex-direction: row; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
   .d-seite { display: flex; flex-direction: column; gap: 24px; flex: 1 1 300px; min-width: 0; }
-  .bald { flex: 999 1 520px; min-width: 0; padding: 24px 28px; gap: 12px; }
-  .bald, .kontakt, .anmeldung { order: 0; }  /* breit: die Liste links, Kontakt und Anmeldung rechts */
-  .bald h2, .kontakt h2, .anmeldung h2 { font-size: 20px; }
+  .d-haupt { flex: 999 1 520px; min-width: 0; }  /* seit 1.11.46: die Kacheln neben Kontakt und Anmeldung */
   .kennzeichen { height: 28px; padding: 0 11px; font-size: 13px; }
-  .bald-liste { font-size: 16px; }
-  .bald-liste li { padding: 12px 0; }
-  .bald-liste .bald-titel { font-weight: 600; }
   .kontakt, .anmeldung { padding: 24px; gap: 12px; }
   .kontakt-d .kontakt-knopf.telefon { justify-content: flex-start; gap: 12px; min-height: 44px; border: 1px solid var(--ds-linie-stark); border-radius: 10px;
                                       background: var(--ds-flaeche); color: var(--ds-text); font-size: 15px; }
@@ -192,4 +180,112 @@ dialog.blatt .text { font-size: 15px; }
   .fuss-innen { padding: 18px 24px; }
   .fuss-copy { display: inline; }
   dialog.blatt { margin: auto; }
+}
+
+/* --- Bereiche (seit 1.11.46, Stufe P2e; Entwürfe P2, Seiten 1–5) ------------------------------------------------------------------------ */
+.reiter { display: flex; gap: 4px; margin: -8px 0 20px; border-bottom: 1px solid var(--ds-linie); overflow-x: auto; }
+.reiter-knopf { display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent;
+  background: none; color: var(--ds-text-2); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.reiter-knopf .symbol { width: 18px; height: 18px; }
+.reiter-knopf[aria-current="page"] { color: var(--ds-text); font-weight: 600; border-bottom-color: var(--ds-aktion); }
+.reiter-knopf[aria-current="page"] .symbol { color: var(--ds-aktion); }
+.bereich { display: flex; flex-direction: column; gap: 16px; }
+.bereich > h1 { outline: none; }
+.bereich-satz { max-width: 720px; color: var(--ds-text-2); }
+.liste { display: flex; flex-direction: column; gap: 16px; }
+.d-haupt { display: flex; flex-direction: column; gap: 12px; }
+.kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kachel-karte { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 20px; text-align: left; font: inherit; color: inherit;
+  cursor: pointer; min-height: 150px; }
+.kachel-karte:hover { border-color: var(--ds-linie-stark); }
+.kachel-kopf { display: flex; align-items: center; gap: 12px; width: 100%; }
+.kachel-name { font-size: 15px; font-weight: 600; color: var(--ds-stark); }
+.kachel-kopf .chip { margin-left: auto; }
+.kachel-wert { font-family: var(--ds-schrift-titel); font-size: 24px; font-weight: 700; line-height: 1.25; margin-top: 6px; }
+.kachel-satz { overflow-wrap: anywhere; }
+.kachel-link { margin-top: auto; padding-top: 6px; color: var(--ds-link); font-weight: 600; font-size: 15px; }
+.stand { display: flex; gap: 6px; align-items: center; }
+.stand.alt { padding: 10px 14px; border-radius: 12px; background: var(--ds-signal-hell); color: var(--ds-stark); }
+.karte.leer, .karte.laedt { padding: 20px; display: flex; flex-direction: column; gap: 6px; }
+.platzhalter-zeile { height: 44px; border-radius: 10px; background: var(--ds-flaeche-2); }
+.gruppe { padding: 20px; display: flex; flex-direction: column; }
+.gruppe-kopf { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--ds-linie); }
+.gruppe-titel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gruppe-titel h2 { overflow-wrap: anywhere; }
+.gruppe-zahl { white-space: nowrap; }
+.zeile { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--ds-linie); }
+.gruppe > .zeile:last-child, .zeile-block:last-child > .zeile:last-child { border-bottom: 0; padding-bottom: 0; }
+.zeile-block > .zeile:not(:last-child) { border-bottom: 0; }
+.zeile-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.zeile-titel { font-weight: 600; overflow-wrap: anywhere; }
+.zeile-art-breit { width: 170px; flex: none; }
+.zeile-datum { width: 110px; flex: none; }
+.betrag { width: 130px; flex: none; text-align: right; white-space: nowrap; }
+.zustand { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 220px; flex: none; }
+.zustand-hinweis { font-size: 14px; color: var(--ds-signal-text); }
+.chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  background: var(--ds-flaeche-2); color: var(--ds-text-2); }
+.chip.warn { background: var(--ds-signal-hell); color: var(--ds-signal-text); }
+.chip.ok { background: var(--ds-aktion-hell); color: var(--ds-aktion-text); }
+.chip.info { background: var(--ds-info-hell); color: var(--ds-info-text); }
+.datei-knoepfe { display: flex; gap: 8px; flex: none; margin-left: auto; }
+.datei-knoepfe .knopf { width: auto; padding: 0 18px; }
+.datei-knoepfe .herunterladen { padding: 0 12px; }
+.mahnung { padding-left: 54px; }
+.mahnung-linie { width: 16px; height: 14px; flex: none; border-left: 2px solid var(--ds-linie-stark); border-bottom: 2px solid var(--ds-linie-stark);
+  border-bottom-left-radius: 4px; margin-top: -10px; }
+.mahnung .zeile-titel { font-weight: 500; flex: 1 1 auto; }
+.r-summe { display: flex; gap: 32px; align-items: flex-start; padding: 20px; }
+.r-summe-zahl { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.r-offen { font-family: var(--ds-schrift-titel); font-size: 30px; font-weight: 700; }
+.r-summe-text { display: flex; flex-direction: column; gap: 4px; }
+.termin { display: flex; align-items: center; gap: 12px; padding: 12px 0 12px 14px; border-left: 3px solid var(--ds-aktion); margin-top: 12px; }
+.termin.heute { background: var(--ds-aktion-hell); border-radius: 0 10px 10px 0; }
+.termin-text { display: flex; flex-direction: column; flex: 1 1 auto; }
+.termin-wann { font-weight: 600; }
+.gruppe.vergangen .termin { border-left-color: var(--ds-linie-stark); color: var(--ds-text-2); }
+.abschnitt { text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; font-weight: 600; }
+.foto-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding-top: 14px; }
+.foto { aspect-ratio: 1 / 1; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--ds-flaeche-2); cursor: pointer; }
+.foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.foto.ohne-bild img { visibility: hidden; }
+.foto-mehr { margin-top: 14px; }
+.hinweis.neutral { background: var(--ds-flaeche-2); border: 1px solid var(--ds-linie); color: var(--ds-stark); }
+.foto-gross { width: min(100vw, 1100px); max-width: 100vw; height: min(100vh, 900px); max-height: 100vh; padding: 0; border: 0; border-radius: 16px;
+  background: #121416; color: #fff; }
+.foto-gross::backdrop { background: rgba(0, 0, 0, 0.7); }
+.foto-gross-innen { display: flex; flex-direction: column; height: 100%; }
+.foto-gross-kopf { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+.foto-gross-kopf h2 { color: #fff; font-size: 16px; }
+.foto-gross-bild-rahmen { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.foto-gross-bild-rahmen img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.foto-gross-fuss { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 18px; }
+.foto-gross-knoepfe { display: flex; gap: 10px; align-items: center; }
+.foto-gross .knopf.zweit { background: #26292c; color: #fff; border-color: #3a3e42; }
+.foto-gross .knopf.hell { background: #fff; color: #121416; border: 0; flex: 1 1 auto; }
+.foto-gross .knopf { width: auto; }
+@media (max-width: 899.98px) {
+  .zeile { flex-wrap: wrap; }
+  .zustand { width: auto; }
+  .betrag { width: auto; text-align: left; }
+  .r-summe { flex-direction: column; gap: 10px; }
+}
+@media (max-width: 599.98px) {
+  body.angemeldet { padding-bottom: 76px; }
+  .reiter { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; padding: 0; gap: 0; justify-content: space-around; border-top: 1px solid var(--ds-linie);
+    background: var(--ds-flaeche);
+    border-bottom: 0; overflow: visible; }
+  .reiter-knopf { flex-direction: column; gap: 2px; min-height: 64px; padding: 6px 2px; font-size: 11px; border-bottom: 0; border-top: 3px solid transparent; flex: 1 1 0; }
+  .reiter-knopf[aria-current="page"] { border-top-color: var(--ds-aktion); color: var(--ds-aktion-text); }
+  .kacheln { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .kachel-karte { min-height: 0; flex-direction: row; flex-wrap: wrap; border-radius: 0; padding: 14px 16px; }
+  .kacheln .kachel-karte:first-child { border-radius: 16px 16px 0 0; }
+  .kacheln .kachel-karte:last-child { border-radius: 0 0 16px 16px; }
+  .kachel-wert { font-size: 17px; margin-top: 0; }
+  .zeile-art-breit, .zeile-datum { display: none; }
+  .datei-knoepfe .ansehen { display: none; }
+  .zeile-text { cursor: pointer; }
+  .mahnung { padding-left: 28px; }
+  .foto-raster { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .foto-gross { width: 100vw; height: 100vh; border-radius: 0; }
 }

@@ -953,3 +953,18 @@ Probendatei `gegenprobe_11145.py` (Scratchpad); Dateien danach byte-gleich zurü
 | 1.11.45-2 – je Weg die eigene Funktion | Termine rufen Rechnungen | rot (`test_pg_wege_antworten_protokoll_401_und_429`) |
 | 1.11.45-4 – Titel wie auf dem PDF | „Rechnung aus Aufwand“ | rot (`test_titel_der_rechnung_wie_auf_dem_pdf`) |
 | 1.11.45-1 – nur Text | -- | keine eigene Gegenprobe: die Seiten kommen mit 1.11.46 (dort Wächter und Klicktest) |
+
+## 1.11.46: Kundenportal P2e, Teil 3b -- die Seiten nach den Entwürfen
+
+Probendatei `gegenprobe_11146.py` (Scratchpad); Dateien danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.46-1 – Gruppe mit Betreff auf der Seite | nur „Auftrag …“ | rot (Klicktest „Rechnungen: Gruppe mit Betreff und Adresse“) |
+| 1.11.46-2 – Bereich in der Adresse | Adresse nicht gesetzt | rot (Klicktest „Rechnungen: Adresse ?bereich=rechnungen“) |
+| 1.11.46-3 – zurückgenommen: nicht mehr verfügbar | immer „technisch“ | rot (Klicktest „Unterlagen: zurückgenommen …“) |
+| 1.11.46-4 – Foto groß aus der Datei | immer die Vorschau | rot (Klicktest „Fotos: groß (800 px)“) |
+| 1.11.46-5 – heute gekennzeichnet | ohne | rot (Klicktest „Termine: heute gekennzeichnet …“) |
+| 1.11.46-1 – am Handy die Leiste unten | nicht fest unten | rot (Klicktest „… unten die Leiste der Bereiche“) |
+| 1.11.46-5 – Wortlaut der Entwürfe | ein Satz geändert | rot (`test_wortlaut_der_entwuerfe`) |
+| 1.11.46-6 – genau zwei Stellen | eine dritte | rot (`test_skript_nur_text_keine_gefaehrlichen_aufrufe`) |

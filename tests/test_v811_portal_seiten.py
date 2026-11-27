@@ -184,7 +184,7 @@ def test_jeder_wert_als_text(feld):
     assert all("boese" not in (a.get("href") or "") for _, a in leser.tags)
     assert {t for t, _ in leser.tags} <= {"html", "head", "meta", "title", "link", "script", "body", "header", "div", "span", "svg", "polygon", "path",
                                           "rect", "circle", "button", "main", "noscript", "section", "h1", "h2", "p", "a", "br", "strong", "label",
-                                          "input", "ul", "li", "footer", "dialog"}
+                                          "input", "ul", "li", "footer", "dialog", "nav", "img"}  # nav und img seit 1.11.46 (Reiter, Fotos)
     if feld in ("company_name", "street", "postal_code", "city", "phone"):
         assert BOESE in "".join(leser.text)  # als Text, Zeichen für Zeichen (oder ganz weggelassen wie bei E-Mail und Webseite)
 
@@ -241,8 +241,14 @@ def _ohne_kommentare(js: str) -> str:
 def test_skript_nur_text_keine_gefaehrlichen_aufrufe():
     code = _ohne_kommentare(JS)
     for verboten in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "Function(", "document.cookie", "localStorage",
-                     "srcdoc", ".src =", "setAttribute('href'", "setAttribute(\"href\"", "location.href =", "location.assign", "postMessage"):
+                     "srcdoc", ".src =", "setAttribute('href'", "setAttribute(\"href\"", "location.href =", "postMessage"):
         assert verboten not in code, verboten
+    # seit 1.11.46 genau zwei Stellen, die eine Adresse setzen -- je mit festem lokalem Anfang und dahinter nur einer ganzen Zahl (Freigabe, nummer())
+    assert code.count("location.assign(") == 1 and code.count("setAttribute('src'") == 1 and "location.replace(" not in code
+    zur = code[code.index("function zurDatei("):code.index("function vorschauSetzen(")]
+    vor = code[code.index("function vorschauSetzen("):code.index("function hinweisIn(")]
+    assert "var n = nummer(freigabe);" in zur and "window.location.assign('/datei/' + n + " in zur
+    assert "var n = nummer(freigabe);" in vor and "bild.setAttribute('src', '/datei/' + n + " in vor
     assert not re.search(r"setTimeout\(\s*['\"]", code) and not re.search(r"setInterval\(\s*['\"]", code)
     assert "textContent" in code
     assert "'use strict'" in code
@@ -250,7 +256,8 @@ def test_skript_nur_text_keine_gefaehrlichen_aufrufe():
 
 def test_skript_nur_wege_des_portals():
     wege = set(re.findall(r"'(/api/[a-z/]+)'", JS))
-    assert wege == {"/api/link", "/api/sitzung/weiter", "/api/code", "/api/code/stand", "/api/code/pruefen", "/api/willkommen", "/api/abmelden"}
+    assert wege == {"/api/link", "/api/sitzung/weiter", "/api/code", "/api/code/stand", "/api/code/pruefen", "/api/willkommen", "/api/abmelden",
+                    "/api/uebersicht", "/api/unterlagen", "/api/rechnungen", "/api/termine", "/api/datei/anfordern"}  # die Bereiche seit 1.11.46
     assert wege <= routen.OEFFENTLICH | routen.VORSTUFE | routen.SITZUNG
 
 
@@ -279,11 +286,21 @@ WORTLAUT = [
     "Er ist abgelaufen, wurde schon benutzt oder zu oft falsch eingegeben. Der neue Code geht wieder an", "Der neue Code gilt wieder 10 Minuten.",
     "Wird gesendet …", "Wird geprüft …",
     "Der Code konnte gerade nicht gesendet werden. Bitte versuchen Sie es gleich noch einmal oder rufen Sie uns an.", "Ein neuer Code ist in ",
-    "Schön, dass Sie da sind. Hier finden Sie bald alle Unterlagen zu Ihren Aufträgen an einem Ort.", "Was Sie hier bald finden", "In Vorbereitung",
-    "Angebote ansehen und digital annehmen", "Mit Unterschrift am Handy oder am Rechner.", "Auftragsbestätigungen und Verträge", "Immer die gültige Fassung.",
-    "Rechnungen mit Zahlungsstand", "Auf einen Blick: offen oder bezahlt.", "Termine für Ihre Baustelle", "Wann wir bei Ihnen sind.",
-    "Abnahme- und Wartungsprotokolle", "Zum Nachlesen und Herunterladen.", "Dokumente und Fotos",
-    "Datenblätter der verbauten Produkte, Bilder Ihrer Baustelle und weitere Unterlagen.", "Bis dahin erhalten Sie Ihre Unterlagen wie gewohnt per E-Mail oder Post.",
+    # seit 1.11.46 die Bereiche nach den Entwürfen P2 (Seiten 1–5) statt „Was Sie hier bald finden“
+    "Hier finden Sie die Unterlagen zu Ihren Aufträgen an einem Ort.", "Übersicht", "Unterlagen", "Rechnungen", "Termine", "Fotos", "Nächster Einsatz",
+    "Zu den Rechnungen ›", "Alle Termine ›", "Zu den Unterlagen ›", "Zu den Fotos ›", "Zuletzt: ", "Zuletzt hinzugefügt am ", "Alles bezahlt",
+    "Zurzeit kein fester Termin", "Noch keine Unterlagen",
+    "Sobald es Unterlagen zu Ihrem Auftrag gibt, finden Sie sie hier. Bis dahin erhalten Sie alles wie gewohnt per E-Mail oder Post.",
+    "Angebote, Verträge, Protokolle und Dokumente zu Ihren Aufträgen, die neuesten zuerst. „Ansehen“ öffnet die Unterlage hier im Browser.",
+    "Tippen Sie auf eine Unterlage, um sie anzusehen.", "Hier erscheinen Angebote, Verträge und Protokolle zu Ihren Aufträgen.",
+    "Ihre Rechnungen mit dem aktuellen Stand der Zahlungen. Bei Fragen zu einer Rechnung rufen Sie uns gern an.", "Offen insgesamt",
+    "Stand der Zahlungen: ", "Überweisungen der letzten Tage sind eventuell noch nicht verbucht. Unsere Bankverbindung steht auf jeder Rechnung.",
+    "Noch keine Rechnungen", "Hier erscheinen Ihre Rechnungen, sobald wir sie Ihnen geschickt haben.", "Alles bezahlt – vielen Dank",
+    "Die festen Tage, an denen wir auf Ihrer Baustelle sind.", "Bei Regen oder Sturm kann sich ein Termin verschieben. Dann melden wir uns bei Ihnen.",
+    "Zurzeit keine festen Termine", "Sobald Ihre Baustelle fest eingeplant ist, sehen Sie hier die Tage.", "Zurzeit keine weiteren Termine", "Vergangen",
+    "Bilder Ihrer Baustelle. Tippen Sie auf ein Foto, um es groß zu sehen.", "Noch keine Fotos", "Fotos Ihrer Baustelle stellen wir hier für Sie ein.",
+    "Weitere 12 Fotos laden", "Nicht mehr verfügbar.", "Diese Unterlage ist nicht mehr verfügbar. Bei Fragen rufen Sie uns gern an", "Zu viele Abrufe.",
+    "Wird geöffnet …", "Ansehen", "Herunterladen", " – wird in Kürze aktualisiert.", "Stand: ",
     "So erreichen Sie uns", "Ihre Anmeldung", "Sie bleiben auf diesem Gerät angemeldet, solange Sie das Kundenportal mindestens alle 30 Tage öffnen.",
     "Auf allen Geräten abmelden", "Auf allen Geräten abmelden?",
     "Sie werden auf diesem und allen anderen Geräten abgemeldet. Zum erneuten Anmelden öffnen Sie den Link aus unserer E-Mail und fordern einen neuen Code an.",

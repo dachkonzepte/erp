@@ -4386,6 +4386,58 @@ Bauplan P2, B10 („jede Zahl und jeder Text vom Server“), Entwürfe Seiten 1�
 Übersicht, Wege nur POST, Titel wie auf dem PDF; unter PostgreSQL alle vier Wege gegen den echten Dienst mit Protokoll, 401, kein GET und 429).
 Gegenproben: 9, alle rot aus dem geprüften Grund.
 
+### Umsetzung 1.11.46 (P2e, Teil 3b): die Seiten nach den Entwürfen
+
+Entwürfe `bildgrundlage/Entwürfe/P2/` (Seiten 1–5, freigegeben am 27.11.2026). Eine Seite wie bisher (`app/portal/seiten/portal.html`, `.js`, `.css`), nur Text über
+textContent, kein Inline-Skript und kein style-Attribut (CSP unverändert).
+
+- **D „angemeldet“** (`seite-d`): Reiter Übersicht · Unterlagen · Rechnungen · Termine · Fotos -- am Rechner oben, unter 600 px als Leiste unten. Der Bereich steht
+  in der Adresse als `?bereich=…` (nie im #-Fragment, dort steht der Link der Anmeldung); neu laden und „Zurück“ nach dem Ansehen führen in denselben Bereich.
+  Übersicht: Gruß, vier Kacheln (je ein Knopf in ihren Bereich), Stand, daneben Kontakt und Anmeldung. Unterlagen, Rechnungen, Termine, Fotos je in Gruppen
+  „Auftrag <Nummer> · <Betreff>“ mit der Adresse darunter (P2-10 in der Fassung vom 27.11.2026); „Allgemeine Unterlagen“ am Ende.
+- **Ansehen und Herunterladen**: fordern an (`POST /api/datei/anfordern`) und öffnen `/datei/<n>` im selben Tab bzw. laden; am Handy öffnet ein Tipp auf die
+  Zeile (Entwurf Seite 4), der Knopf „Herunterladen“ bleibt. Zurückgenommen: „Nicht mehr verfügbar. Diese Unterlage ist nicht mehr verfügbar. Bei Fragen rufen Sie
+  uns gern an: <Telefon>.“; Bremse: „Zu viele Abrufe. …“; „Wird geöffnet …“ am gesperrten Knopf.
+- **Fotos**: Bildreihe aus den Vorschauen (1.11.44), je 12, „Weitere 12 Fotos laden“; groß mit „Foto n von m“, weiter, zurück, Herunterladen (die große Fassung
+  fordert an wie jede Datei). Eine Vorschau, die nicht lädt, bleibt eine leere Kachel.
+- **Zustände** (Entwurf Seite 5): Laden mit grauen Platzhaltern, leer je Bereich mit dem Satz des Entwurfs, „Alles bezahlt – vielen Dank“, „Zurzeit keine weiteren
+  Termine“ mit „Vergangen“, Stand älter als eine Stunde „… – wird in Kürze aktualisiert.“ (hinterlegt), Fehler und abgelaufene Sitzung wie P1.
+- Genau zwei Stellen setzen eine Adresse: `zurDatei()` (`location.assign('/datei/' + n …)`) und `vorschauSetzen()` (`setAttribute('src', '/datei/' + n …)`),
+  je mit fester Nummer aus `nummer()` -- Wächter in `tests/test_v811_portal_seiten.py`.
+- Nachtrag zu 1.11.45: die Übersicht sagt bei einer überfälligen Rechnung „fällig seit …“ wie die Seite „Rechnungen“ (`bereiche.uebersicht(z, heute)`).
+
+#### Festlegungen 1.11.46 (Bitte bestätigen)
+
+1. Nach der Anmeldung fünf Bereiche nach den Entwürfen; Reiter am Rechner oben, am Handy als Leiste unten.
+2. Der Bereich steht in der Adresse als `?bereich=…`; neu laden und „Zurück“ führen in denselben Bereich.
+3. „Ansehen“ im selben Tab, am Handy durch Tippen auf die Zeile; „Herunterladen“ als Knopf; zurückgenommen „Nicht mehr verfügbar.“ mit Telefon.
+4. Fotos als Bildreihe aus den Vorschauen, je 12 mit „Weitere 12 Fotos laden“; groß mit Blättern und Herunterladen.
+5. Leer, Laden, alter Stand und Fehler mit den Sätzen aus dem Entwurf (Seite 5).
+6. Genau zwei Stellen im Skript setzen eine Adresse, je mit festem Anfang und einer ganzen Zahl.
+7. Die Übersicht sagt bei einer überfälligen Rechnung „fällig seit …“.
+
+#### Abweichungen vom Bauplan (1.11.46)
+
+- B10 D „Willkommen“ (P1) ist ersetzt durch die Übersicht des Entwurfs; „Was Sie hier bald finden“ entfällt.
+- Termine am Rechner: der Entwurf zeigt die Seite nur am Handy -- am Rechner dieselbe Liste in voller Breite.
+- Mahnung ohne eigenen Betrag (der Entwurf zeigt keinen).
+
+#### Tests und Prüfung 1.11.46
+
+Klicktest `scripts/klicktest_portal_bereiche.py` neu (59 Prüfungen: Anmelden, Übersicht mit Zahlen vom Server, Rechnungen mit Gruppe und Kennzeichen, Termine,
+Unterlagen mit Ansehen und Zurück, zurückgenommen, Fotos mit Vorschau und groß, jeder Bereich 1280 px hell und dunkel und 390 px ohne Überlauf mit der Leiste unten,
+keine Verletzung der CSP). Angepasste Erwartungen in `tests/test_v811_portal_seiten.py`: `test_wortlaut_der_entwuerfe` -- alt die Sätze von „Was Sie hier bald
+finden“, neu die Sätze der Entwürfe P2; `test_skript_nur_wege_des_portals` -- alt sieben Wege, neu dazu `/api/uebersicht`, `/api/unterlagen`, `/api/rechnungen`,
+`/api/termine`, `/api/datei/anfordern`; `test_skript_nur_text_keine_gefaehrlichen_aufrufe` -- alt `location.assign` verboten, neu genau einmal in `zurDatei()` und
+`setAttribute('src'` genau einmal in `vorschauSetzen()`; `test_jeder_wert_als_text` -- alt ohne, neu mit den Elementen `nav` und `img`;
+`tests/test_v835_portal_bereiche.py::test_uebersicht` -- dazu „fällig seit“. Gegenproben: 8, alle rot aus dem geprüften Grund.
+
+### Abschluss P2e (1.11.43–1.11.46)
+
+Betreff (1.11.43), Vorschau der Fotos (1.11.44), Bereiche im Dienst (1.11.45) und die Seiten (1.11.46) -- die Seiten des Portals sind nach den Entwürfen gebaut.
+Nach P2e angehalten (Vorgabe vom 27.11.2026). Offen für P2f (Inbetriebnahme): Server-Schritte P2d-1, P2d-2, P2e-1, P2e-2 nach dem Einspielen, Rauchtest am Rechner
+und auf dem Handy (Safari, Android), neue Fassung der Datenschutzerklärung (B8).
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

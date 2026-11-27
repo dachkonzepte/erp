@@ -115,6 +115,9 @@ def test_uebersicht():
         "rechnungen": {"offen": 1, "betrag": "2.380,00 €", "faellig": "Schlussrechnung R-2026-0031, fällig am 04.12.2026"},
         "einsatz": {"wann": "Mo 7. – Mi 9. Dez.", "wo": "Steildachsanierung · Musterweg 12, 52531 Übach-Palenberg"},
         "unterlagen": {"zahl": 10, "zuletzt": "Abnahmeprotokoll vom 18.11.2026"}, "fotos": {"zahl": 24, "zuletzt": "18.11.2026"}}
+    # seit 1.11.46: überfällig „fällig seit“ (heute in Berlin), wie auf der Seite „Rechnungen“
+    assert bereiche.uebersicht(z, date(2026, 12, 5))["rechnungen"]["faellig"] == "Schlussrechnung R-2026-0031, fällig seit 04.12.2026"
+    assert bereiche.uebersicht(z, date(2026, 12, 4))["rechnungen"]["faellig"] == "Schlussrechnung R-2026-0031, fällig am 04.12.2026"
     leer = dict(z, offen_anzahl=0, offen_summe=D("0"), faellig_titel=None, faellig_nummer=None, faellig_am=None, einsatz_von=None, einsatz_bis=None,
                 unterlagen=0, unterlage_titel=None, unterlage_datum=None, fotos=0, foto_am=None)
     assert bereiche.uebersicht(leer) == {"rechnungen": {"offen": 0, "betrag": None, "faellig": None}, "einsatz": None,

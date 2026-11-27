@@ -523,7 +523,7 @@ def uebersicht(request: Request):
     if not isinstance(erg, tuple):
         return erg
     zeilen, stand = erg
-    return {"stand": stand, **bereiche.uebersicht(zeilen[0])}
+    return {"stand": stand, **bereiche.uebersicht(zeilen[0], berlin_today())}
 
 
 @router.post("/api/unterlagen", response_model=UnterlagenOut)

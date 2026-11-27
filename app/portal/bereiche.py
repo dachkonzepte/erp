@@ -174,15 +174,18 @@ def termine(zeilen: list[dict], heute: date) -> dict:
 
 # --- Übersicht (portal_uebersicht) ----------------------------------------------------------------------------------------------------------------
 
-def uebersicht(z: dict) -> dict:
-    """Die vier Kacheln der Startseite (Entwurf Seite 1) aus der einen Zeile."""
+def uebersicht(z: dict, heute: date | None = None) -> dict:
+    """Die vier Kacheln der Startseite (Entwurf Seite 1) aus der einen Zeile. Seit 1.11.46 „fällig seit“, wenn die zuerst fällige überfällig ist (heute in
+    Berlin) -- wie auf der Seite „Rechnungen“."""
     einsatz = None
     if z["einsatz_von"]:
         wo = " · ".join(t for t in ((z["einsatz_betreff"] or "").strip(), z["einsatz_objekt"] or "") if t)
         einsatz = {"wann": tage(z["einsatz_von"], z["einsatz_bis"], kurz=True), "wo": wo}
     faellig = None
     if z["faellig_nummer"] or z["faellig_titel"]:
-        faellig = " ".join(t for t in (z["faellig_titel"], z["faellig_nummer"]) if t) + (f", fällig am {datum(z['faellig_am'])}" if z["faellig_am"] else "")
+        seit = heute is not None and z["faellig_am"] is not None and z["faellig_am"] < heute
+        faellig = " ".join(t for t in (z["faellig_titel"], z["faellig_nummer"]) if t) + (
+            f", fällig {'seit' if seit else 'am'} {datum(z['faellig_am'])}" if z["faellig_am"] else "")
     return {
         "rechnungen": {"offen": z["offen_anzahl"], "betrag": geld(z["offen_summe"]) if z["offen_anzahl"] else None, "faellig": faellig},
         "einsatz": einsatz,
