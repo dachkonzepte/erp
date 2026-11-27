@@ -347,6 +347,7 @@ ABSCHLIESSEND = {
     ("zeiten.html", "lohndateiGesendet"): "Lohndatei als an das Steuerbüro gesendet vermerken",  # seit 1.9.328 (Lohn L2c-2, Punkt 1)
     ("customer.html", "portalLinkSenden"): "Link zum Kundenportal senden",  # seit 1.11.11 (Stufe P1d)
     ("customer.html", "portalSperren"): "Zugang zum Kundenportal sperren",  # seit 1.11.11 (Stufe P1d)
+    ("_im_portal.html", "imPortalFreigeben"): "Unterlage im Kundenportal zeigen (geht an den Kunden hinaus)",  # seit 1.11.38 (Stufe P2c)
     ("dashboard.html", "portalStauErledigen"): "Gescheiterten Versand des Kundenportals als erledigt vermerken",  # seit 1.11.9 (Antwort 1.11.7-1)
     ("zeiten.html", "ukVerfallBuchen"): "Verfall des Übertrags buchen",  # seit 1.9.368 (Urlaubsrunde, Punkt 4)
     ("zeiten.html", "nachVersandBesprochen"): "„Besprochen“: die Rechnung von heute als Abgleich-Zeile ablegen",  # seit 1.9.330 (Lohn L2c-2, Punkt 3)

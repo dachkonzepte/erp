@@ -25,7 +25,7 @@ AU = frozenset({"buero_auftrag", "buero_finanzen", "admin"})
 GELD = frozenset({"buero_finanzen", "admin"})
 MO = frozenset({"field", "buero_auftrag", "buero_finanzen", "admin"})
 ROLLEN = {"Au": AU, "Geld": GELD, "Mo": MO}
-REITER = ("kopf", "uebersicht", "projekte", "objekte", "anfragen", "zahlungen", "dokumente", "kontakte", "verlauf")
+REITER = ("kopf", "uebersicht", "projekte", "objekte", "anfragen", "zahlungen", "dokumente", "importal", "kontakte", "verlauf")  # importal seit 1.11.38
 AKTE = ("GET", "/api/customers/{customer_id}/akte")
 
 # (Funktion, Art, Endpunkte [(Methode, Pfad)], Rolle, Reiter der Kundenakte, Belege in customer.html)
@@ -151,6 +151,16 @@ FUNKTIONEN = [
      ['data-klick="portal-verlaengern"']),
     ("Kundenportal: Protokoll (Portal und ERP, seitenweise)", "Dialog", [("GET", "/api/customers/{customer_id}/portal/protokoll")], "Au", "uebersicht",
      ['id="portalProtokollDialog"', 'data-klick="portal-protokoll-mehr"']),
+    # Im Portal (seit 1.11.38, Stufe P2c) -- nur mit Modul; im Archiv nur „Zurücknehmen“
+    ("Reiter „Im Portal“: was der Kunde sieht (Zahlen je Art, Gruppen, Zustand), Vorschläge, ruhend, zurückgenommen; „vor dem Einladen“ in der Karte",
+     "Anzeige", [("GET", "/api/customers/{customer_id}/portal/freigaben")], "Au", "importal",
+     ['id="reiter-importal"', 'data-reiter="importal"', 'id="ipZahlen"', 'id="portalSieht"', 'id="portalLinkSieht"']),
+    ("Im Portal: Vorschlag freigeben über den Dialog „Im Portal zeigen“ (Titel, Hinweise)", "Dialog",
+     [("POST", "/api/customers/{customer_id}/portal/freigaben")], "Au", "importal", ["'ip-vorschlag'", "imPortalOeffnen("]),
+    ("Im Portal: zurücknehmen mit optionalem Grund (auch im Archiv), erneut versuchen bei gescheiterter Kopie", "Dialog",
+     [("POST", "/api/customers/{customer_id}/portal/freigaben/{freigabe_id}/zuruecknehmen"),
+      ("POST", "/api/customers/{customer_id}/portal/freigaben/{freigabe_id}/erneut")], "Au", "importal",
+     ['id="ipZurueckDialog"', 'data-klick="ip-zuruecknehmen"', "'ip-erneut'"]),
     ("Versand des Kunden (bis 1.9.136 Karte „Versand“): Filter „Versand“, „Zustellung nachtragen“ samt Empfang bestätigt / unzustellbar im "
      "Dialog, „Versandprotokoll des Kunden“, Anker #versand", "Anzeige", [("GET", "/api/email-dispatches")], "Au", "verlauf",
      ['data-art="versand"', "renderDispatchHistory('zustellungVerlauf'", 'id="versandprotokollLink"', "ALTE_ANKER={versand:'verlauf'}"]),

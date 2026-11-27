@@ -32,7 +32,8 @@ SEITEN = {
 LESEN = {
     "customer.html": {"kunde-zurueckholen", "verlauf-art", "verlauf-weiter", "dokumentkategorie", "dokumentunterordner", "href=/properties/${p.id}",
                       "portal-protokoll", "portal-protokoll-mehr", "dialog-zu",  # seit 1.11.11: Protokoll des Kundenportals lesen, auch im Archiv
-                      "portal-sperren-dialog", "portal-sperren"},  # seit 1.11.13: Sperren nimmt nur Zugang weg und geht auch im Archiv (Festlegung 1.11.0)
+                      "portal-sperren-dialog", "portal-sperren",  # seit 1.11.13: Sperren nimmt nur Zugang weg und geht auch im Archiv (Festlegung 1.11.0)
+                      "portalSiehtLink", "ip-zuruecknehmen"},  # seit 1.11.38: Reiter „Im Portal“ ansehen, Zurücknehmen auch im Archiv (die Knöpfe der Liste baut das Skript)
     "akte.html": {"projekt-zurueckholen", "verlauf-art", "verlauf-weiter", "dateikategorie", "dateiunterordner", "filterCategory('')",
                   "filterSubfolder('')"},
     "property.html": set(),

@@ -1338,6 +1338,13 @@ class PortalFreigabeEintragOut(BaseModel):
     zurueckgenommen_von: str | None = None
     auftrag: str | None = None
     objekt: str | None = None
+    gruppe: str = ""  # seit 1.11.38: wie das Portal gruppiert (P2-10)
+
+
+class PortalFreigabeZahlOut(BaseModel):
+    art: str
+    anzahl: int
+    text: str
 
 
 class PortalVorschlagOut(BaseModel):
@@ -1357,6 +1364,9 @@ class PortalFreigabenOut(BaseModel):
     kunde_archiv: bool
     eintraege: list[PortalFreigabeEintragOut]
     vorschlaege: list[PortalVorschlagOut] = []
+    zahlen: list[PortalFreigabeZahlOut] = []  # seit 1.11.38: je Art, was der Kunde sieht (sichtbar oder gleich sichtbar)
+    zahlen_text: str = ""
+    anzahl_sichtbar: int = 0
     neu: list[int] = []
     schon: int = 0
 

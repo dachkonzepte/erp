@@ -116,6 +116,13 @@ input[type=checkbox],input[type=radio]{width:auto!important;min-height:0!importa
 .small{font-size:13px}.muted{color:var(--ds-text-2)}
 .notice{background:var(--ds-flaeche-2);border-left:4px solid var(--ds-aktion);border-radius:var(--ds-ecke-feld);padding:10px 12px;font-size:13px;color:var(--ds-text)}
 .notice.warning{background:var(--ds-warn-hell);border-left-color:var(--ds-warn-text)}
+/* seit 1.11.38: Reiter „Im Portal“ -- Gruppen wie im Portal, je Freigabe Titel, Angaben, Zustand, Knöpfe */
+.ip-gruppe{margin:4px 0 0;font-size:13px;font-weight:600;color:var(--ds-text-2)}
+.ip-zeile{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--ds-linie)}
+.ip-zeile .ip-titel{font-weight:600;overflow-wrap:anywhere}
+.ip-zeile .ip-angaben{font-size:13px;color:var(--ds-text-2);overflow-wrap:anywhere}
+.ip-zeile .ip-knoepfe{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:560px){.ip-zeile{grid-template-columns:1fr}.ip-zeile .ip-knoepfe{justify-content:flex-start}}
 /* seit 1.11.11: Protokoll des Kundenportals -- Zeit, Text, wer */
 .portal-protokoll{list-style:none;margin:0;padding:0;max-height:min(420px,60vh);overflow:auto;border-top:1px solid var(--ds-linie);font-size:14px}
 .portal-protokoll li{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--ds-linie)}
@@ -173,6 +180,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
   <a href="#anfragen" data-reiter="anfragen">Anfragen<span class="cnt" id="zahlAnfragen" hidden></span></a>
   <a href="#zahlungen" data-reiter="zahlungen">Zahlungen</a>
   <a href="#dokumente" data-reiter="dokumente">Dokumente<span class="cnt" id="zahlDokumente" hidden></span></a>
+  {% if is_module_enabled('kundenportal') %}<a href="#importal" data-reiter="importal">Im Portal<span class="cnt" id="zahlImPortal" hidden></span></a>{% endif %}
   <a href="#kontakte" data-reiter="kontakte">Kontakte<span class="cnt" id="zahlKontakte" hidden></span></a>
   <a href="#verlauf" data-reiter="verlauf">Verlauf</a>
 </nav>
@@ -207,6 +215,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
       <p class="sml" id="portalText" style="margin:0"></p>
       <dl class="daten-liste" id="portalDaten" hidden></dl>
       <div class="notice warning" id="portalHinweis" role="status" hidden></div>
+      <p class="sml" id="portalSieht" style="margin:0" hidden><span id="portalSiehtText"></span> <a href="#importal" class="knopf-link sml" id="portalSiehtLink" data-lesen>Im Portal ansehen</a></p>
       <div class="zeile-flex" id="portalKnoepfe" style="gap:8px;flex-wrap:wrap">
         <button type="button" class="secondary klein" id="portalEin" data-klick="portal-schalter" data-an="1" hidden>Portal einschalten</button>
         <button type="button" class="klein" id="portalZugangNeu" data-klick="portal-zugang-dialog" hidden>Zugang anlegen</button>
@@ -286,6 +295,19 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
   <div id="customerDocuments" class="documents"></div>
   <div id="docEmpty" class="empty" hidden>Noch keine Dokumente vorhanden.</div>
 </section>
+
+{% if is_module_enabled('kundenportal') %}{# --- Im Portal (seit 1.11.38, Stufe P2c): was der Kunde sieht, Vorschläge, ruhend, zurückgenommen --- #}
+<section id="reiter-importal" class="karte" aria-label="Im Portal" hidden style="gap:12px">
+  <div><h2 class="h2">Im Portal</h2><div class="mut sml">Was der Kunde im Kundenportal sieht – Rechnungen, Mahnungen, versendete Angebote, Verträge, Protokolle und Berichte von selbst, Dokumente und Fotos nur, was hier oder an der Datei freigegeben ist.</div></div>
+  <div class="notice" id="ipHinweis" role="status" hidden></div>
+  <p class="sml" id="ipZahlen" style="margin:0"></p>
+  <div id="ipListe"></div>
+  <div id="ipVorschlaegeBlock" hidden><h3 class="h3" style="margin:8px 0 2px">Vorschläge</h3><p class="mut sml" style="margin:0">An eine andere Adresse versendet – der Kunde sieht sie nur, wenn sie hier freigegeben werden.</p><div id="ipVorschlaege"></div></div>
+  <div id="ipRuhtBlock" hidden><h3 class="h3" style="margin:8px 0 2px">Ruht</h3><p class="mut sml" style="margin:0">Freigegeben, aber heute nicht sichtbar – mit Grund.</p><div id="ipRuht"></div></div>
+  <details id="ipZurueckBlock" hidden><summary class="sml">Zurückgenommen (<span id="ipZurueckZahl"></span>)</summary><div id="ipZurueck"></div></details>
+  <p class="sml" id="ipStatus" role="status" style="margin:0"></p>
+</section>
+{% endif %}
 
 {# --- Kontakte & Kundenwissen --- #}
 <section id="reiter-kontakte" class="karte" aria-label="Kontakte" hidden>
@@ -382,12 +404,19 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 <dialog id="portalLinkDialog" aria-labelledby="portalLinkTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalLinkTitel">Link zum Kundenportal senden</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalLinkDialog" aria-label="Schließen">✕</button></div>
   <div class="field"><label for="portalLinkEmail">An</label><input id="portalLinkEmail" type="email" maxlength="255" autocomplete="off"><div class="hint">Der Link gilt 12 Monate. Die Mail geht über Microsoft 365 und liegt nicht in „Gesendete Elemente“. Eine geänderte Adresse gilt ab diesem Link, auch für die Anmeldecodes.</div></div>
   <div class="notice warning" id="portalLinkNeu" hidden>Der bisherige Link gilt danach nicht mehr, alle Geräte des Kunden werden abgemeldet.</div>
+  <p class="sml" id="portalLinkSieht" style="margin:0" hidden></p>
   <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalLinkStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalLinkDialog">Abbrechen</button><button type="button" data-klick="portal-link-senden">Link senden</button></div>
 </div></dialog>
 <dialog id="portalSperrenDialog" aria-labelledby="portalSperrenTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalSperrenTitel">Zugang sperren</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog" aria-label="Schließen">✕</button></div>
   <div class="field"><label for="portalSperrenGrund">Grund</label><textarea id="portalSperrenGrund" rows="3" maxlength="1000" data-lesen></textarea><div class="hint">Alle Geräte des Kunden werden abgemeldet; der Link gilt erst nach „Entsperren“ wieder.</div></div>
   <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="portalSperrenStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalSperrenDialog">Abbrechen</button><button type="button" class="danger" data-klick="portal-sperren" data-lesen>Sperren</button></div>
 </div></dialog>
+<dialog id="ipZurueckDialog" aria-labelledby="ipZurueckTitel"><div class="dialog"><div class="dialog-head"><h3 id="ipZurueckTitel">Aus dem Portal zurücknehmen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="ipZurueckDialog" aria-label="Schließen" data-lesen>✕</button></div>
+  <p class="sml" id="ipZurueckWas" style="margin:0"></p>
+  <div class="field"><label for="ipZurueckGrund">Grund <span class="mut sml">(optional)</span></label><textarea id="ipZurueckGrund" rows="2" maxlength="500" data-lesen></textarea><div class="hint">Der Kunde sieht die Unterlage sofort nicht mehr. Die Freigabe bleibt im Verlauf; neu freigeben geht jederzeit.</div></div>
+  <div class="zeile-flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap"><span class="sml" id="ipZurueckStatus" role="status"></span><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="ipZurueckDialog" data-lesen>Abbrechen</button><button type="button" class="danger" data-klick="ip-zuruecknehmen" data-lesen>Zurücknehmen</button></div>
+</div></dialog>
+{% include "_im_portal.html" %}
 <dialog id="portalProtokollDialog" aria-labelledby="portalProtokollTitel"><div class="dialog"><div class="dialog-head"><h3 id="portalProtokollTitel">Protokoll des Kundenportals</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="portalProtokollDialog" aria-label="Schließen" data-lesen>✕</button></div>
   <p class="mut sml" style="margin:0">Zugriffe im Portal, gesendete Links und Änderungen im ERP, neueste zuerst – ohne IP-Adressen.</p>
   <ul class="portal-protokoll" id="portalProtokollListe"></ul>
@@ -432,7 +461,7 @@ const FELDNAMEN={name:'Name',first_name:'Vorname',last_name:'Nachname',company_n
 async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok)throw new Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));if(r.status===204)return null;return r.json()}
 
 // --- Reiter ---------------------------------------------------------------------------------------------------------------------------
-const REITER=['uebersicht','projekte','objekte','anfragen','zahlungen','dokumente','kontakte','verlauf'];
+const REITER=['uebersicht','projekte','objekte','anfragen','zahlungen','dokumente','importal','kontakte','verlauf'].filter(r=>document.getElementById('reiter-'+r));  // seit 1.11.38 „Im Portal“ nur mit Modul
 // Anker der früheren Seite: #zahlungen (aus Rechnung und Finanzen) ist ein Reiter, #versand öffnet den Verlauf mit „Versand“
 const ALTE_ANKER={versand:'verlauf'};
 function reiterAusAnker(){const h=location.hash.replace('#','');return ALTE_ANKER[h]||h}
@@ -459,7 +488,7 @@ async function load(){
     [customer,properties,inquiries,customerCategoryGroup,customerSalutationGroup,paymentTerms,docCategoryGroup]=daten;
     roofAreas=flaechen;
     render();
-  }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden(),portalLaden()]);
+  }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden(),portalLaden(),freigabenLaden()]);
 }
 aktion('kunde-zurueckholen',async()=>{const art='kunde';try{await speichern('kunde',()=>api(`/api/aufbewahrung/${art}/${customerId}/zurueckholen`,{method:'POST'}),{neuLaden:load});seitenStatus('Zurückgeholt – die 6 Monate zählen ab heute neu.')}catch(e){seitenStatus('Fehler: '+e.message)}});  // seit 1.10.12
 // --- Kundenportal (seit 1.11.11, Stufe P1d; Bauplan P1, Abschnitt 4) -------------------------------------------------------------------------
@@ -499,12 +528,21 @@ function portalZeigen(d){
     portalEntsperren:!d.nur_lesen&&d.zustand==='gesperrt',portalProtokoll:!!z||d.aktiv};
   Object.entries(zeigen).forEach(([id,an])=>{el(id).hidden=!an});
   el('portalLinkSenden').textContent=d.zustand==='gescheitert'?'Link erneut senden':z&&z.hat_link?'Neuen Link senden':'Link senden';
+  vorEinladenZeigen();
+}
+// Seit 1.11.38 (Nachtrag 6): vor dem Einladen zeigt die Karte, was der Kunde ab dann sieht -- Zahl je Art vom Server, Link zum Reiter „Im Portal“
+const VOR_EINLADEN=['aus','kein_zugang','ohne_link','gescheitert'];
+function vorEinladenZeigen(){
+  const text=freigaben?(freigaben.zahlen_text?'Ab dem Einladen sieht der Kunde: '+freigaben.zahlen_text+'.':'Ab dem Einladen sieht der Kunde noch nichts.'):'';
+  const vorher=!!portal&&VOR_EINLADEN.includes(portal.zustand)&&!!text;
+  el('portalSieht').hidden=!vorher;el('portalSiehtText').textContent=vorher?text:'';
+  el('portalLinkSieht').hidden=!text;el('portalLinkSieht').textContent=text;
 }
 function portalFehler(statusId,e){el(statusId).textContent=e.message;return portalLaden().catch(()=>{})}
 async function portalSchalten(an){
   el('portalStatus').textContent='';
   if(!an&&portal&&portal.zugang&&!confirm('Kundenportal für diesen Kunden ausschalten? Alle Geräte werden abgemeldet; der Link gilt erst wieder, wenn das Portal an ist.'))return;
-  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/schalter`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({an})}),{anwenden:portalZeigen})}catch(e){await portalFehler('portalStatus',e)}
+  try{await speichern('portal',()=>api(`/api/customers/${customerId}/portal/schalter`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({an})}),{anwenden:portalZeigen});await freigabenLaden()}catch(e){await portalFehler('portalStatus',e)}
 }
 async function portalZugangAnlegen(){
   const email=el('portalZugangEmail').value.trim();
@@ -556,6 +594,85 @@ async function portalProtokollLaden(seite){
     el('portalProtokollMehr').hidden=!d.weiter;
   });
 }
+// --- Im Portal (seit 1.11.38, Stufe P2c; Bauplan P2, B9) ----------------------------------------------------------------------------------------
+// Stand nur vom Server (app/portal_freigaben.py::stand()): je Freigabe Gruppe, Titel, Angaben, Zustand mit Grund; dazu Vorschläge und die Zahlen je Art.
+// Texte nur über textContent; die Knöpfe tragen nur Nummern (data-id). Zurücknehmen geht auch im Archiv (data-lesen), alles andere nicht.
+// Freigeben über den Baustein _im_portal.html (abschließend), Zurücknehmen und „erneut versuchen“ über speichern().
+let freigaben=null,ipZurueckId=null;
+const IP_CHIP={sichtbar:['chip-ok','Sichtbar'],wird_vorbereitet:['chip-info','Wird vorbereitet'],gescheitert:['chip-warn','Kopie gescheitert'],ruht:['chip-neutral','Ruht'],
+  zurueckgenommen:['chip-neutral','Zurückgenommen']};
+async function freigabenLaden(){if(!PORTAL)return;await lesen('freigaben',()=>api(`/api/customers/${customerId}/portal/freigaben`),freigabenZeigen)}
+function ipKnopf(text,klick,id,{lesen:lesbar=false,klasse='secondary klein'}={}){
+  const b=document.createElement('button');b.type='button';b.className=klasse;b.dataset.klick=klick;b.dataset.id=String(Number(id));b.textContent=text;
+  if(lesbar)b.dataset.lesen='';return b;
+}
+function ipZeile(titel,angaben,chip,knoepfe){
+  const zeile=document.createElement('div');zeile.className='ip-zeile';
+  const links=document.createElement('div');
+  const t=document.createElement('div');t.className='ip-titel';t.textContent=titel;
+  const a=document.createElement('div');a.className='ip-angaben';a.textContent=angaben;
+  links.append(t,a);
+  const rechts=document.createElement('div');rechts.className='ip-knoepfe';
+  if(chip){const [klasse,wort]=IP_CHIP[chip]||['chip-neutral',chip];const c=document.createElement('span');c.className='chip '+klasse;c.textContent=wort;rechts.append(c)}
+  rechts.append(...knoepfe);zeile.append(links,rechts);return zeile;
+}
+function ipAngaben(e){
+  const teile=[e.art_text,tagLangOderLeer(e.datum),e.automatisch?'automatisch':'freigegeben von '+e.freigegeben_von,'seit '+berlinZeitpunkt(e.freigegeben_am,'datum')];
+  if(e.grund)teile.push(e.grund);
+  return teile.filter(Boolean).join(' · ');
+}
+function tagLangOderLeer(tag){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tag||''));return m?`${m[3]}.${m[2]}.${m[1]}`:''}
+function freigabenZeigen(d){
+  freigaben=d;
+  const aktiv=d.eintraege.filter(e=>['sichtbar','wird_vorbereitet','gescheitert'].includes(e.zustand)),ruht=d.eintraege.filter(e=>e.zustand==='ruht'),
+    zurueck=d.eintraege.filter(e=>e.zustand==='zurueckgenommen');
+  zahlSetzen('zahlImPortal',d.anzahl_sichtbar);
+  const hinweis=d.kunde_archiv?'Der Kunde ist im Archiv – er sieht nichts. Zurücknehmen geht weiter.':!d.portal_aktiv?'Das Kundenportal ist für diesen Kunden aus – er sieht die Freigaben erst, wenn es an ist.':'';
+  el('ipHinweis').hidden=!hinweis;el('ipHinweis').textContent=hinweis;
+  el('ipZahlen').textContent=d.zahlen_text?'Der Kunde sieht: '+d.zahlen_text+'.':'Noch nichts im Portal.';
+  const gruppen=new Map();  // je Gruppe (Text vom Server) in der Reihenfolge des ersten Auftretens -- die jüngste Freigabe zuerst
+  for(const e of aktiv){if(!gruppen.has(e.gruppe))gruppen.set(e.gruppe,[]);gruppen.get(e.gruppe).push(e)}
+  const liste=[];
+  for(const [gruppe,zeilen] of gruppen)for(const e of zeilen){
+    if(e===zeilen[0]){const g=document.createElement('p');g.className='ip-gruppe';g.textContent=gruppe;liste.push(g)}
+    const knoepfe=[];
+    if(e.zustand==='gescheitert'&&!d.kunde_archiv)knoepfe.push(ipKnopf('Erneut versuchen','ip-erneut',e.id));
+    knoepfe.push(ipKnopf('Zurücknehmen','ip-zuruecknehmen-dialog',e.id,{lesen:true}));
+    liste.push(ipZeile(e.titel,ipAngaben(e),e.zustand,knoepfe));
+  }
+  el('ipListe').replaceChildren(...liste);
+  el('ipRuhtBlock').hidden=!ruht.length;
+  el('ipRuht').replaceChildren(...ruht.map(e=>ipZeile(e.titel,(e.gruppe?e.gruppe+' · ':'')+ipAngaben(e),'ruht',[ipKnopf('Zurücknehmen','ip-zuruecknehmen-dialog',e.id,{lesen:true})])));
+  el('ipZurueckBlock').hidden=!zurueck.length;el('ipZurueckZahl').textContent=String(zurueck.length);
+  el('ipZurueck').replaceChildren(...zurueck.map(e=>ipZeile(e.titel,[e.art_text,'zurückgenommen '+berlinZeitpunkt(e.zurueckgenommen_am,'datum')+' von '+(e.zurueckgenommen_von||'—'),e.grund].filter(Boolean).join(' · '),null,[])));
+  el('ipVorschlaegeBlock').hidden=!d.vorschlaege.length;
+  el('ipVorschlaege').replaceChildren(...d.vorschlaege.map(v=>ipZeile(v.titel,[v.art_text,v.am?'versendet '+tagLangOderLeer(v.am):'',v.an?'an '+v.an:'nachgetragen'].filter(Boolean).join(' · '),null,
+    d.kunde_archiv?[]:[ipKnopf('Im Portal zeigen','ip-vorschlag',v.quelle_id,{klasse:'klein'})])));
+  vorEinladenZeigen();
+}
+aktion('ip-vorschlag',b=>{
+  const v=freigaben&&freigaben.vorschlaege.find(x=>x.quelle_id===Number(b.dataset.id));
+  if(!v)return;
+  imPortalOeffnen({kunde:customerId,quelle:v.quelle,ids:[v.quelle_id],titel:v.titel,was:v.art_text+(v.an?' – versendet an '+v.an:''),portalAus:!freigaben.portal_aktiv,nachher:freigabenUndPortalLaden});
+});
+async function freigabenUndPortalLaden(){await Promise.all([freigabenLaden(),portalLaden()])}
+aktion('ip-zuruecknehmen-dialog',b=>{
+  const e=freigaben&&freigaben.eintraege.find(x=>x.id===Number(b.dataset.id));
+  if(!e)return;
+  ipZurueckId=e.id;el('ipZurueckWas').textContent=e.art_text+': '+e.titel;el('ipZurueckGrund').value='';el('ipZurueckStatus').textContent='';el('ipZurueckDialog').showModal();
+});
+aktion('ip-zuruecknehmen',async()=>{
+  const fid=Number(ipZurueckId),grund=el('ipZurueckGrund').value.trim(),url=`/api/customers/${customerId}/portal/freigaben/${fid}/zuruecknehmen`;
+  const body=JSON.stringify(grund?{grund}:{});
+  try{await speichern('freigaben',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body}),{anwenden:freigabenZeigen});el('ipZurueckDialog').close();el('ipStatus').textContent='Zurückgenommen.'}
+  catch(e){el('ipZurueckStatus').textContent=e.message}
+});
+aktion('ip-erneut',async b=>{
+  const fid=Number(b.dataset.id),url=`/api/customers/${customerId}/portal/freigaben/${fid}/erneut`;
+  el('ipStatus').textContent='';
+  try{await speichern('freigaben',()=>api(url,{method:'POST'}),{anwenden:freigabenZeigen});el('ipStatus').textContent='Die Kopie wird neu angelegt.'}
+  catch(e){el('ipStatus').textContent=e.message}
+});
 aktion('portal-schalter',b=>portalSchalten(b.dataset.an==='1'));
 aktion('portal-zugang-dialog',()=>{el('portalZugangEmail').value=(portal&&portal.kunde_email)||'';el('portalZugangStatus').textContent='';el('portalZugangDialog').showModal()});
 aktion('portal-zugang-anlegen',portalZugangAnlegen);

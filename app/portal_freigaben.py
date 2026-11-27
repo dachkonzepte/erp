@@ -47,6 +47,12 @@ ART_TEXT = {
     "abnahmeprotokoll": "Abnahmeprotokoll", "einsatzbericht": "Einsatzbericht", "brief": "Brief", "checkliste": "Checkliste", "foto": "Foto",
     "dokument": "Dokument",
 }
+ART_MEHRZAHL = {
+    "angebot": "Angebote", "auftrag": "Auftragsbestätigungen", "vertrag": "Verträge", "rechnung": "Rechnungen", "mahnung": "Mahnungen",
+    "abnahmeprotokoll": "Abnahmeprotokolle", "einsatzbericht": "Einsatzberichte", "brief": "Briefe", "checkliste": "Checklisten", "foto": "Fotos",
+    "dokument": "Dokumente",
+}
+SIEHT = ("sichtbar", "wird_vorbereitet")  # was der Kunde sieht bzw. gleich sieht (die Kopie entsteht) -- für die Zahlen der Karte (seit 1.11.38)
 ZUSTAND_TEXT = {
     "sichtbar": "im Portal sichtbar", "wird_vorbereitet": "wird vorbereitet", "gescheitert": "Kopie gescheitert", "ruht": "ruht",
     "zurueckgenommen": "zurückgenommen",
@@ -431,23 +437,48 @@ def _adresse(db: Session, objekt_id: int | None) -> str | None:
     return ", ".join(x for x in (pr.street, ort) if x) or None
 
 
+def gruppe_text(auftrag: str | None, objekt: str | None) -> str:
+    """Wie das Portal gruppiert (Entscheidung P2-10): Auftragsnummer und Adresse des Objekts, nie der Projekttitel."""
+    if auftrag and objekt:
+        return f"Auftrag {auftrag} · {objekt}"
+    if auftrag:
+        return f"Auftrag {auftrag}"
+    if objekt:
+        return f"Objekt {objekt}"
+    return "Ohne Auftrag und Objekt"
+
+
 def eintrag(db: Session, f: PortalFreigabe) -> dict:
     k = kette(db, f.quelle, f.quelle_id)
     z, grund = zustand(db, f, k)
+    objekt = _adresse(db, k.objekt_id)
     return {
         "id": f.id, "art": f.art, "art_text": ART_TEXT.get(f.art, f.art), "quelle": f.quelle, "quelle_id": f.quelle_id, "titel": f.titel, "datum": f.datum,
         "automatisch": f.regel is not None, "freigegeben_am": f.freigegeben_am, "freigegeben_von": f.freigegeben_von_name, "zustand": z,
         "zustand_text": ZUSTAND_TEXT[z], "grund": grund, "zurueckgenommen_am": f.zurueckgenommen_am, "zurueckgenommen_von": f.zurueckgenommen_von_name,
-        "auftrag": k.auftrag, "objekt": _adresse(db, k.objekt_id),
+        "auftrag": k.auftrag, "objekt": objekt, "gruppe": gruppe_text(k.auftrag, objekt),
     }
+
+
+def zahlen(eintraege: list[dict]) -> list[dict]:
+    """Je Art, was der Kunde sieht bzw. gleich sieht (SIEHT), in der Reihenfolge von ART_TEXT: Anzahl und Text („3 Rechnungen“, „1 Foto“)."""
+    je_art: dict[str, int] = {}
+    for e in eintraege:
+        if e["zustand"] in SIEHT:
+            je_art[e["art"]] = je_art.get(e["art"], 0) + 1
+    return [{"art": art, "anzahl": je_art[art], "text": f"{je_art[art]} {ART_TEXT[art] if je_art[art] == 1 else ART_MEHRZAHL[art]}"}
+            for art in ART_TEXT if art in je_art]
 
 
 def stand(db: Session, kunde: Customer, *, modul_an: bool = True) -> dict:
     """Was die Karte „Im Portal“ zeigt: je Freigabe des Kunden ein Eintrag, die jüngste zuerst; dazu, ob der Kunde das Portal sieht."""
     zeilen = db.scalars(select(PortalFreigabe).where(PortalFreigabe.customer_id == kunde.id)
                         .order_by(PortalFreigabe.freigegeben_am.desc(), PortalFreigabe.id.desc())).all()
-    return {"portal_aktiv": bool(kunde.portal_aktiv), "kunde_archiv": kunde.archiviert_am is not None, "eintraege": [eintrag(db, f) for f in zeilen],
-            "vorschlaege": vorschlaege(db, kunde)}  # seit 1.11.37
+    eintraege = [eintrag(db, f) for f in zeilen]
+    je_art = zahlen(eintraege)  # seit 1.11.38: für die Karte und „vor dem Einladen“ (Nachtrag 6)
+    return {"portal_aktiv": bool(kunde.portal_aktiv), "kunde_archiv": kunde.archiviert_am is not None, "eintraege": eintraege,
+            "vorschlaege": vorschlaege(db, kunde), "zahlen": je_art, "zahlen_text": " · ".join(z["text"] for z in je_art),
+            "anzahl_sichtbar": sum(z["anzahl"] for z in je_art)}
 
 
 def unterlagen(db: Session, quelle: str, quelle_ids: list[int]) -> list[dict]:

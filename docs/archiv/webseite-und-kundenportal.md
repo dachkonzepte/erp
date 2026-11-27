@@ -3924,6 +3924,56 @@ passt in die Spalte, Fehler hält den Postboten nicht an. Gegenproben: 17, alle 
 allein trägt; `docs/archiv/gegenproben-portal.md`). Angepasst: keine Erwartung; `test_v809` (Karte Kundenportal) unverändert grün -- Portal an wendet jetzt die
 Regeln an, dort ohne Unterlagen.
 
+### Umsetzung 1.11.38 (P2c, Teil 3): Reiter „Im Portal“ und „vor dem Einladen“
+
+- Server (`app/portal_freigaben.py::stand()`): je Eintrag `gruppe` -- „Auftrag <Nummer> · <Adresse>“, „Auftrag …“, „Objekt …“ oder „Ohne Auftrag und Objekt“
+  (`gruppe_text()`, P2-10, nie der Projekttitel); dazu `zahlen` je Art (was der Kunde sieht oder gleich sieht: sichtbar, wird vorbereitet -- nicht
+  gescheitert, ruhend, zurückgenommen), `zahlen_text` („2 Rechnungen · 3 Fotos · 1 Dokument“, Einzahl und Mehrzahl aus `ART_TEXT`/`ART_MEHRZAHL`) und
+  `anzahl_sichtbar` (Zahl am Reiter).
+- Kundenakte (`customer.html`), nur mit Modul (sonst fehlen Reiter, Abschnitt und Dialoge, die Seite fragt nicht): Reiter „Im Portal“ (Anker `#importal`) --
+  Hinweis bei Portal aus bzw. Kunde im Archiv, „Der Kunde sieht: …“, Gruppen in der Reihenfolge der jüngsten Freigabe, je Zeile Titel, Art, Datum,
+  automatisch bzw. von wem, seit wann, Grund; Kennzeichen sichtbar (grün), wird vorbereitet (blau), Kopie gescheitert (Warnfarbe, „Erneut versuchen“);
+  „Vorschläge“ mit „Im Portal zeigen“; „Ruht“ mit Grund; „Zurückgenommen“ eingeklappt mit Zahl, je Zeile wann, von wem, Grund. Zurücknehmen über einen Dialog
+  mit freiwilligem Grund (kein prompt(), Regel 4), auch im Archiv (`data-lesen`); im Archiv sonst kein Knopf. Texte nur über `textContent`, die Knöpfe tragen
+  nur Nummern. Die Reiterliste der Seite entsteht aus den vorhandenen Abschnitten.
+- Vor dem Einladen (Nachtrag 6): in der Karte „Kundenportal“ in den Zuständen aus, kein Zugang, ohne Link und Versand gescheitert der Satz „Ab dem Einladen
+  sieht der Kunde: …“ mit „Im Portal ansehen“ (öffnet den Reiter); derselbe Satz im Dialog „Link senden“. „Portal einschalten“ lädt danach auch die Freigaben
+  (die Regeln legen beim Einschalten an, 1.11.37) -- der Satz zählt dann die automatischen mit.
+- Baustein `_im_portal.html` „Im Portal zeigen“: Dialog mit Titel (bei einer Unterlage Pflicht, vorbelegt; bei mehreren leer = je Unterlage der Vorschlag),
+  Hinweis zu hochgeladenen PDFs (B6), Hinweis „Portal aus“, Vorschau von Bildern (höchstens 6, `sichereBildquelle()`); Freigeben abschließend
+  (`abschliessen()`, `ABSCHLIESSEND` in `tests/test_v399_abschliessen.py`), Meldung des Servers im Dialog. Hier nur für die Vorschläge, in 1.11.39 an den Dateien.
+
+#### Festlegungen 1.11.38 (Bitte bestätigen)
+
+1. Reiter „Im Portal“ in der Kundenakte nur mit Modul; die Zahl am Reiter ist, was der Kunde sieht oder gleich sieht.
+2. „Der Kunde sieht“ zählt sichtbar und „wird vorbereitet“, nicht gescheitert, ruhend oder zurückgenommen; je Art mit Einzahl und Mehrzahl.
+3. Gruppen wie im Portal: Auftragsnummer und Adresse des Objekts, nie der Projekttitel; ohne beides „Ohne Auftrag und Objekt“.
+4. Darunter „Vorschläge“ (nur von Hand), „Ruht“ (mit Grund) und eingeklappt „Zurückgenommen“.
+5. Zurücknehmen über einen Dialog mit freiwilligem Grund, auch im Archiv; im Archiv sonst kein Knopf.
+6. Vor dem Einladen (aus, kein Zugang, ohne Link, Versand gescheitert) nennt die Karte „Kundenportal“, was der Kunde ab dann sieht, mit Link zum Reiter;
+   derselbe Satz im Dialog „Link senden“.
+7. Freigeben über einen gemeinsamen Dialog „Im Portal zeigen“; abschließend; bei einer Unterlage ist der Titel Pflicht.
+
+#### Abweichungen vom Bauplan (1.11.38)
+
+- B9 nennt „Karte bzw. Reiter“ -- ein Reiter (die Liste wird lang, die Übersicht ist schon voll); in der Übersicht steht nur der Satz „vor dem Einladen“.
+- B9 Zustände „Kopie wird erstellt“ und „Büro – Auftrag (alles)“: als „Wird vorbereitet“ bzw. ohne eigene Darstellung (Büro – Auftrag sieht und darf alles,
+  wie jede Büro-Rolle).
+- Nachtrag 6 „Vor dem Einladen“: auch im Zustand „aus“ (da zählt nur das von Hand Freigegebene, die Regeln laufen erst mit dem Einschalten).
+
+#### Tests und Prüfung 1.11.38
+
+`tests/test_v830_im_portal_karte.py` (5: Zahlen nur, was der Kunde sieht; leer; ruhend zählt nicht; Ein- und Mehrzahl je Art; Gruppe wie im Portal),
+Klicktest `scripts/klicktest_kundenportal_im_portal.py` (40: vor dem Einladen mit Portal aus und an, im Dialog „Link senden“, Link zum Reiter; Zahl am Reiter,
+Gruppen, Kennzeichen, Grund, Ruht, Zurückgenommen, Vorschlag mit Titelpflicht und Freigeben, Zurücknehmen mit Grund, Erneut versuchen, dunkel, 412 px, Archiv nur
+„Zurücknehmen“, Monteurin 403, Modul aus ohne Reiter und ohne Anfrage). Gegenproben: 8, alle rot aus dem geprüften Grund. Eingeordnet bzw. angepasst:
+
+- `tests/test_v554_kundenakte_funktionen.py` -- drei Funktionen „Im Portal“ in `FUNKTIONEN`; `REITER` alt ohne, neu mit „importal“.
+- `tests/test_v795_nur_lesen.py::LESEN` (customer.html) -- dazu „portalSiehtLink“ und „ip-zuruecknehmen“.
+- `tests/test_v399_abschliessen.py::ABSCHLIESSEND` -- dazu `_im_portal.html`, `imPortalFreigeben`.
+- Ein erster Seitentest in `test_v830` (Reiter nur mit Modul über `router_test_client`) war falsch gebaut -- ohne Anmeldeschranke liest der Modulschalter der
+  Vorlage nicht die Testdatenbank; geprüft wird das jetzt im Klicktest.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

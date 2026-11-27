@@ -811,3 +811,21 @@ archivierter Kunde hielte sonst alle Regeln im Postboten an). Wiederholt mit kor
 | 1.11.37-3 – Postbote im vollen Lauf | Aufruf weg | rot (PostgreSQL, echter Postbote) |
 | 1.11.37-8 – ein Fehler hält den Postboten nicht an | Ausnahme nicht gefangen | rot |
 | 1.11.37-7 – von „automatisch“, Portal aus nimmt nichts zurück | -- | keine eigene: geprüft in `test_rechnung_nur_wenn_angekommen` und `test_portal_an_wendet_die_regeln_gleich_an` |
+
+## 1.11.38: Reiter „Im Portal“ und „vor dem Einladen“ (P2c, Teil 3)
+
+Probendatei `gegenprobe_11138.py` (Scratchpad, mit `--trocken` vorab geprüft); unter `app/` mit Marker `GEGENPROBE` (in Vorlagen als Kommentar); Server über
+pytest, die Seite über den Klicktest `klicktest_kundenportal_im_portal.py` (rot = Rückgabe ungleich 0 und eine XX-Zeile mit der geprüften Aussage); jede Datei
+danach byte-gleich zurück.
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.38-2 – zählt nur, was der Kunde sieht | „gescheitert“ zählt mit | rot |
+| 1.11.38-2 – Einzahl und Mehrzahl | immer Mehrzahl | rot („1 Rechnungen“) |
+| 1.11.38-3 – Gruppe mit Adresse | nur die Auftragsnummer | rot |
+| 1.11.38-1 – Reiter nur mit Modul | Bedingung um den Reiter weg | rot (Klicktest: Reiter da bei Modul aus) |
+| 1.11.38-6 – vor dem Einladen | Liste der Zustände leer | rot (Klicktest, zwei Prüfungen) |
+| 1.11.38-5 – Zurücknehmen auch im Archiv | Knopf ohne `data-lesen` | rot (Klicktest: im Archiv kein Knopf) |
+| 1.11.38-7 – Titel bei einer Unterlage Pflicht | Prüfung weg | rot (Klicktest) |
+| 1.11.38-7 – Freigeben abschließend | `speichern()` statt `abschliessen()` | rot (`test_v399`) |
+| 1.11.38-4 – Vorschläge, Ruht, Zurückgenommen | -- | keine eigene: die Abschnitte prüft der Klicktest, ihre Daten die Server-Tests von 1.11.36/37 |

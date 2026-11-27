@@ -1,0 +1,80 @@
+{# „Im Portal zeigen“ (seit 1.11.38, Stufe P2c; Bauplan P2, B9; Nachtrag 6 des Betriebs): eine oder mehrere Unterlagen derselben Quelle für einen Kunden
+   freigeben -- ein Dialog für jede Seite. Die Seite öffnet ihn mit
+       imPortalOeffnen({kunde, quelle, ids, titel, was, pdf, portalAus, vorschau, nachher})
+   kunde = Kunde der Kette (die Seite kennt ihn aus „Im Portal“ bzw. GET /api/portal-freigaben/unterlagen), quelle und ids wie in portal_freigaben,
+   titel = Vorschlag (leer bei mehreren: je Unterlage Kategorie und Datum), was = Text über dem Feld, pdf = Hinweis zu hochgeladenen PDFs (Bauplan B6),
+   portalAus = Hinweis „sieht es erst, wenn das Portal an ist“, vorschau = Adressen von Bildern (höchstens 6, über sichereBildquelle()), nachher = eine
+   Funktion, die die Seite danach über lesen() neu lädt. Freigeben ist abschließend (die Unterlage geht an den Kunden hinaus). Texte nur über textContent.
+   Prüfen tut der Server (app/portal_freigaben.py); die Meldung steht im Dialog, die Eingabe bleibt. docs/archiv/webseite-und-kundenportal.md,
+   „Umsetzung 1.11.38“. #}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_aktionen.html" %}
+{% include "_links.html" %}
+<style>
+  #imPortalDialog{border:0;padding:0;width:min(560px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+  #imPortalDialog::backdrop{background:rgba(23,28,31,.45)}
+  #imPortalDialog .ip{padding:20px 22px 16px;display:flex;flex-direction:column;gap:12px}
+  #imPortalDialog .ip-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  #imPortalDialog .ip-kopf h3{margin:0;font-size:18px}
+  #imPortalDialog .ip-was{margin:0;font-size:14px;overflow-wrap:anywhere}
+  #imPortalDialog .ip-feld{display:flex;flex-direction:column;gap:4px}
+  #imPortalDialog .ip-feld label{font-size:13px;font-weight:600}
+  #imPortalDialog .ip-hinweis{margin:0;color:var(--ds-text-2);font-size:13px}
+  #imPortalDialog .ip-vorschau{display:flex;gap:8px;flex-wrap:wrap}
+  #imPortalDialog .ip-vorschau img{width:96px;height:72px;object-fit:cover;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche-2)}
+  #imPortalDialog .ip-knoepfe{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+</style>
+<dialog id="imPortalDialog" aria-labelledby="imPortalTitel"><div class="ip">
+  <div class="ip-kopf"><h3 id="imPortalTitel">Im Portal zeigen</h3><button type="button" class="secondary" data-klick="im-portal-zu" aria-label="Schließen">✕</button></div>
+  <p class="ip-was" id="imPortalWas"></p>
+  <div class="ip-vorschau" id="imPortalVorschau" hidden></div>
+  <div class="ip-feld"><label for="imPortalTitelFeld">Titel im Portal</label><input id="imPortalTitelFeld" maxlength="120" autocomplete="off">
+    <p class="ip-hinweis" id="imPortalTitelHinweis">Diesen Titel sieht der Kunde – nie den Dateinamen.</p></div>
+  <div class="notice warning" id="imPortalPdf" hidden>PDFs können Angaben enthalten, die nicht sichtbar sind (Verfasser, Kommentare, Fotos mit Ort) – im Zweifel als neues PDF speichern.</div>
+  <div class="notice" id="imPortalAus" hidden>Das Kundenportal ist für diesen Kunden aus – er sieht die Unterlage erst, wenn es an ist.</div>
+  <div class="ip-knoepfe"><span class="sml" id="imPortalStatus" role="status"></span><button type="button" class="secondary" data-klick="im-portal-zu">Abbrechen</button><button type="button" id="imPortalKnopf" data-klick="im-portal-freigeben">Im Portal zeigen</button></div>
+</div></dialog>
+<script>
+var imPortalAuftrag = null;
+function imPortalOeffnen(a) {
+  imPortalAuftrag = {kunde: Number(a.kunde), quelle: String(a.quelle), ids: (a.ids || []).map(Number), nachher: a.nachher || null};
+  const mehrere = imPortalAuftrag.ids.length > 1;
+  document.getElementById('imPortalWas').textContent = a.was || '';
+  const feld = document.getElementById('imPortalTitelFeld');
+  feld.value = a.titel || '';
+  feld.placeholder = mehrere ? 'leer: je Unterlage Art bzw. Kategorie und Datum' : '';
+  document.getElementById('imPortalTitelHinweis').textContent = mehrere
+    ? 'Diesen Titel sieht der Kunde bei jeder der ' + imPortalAuftrag.ids.length + ' Unterlagen – nie den Dateinamen. Leer: je Unterlage Art bzw. Kategorie und Datum.'
+    : 'Diesen Titel sieht der Kunde – nie den Dateinamen.';
+  document.getElementById('imPortalPdf').hidden = !a.pdf;
+  document.getElementById('imPortalAus').hidden = !a.portalAus;
+  const bilder = (a.vorschau || []).slice(0, 6).map(src => {
+    const img = document.createElement('img');
+    img.alt = 'Vorschau';
+    img.src = sichereBildquelle(src);
+    return img;
+  });
+  const vorschau = document.getElementById('imPortalVorschau');
+  vorschau.replaceChildren(...bilder);
+  vorschau.hidden = !bilder.length;
+  document.getElementById('imPortalStatus').textContent = '';
+  document.getElementById('imPortalKnopf').textContent = mehrere ? imPortalAuftrag.ids.length + ' im Portal zeigen' : 'Im Portal zeigen';
+  document.getElementById('imPortalDialog').showModal();
+  feld.focus();
+}
+aktion('im-portal-zu', () => document.getElementById('imPortalDialog').close());
+async function imPortalFreigeben() {
+  const s = document.getElementById('imPortalStatus'), titel = document.getElementById('imPortalTitelFeld').value.trim(), auftrag = imPortalAuftrag;
+  if (!auftrag || !auftrag.ids.length) return;
+  if (!titel && auftrag.ids.length === 1) { s.textContent = 'Bitte einen Titel angeben.'; return; }
+  s.textContent = '';
+  const url = '/api/customers/' + auftrag.kunde + '/portal/freigaben';
+  const body = JSON.stringify(Object.assign({quelle: auftrag.quelle, quelle_ids: auftrag.ids}, titel ? {titel} : {}));
+  try {
+    await abschliessen('im-portal', () => api(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body}), {neuLaden: auftrag.nachher || (() => null)});
+    document.getElementById('imPortalDialog').close();
+  } catch (e) { s.textContent = e.message; }
+}
+aktion('im-portal-freigeben', imPortalFreigeben);
+</script>
