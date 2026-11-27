@@ -4,12 +4,14 @@ Läuft nur als eigener Prozess, gestartet von app/portal_kopien.py::foto_neu_kod
 liest das Bild von stdin, schreibt das JPEG nach stdout, nichts sonst. Importiert nur die Standardbibliothek und Pillow -- nichts aus dem ERP (mit -I liegt
 das Projekt gar nicht im Suchpfad), keine Umgebung (der Aufrufer gibt nur PATH weiter, keine Geheimnisse).
 
-Zuerst setzt der Prozess seine eigene Grenze für Speicher: unter Linux RLIMIT_AS, unter Windows (nur Entwicklung und Tests) ein Job-Objekt mit
-ProcessMemoryLimit. Danach: nur JPEG, PNG, WebP, GIF (Image.open(formats=…)); mehr als <Pixel> Bildpunkte -> Rückgabe 11; Drehung aus EXIF angewandt, nach
-sRGB umgerechnet, wenn ein Farbprofil dabei ist (sonst unverändert), Transparenz auf Weiß, nur das erste Bild einer Animation, längste Kante <Kante>,
+Zuerst stellt sich der Prozess unter Linux an die erste Stelle für den OOM-Killer (oom_score_adj 1000, seit 1.11.35 -- anheben darf jeder Prozess
+ohne Rechte; steht der Wert danach nicht auf 1000, endet er mit 13): wird die Einheit des Postboten eng, trifft es das Kind, nie den Postboten. Dann setzt er
+seine eigene Grenze für Speicher: unter Linux RLIMIT_AS, unter Windows (nur Entwicklung und Tests) ein Job-Objekt mit ProcessMemoryLimit. Danach: nur JPEG, PNG, WebP, GIF (Image.open(formats=…)); mehr als <Pixel> Bildpunkte -> Rückgabe 11; Drehung aus EXIF angewandt, nach
+sRGB umgerechnet, wenn ein Farbprofil dabei ist (sonst unverändert), Transparenz auf Weiß, nur das erste Bild einer Animation, längste Kante <Kante>
+(ein JPEG schon beim Dekodieren verkleinert, nach seinem Seitenverhältnis -- seit 1.11.35),
 JPEG mit <Qualität> -- aus einem frischen Bild ohne jede Angabe (kein EXIF, XMP, IPTC, ICC, Kommentar; ein angehängter Rest der Datei geht verloren).
 
-Rückgabe: 0 = JPEG auf stdout; 10 = nicht lesbar; 11 = zu groß (Bildpunkte); 12 = Speicher erschöpft. Jede andere (auch ein Absturz oder ein
+Rückgabe: 0 = JPEG auf stdout; 10 = nicht lesbar; 11 = zu groß (Bildpunkte); 12 = Speicher erschöpft; 13 = Vorrang nicht gesetzt. Jede andere (auch ein Absturz oder ein
 Abbruch durch den Aufrufer nach der Zeitgrenze) heißt dort „abbruch“. stderr bleibt leer -- keine Meldung trägt Inhalt oder Metadaten des Bildes.
 """
 
@@ -17,10 +19,25 @@ import io
 import sys
 import warnings
 
-OK, NICHT_LESBAR, ZU_GROSS, SPEICHER = 0, 10, 11, 12
+OK, NICHT_LESBAR, ZU_GROSS, SPEICHER, OHNE_VORRANG = 0, 10, 11, 12, 13
+LINUX = sys.platform.startswith("linux")
+VORRANG_DATEI = "/proc/self/oom_score_adj"
+VORRANG = "1000"  # der höchste Wert: das Kind zuerst
 FORMATE = ("JPEG", "PNG", "WEBP", "GIF")
 # EXIF-Orientierung -> Drehung (wie PIL.ImageOps.exif_transpose)
 DREHUNG = {2: "FLIP_LEFT_RIGHT", 3: "ROTATE_180", 4: "FLIP_TOP_BOTTOM", 5: "TRANSPOSE", 6: "ROTATE_270", 7: "TRANSVERSE", 8: "ROTATE_90"}
+
+
+def vorrang_setzen(datei: str | None = None) -> bool:
+    """Unter Linux: dieser Prozess zuerst, wenn der OOM-Killer wählen muss. Wahr nur, wenn der Wert danach wirklich 1000 ist."""
+    datei = datei or VORRANG_DATEI
+    try:
+        with open(datei, "w", encoding="ascii") as f:
+            f.write(VORRANG)
+        with open(datei, encoding="ascii") as f:
+            return f.read().strip() == VORRANG
+    except OSError:
+        return False
 
 
 def speicher_begrenzen(grenze: int) -> None:
@@ -69,7 +86,11 @@ def neu_kodieren(daten: bytes, pixel: int, kante: int, qualitaet: int) -> bytes:
     drehung = bild.getexif().get(0x0112, 1)
     profil = bild.info.get("icc_profile")
     bild.seek(0)
-    bild.thumbnail((kante, kante))  # JPEG verkleinert schon beim Dekodieren (draft); lädt das Bild
+    faktor = min(1.0, kante / max(bild.size))
+    # JPEG: verkleinert dekodieren, mindestens doppelt so groß wie das Ziel (wie thumbnail mit reducing_gap 2) -- aber nach dem Seitenverhältnis; thumbnail
+    # selbst fragt mit dem Quadrat (Kante × 2)², ein Foto 8000 × 6000 käme so voll in den Speicher (gemessen 280 statt 100 MB). Andere Formate: nichts.
+    bild.draft(None, (max(1, round(bild.width * faktor * 2)), max(1, round(bild.height * faktor * 2))))
+    bild.thumbnail((kante, kante))  # lädt das Bild
     if drehung in DREHUNG:
         bild = bild.transpose(getattr(Image.Transpose, DREHUNG[drehung]))
     if bild.mode in ("RGBA", "LA", "PA") or (bild.mode == "P" and "transparency" in bild.info):
@@ -94,6 +115,8 @@ def main(argv: list[str]) -> int:
         speicher, pixel, kante, qualitaet = (int(x) for x in argv[1:5])
     except (ValueError, TypeError):
         return 2
+    if LINUX and not vorrang_setzen():
+        return OHNE_VORRANG
     speicher_begrenzen(speicher)
     daten = sys.stdin.buffer.read()
     try:

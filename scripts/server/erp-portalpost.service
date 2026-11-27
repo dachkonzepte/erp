@@ -3,9 +3,13 @@
 # Einrichten: docs/archiv/webseite-und-kundenportal.md, „Server-Schritte P1“ (S6). Lädt .env wie update.sh (set -a; source .env; set +a).
 # Läuft schon ein Postbote (Sperre der Datenbank), endet ein zweiter mit Rückgabe 3.
 # Seit 1.11.33 (Stufe P2b) legt er die Kopien der freigegebenen Unterlagen in PORTAL_DATEIEN (/srv/dk-portal/dateien, tobias:www-data 2750; aus .env).
-# Fotos kodiert ein Kindprozess neu (app/portal_foto_kind.py) mit eigener Grenze für Speicher (RLIMIT_AS 1 GiB) und Zeit (60 s) -- er zählt zur Grenze
-# dieser Einheit, deshalb MemoryHigh/MemoryMax höher als bis 1.11.32 (200M/256M). UMask 0027: neue Dateien höchstens für die Gruppe lesbar (www-data liest
-# die Kopien über die Gruppe des Ordners, die Datei selbst setzt der Postbote auf 0640). ProtectSystem=full lässt /srv beschreibbar.
+# Fotos kodiert ein Kindprozess neu (app/portal_foto_kind.py) mit eigener Grenze für Speicher (RLIMIT_AS) und Zeit (60 s) -- er zählt zur Grenze
+# dieser Einheit, deshalb MemoryHigh/MemoryMax höher als bis 1.11.32 (200M/256M). Seit 1.11.35 liegt die Grenze des Kinds unter MemoryHigh: 640M minus
+# 192 MB für den Postboten = 448 MB (app/portal_kopien.py, FOTO_SPEICHER) -- das Kind scheitert an seiner eigenen Grenze, bevor die Einheit eng wird.
+# Wird sie trotzdem eng, nimmt der OOM-Killer das Kind (es setzt oom_score_adj 1000), und OOMPolicy=continue lässt den Postboten danach weiterlaufen
+# (ab Werk „stop“: systemd hielte die ganze Einheit an, auch wenn der Kernel nur das Kind beendet hat). Ändert sich MemoryHigh, ändert sich FOTO_SPEICHER mit.
+# UMask 0027: neue Dateien höchstens für die Gruppe lesbar (www-data liest die Kopien über die Gruppe des Ordners, die Datei selbst setzt der Postbote auf
+# 0640). ProtectSystem=full lässt /srv beschreibbar.
 [Unit]
 Description=ERP: Postbote des Kundenportals
 After=network.target postgresql.service
@@ -21,6 +25,7 @@ Restart=always
 RestartSec=5
 MemoryHigh=640M
 MemoryMax=768M
+OOMPolicy=continue
 UMask=0027
 TasksMax=32
 NoNewPrivileges=true

@@ -202,7 +202,10 @@ def test_kind_importiert_nichts_aus_dem_erp():
 
 
 def test_pruefskript_fuer_den_server_als_kindprozess():
-    """Server-Schritt P2b-4: scripts/pruefe_portal_foto.py so, wie es auf dem Server läuft (Python aus .venv, im Repo-Ordner) -- drei Prüfungen, Rückgabe 0."""
+    """Server-Schritt P2b-4: scripts/pruefe_portal_foto.py so, wie es auf dem Server läuft (Python aus .venv, im Repo-Ordner) -- drei Prüfungen, unter Linux
+    vier (seit 1.11.35 der Vorrang des Kinds), zwei Messungen je Kind, Rückgabe 0."""
     lauf = subprocess.run([sys.executable, "scripts/pruefe_portal_foto.py"], cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
                           errors="replace", timeout=300, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
-    assert lauf.returncode == 0 and lauf.stdout.count("ok ") == 3 and "alle drei wie erwartet" in lauf.stdout and lauf.stderr == "", lauf
+    pruefungen = 4 if sys.platform.startswith("linux") else 3
+    assert lauf.returncode == 0 and lauf.stdout.count("ok ") == pruefungen and "alle Prüfungen wie erwartet" in lauf.stdout and lauf.stderr == "", lauf
+    assert lauf.stdout.count("Messung: ") == 2 and "Grenze des Kinds 448 MB" in lauf.stdout, lauf.stdout

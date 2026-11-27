@@ -1739,7 +1739,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Sitzung (30 Minuten). Seit 1.11.32 die Matrix je Quelle × Fall (`tests/test_v822_portal_unterlagen_matrix.py`): eine neue Quelle oder ein neuer Fall
   kommt dort hinein, jede Zelle Test oder „entfällt“ mit Grund. Seit 1.11.33 (P2b) die Kopien: nur der Postbote legt sie in `PORTAL_DATEIEN` an
   (`app/portal_kopien.py`, auf den Weckruf an `portal_freigaben` und alle 15 Minuten voll) -- PDF byte-gleich aus der festen Fassung, Fotos neu kodiert im
-  Kindprozess mit Grenzen für Speicher und Zeit (`app/portal_foto_kind.py`, nur Standardbibliothek und Pillow, Umgebung nur PATH); ein Ordner gehört genau
+  Kindprozess mit Grenzen für Speicher und Zeit (`app/portal_foto_kind.py`, nur Standardbibliothek und Pillow, Umgebung nur PATH; seit 1.11.35 unter Linux mit
+  oom_score_adj 1000, die Einheit mit `OOMPolicy=continue`, die Grenze des Kinds = MemoryHigh der Einheit minus 192 MB -- ändert sich MemoryHigh, ändert sie
+  sich mit, Wächter `tests/test_v826_portal_foto_vorrang.py`); ein Ordner gehört genau
   einer Datenbank (`.datenbank`); eine neue Quelle braucht ihren Weg in `quelle_lesen()` (Wächter in `tests/test_v823_portal_kopien.py`). Seit 1.11.34 die
   Auslieferung: `POST /api/datei/anfordern`, dann `GET /datei/<n>` bzw. `/datei/<n>/herunterladen` -- eine leere Antwort mit X-Accel-Redirect, nginx liefert
   aus `location /_portal_dateien/` (internal, feste Typen, der vollständige Satz der Schutz-Kopfzeilen selbst, Wächter in `tests/test_v825_portal_dateien.py`);

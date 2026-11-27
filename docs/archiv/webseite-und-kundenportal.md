@@ -3412,6 +3412,8 @@ Bauplan mit Befund und Nachtrag `bildgrundlage/bauplan_p2_d86b9df.txt` (nicht in
 - Zahl auf dem Server (nur lesend): `sudo -u postgres psql -tAX -d dachkonzepte -c "select count(*), count(*) filter (where time_rows_json is not null),
   count(*) filter (where pdf_document_id is not null) from service_reports where status = 'unterschrieben'"` -- unterschrieben, davon mit Zeiten, davon mit
   Fassung (nach 1.11.29).
+- **Entschieden am 27.11.2026** (nach der Zählung, siehe „Antworten des Betriebs zu den Berichten 1.11.32 bis 1.11.34“): nicht nachträglich festschreiben,
+  kein Skript. Die zwei schon unterschriebenen Berichte bleiben ohne Fassung und erscheinen nie im Portal.
 
 #### Tests und Prüfung 1.11.29
 
@@ -3554,7 +3556,7 @@ Gegenproben: `gegenproben-portal.md`, „1.11.31“. Beim Einspielen: Migration 
 - `test_v819`: die feste Fassung zeigt die Unterschrift in Berliner Zeit (Winter 10:05 UTC -> 11:05, Sommer 10:05 UTC -> 12:05), Monteur und Kunde, aus der
   Ablage gelesen.
 
-#### Festlegungen 1.11.32 (Bitte bestätigen)
+#### Festlegungen 1.11.32 (bestätigt am 27.11.2026)
 
 1. Ein Brief der Anzeigen ist nur sichtbar, solange die Unterschrift dahinter nicht verworfen ist (wie die Fassung einer Checkliste).
 2. Ein Foto oder Beleg am Mangel ist nur sichtbar, solange der Mangel nicht verworfen ist.
@@ -3606,12 +3608,12 @@ Gegenproben: `gegenproben-portal.md`, „1.11.32“. Beim Einspielen: Migration 
   (opensource)“ bzw. „PDFium“ (zusammengefügte Abschrift), Subject „(unspecified)“, Keywords leer, Datum mit Zeitzone, kein XMP. Kein Benutzername, nichts
   Internes. Hochgeladene PDFs (Kundenakte, Projektmappe, Belege) tragen ihre eigenen Angaben -- dafür der Hinweis beim Freigeben (B6, P2c).
 
-#### Festlegungen 1.11.33 (Bitte bestätigen)
+#### Festlegungen 1.11.33 (bestätigt am 27.11.2026)
 
 1. Kopien legt nur der Postbote an, im Ordner `PORTAL_DATEIEN`; Name zufällig (64 hexadezimale Zeichen) mit Endung .pdf bzw. .jpg, Datei 0640; die Zeile
    wird erst nach geschriebener und gegengelesener Datei bereit.
 2. PDFs byte-gleich, nur aus der festen Fassung der Ablage (mit Prüfsumme) bzw. aus der gespeicherten Datei; nie neu erzeugt.
-3. Jedes Rasterbild wird neu kodiert, im Kindprozess mit 1 GiB Speicher, 60 s, 64 Mio. Bildpunkten (schon darüber „zu_gross“), Kante 1600, Qualität 82,
+3. Jedes Rasterbild wird neu kodiert, im Kindprozess mit 1 GiB Speicher (seit 1.11.35 448 MB, Festlegung 1.11.35-3), 60 s, 64 Mio. Bildpunkten (schon darüber „zu_gross“), Kante 1600, Qualität 82,
    sRGB, ohne jede Angabe aus der Datei; das Kind bekommt nur PATH.
 4. Höchstens 25 MB je Quelle.
 5. Fehlerwörter fest (`fehlt` neu); kein zweiter Versuch von selbst (P2c setzt zurück); das Protokoll nennt nur Nummer und Wort.
@@ -3677,7 +3679,7 @@ Einheiten, nginx, Prüfskript).
   der interne Weg 404 (19 Prüfungen). Firefox (headless, eigenes Profil) zeigt ein PDF mit genau diesen Kopfzeilen mit pdf.js an (einmaliger Versuch im
   Scratchpad, Bild im Bericht). Safari und beide Handy-Systeme: offen (siehe Abweichungen).
 
-#### Festlegungen 1.11.34 (Bitte bestätigen)
+#### Festlegungen 1.11.34 (bestätigt am 27.11.2026)
 
 1. Eine Datei gibt es nur in zwei Schritten: `POST /api/datei/anfordern` (Sitzung, Bremsen, Sichtbarkeit, Protokoll), dann `GET/HEAD /datei/<n>` bzw.
    `/datei/<n>/herunterladen` (liest nur; Anforderung derselben Sitzung in den letzten 30 Minuten).
@@ -3721,7 +3723,74 @@ ohne Schreiben; 404 außen gleich in sieben Fällen; 401, 429, 422; unpassender 
   `portal_datei_anfordern` und `portal_datei` (Wörter aus unterlagen.py), `portal_unterlagen` noch ohne Weg.
 Gegenproben: `gegenproben-portal.md`, „1.11.34“.
 
-### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.34)
+### Antworten des Betriebs zu den Berichten 1.11.32 bis 1.11.34 (27.11.2026)
+
+- Bestätigt: 1.11.32-1 bis -3, 1.11.33-1 bis -13, 1.11.34-1 bis -10. Berichte und das ZIP p2b_e99c99a seit 27.11.2026 im Archiv der Berichte.
+- Zählung auf dem Server nach 1.11.31: `service_reports` unterschrieben 2, davon mit gespeicherten Zeiten 0, mit fester Fassung 0; Entwurf 3. `audit_logs`:
+  keine Zeile mit `field_name = 'customer_id'`. **Entscheidung:** die zwei schon unterschriebenen Berichte nicht nachträglich festschreiben, kein Skript; sie
+  bleiben ohne Fassung und erscheinen nie im Portal (Vorschlag unter 1.11.29 damit erledigt).
+- Rauchtest in Safari und auf beiden Handy-Systemen (B6, Nachtrag 5): einverstanden, mit P2c und P2e als Teil von P2f.
+- Vor P2c als eigene kleine Version: das Kind darf 1 GiB (RLIMIT_AS), die Einheit nur 768M -- wird es eng, darf der OOM-Killer der Einheit nie den Postboten
+  treffen, nur das Kind. Prüfen, ob das Kind sich selbst oom_score_adj 1000 setzt (geht ohne Rechte) und die Grenzen so liegen, dass das Kind zuerst
+  scheitert; Test dazu. MemoryMax prüft der Betrieb nach der Messung auf dem Server (P2b-4). -> 1.11.35.
+- Danach P2c wie im Bauplan mit den drei vorgemerkten Punkten (klare Meldung bei ruhender Freigabe eines anderen Kunden; Fotos mehrere auf einmal; vor dem
+  Einladen zeigen, was der Kunde ab dann sieht); nach P2c anhalten.
+
+### Umsetzung 1.11.35: das Kind scheitert, nie der Postbote
+
+Befund: das Kind durfte 1 GiB (RLIMIT_AS), die Einheit `erp-portalpost` hat MemoryHigh 640M und MemoryMax 768M. Drei Folgen, wenn ein großes Bild kommt:
+(1) über MemoryHigh bremst der Kernel jeden Prozess der Einheit, auch den Postboten beim Versand der Codes; (2) an MemoryMax wählt der OOM-Killer der Einheit
+nach Größe -- meist das Kind, sicher ist das nicht; (3) systemd hält mit `OOMPolicy` ab Werk („stop“, `DefaultOOMPolicy`) die ganze Einheit an, sobald der
+Kernel einen ihrer Prozesse beendet -- auch wenn es nur das Kind war. Der Postbote käme erst über `Restart=always` wieder, wenn überhaupt.
+
+- Das Kind (`app/portal_foto_kind.py`) schreibt unter Linux zuerst `1000` nach `/proc/self/oom_score_adj` und liest den Wert nach (`vorrang_setzen()`):
+  anheben darf jeder Prozess ohne Rechte, nur Senken braucht CAP_SYS_RESOURCE. Steht danach nicht 1000 dort, endet es mit 13, bevor es die Grenze setzt oder
+  ein Byte liest; der Postbote macht daraus „abbruch“ wie aus jeder unbekannten Rückgabe. Unter Windows (Entwicklung) entfällt das -- dort begrenzt das
+  Job-Objekt den einen Prozess, einen OOM-Killer gibt es nicht.
+- Einheit: `OOMPolicy=continue` -- beendet der Kernel das Kind, läuft der Postbote weiter (im Journal die Meldung des Kernels, der Postbote trägt „abbruch“ ein).
+- Grenze des Kinds `FOTO_SPEICHER` 448 MB = MemoryHigh 640M minus `POSTBOTE_RAUM` 192 MB (der Postbote auf dem Server rund 100 MB, S6, dazu eine PDF-Kopie bis
+  25 MB zweimal im Speicher, mit Puffer). RLIMIT_AS begrenzt den ganzen Adressraum, der belegte Speicher ist nie größer -- das Kind scheitert an seiner eigenen
+  Grenze (MemoryError, Rückgabe 12, „abbruch“), bevor die Einheit MemoryHigh erreicht. `tests/test_v826_portal_foto_vorrang.py` hält Grenze + Raum ≤
+  MemoryHigh < MemoryMax gegen die Einheit; `kind_befehl()` ist der eine Aufruf des Kinds (Postbote und Prüfskript).
+- JPEG wird nach seinem Seitenverhältnis verkleinert dekodiert (`draft` mit dem Doppelten der Zielgröße). Bis 1.11.34 fragte `thumbnail` mit dem Quadrat
+  (3200 × 3200) -- ein Foto 8000 × 6000 kam so unverkleinert in den Speicher.
+- Gemessen (lokal, Windows, Job-Objekt; kleinste Grenze, mit der das Kind durchkommt): JPEG 12 Mio. Bildpunkte 100 MB; JPEG 48 Mio. 280 MB, verkleinert
+  dekodiert 100 MB; PNG 36 Mio. mit Alpha 340 MB; PNG 64 Mio. 360 MB, mit Alpha 580 MB; WebP 64 Mio. 1000 MB. Mit 448 MB gehen damit alle JPEG bis zur
+  Pixelgrenze, PNG bis rund 36 Mio. Bildpunkte mit Alpha bzw. 64 Mio. ohne; ein PNG 64 Mio. mit Alpha und ein WebP 64 Mio. enden mit „abbruch“ (das WebP
+  schon mit 1 GiB knapp). Unter Linux zählt RLIMIT_AS den ganzen Adressraum -- die Zahlen liegen dort höher; sie misst P2b-4.
+- `scripts/pruefe_portal_foto.py`: unter Linux Prüfung 4 -- `/proc/<pid>/oom_score_adj` des laufenden Kinds ist 1000, bevor es ein Byte bekommt; die Zeile
+  mit der Grenze; zwei Messungen (JPEG 48 Mio., PNG 36 Mio. mit Alpha) mit der Grenze des Postboten und der Spitze je Kind (`os.wait4`) -- bis 1.11.34 las
+  das Skript `RUSAGE_CHILDREN`, die Spitze aller Kinder bis dahin (die Prüfung „Speicher gesprengt“ mit 150 MB lag schon darin).
+- Nach P2b-4 entscheidet der Betrieb über MemoryHigh und MemoryMax; die Grenze des Kinds ändert sich in derselben Version mit (MemoryHigh minus 192 MB).
+
+#### Festlegungen 1.11.35 (Bitte bestätigen)
+
+1. Das Kind setzt unter Linux selbst oom_score_adj 1000 und liest den Wert nach, bevor es seine Grenze setzt oder ein Byte liest; sonst Rückgabe 13, im
+   Postboten „abbruch“.
+2. Einheit `erp-portalpost`: `OOMPolicy=continue` -- beendet der Kernel nur das Kind, läuft der Postbote weiter.
+3. Grenze des Kinds 448 MB = MemoryHigh der Einheit minus 192 MB für den Postboten (bis 1.11.34 1 GiB, Festlegung 1.11.33-3); ein Wächter hält Grenze + Raum
+   ≤ MemoryHigh < MemoryMax. MemoryHigh, MemoryMax und die Grenze des Kinds ändern sich nur zusammen.
+4. Ein JPEG wird nach seinem Seitenverhältnis verkleinert dekodiert, mindestens doppelt so groß wie das Ziel.
+5. Das Prüfskript des Servers misst die Spitze je Kind und prüft unter Linux den Vorrang am laufenden Kind.
+
+#### Abweichungen vom Bauplan (1.11.35)
+
+- Keine vom Bauplan. Geändert ist eine bestätigte Festlegung: 1.11.33-3 (1 GiB für das Kind) -> 448 MB (Festlegung 1.11.35-3), weil die Einheit nur 768M hat
+  und MemoryMax erst nach der Messung auf dem Server neu bestimmt wird. Folge: PNG über rund 36 Mio. Bildpunkte mit Alpha und große WebP enden mit „abbruch“
+  statt einer Kopie (gemessen oben).
+
+#### Tests und Prüfung 1.11.35
+
+`tests/test_v826_portal_foto_vorrang.py` (9): OOMPolicy der Einheit; Grenze + Raum ≤ MemoryHigh < MemoryMax und der Aufruf mit dieser Grenze; Vorrang
+geschrieben und nachgelesen, nicht schreibbar, anderer Wert danach; ohne Vorrang unter Linux Rückgabe 13 vor Grenze, Lesen und Kodieren; mit Vorrang steht
+1000, bevor die Grenze gesetzt wird; 13 -> „abbruch“; JPEG 8000 × 6000 quer und hoch mit 200 MB Grenze in Größe und Lage. Gegenproben: 9, alle rot aus dem
+geprüften Grund (`docs/archiv/gegenproben-portal.md`). Angepasste Erwartung:
+
+- `test_v824_portal_foto.py::test_pruefskript_fuer_den_server_als_kindprozess` -- alt: dreimal „ok“, „alle drei wie erwartet“; neu: dreimal „ok“ (unter Linux
+  viermal), „alle Prüfungen wie erwartet“, zwei Zeilen „Messung:“ und „Grenze des Kinds 448 MB“.
+- `test_v805_portal_postbote.py::test_einheit_des_postboten` -- nur der Kommentar (1 GiB stand dort); Werte unverändert.
+
+### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
 
@@ -3761,23 +3830,27 @@ cd /home/tobias/erp
 sudo install -m 644 -o root -g root scripts/server/erp-portalpost.service /etc/systemd/system/erp-portalpost.service
 sudo systemctl daemon-reload && sudo systemctl restart erp-portalpost
 systemctl is-active erp-portalpost
-systemctl show erp-portalpost -p MemoryHigh -p MemoryMax -p UMask
+systemctl show erp-portalpost -p MemoryHigh -p MemoryMax -p UMask -p OOMPolicy
 journalctl -u erp-portalpost --since "-3 min" --no-pager | grep -E "Postbote bereit|PORTAL_DATEIEN|Kopien"
 ls -la /srv/dk-portal/dateien
 ```
 
-Erwartet: `active`; `MemoryHigh=671088640`, `MemoryMax=805306368`, `UMask=0027`; „Postbote bereit (LISTEN portal_post, portal_freigabe)“, kein „PORTAL_DATEIEN nicht
+Erwartet: `active`; `MemoryHigh=671088640`, `MemoryMax=805306368`, `UMask=0027`, `OOMPolicy=continue` (seit 1.11.35); „Postbote bereit (LISTEN portal_post, portal_freigabe)“, kein „PORTAL_DATEIEN nicht
 gesetzt“, kein „Kopien nicht abgeglichen“; im Ordner nur `.datenbank` (`-rw-r----- tobias www-data`). Abbruch bei „Kopien nicht abgeglichen“ (Klasse in den
-Chat). Rückweg: `git show HEAD~2:scripts/server/erp-portalpost.service | sudo tee /etc/systemd/system/erp-portalpost.service > /dev/null`, daemon-reload, Neustart.
+Chat). Rückweg: `git show bd0474f:scripts/server/erp-portalpost.service | sudo tee /etc/systemd/system/erp-portalpost.service > /dev/null` (Stand 1.11.32),
+daemon-reload, Neustart.
 
 **P2b-4 Fotos prüfen.**
 
 ```bash
 cd /home/tobias/erp && .venv/bin/python scripts/pruefe_portal_foto.py
+systemctl show erp-portalpost -p MemoryCurrent -p MemoryPeak
 ```
 
-Erwartet: dreimal „ok“, die Zeile „Messung: … Spitze des Kindprozesses … MB“ und „alle drei wie erwartet“. Die Ausgabe bitte in den Chat (unter Linux greift
-hier RLIMIT_AS; lokal ließ sich das nicht prüfen). Abbruch bei „!!!“.
+Erwartet (seit 1.11.35): viermal „ok“ (die vierte: „Vorrang für den OOM-Killer: Kind mit oom_score_adj 1000“), die Zeile „Grenze des Kinds 448 MB …“, zwei
+Zeilen „Messung: … Spitze … MB“ und „alle Prüfungen wie erwartet“; dazu Speicher des Postboten selbst (noch ohne Fotos). Die Ausgabe bitte in den Chat -- unter
+Linux greifen hier RLIMIT_AS und der Vorrang, lokal ließ sich beides nicht prüfen; aus den Spitzen und dem Speicher des Postboten bestimmt der Betrieb
+MemoryHigh und MemoryMax, die Grenze des Kinds folgt in einer eigenen Version. Abbruch bei „!!!“ (beim Vorrang: jedes Foto endete sonst mit „abbruch“).
 
 **P2b-5 Portal.**
 
@@ -3792,7 +3865,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: kunde.dachkonzepte.gmbh' http
 ```
 
 Erwartet: `active`; `InaccessiblePaths=/srv/dk-portal`; `200`; die Prüfung der Einheiten ohne Abweichung. Abbruch, wenn der Dienst nicht startet (meist fehlt der
-Ordner aus P2b-1). Rückweg: die alte Einheit wie in P2b-3 (`HEAD~2`), daemon-reload, Neustart.
+Ordner aus P2b-1). Rückweg: die alte Einheit wie in P2b-3 (`git show bd0474f:scripts/server/erp-portal.service`), daemon-reload, Neustart.
 
 **P2b-6 nginx.**
 

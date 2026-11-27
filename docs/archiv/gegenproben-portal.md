@@ -736,3 +736,21 @@ Einheit und Attrappe unter `scripts/` ohne Marker; jede Datei danach byte-gleich
 | 1.11.34-6 – Protokoll ohne internen Weg | `$uri` in log_format | rot |
 | 1.11.34-7 – Portal sieht den Ordner nicht | InaccessiblePaths entfernt | rot |
 | 1.11.34-10 – Attrappe übernimmt nur, was nginx übernimmt | CSP des Dienstes übernommen | rot (zwei Tests) |
+
+## 1.11.35: das Kind scheitert, nie der Postbote
+
+Probendatei `gegenprobe_11135.py` (Scratchpad, mit `--trocken` vorab geprüft); unter `app/` mit Marker `GEGENPROBE` in der geänderten Zeile, die Einheit unter
+`scripts/` ohne Marker; geprüft wird „failed“ (nicht „error“) und der Grund im Text; jede Datei danach byte-gleich zurück (SHA-256 verglichen).
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.11.35-1 – Vorrang geschrieben | `vorrang_setzen()` gibt wahr ohne zu schreiben | rot (zwei Tests) |
+| 1.11.35-1 – Vorrang nachgelesen | der nachgelesene Wert zählt nicht | rot |
+| 1.11.35-1 – ohne Vorrang Rückgabe 13 | Prüfung im Kind entfernt | rot (zwei Tests: das Kind ging weiter) |
+| 1.11.35-1 – Vorrang vor der Grenze | Grenze zuerst gesetzt | rot (Grenze bei Wert 0) |
+| 1.11.35-1 – 13 heißt „abbruch“ | 13 als „nicht_lesbar“ | rot |
+| 1.11.35-2 – OOMPolicy=continue | Zeile entfernt | rot |
+| 1.11.35-3 – Grenze unter MemoryHigh | Grenze wieder 1 GiB | rot |
+| 1.11.35-3 – Aufruf mit dieser Grenze | Kind fest mit 1 GiB aufgerufen | rot |
+| 1.11.35-4 – JPEG verkleinert dekodiert | `draft` entfernt | rot („abbruch“ mit 200 MB) |
+| 1.11.35-5 – Spitze je Kind, Vorrang am laufenden Kind | -- | keine Gegenprobe möglich: `os.wait4` und `/proc` gibt es nur unter Linux; geprüft auf dem Server (P2b-4) |

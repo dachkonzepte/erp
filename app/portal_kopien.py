@@ -55,12 +55,16 @@ RASTER = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 
 # Kindprozess für Fotos (Nachtrag 4): Speicher (RLIMIT_AS bzw. Job-Objekt), Zeit, Bildpunkte, Kante und Qualität wie die Fotos des ERP (B5)
 KIND = Path(__file__).with_name("portal_foto_kind.py")
-FOTO_SPEICHER = 1024 * 1024 * 1024
+# Grenze des Kinds (seit 1.11.35, bis 1.11.34 1 GiB -- mehr als die ganze Einheit): MemoryHigh der Einheit erp-portalpost (640M) minus POSTBOTE_RAUM. So
+# scheitert das Kind an seiner eigenen Grenze, bevor die Einheit eng wird (über MemoryHigh bremst der Kernel jeden Prozess der Einheit, auch den Postboten
+# beim Versand der Codes). tests/test_v826_portal_foto_vorrang.py hält beides gegen die Einheit; ändert sich MemoryHigh, ändert sich FOTO_SPEICHER mit.
+POSTBOTE_RAUM = 192 * 1024 * 1024  # der Postbote selbst (auf dem Server rund 100 MB, S6) und eine PDF-Kopie bis 25 MB, zweimal im Speicher, mit Puffer
+FOTO_SPEICHER = 448 * 1024 * 1024
 FOTO_SEKUNDEN = 60
 FOTO_PIXEL = 64_000_000
 FOTO_KANTE = 1600
 FOTO_QUALITAET = 82
-KIND_WORT = {10: "nicht_lesbar", 11: "zu_gross"}  # jede andere Rückgabe (12 Speicher, Absturz, Zeit) ist „abbruch“
+KIND_WORT = {10: "nicht_lesbar", 11: "zu_gross"}  # jede andere Rückgabe (12 Speicher, 13 ohne Vorrang, Absturz, Zeit) ist „abbruch“
 
 # „Soll eine Kopie haben“ -- dieselbe Kette wie portal_sichtbar() ohne die Kopie selbst; dazu der Kunde nicht im Archiv
 _SOLL = ("f.zurueckgenommen_am IS NULL AND c.archiviert_am IS NULL "
@@ -103,11 +107,16 @@ def _kind_umgebung() -> dict:
     return umgebung
 
 
+def kind_befehl(speicher: int = FOTO_SPEICHER, pixel: int = FOTO_PIXEL) -> list[str]:
+    """Der Aufruf des Kinds -- für foto_neu_kodieren() und das Prüfskript des Servers (scripts/pruefe_portal_foto.py) derselbe."""
+    return [sys.executable, "-I", str(KIND), str(speicher), str(pixel), str(FOTO_KANTE), str(FOTO_QUALITAET)]
+
+
 def foto_neu_kodieren(daten: bytes, *, speicher: int = FOTO_SPEICHER, sekunden: float = FOTO_SEKUNDEN, pixel: int = FOTO_PIXEL,
                       befehl: list[str] | None = None) -> bytes | str:
     """Das Foto als neues JPEG (bytes) oder ein Wort aus KOPIE_FEHLER. Der Kindprozess setzt seine Grenze für Speicher selbst; nach `sekunden` beendet
     ihn subprocess (kill). Ein Absturz oder die Zeitgrenze sind „abbruch“ -- der Aufrufer läuft weiter. `befehl` nur für Tests."""
-    befehl = befehl or [sys.executable, "-I", str(KIND), str(speicher), str(pixel), str(FOTO_KANTE), str(FOTO_QUALITAET)]
+    befehl = befehl or kind_befehl(speicher, pixel)
     try:
         lauf = subprocess.run(befehl, input=daten, capture_output=True, timeout=sekunden, env=_kind_umgebung(), check=False)
     except subprocess.TimeoutExpired:
