@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.11.53 – Mails des Portals nach 24 Monaten aus dem Versandprotokoll (Aufbewahrung, Stufe 2, Vorweg e)
+
+Der Postbote des Kundenportals löscht jetzt die Einträge seiner Mails -- Link und Anmeldecode -- 24 Monate nach dem Versand aus dem Versandprotokoll, von selbst, wie das Zugriffsprotokoll des Portals. Bis 1.11.52 blieb jede dieser Mails für immer stehen, jede Anforderung eines Codes eine Zeile mit der Adresse des Kunden. Es ist die einzige Ausnahme von der Regel, dass das Versandprotokoll nie gelöscht wird, und sie gilt nur für diese beiden Arten und nur für Einträge, an denen nichts hängt (kein PDF, kein Versandergebnis, keine Kopie, keine Vollmacht, kein offener Auftrag des Postboten); jede andere Mail -- Angebot, Rechnung, Mahnung, Aufgabe -- bleibt wie bisher. Ein Wächter stellt sicher, dass kein anderer Code aus dem Versandprotokoll oder der Ablage löscht.
+
 ## 1.11.52 – „Portal aus“ löscht die Kopien (Aufbewahrung, Stufe 2, Vorweg d)
 
 Schaltet das Büro das Kundenportal an einem Kunden aus, entfernt der Postbote jetzt auch die Kopien seiner freigegebenen Unterlagen vom Server -- spätestens im nächsten vollen Lauf nach 15 Minuten; bis dahin sind sie ohnehin nicht abrufbar, ohne Portal gibt es keine Sitzung. Bis 1.11.51 blieben sie liegen, nur das Schaufenster (Zahlstand, Termine) wurde schon geleert. Die Freigaben selbst bleiben; schaltet das Büro das Portal wieder an, legt der Postbote neue Kopien an. Eine Freigabe bei ausgeschaltetem Portal bleibt erlaubt und bekommt ihre Kopie, sobald das Portal an ist.

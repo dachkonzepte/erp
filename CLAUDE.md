@@ -723,7 +723,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Pflichtangaben (§ 35a GmbHG) aus den Firmendaten (`app/firmenangaben.py`, eine Quelle mit der Fußzeile der Portal-Mails); ohne nur
     `OHNE_FIRMENANGABEN` (Aufgaben-Mails) -- eine neue Versandart nur an Mitarbeiter kommt dorthin (`tests/test_v813_firmenangaben_mails.py`); seit 1.11.19 sagt das ein Satz unter dem Text jeder Mailvorlage der Einstellungen (`tests/test_v814_mail_schluss_hinweis.py`).
     Ablage und Protokoll werden nie geändert oder gelöscht (einzige
-    Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung und Storno liegen seit 1.8.82 ab dem
+    Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt; seit 1.11.53 löscht der Postbote die Einträge der Mails des Portals --
+    `portal_link`, `portal_code` -- 24 Monate nach dem Versand, nur ohne PDF und ohne Zeile, die auf sie zeigt, `app/portal_postbote.py::_alte_portal_mails()`;
+    kein anderer Code löscht aus Versandprotokoll oder Ablage, Wächter `tests/test_v844_portal_mails_nach_24_monaten.py`). Rechnung und Storno liegen seit 1.8.82 ab dem
     Festschreiben dort (feste Fassung im selben Commit, `Invoice.pdf_document_id`, `app/invoices.py::_store_fixed_pdf()`; ohne PDF
     kein Festschreiben), die Mahnung und Rechnungen von vor 1.8.82 ab dem ersten Versand -- alle aus der Ablage
     (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag

@@ -38,14 +38,17 @@ import time
 from datetime import datetime, timedelta
 from typing import Callable
 
-from sqlalchemy import delete, func, literal_column, select, text, update
+from sqlalchemy import delete, exists, func, literal_column, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from . import portal_kopien, portal_mails
 from .audit import record_audit_entry
-from .email_dispatch import DispatchConflict
-from .models import Customer, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang, PortalZugriff
+from .email_dispatch import PORTAL_TYPES, DispatchConflict
+from .models import (
+    Customer, DispatchAuthorization, DispatchCopy, DispatchOutcome, EmailDispatch, PortalBremse, PortalCode, PortalPost, PortalSitzung, PortalZugang,
+    PortalZugriff,
+)
 from .portal import pruefwerte, weckruf
 
 logger = logging.getLogger(__name__)
@@ -170,9 +173,29 @@ def alle(db: Session) -> int:
     return n
 
 
+# Seit 1.11.53 (W1c Stufe 2, S2-0 e; Antwort W2-4 vom 28.11.2026): die einzige Ausnahme von Regel 21, die etwas löscht -- die Zeilen der Mails des Portals
+# (Link, Anmeldecode) 24 Monate nach dem Versand, wie das Zugriffsprotokoll. Kein Handelsbrief (Zugangsdaten, Transport); gebraucht wurde die Zeile für den Stau
+# und den Nachweis „ging hinaus“. Nur Zeilen ohne Ablage und ohne Zeile, die auf sie zeigt (Auftrag des Postboten, Versandergebnis, Kopie, Vollmacht).
+# Die Sperre von Regel 21 (before_delete an EmailDispatch) greift nur im ORM; dieser Weg löscht über Core -- kein anderer Code löscht aus dem
+# Versandprotokoll oder der Ablage (Wächter in tests/test_v844_portal_mails_nach_24_monaten.py).
+VERSAND_FRIST = "24 months"
+
+
+def _alte_portal_mails():
+    return delete(EmailDispatch).where(
+        EmailDispatch.document_type.in_(sorted(PORTAL_TYPES)),
+        EmailDispatch.created_at < func.portal_jetzt() - literal_column(f"interval '{VERSAND_FRIST}'"),
+        EmailDispatch.sent_document_id.is_(None),
+        ~exists().where(PortalPost.email_dispatch_id == EmailDispatch.id),
+        ~exists().where(DispatchOutcome.dispatch_id == EmailDispatch.id),
+        ~exists().where(DispatchCopy.dispatch_id == EmailDispatch.id),
+        ~exists().where(DispatchAuthorization.dispatch_id == EmailDispatch.id),
+    )
+
+
 def aufraeumen(db: Session) -> dict[str, int]:
     """Löschen nach den Fristen (Bauplan P1, Abschnitt 6). Sitzungen gehen samt ihren Codes und Aufträgen (ON DELETE CASCADE); im Zugriffsprotokoll bleibt
-    der Eintrag ohne Sitzung (SET NULL). Das Versandprotokoll bleibt (Regel 21). Committet."""
+    der Eintrag ohne Sitzung (SET NULL). Das Versandprotokoll bleibt (Regel 21) -- seit 1.11.53 außer den Mails des Portals nach 24 Monaten. Committet."""
     j = jetzt(db)
     zahlen = {
         "codes": db.execute(delete(PortalCode).where(PortalCode.angelegt_am < j - timedelta(hours=24))).rowcount,
@@ -181,6 +204,7 @@ def aufraeumen(db: Session) -> dict[str, int]:
         "bremsen": db.execute(delete(PortalBremse).where(PortalBremse.fenster_beginn < j - timedelta(hours=48))).rowcount,
         "zugriffe": db.execute(delete(PortalZugriff).where(
             PortalZugriff.zeitpunkt < func.portal_jetzt() - literal_column("interval '24 months'"))).rowcount,
+        "versand": db.execute(_alte_portal_mails()).rowcount,  # seit 1.11.53, nach den Aufträgen (die Sitzungen oben)
     }
     db.commit()
     return zahlen

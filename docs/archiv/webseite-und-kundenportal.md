@@ -4729,6 +4729,30 @@ Portal bekommt erst mit „an“ eine Kopie). Angepasste Erwartungen: keine. **N
 Kunde der Testdaten mit Portal an (alt: Vorgabe aus; der erste Lauf vor dem Commit war rot, „Kopien angelegt 1“ kam nicht mehr -- der Test prüft den Postboten
 als Kindprozess, nicht „Portal aus“; meine gezielten Läufe hatten ihn nicht erfasst). Gegenprobe 1 von 1 rot: `_SOLL` ohne `c.portal_aktiv` (beide Tests rot).
 
+#### Umsetzung 1.11.53 (S2-0 e): Mails des Portals nach 24 Monaten aus dem Versandprotokoll
+
+- `app/portal_postbote.py::aufraeumen()` (stündlich) löscht dazu mit `_alte_portal_mails()` die Einträge der Arten aus `PORTAL_TYPES` (`portal_link`,
+  `portal_code`), die älter als 24 Monate sind (`VERSAND_FRIST`, Zeit der Datenbank wie beim Zugriffsprotokoll) -- nur ohne Ablage (`sent_document_id`) und ohne
+  Zeile, die auf sie zeigt (Auftrag des Postboten, Versandergebnis, Kopie an, Vollmacht); nach den Sitzungen, deren Aufträge mit ihnen gehen. Ergebnis im Journal
+  „Postbote: aufgeräumt {…, 'versand': n}“.
+- Regel 21: die Sperre ist ein `before_delete` an `EmailDispatch` und greift nur im ORM -- dieser Weg löscht über Core. Neu der Wächter: kein anderer Code unter
+  `app/` oder `scripts/` löscht aus `email_dispatches`, `sent_documents`, `dispatch_outcomes`, `dispatch_copies`, `dispatch_authorizations` (Muster für
+  `delete(Modell)`, `DELETE FROM`, `query(...).delete()`, `db.delete(dispatch …)`); der eine Fund ist dieser Weg. CLAUDE.md, Regel 21, nennt die Ausnahme.
+- Bestand auf dem Server: die erste Mail des Portals ging am 25.11.2026 hinaus -- gelöscht wird frühestens ab dem 25.11.2028.
+
+#### Festlegungen 1.11.53 (Bitte bestätigen)
+
+1. Der Postbote löscht Einträge der Mails des Portals (Link, Code) 24 Monate nach dem Versand, von selbst, ohne Bestätigung.
+2. Nur diese beiden Arten und nur Einträge ohne Ablage und ohne Zeile, die auf sie zeigt; jede andere Mail bleibt (Regel 21).
+3. Kein anderer Code löscht aus Versandprotokoll oder Ablage -- ein Wächter prüft es.
+
+#### Tests und Prüfung 1.11.53
+
+Neu `tests/test_v844_portal_mails_nach_24_monaten.py` (5, gegen PostgreSQL: Code und Link nach 25 Monaten weg, nach 23 Monaten, Angebot und Aufgabe bleiben, ein
+zweiter Lauf löscht nichts; gebundene Einträge bleiben -- Auftrag des Postboten, Versandergebnis, Kopie an, Vollmacht, Ablage; Wächter; die Arten und die Frist).
+**Angepasste Erwartung:** `test_v805::test_pg_aufraeumen_nach_den_fristen` -- alt `{"codes": 1, "sitzungen": 1, "bremsen": 1, "zugriffe": 1}`, neu dazu
+`"versand": 0` (ein Schlüssel mehr, die Zahlen gleich). Gegenproben 7 von 7 rot -- kein Löschen; Frist 12 statt 24 Monate; jede Art (auch Angebot und Aufgabe weg); ohne Rücksicht auf den Auftrag des Postboten (der Fremdschlüssel bricht ab); ohne Rücksicht auf Ergebnis, Kopie, Vollmacht; auch mit Ablage; ein weiterer Weg löscht (der Wächter findet ihn).
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

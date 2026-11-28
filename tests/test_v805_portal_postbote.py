@@ -328,7 +328,7 @@ def test_pg_aufraeumen_nach_den_fristen(welt):
           f"('frisch', {jetzt} - interval '47 hours', 1)")
     with _db(w) as db:
         zahlen = postbote.aufraeumen(db)
-    assert zahlen == {"codes": 1, "sitzungen": 1, "bremsen": 1, "zugriffe": 1}
+    assert zahlen == {"codes": 1, "sitzungen": 1, "bremsen": 1, "zugriffe": 1, "versand": 0}  # seit 1.11.53 der Schlüssel „versand“
     assert w.erp("SELECT count(*) FROM portal_sitzungen WHERE id = :s", s=alt)[0][0] == 0
     assert w.erp("SELECT count(*) FROM portal_post WHERE sitzung_id = :s", s=alt)[0][0] == 0  # mit der Sitzung
     assert w.erp("SELECT sitzung_id FROM portal_zugriffe WHERE aktion = 'abgemeldet'") == [(None,)]  # Eintrag bleibt, ohne Sitzung
