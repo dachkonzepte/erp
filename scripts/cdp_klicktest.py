@@ -56,6 +56,10 @@ Schritte, die nicht in dieselbe Sekunde fallen dürfen (berlin_now() ist sekunde
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
 2 = Instanz oder Chrome ließ sich nicht starten, 3 = Zeitlimit (--zeitlimit oder Gegenprobe).
 
+CHROME ANTWORTET NICHT (seit 1.11.48): bleibt ein Befehl an Chrome 60 s ohne Antwort (CMD_SEKUNDEN, ab dem Senden), endet der Klicktest
+sofort mit der Zeile „XX  Chrome antwortet nicht: <Befehl> ohne Antwort nach 60 s (Ausdruck: …), Seite …“ und dem Netzprotokoll darunter,
+Rückgabecode 1 -- statt bis zum Zeitlimit von klicktest_alle.py (15 min) zu hängen. klicktest_alle.py wiederholt einen solchen Lauf nicht.
+
 WAS PASSIERT:
 
 1. Der Arbeitsordner bekommt eine Wegwerf-SQLite (`erp.db`), einen eigenen `ERP_DATA_DIR`, einen
@@ -187,6 +191,18 @@ def klicktest_ordner(pfad: Path | None, praefix: str) -> Path:
 GEGENPROBE_MARKER = "GEGENPROBE"  # Regel 24, wie tests/test_v357_gegenprobe_marker.py
 ZEITLIMIT_GEGENPROBE = 120  # Sekunden, seit 1.8.108
 CODE_ZEITLIMIT = 3
+# Seit 1.11.48 (Vorgabe des Betriebs vom 28.11.2026): höchstens so lange wartet Tab.cmd() auf die Antwort von Chrome auf einen Befehl -- gezählt ab dem
+# Senden, Ereignisse dazwischen verlängern nicht. Bis dahin wartete es ohne Grenze: im Endlauf auf dc8dfadb (27.11.2026) hing klicktest_kontakt_vermerken
+# 15 min bis zum Zeitlimit von klicktest_alle.py, weil Chrome auf einen Befehl nicht mehr antwortete. Kein Befehl der Klicktests braucht so lange (das
+# Warten auf einen Zustand -- warten(), oeffnen() -- besteht aus vielen kurzen Befehlen).
+CMD_SEKUNDEN = 60
+CHROME_STUMM = "Chrome antwortet nicht"  # Anfang der Meldung (klicktest_alle.py wiederholt einen solchen Lauf nicht)
+
+
+class ChromeAntwortetNicht(Exception):
+    """Seit 1.11.48: ein Befehl an Chrome blieb CMD_SEKUNDEN ohne Antwort. Danach geht kein Befehl dieses Tabs mehr hinaus (jeder weitere endet sofort
+    mit derselben Meldung), der Klicktest endet mit Rückgabecode 1. Bewusst keine Unterklasse von RuntimeError: warten() und oeffnen() fangen
+    RuntimeError (Navigation noch nicht fertig) und warteten sonst weiter."""
 CHROME_CANDIDATES = (
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -801,13 +817,25 @@ class Tab:
         self.silbentrennung = False  # seit 1.9.258: Trenndaten im Profil (klicktest_main(..., silbentrennung=True))
         self.geraet_breite: int | None = None  # seit 1.9.138: die Breite aus fenster(), für ueberlauf()
         self._uhr_skript: str | None = None  # seit 1.9.209: Kennung des Skripts der stehenden Browser-Uhr (browser_uhr_fest(), uhr_stellen())
+        self.seite: str | None = None  # seit 1.11.48: der zuletzt mit oeffnen() geladene Pfad (für die Meldung „Chrome antwortet nicht“)
+        self.stumm: str | None = None  # seit 1.11.48: die Meldung, sobald ein Befehl CMD_SEKUNDEN ohne Antwort blieb
 
     async def cmd(self, method: str, **params):
+        """Ein Befehl an Chrome; liest bis zur Antwort alle Ereignisse mit (Netzprotokoll, Fehler, Downloads, Dialoge). Seit 1.11.48 höchstens
+        CMD_SEKUNDEN ab dem Senden, sonst ChromeAntwortetNicht mit Befehl, Ausdruck und Seite -- und jeder weitere Befehl dieses Tabs gleich danach."""
+        if self.stumm is not None:
+            raise ChromeAntwortetNicht(self.stumm)
         self.n += 1
         my = self.n
         await self.ws.send(json.dumps({"id": my, "method": method, "params": params}))
+        ende = time.monotonic() + CMD_SEKUNDEN
         while True:
-            msg = json.loads(await self.ws.recv())
+            try:
+                roh = await asyncio.wait_for(self.ws.recv(), max(0.0, ende - time.monotonic()))
+            except TimeoutError:
+                self._verstummt(method, params)
+                raise ChromeAntwortetNicht(self.stumm) from None
+            msg = json.loads(roh)
             if msg.get("method") in NETZ_EREIGNISSE:
                 self.netz.ereignis(msg["method"], msg.get("params") or {})
             if msg.get("method") == "Runtime.exceptionThrown":
@@ -823,6 +851,16 @@ class Tab:
                 if "error" in msg:
                     raise RuntimeError(f"{method}: {msg['error']}")
                 return msg["result"]
+
+    def _verstummt(self, method: str, params: dict) -> None:
+        """Seit 1.11.48: hält die Meldung fest und druckt sie als Abweichung („XX“), darunter das Netzprotokoll (welche Anfragen der Seite offen waren)."""
+        ausdruck = " ".join(str(params.get("expression", "")).split())[:100]
+        self.stumm = (f"{CHROME_STUMM}: {method} ohne Antwort nach {CMD_SEKUNDEN:g} s"
+                      + (f" (Ausdruck: {ausdruck})" if ausdruck else "") + f", Seite {self.seite or '-'} -- der Klicktest endet hier")
+        self.nicht_geladen.append(self.stumm)
+        print(f"XX  {self.stumm}", flush=True)
+        for zeile in self.netz.melden(immer=True):
+            print(zeile, flush=True)
 
     async def _dialog(self, params: dict) -> None:
         """Seit 1.8.98: ein Dialog des Browsers (vor allem "Seite verlassen?" der Warnung beim Verlassen) hielt jeden weiteren
@@ -928,6 +966,7 @@ class Tab:
         """Lädt pfad und wartet, bis der JS-Ausdruck bereit wahr ist (Seiten laden ihre Daten per
         fetch() nach). Setzt self.fehler zurück."""
         self.fehler = []
+        self.seite = pfad
         await self.cmd("Page.navigate", url=self.base + pfad)
         ende = time.monotonic() + timeout
         while time.monotonic() < ende:
@@ -1692,7 +1731,11 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
             return 2
         print(f"Chrome CDP {cdp_port}", flush=True)
         (ordner / "pids.txt").write_text(f"server={server.pid} chrome={chrome.pid}\n", encoding="utf-8")
-        ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen, wachhund))
+        try:
+            ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen, wachhund))
+        except ChromeAntwortetNicht as exc:  # seit 1.11.48: die Meldung statt eines Tracebacks; nicht wie erwartet (1)
+            print(f"Klicktest abgebrochen ({CHROME_STUMM}, siehe die Zeile XX oben) -- nicht wie erwartet.", flush=True)
+            ok = False
         if not ok:
             print(f"Verbindungsprotokoll des Servers (uvicorn trace): {verbindungen}", flush=True)
         return 0 if ok else 1

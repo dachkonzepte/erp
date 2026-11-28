@@ -4500,7 +4500,7 @@ und auf dem Handy (Safari, Android), neue Fassung der Datenschutzerklärung (B8)
   -- erwartet über 300 MB für `/bin/true`.
 - **„disk I/O error“**: Ursache und Abhilfe im Archiv „Testablauf und Klicktests“, „Journal von SQLite im Speicher (1.11.47)“.
 
-#### Festlegungen 1.11.47 (Bitte bestätigen)
+#### Festlegungen 1.11.47 (bestätigt am 28.11.2026)
 
 1. Impressum und Datenschutz sind im Portal Pflicht: ohne gültige Webseite in den Unternehmensdaten zeigt jede Seite „Gerade klappt etwas nicht“ (500) --
    neu gefasst 1.11.8-5 und 1.11.14-5.
@@ -4539,33 +4539,56 @@ von außen mit Kopfzeilen und Größe, dieselbe Adresse direkt an den Dienst, da
 Server, Orte) und `nginx -t`, ob die Arbeitsprozesse jünger sind als die Datei und kein Neuladen scheiterte; Fall A (alles wie das Repo) oder B1–B4 (andere
 Datei, Regex-Ort, anderer Server-Block, Neuladen griff nicht). N1b nur nach Fall A (Datei von 6662aea4), N1c der Befund danach.
 
-#### Server-Schritt N2 (nach dem Einspielen von 1.11.47): nginx mit `^~`, Wartungsseite mit Fuß, Messung des Kinds
+#### Server-Schritt N2 (nach dem Einspielen von 1.11.47; neu gefasst am 28.11.2026): nginx mit `^~`, Wartungsseite mit Fuß, Messung des Kinds
 
-Nach N1 (Fall A). Die Einheiten ändern sich nicht.
-
-```bash
-sudo cp /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.47
-sudo cp /etc/nginx/dk-portal/wartung.html /root/wartung.html.vor-1.11.47
-sudo install -m 644 -o root -g root /home/tobias/erp/scripts/server/nginx-kunde.conf /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf
-sudo install -D -m 644 -o root -g root /home/tobias/erp/scripts/server/portal-wartung.html /etc/nginx/dk-portal/wartung.html
-sudo nginx -t && sudo systemctl reload nginx
-sudo nginx -T 2>/dev/null | grep -nE 'location \^~ /_portal_dateien/|sha256-'
-grep -o 'href="[^"]*"' /etc/nginx/dk-portal/wartung.html
-for p in /_portal_dateien/.datenbank /_portal_dateien; do printf '%s ' "$p"; curl -s -D /tmp/n2.kopf -o /dev/null -w '%{http_code} %{size_download} ' "https://kunde.dachkonzepte.gmbh$p"; grep -i '^content-security-policy' /tmp/n2.kopf | cut -c1-60; done
-cd /home/tobias/erp && .venv/bin/python scripts/pruefe_portal_foto.py
-```
-
-Erwartet: „syntax is ok“, „test is successful“; die Zeile `location ^~ /_portal_dateien/` und `style-src 'sha256-EUOIZUiA0RHUezIOf/dViQX7Z4IFebx5X8TNA/xQOCo='`;
-die zwei Links `href="https://dachkonzepte.gmbh/impressum"` und `href="https://dachkonzepte.gmbh/datenschutz"`; die beiden Adressen wie in N1c; das Skript mit
-„alle Prüfungen wie erwartet“ und zwei Messungen -- die Spitze des JPEG jetzt die des Kinds (lokal geschätzt rund 140 MB), die des PNG wie bisher um 340 MB.
-Abbrechen, wenn `nginx -t` einen Fehler meldet: `sudo cp /root/kunde.dachkonzepte.gmbh.conf.vor-1.11.47 /etc/nginx/conf.d/kunde.dachkonzepte.gmbh.conf && sudo cp
-/root/wartung.html.vor-1.11.47 /etc/nginx/dk-portal/wartung.html && sudo nginx -t && sudo systemctl reload nginx`, Ausgabe in den Chat. Rückweg: dieselbe Zeile.
+Steht vollständig, je Schritt mit Erwartung, Abbruch und Rückweg, in `bildgrundlage/server_schritte_n2_dc8dfadb.txt` (nach der Bestätigung im Archiv der Berichte).
+N2 ersetzt N1b (Vorgabe vom 28.11.2026), N1b und N1c entfallen. Nach N1a (Fall A) und update.sh auf dc8dfadb oder später; die Einheiten ändern sich nicht.
+Kurz: Sicherung von nginx-Datei und Wartungsseite nach `/home/tobias/…vor-1.11.47` (lesbar ohne sudo, nicht mehr nach /root); beide Dateien aus dem Repo
+installieren; `sudo nginx -t && sudo systemctl reload nginx && sleep 2`; Arbeitsprozesse mit der Zeit eben jetzt, Prüfsummen Repo = installiert, aus `nginx -T`
+`http2 on;`, `location ^~ /_portal_dateien/` und die Prüfsumme des Stils `EUOIZUiA0RHUezIOf/dViQX7Z4IFebx5X8TNA/xQOCo=`, die zwei Links der Wartungsseite; von
+außen `/health` „2 200“, `/_portal_dateien/.datenbank` und `/_portal_dateien/x.pdf` die 404 von nginx (rund 150 Byte, CSP `default-src 'none'`),
+`/_portal_dateien` die 404 des Dienstes (rund 15 KB, CSP mit `script-src 'self'`), das Protokoll ohne IP; `pruefe_portal_foto.py` (Spitze des JPEG jetzt die des
+Kinds, lokal geschätzt rund 140 MB; PNG um 340 MB) und der Speicher des Postboten.
 
 #### Für P2f vorgemerkt (27.11.2026)
 
 Zwei Dateien in `bildgrundlage/`: `p2f_rauchtest.txt` (Rechner mit Chrome, Firefox, Edge, Safari am Mac, iPhone, Android: Anmelden, jede Seite, Ansehen,
 Herunterladen, Foto groß, Zurück, Abmelden, Kopfzeilen mit curl ohne den Wert des Cookies, Fehlerseiten, Protokoll im ERP) und
 `p2f_datenschutz_stichpunkte.md` (B8, Stand 1.11.47, ergänzt die Stichpunkte vom 25.11.2026). Nach 1.11.47 angehalten (Vorgabe vom 27.11.2026).
+
+### Antworten des Betriebs zum Bericht 1.11.47 (28.11.2026)
+
+- Bestätigt: 1.11.47-1 bis -10 und die drei Festlegungen zu Werkzeug und Testablauf (Journal im Speicher). Bericht und ZIP kleinigkeiten_p2e_dc8dfadb seit
+  28.11.2026 im Archiv der Berichte.
+- 404, Vermutung des Betriebs: bei P2b-6 lief der erste curl in derselben Sekunde wie „systemctl reload nginx“ (27.11.2026, 08:14:19); den kann noch ein alter
+  Arbeitsprozess mit der alten Datei (ohne internal-Block) beantwortet haben -- dann ging die Anfrage über `location /` an den Dienst. N1a läuft am 28.11.
+- **Geprüft gegen das Schema von N1a:** die Vermutung passt zu allem, was sich ohne den Server prüfen lässt. Die Datei vor P2b-6 (a6422bd9, 1.11.20) hat im Block
+  für 443 nur `= /_wartung.html`, `= /api/code` und `/` (`proxy_pass` an den Dienst) -- `/_portal_dateien/.datenbank` ging dort an den Dienst, der mit seiner
+  Seite „Diese Seite gibt es nicht“ antwortet (rund 15 KB). `systemctl reload nginx` kehrt zurück, sobald das Signal gesendet ist; der Hauptprozess liest danach
+  die Konfiguration, startet neue Arbeitsprozesse und heißt erst dann die alten aufhören -- bis dahin nehmen die alten über denselben Socket neue Verbindungen
+  an und bedienen sie ganz mit der alten Konfiguration. Unter der Vermutung zeigt N1a heute Fall A (die Anfrage von außen bekommt die 404 von nginx, die Datei
+  ist die von e99c99a, die Arbeitsprozesse sind jünger als sie); B1 bis B4 schließen sich dann aus. Ein Beweis im Nachhinein ist nicht möglich: das Protokoll
+  von nginx zählt nur Sekunden, und welcher Arbeitsprozess antwortete, steht nirgends. Zeigt N1a Fall A, gilt die Vermutung als Ursache und N2 folgt; zeigt es
+  Fall B, zuerst die Ausgabe in den Chat.
+- **Neue Regel für alle Server-Schritte:** nach jedem Neuladen (`systemctl reload nginx`) `sleep 2` vor der ersten Prüfung; Sicherungen nach `/home/tobias`
+  (nicht /root).
+- Server-Schritt N2 als Datei `bildgrundlage/server_schritte_n2_dc8dfadb.txt` (Sicherung nach /home/tobias, nginx-Datei mit `^~`, Wartungsseite, nginx -t,
+  reload, sleep 2, Prüfungen wie N1c, dazu `pruefe_portal_foto.py`). N1b entfällt, N2 ersetzt ihn (in `server_schritte_p2de_6662aea4.txt` vermerkt).
+- `Tab.cmd()`: ja, Grenze 60 s je Befehl mit klarer Meldung, als eigene kleine Version 1.11.48 (Archiv „Testablauf“, „Grenze je Befehl an Chrome (1.11.48)“).
+- Virenscanner: keine Ausnahmen, die Lösung im Code reicht.
+- Datenschutz-Stichpunkte (`bildgrundlage/p2f_datenschutz_stichpunkte.md`), zwei Korrekturen, eingearbeitet am 28.11.2026: (1) „Rechnung storniert und ersetzt“
+  ist kein Beispiel für „ungültig“ -- Original und Storno bleiben sichtbar (so im Code: `portal_quelle()` zeigt jede Rechnung außer dem Entwurf); jetzt „eine
+  Mahnung, die durch eine neue ersetzt ist“ (`replaced_by_id`) und, als vom System zurückgenommene Freigabe, „eine neuere Fassung eines Angebots versendet“
+  (`app/portal_freigaben.py::UEBERHOLT`); (2) statt „über den Prüfwert …, nicht die IP-Adresse“ jetzt „über einen pseudonymisierten Prüfwert der IP-Adresse
+  (wie bei der Anmeldung)“.
+- Danach ohne Code: Befund und Bauplan W1c Stufe 2 (Löschfristen) mit den neuen Daten aus P1/P2 (Freigaben, Kopien, Zugriffsprotokoll, Schaufenster), dem
+  Versandprotokoll und der Aufbewahrung auf dem NAS, als Datei `bildgrundlage/bauplan_w1c2_<commit>.txt`, Fragen am Ende. Fehler aus dem Rauchtest P2f haben
+  jederzeit Vorrang.
+
+### Umsetzung 1.11.48: höchstens 60 s je Befehl an Chrome
+
+Nur Klicktest-Werkzeug (`scripts/cdp_klicktest.py`, `scripts/klicktest_alle.py`); Umsetzung, Festlegungen 1.11.48-1 bis -4 (Werkzeug und Testablauf) und Gegenproben im Archiv
+„Testablauf“, Abschnitt „Grenze je Befehl an Chrome (1.11.48)“. Keine Migration, keine Datei unter `scripts/server/`.
 
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 

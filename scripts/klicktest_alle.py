@@ -26,7 +26,8 @@ docs/archiv/testablauf-und-klicktests.md: Testaufbau, nicht das Programm), läuf
 <name>.wiederholt.log und Arbeitsordner <name>_wiederholt, das erste Protokoll bleibt. Zeile und Zusammenfassung nennen jede Wiederholung
 mit dem Ergebnis des ersten Laufs und der Anfrage; gezählt wird das Ergebnis des zweiten. Nie wiederholt: Rückgabecode 2 (Aufbau
 gescheitert), 3 (eigenes Zeitlimit, Gegenprobe), eine Abweichung ohne Netzwerkprotokoll oder mit einer angekommenen, fehlgeschlagenen oder
-beim Seitenwechsel offen gebliebenen Anfrage.
+beim Seitenwechsel offen gebliebenen Anfrage; seit 1.11.48 nie ein Lauf mit „Chrome antwortet nicht“ (ein Befehl an Chrome 60 s ohne Antwort,
+cdp_klicktest.CMD_SEKUNDEN) -- die Meldung soll sichtbar bleiben, auch wenn darunter nur nicht angekommene Anfragen stehen.
 
 Rückgabecode 0, wenn alle wie erwartet liefen. Jeder Klicktest startet seine eigene Wegwerf-Instanz (Regel 16, eigene Ports, eigener
 Arbeitsordner) und beendet seine Prozesse selbst; dieses Skript beendet nur die eigenen Kindprozesse und deren Baum. Kein Teil der
@@ -44,6 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_ordner  # noqa: E402
+from cdp_klicktest import CHROME_STUMM  # noqa: E402
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
@@ -119,7 +121,8 @@ def nur_nicht_angekommen(protokoll: str) -> list[str] | None:
     „    Netzwerk: N offen“ mit je offener Anfrage einer Zeile „      METHODE /pfad …“ und darunter „          Server: …“, oder
     „    Netzwerk: unverändert seit der letzten Meldung (N offen)“. Sie zählt nur, wenn jede offene Anfrage „Server: nicht angekommen“
     heißt (bzw. der letzte Bericht so war) und der Bericht sonst nichts meldet (fehlgeschlagen, beim Seitenwechsel offen geblieben).
-    Eine Abweichung ohne Netzwerkprotokoll, „keine offenen Anfragen“ oder ein Protokoll ohne Abweichung: None."""
+    Eine Abweichung ohne Netzwerkprotokoll, „keine offenen Anfragen“ oder ein Protokoll ohne Abweichung: None. Seit 1.11.48 ebenso jede Abweichung
+    „Chrome antwortet nicht“ (CHROME_STUMM): ein Befehl ohne Antwort ist nie ein Fall für die Wiederholung."""
     zeilen = protokoll.splitlines()
     anfragen: list[str] = []
     abweichungen = 0
@@ -127,6 +130,8 @@ def nur_nicht_angekommen(protokoll: str) -> list[str] | None:
     for i, zeile in enumerate(zeilen):
         if not zeile.startswith("XX  "):
             continue
+        if zeile.startswith(f"XX  {CHROME_STUMM}"):
+            return None
         abweichungen += 1
         block = []
         for folge in zeilen[i + 1:]:

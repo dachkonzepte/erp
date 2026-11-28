@@ -1508,6 +1508,11 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   die im ersten Lauf grün waren), diese 5 nacheinander grün. Ursache gefunden mit dem Protokoll von SQLite (`SQLITE_CONFIG_LOG`): `winDelete(…\erp.db-journal)`
   mit Windows-Fehler 32 -- der Virenscanner hielt das eben geschlossene Journal offen. Am Nachmittag traf es auch die Suite (alembic-Kette in `test_v800`) und die
   Datei der Reihenfolge („Permission denied“, INTERNALERROR). Stand: behoben mit 1.11.47 (Abschnitt „Journal von SQLite im Speicher (1.11.47)“).
+- **`klicktest_kontakt_vermerken`** -- 27.11.2026, erster Endlauf von 1.11.47 auf dc8dfadb (frische Arbeitskopie, zu zweit): hing 15 min bis zum Zeitlimit von
+  `klicktest_alle.py`, noch vor der ersten Prüfung. Der Server hatte jede Anfrage beantwortet (Verbindungsprotokoll), Chrome antwortete auf einen Befehl des
+  Werkzeugs nicht mehr; kein Absturzbericht. 1.11.47 berührt die Seite nicht; der zweite Endlauf auf demselben Stand war in einem Durchgang grün (168 von 168).
+  Stand: Ursache in Chrome offen; seit 1.11.48 endet ein solcher Lauf nach 60 s mit „Chrome antwortet nicht“ statt nach 15 min (Abschnitt „Grenze je Befehl
+  an Chrome (1.11.48)“).
 
 ## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
 
@@ -1769,7 +1774,8 @@ Klicktests zu viert in drei Runden je zwei- bis dreimal. Am Nachmittag traf es a
 Reihenfolge der Tests (`PermissionError` beim Anhängen, der ganze Lauf brach mit INTERNALERROR ab). Nebenbei gemessen: der Speicherpool des Kerns stand nach drei
 Wochen Laufzeit bei 3,7 GB (nicht auslagerbar) bzw. 3,9 GB (auslagerbar), keinem Prozess zugeordnet -- bei rund 32 GB Arbeitsspeicher ungewöhnlich hoch; der
 Fehler 1450 von PostgreSQL am 25.11. passt dazu. Abhilfe am Rechner (Sache des Betriebs): Ausnahmen im Virenscanner für `C:\DACHKONZEPTE-ERP\`,
-`%TEMP%\erp-klicktests`, `%TEMP%\pytest-of-User` und `%LOCALAPPDATA%\pgportable`, gelegentlich neu starten.
+`%TEMP%\erp-klicktests`, `%TEMP%\pytest-of-User` und `%LOCALAPPDATA%\pgportable`, gelegentlich neu starten. **Antwort des Betriebs (28.11.2026): keine Ausnahmen
+im Virenscanner, die Lösung im Code reicht** -- nicht wieder vorschlagen.
 
 **Umsetzung.**
 - `app/database.py::journal_im_speicher()`: `ERP_TEST_JOURNAL_SPEICHER=1` mit `ERP_ENV` development oder test legt unter SQLite das Journal in den Speicher
@@ -1781,7 +1787,7 @@ Fehler 1450 von PostgreSQL am 25.11. passt dazu. Abhilfe am Rechner (Sache des B
   es bis zu zwanzigmal, danach endet nur die Reihenfolge dieses Prozesses (Meldung auf stderr), nie der Lauf; ebenso beim Leeren des Ordners zu Beginn.
 - Gemessen: dieselben 13 Klicktests zu viert -- vorher in drei Runden je 2–3 rot, mit dem Schalter dreimal 13 von 13.
 
-**Festlegungen 1.11.47 zu Werkzeug und Testablauf (Bitte bestätigen)**
+**Festlegungen 1.11.47 zu Werkzeug und Testablauf (bestätigt am 28.11.2026)**
 
 1. Klicktests, Bildgrundlage, Suite und alembic in Tests halten das Journal von SQLite im Speicher (`ERP_TEST_JOURNAL_SPEICHER`, nur development/test).
 2. Die Datei der Reihenfolge bleibt für den Lauf offen; ein gesperrtes Öffnen wartet und beendet notfalls nur die Reihenfolge, nie den Lauf.
@@ -1807,3 +1813,43 @@ unverändert zurück -- 4 der 8 rot (Datei danach byte-gleich). Am Lauftag selbs
 
 **Festlegung 1.11.47 (Nachtrag) zum Testablauf (Bitte bestätigen):** Testdaten, die einen Urlaub relativ zu heute über `create_request()` oder die API anlegen,
 nehmen `tests/uhr.py::ohne_silvester()`.
+
+## Grenze je Befehl an Chrome (1.11.48)
+
+**Anlass.** Im ersten Endlauf auf dc8dfadb (27.11.2026) hing `klicktest_kontakt_vermerken` 15 min (Wackler oben): `Tab.cmd()` wartete ohne Grenze auf die
+Antwort von Chrome. Vorgabe des Betriebs vom 28.11.2026: eine Grenze von 60 s je Befehl mit klarer Meldung, als eigene kleine Version.
+
+**Umsetzung** (`scripts/cdp_klicktest.py`).
+- `CMD_SEKUNDEN = 60`: `Tab.cmd()` liest höchstens so lange ab dem Senden (`asyncio.wait_for` je `recv()` mit der Restzeit -- Ereignisse dazwischen verlängern
+  nicht; das Abbrechen von `recv()` ist in websockets 17 ohne Verlust). Kein Befehl der Klicktests braucht so lange: das Warten auf einen Zustand (`warten()`,
+  `oeffnen()`, `warte_auf_…`) besteht aus vielen kurzen Befehlen; ein `tab.js()` auf eine Funktion der Seite wartet höchstens auf deren Anfragen, und der
+  Baustein `_speichern.html` bricht nach 60 s ab (in den Klicktests mit Zeitlimit nach 2 s).
+- Danach `ChromeAntwortetNicht` (eigene Ausnahme, keine Unterklasse von `RuntimeError` -- `warten()` und `oeffnen()` fangen `RuntimeError` für eine laufende
+  Navigation und warteten sonst bis zu ihrer eigenen Grenze weiter) mit der Zeile `XX  Chrome antwortet nicht: <Befehl> ohne Antwort nach 60 s (Ausdruck: <die
+  ersten 100 Zeichen>), Seite <zuletzt mit oeffnen() geladen> -- der Klicktest endet hier`, darunter das Netzprotokoll. Der Tab ist danach stumm: jeder weitere
+  Befehl endet sofort mit derselben Meldung (auch das Nachlesen am Ende des Laufs). `klicktest_main()` schließt mit „Klicktest abgebrochen (Chrome antwortet
+  nicht, siehe die Zeile XX oben) -- nicht wie erwartet.“ und Rückgabecode 1 statt eines Tracebacks; Instanz und Chrome beendet es wie immer über die PID.
+- `klicktest_alle.py::nur_nicht_angekommen()`: eine Abweichung „Chrome antwortet nicht“ ist nie ein Fall für die Wiederholung, auch wenn darunter nur Anfragen
+  stehen, die nie beim Server ankamen -- die Meldung soll im Bericht stehen. `CHROME_STUMM` kommt in einer eigenen Zeile aus `cdp_klicktest`:
+  `test_v597::test_beide_werkzeuge_nehmen_die_regel` prüft die Zeile `from cdp_klicktest import klicktest_ordner` wörtlich (im ersten Lauf vor dem Commit
+  rot, weil ich beide Namen in eine Zeile gesetzt hatte -- dazu der Nachtrag 1.11.47, „Testdaten ohne Silvester“ oben). Mit dem neuen Werkzeug liefen in diesem
+  Lauf 168 von 168 Klicktests wie erwartet.
+- Von Hand mit echtem Chrome (Probe-Klicktest außerhalb des Repos, `CMD_SEKUNDEN = 5`, ein Ausdruck `new Promise(()=>{})` auf `/login`): Rückgabecode 1 nach
+  13 s samt Befüllen, die Zeile `XX  Chrome antwortet nicht: Runtime.evaluate ohne Antwort nach 5 s (Ausdruck: new Promise(()=>{})), Seite /login -- …`, „Netzwerk:
+  keine offenen Anfragen“, die Schlusszeile, kein Traceback.
+
+**Festlegungen 1.11.48 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Jeder Befehl an Chrome wartet höchstens 60 s auf die Antwort, gezählt ab dem Senden; Ereignisse dazwischen verlängern nicht.
+2. Danach endet der Klicktest: Zeile „XX  Chrome antwortet nicht: …“ mit Befehl, Anfang des Ausdrucks und Seite, darunter das Netzprotokoll; kein weiterer Befehl
+   geht hinaus; Rückgabecode 1 mit einer Schlusszeile statt eines Tracebacks.
+3. `ChromeAntwortetNicht` ist keine `RuntimeError` -- `warten()` und `oeffnen()` lassen sie durch.
+4. `klicktest_alle.py` wiederholt einen Lauf mit „Chrome antwortet nicht“ nie.
+
+**Gegenproben** (`gegenproben.py` außerhalb des Repos, Dateien danach byte-gleich; alle rot aus dem geprüften Grund, FAILED, kein ERROR): G1 ohne Grenze (`recv()`
+ohne `wait_for`) -- `test_v838::test_grenze_mit_meldung` und `test_danach_geht_nichts_mehr_hinaus` rot (die Grenze des Tests, 5 s, griff); G2 die Grenze nach jedem
+Ereignis neu -- `test_ereignisse_verlaengern_die_grenze_nicht` rot; G3 ohne „stumm“ -- `test_danach_geht_nichts_mehr_hinaus` rot (zweiter Befehl gesendet); G4 als
+`RuntimeError` -- `test_geht_durch_warten_und_oeffnen[warten]` und `test_vorgabe_sechzig_sekunden` rot (`[oeffnen]` bleibt grün: `Page.navigate` steht dort außerhalb
+des `try`); G5 Meldung ohne Seite -- `test_grenze_mit_meldung` und `[oeffnen]` rot; G5b ohne Ausdruck -- `test_grenze_mit_meldung` rot; G6 `klicktest_alle.py` ohne die
+Prüfung -- `test_keine_wiederholung` rot; G7 900 s statt 60 -- `test_vorgabe_sechzig_sekunden` rot; G8 (echtes Chrome) `klicktest_main()` ohne das `except` -- Traceback
+`cdp_klicktest.ChromeAntwortetNicht: …` statt der Schlusszeile. 9 von 9 rot.
