@@ -91,7 +91,7 @@ def _freigabe_mit_datei(engine, umgebung) -> tuple[int, bytes]:
     pdf = b"%PDF-1.4\n% erfunden fuer den Kindprozess\n%%EOF\n"
     stored = uuid.uuid4().hex + ".pdf"
     with engine.begin() as c:
-        kid = c.execute(text("INSERT INTO customers (name, last_name, created_at) VALUES ('Muster Kind', 'Muster', now()) RETURNING id")).scalar()
+        kid = c.execute(text("INSERT INTO customers (name, last_name, created_at, portal_aktiv) VALUES ('Muster Kind', 'Muster', now(), true) RETURNING id")).scalar()
         kat = c.execute(text("INSERT INTO document_categories (key, label, created_at, updated_at) VALUES (:k, 'Sonstiges', now(), now()) RETURNING id"),
                         {"k": f"kind-{uuid.uuid4().hex[:8]}"}).scalar()
         did = c.execute(text("INSERT INTO customer_documents (customer_id, category, category_id, original_filename, stored_filename, file_size, uploaded_at) "

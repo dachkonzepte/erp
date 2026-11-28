@@ -4704,6 +4704,31 @@ späterem „Nein“ in einem anderen Feld). Angepasste Erwartungen: keine. Gege
 ohne Namen in der Historie; der älteste statt der jüngste Eintrag; jedes Feld statt `portal_aktiv` (blieb im ersten Anlauf grün -- die Testdaten hatten keinen
 Kunden mit späterem „Nein“ in einem anderen Feld; Kunde 6 nachgezogen, danach rot); auch Kunden mit Portal an; zurück über `batch_alter_table`.
 
+#### Umsetzung 1.11.52 (S2-0 d): „Portal aus“ löscht die Kopien
+
+- `app/portal_kopien.py::_SOLL` (wann eine Freigabe eine Kopie haben soll) verlangt dazu `c.portal_aktiv`: der Abgleich entfernt bei „Portal aus“ Datei und
+  Angaben der Kopie, die Freigabe bleibt; bei „Portal an“ legt er eine neue Kopie mit neuem Namen an. Eine Änderung am Kunden weckt nur das Schaufenster, nicht
+  den Abgleich der Kopien -- entfernt wird deshalb im nächsten vollen Lauf (alle 15 Minuten); bis dahin unerreichbar (ohne Portal keine Sitzung).
+- Freigeben bei ausgeschaltetem Portal bleibt erlaubt (Bauplan P2, B4.2: Hinweis „sieht es erst, wenn das Portal an ist“); die Kopie entsteht erst, wenn das
+  Portal an ist.
+- **Zurückgenommen im Bau:** zuerst hatte ich auch `app/portal_freigaben.py::zustand()` geändert („ruht – Kundenportal aus“, „ruht – Kunde im Archiv“ statt
+  „wird vorbereitet“) -- sechs bestehende Tests (`test_v828`, `test_v830`) erwarteten den bisherigen Zustand, und die Zustände spiegeln bewusst die Prüfung der
+  Funktion der Datenbank, die „Portal aus“ nicht kennt. Das ging über W2-6 hinaus und widersprach dem Bestand -- zurückgenommen, als Frage im Bericht: soll eine
+  Zeile bei „Portal aus“ (und im Archiv) statt „wird vorbereitet“ etwas anderes zeigen?
+
+#### Festlegungen 1.11.52 (Bitte bestätigen)
+
+1. Eine Kopie gibt es nur für Kunden mit eingeschaltetem Portal (und nicht im Archiv): „Portal aus“ entfernt sie im nächsten vollen Lauf, „Portal an“ legt
+   sie neu an; die Freigabe bleibt.
+2. Der Zustand einer Freigabe auf der Karte bleibt, wie er war (bei „Portal aus“ ohne Kopie „wird vorbereitet“) -- Frage an den Betrieb.
+
+#### Tests und Prüfung 1.11.52
+
+Neu `tests/test_v843_kopien_bei_portal_aus.py` (2, gegen PostgreSQL: aus entfernt, an legt neu an, die Freigabe bleibt; eine Freigabe bei ausgeschaltetem
+Portal bekommt erst mit „an“ eine Kopie). Angepasste Erwartungen: keine. **Nur der Aufbau geändert:** `test_v818::test_pg_postbote_als_kindprozess` -- der
+Kunde der Testdaten mit Portal an (alt: Vorgabe aus; der erste Lauf vor dem Commit war rot, „Kopien angelegt 1“ kam nicht mehr -- der Test prüft den Postboten
+als Kindprozess, nicht „Portal aus“; meine gezielten Läufe hatten ihn nicht erfasst). Gegenprobe 1 von 1 rot: `_SOLL` ohne `c.portal_aktiv` (beide Tests rot).
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).

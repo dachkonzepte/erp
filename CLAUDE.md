@@ -1741,7 +1741,7 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Kunden nennt -- je Quelle ein fester Zweig in SQL, eine neue Quelle braucht ihren Zweig (`tests/test_v821_portal_unterlagen.py`, Text wörtlich in der
   Migration `e5c8a1f3b9d2`, Änderungen per CREATE OR REPLACE in einer neuen Migration, Liste `MIGRATIONEN`). Datei nur nach einer Anforderung derselben
   Sitzung (30 Minuten). Seit 1.11.32 die Matrix je Quelle × Fall (`tests/test_v822_portal_unterlagen_matrix.py`): eine neue Quelle oder ein neuer Fall
-  kommt dort hinein, jede Zelle Test oder „entfällt“ mit Grund. Seit 1.11.33 (P2b) die Kopien: nur der Postbote legt sie in `PORTAL_DATEIEN` an
+  kommt dort hinein, jede Zelle Test oder „entfällt“ mit Grund. Seit 1.11.33 (P2b) die Kopien: nur der Postbote legt sie in `PORTAL_DATEIEN` an (seit 1.11.52 nur für Kunden mit Portal an -- „Portal aus“ entfernt sie im nächsten vollen Lauf, `_SOLL`)
   (`app/portal_kopien.py`, auf den Weckruf an `portal_freigaben` und alle 15 Minuten voll) -- PDF byte-gleich aus der festen Fassung, Fotos neu kodiert im
   Kindprozess mit Grenzen für Speicher und Zeit (`app/portal_foto_kind.py`, nur Standardbibliothek und Pillow, Umgebung nur PATH; seit 1.11.35 unter Linux mit
   oom_score_adj 1000, die Einheit mit `OOMPolicy=continue`, die Grenze des Kinds = MemoryHigh der Einheit minus 192 MB -- ändert sich MemoryHigh, ändert sie

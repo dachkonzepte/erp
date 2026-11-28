@@ -69,8 +69,10 @@ VORSCHAU_KANTE = 400
 VORSCHAU_QUALITAET = 75
 KIND_WORT = {10: "nicht_lesbar", 11: "zu_gross"}  # jede andere Rückgabe (12 Speicher, 13 ohne Vorrang, Absturz, Zeit) ist „abbruch“
 
-# „Soll eine Kopie haben“ -- dieselbe Kette wie portal_sichtbar() ohne die Kopie selbst; dazu der Kunde nicht im Archiv
-_SOLL = ("f.zurueckgenommen_am IS NULL AND c.archiviert_am IS NULL "
+# „Soll eine Kopie haben“ -- dieselbe Kette wie portal_sichtbar() ohne die Kopie selbst; dazu der Kunde nicht im Archiv und seit 1.11.52 (W1c Stufe 2,
+# S2-0 d; Antwort W2-6 vom 28.11.2026) mit eingeschaltetem Portal: „Portal aus“ entfernt die Kopien im nächsten vollen Lauf (bis dahin unerreichbar --
+# ohne Portal keine Sitzung), „Portal an“ legt sie neu an. Bis 1.11.51 blieben sie bei „Portal aus“ liegen.
+_SOLL = ("f.zurueckgenommen_am IS NULL AND c.archiviert_am IS NULL AND c.portal_aktiv "
          "AND EXISTS (SELECT 1 FROM portal_quelle(f.quelle, f.quelle_id) q WHERE q.kunde = f.customer_id)")
 
 
