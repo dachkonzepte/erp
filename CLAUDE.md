@@ -2172,7 +2172,7 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
   `with uhr_festhalten():` (`tests/uhr.py`, laufende Uhr ab heute 10:00 Europe/Berlin über `app.berlin_time._utc_now`).
-  `pytest --wanduhr 19:30` lässt die Suite laufen, als wäre es 19:30 -- die Gegenprobe ohne Warten auf den Abend.
+  `pytest --wanduhr 19:30` lässt die Suite laufen, als wäre es 19:30 -- die Gegenprobe ohne Warten auf den Abend. Ein Urlaub relativ zu heute in Testdaten geht über `tests/uhr.py::ohne_silvester()` (seit 1.11.47, Nachtrag): Silvester fragt nach „ganzer Urlaubstag oder frei“, der Test wäre sonst an einzelnen Tagen rot.
 
 - **Reihenfolge je Testprozess** (seit 1.9.183): jeder Lauf schreibt je Arbeitsprozess, welche Tests er in welcher Reihenfolge ausführte
   (`.pytest_cache/reihenfolge/gw*.txt`, `ERP_TEST_REIHENFOLGE`; nur der letzte Lauf -- nach einem roten Lauf kopieren); `python -m tests.reihenfolge

@@ -25,6 +25,7 @@ from tests import vorlagen_js as vj
 from tests.node_lauf import node_ausfuehren
 from tests.test_v471_heute_server import welt  # noqa: F401  (Fixture)
 from tests.test_v518_zeiten_seite import _baustein, _funktion, _skript, _text
+from tests.uhr import ohne_silvester
 
 ARBEITSTAGE = 5
 
@@ -82,8 +83,9 @@ def test_antrag_fuer_andere_admin_und_finanzen(welt, rolle, eigen, fuer, erwarte
     """Angriff: Büro – Auftrag beantragt für Tom -> 403. Gegenprobe: für sich 200; Admin und seit 1.9.101 Büro – Finanzen für Tom 200 (1.9.97–
     1.9.100 für Büro – Finanzen 403, bis 1.9.96 angenommen, ohne dass es den Antrag danach sah)."""
     client = _als(welt, rolle, welt[eigen].id if eigen else None)
+    tag, _ = ohne_silvester(welt["heute"], welt["heute"])  # seit 1.11.47 (Nachtrag): am 31.12. fragte der Urlaub nach
     antwort = client.post("/api/absence-requests", json={"employee_id": welt[fuer].id, "absence_category": "urlaub", "absence_type": "Urlaub",
-                                                         "start_date": welt["heute"].isoformat(), "end_date": welt["heute"].isoformat()})
+                                                         "start_date": tag.isoformat(), "end_date": tag.isoformat()})
     assert antwort.status_code == erwartet, antwort.text
     if erwartet == 403:
         assert welt["db"].query(EmployeeAbsenceRequest).count() == 0

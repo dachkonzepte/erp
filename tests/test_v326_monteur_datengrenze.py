@@ -53,7 +53,7 @@ from app.permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import EmployeeRosterOut, RoofAreaOut
 from tests.test_v260_role_audit import _iter_role_marked_dependants
-from tests.uhr import uhr_festhalten
+from tests.uhr import ohne_silvester, uhr_festhalten
 from tests.quellangebot import quell_angebot
 
 # ---------------------------------------------------------------------------
@@ -369,8 +369,9 @@ def _monteur_welt(db: Session) -> dict:
                       started_at=datetime.combine(today - timedelta(days=1), time(7)))
     from app.models import TimeEntry
     laufend = db.scalar(select(TimeEntry.id).where(TimeEntry.employee_id == monteur.id, TimeEntry.status == "running"))
+    urlaub_von, urlaub_bis = ohne_silvester(today + timedelta(days=30), today + timedelta(days=31))  # seit 1.11.47 (Nachtrag): Silvester fragt nach
     create_request(db, employee_id=monteur.id, absence_type="Urlaub", absence_category="urlaub",
-                   start_date=today + timedelta(days=30), end_date=today + timedelta(days=31), notes="Familienfeier")
+                   start_date=urlaub_von, end_date=urlaub_bis, notes="Familienfeier")
     create_contract(db, customer.id, prop.id, "Wartung Halle Süd", 12, next_due_date=today,
                     notes="Vertragsnotiz fürs Büro")
 

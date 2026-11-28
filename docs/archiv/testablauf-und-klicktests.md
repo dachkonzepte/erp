@@ -1791,3 +1791,19 @@ Fehler 1450 von PostgreSQL am 25.11. passt dazu. Abhilfe am Rechner (Sache des B
 und `test_befuellen_ohne_journal_datei` rot; das Werkzeug setzt ihn nicht -- `test_das_werkzeug_setzt_den_schalter` rot; der Hook in conftest setzt DELETE --
 `test_testprozess_journal_im_speicher` rot; `alembic/env.py` ohne Hook -- `test_alembic_mit_schalter_ohne_journal_datei` rot (Journal gesehen); die Reihenfolge fängt
 den Fehler nicht -- `test_reihenfolge_wartet_auf_eine_gesperrte_datei` rot. Festlegung 3 ist Arbeitsweise (keine Gegenprobe).
+
+## Testdaten ohne Silvester (1.11.47, Nachtrag vom 28.11.2026)
+
+**Fund.** Im Lauf vor dem Commit von 1.11.48 (28.11.2026, Samstag) waren 30 Tests beim Aufbau rot: die Welt von `test_v326_monteur_datengrenze.py` (genutzt
+auch von v403, v409, v411, v412, v510, v762) legt mit `create_request()` einen Urlaub heute + 30/31 Tage an. Die Uhr der Tests stand auf Montag, 30.11.
+(`arbeitstag_ab()`), der Urlaub damit auf 30./31.12. -- Silvester fragt seit 1.9.176 nach „ganzer Urlaubstag oder frei“ (`KalendertagFrage`), ohne Antwort kein
+Antrag. Rot vom 28.11. bis 1.12. jedes Jahres, unabhängig vom Code. Gesucht nach derselben Falle (Urlaub über `create_request()` oder die API relativ zu
+heute): `test_v519_zeiten_abwesenheiten_monat.py::test_antrag_fuer_andere_admin_und_finanzen` legt einen eintägigen Urlaub „heute“ an -- am 31.12. rot (Silvester
+ist für `arbeitstag_ab()` ein Arbeitstag). Urlaub, der direkt als Zeile entsteht (`EmployeeAbsenceRequest(…)`, `EmployeeAbsence(…)`), fragt nicht.
+
+**Umsetzung.** `tests/uhr.py::ohne_silvester(von, bis)`: enthält der Zeitraum einen 31.12., rückt er um ganze Wochen (der Wochentag bleibt), bis er keinen mehr
+enthält. v326 und v519 nehmen ihn. Neu `tests/test_v839_testdaten_ohne_silvester.py` (8 Fälle, unabhängig vom Datum). Gegenprobe: der Helfer gibt den Zeitraum
+unverändert zurück -- 4 der 8 rot (Datei danach byte-gleich). Am Lauftag selbst: v326 vorher 30 Fehler beim Aufbau, mit dem Helfer grün.
+
+**Festlegung 1.11.47 (Nachtrag) zum Testablauf (Bitte bestätigen):** Testdaten, die einen Urlaub relativ zu heute über `create_request()` oder die API anlegen,
+nehmen `tests/uhr.py::ohne_silvester()`.

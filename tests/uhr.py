@@ -36,6 +36,17 @@ def arbeitstag_ab(tag: date) -> date:
     return tag
 
 
+def ohne_silvester(von: date, bis: date) -> tuple[date, date]:
+    """Seit 1.11.47 (Nachtrag, 28.11.2026): ein Urlaub über Silvester fragt nach „ganzer Urlaubstag oder frei“ (app/absence_requests.py::KalendertagFrage,
+    Arbeitszeitkalender der Grunddaten) und wird ohne Antwort nicht angelegt. Testdaten mit einem Urlaub relativ zu heute nehmen deshalb diesen Helfer --
+    sonst ist der Test an bestimmten Tagen rot (am 28.11.2026, einem Samstag: die Uhr der Tests auf Montag, den 30.11., der Urlaub heute + 30/31 Tage
+    = 30./31.12.; ein eintägiger Urlaub „heute“ am 31.12. selbst). Verschiebt um ganze Wochen (der Wochentag bleibt, kein Feiertag ohne Sollzeit), bis der
+    Zeitraum keinen 31.12. enthält; ohne Silvester bleibt er, wie er ist."""
+    while any(von <= date(jahr, 12, 31) <= bis for jahr in range(von.year, bis.year + 1)):
+        von, bis = von + timedelta(days=7), bis + timedelta(days=7)
+    return von, bis
+
+
 @contextmanager
 def uhr_festhalten(uhrzeit: time = STANDARD_UHRZEIT, tag: date | None = None):
     """tag (seit 1.9.166, Lohn L1a): die Uhr beginnt an diesem Tag statt heute -- für Tests mit festen Tagen, deren Ergebnis nicht am Lauftag
