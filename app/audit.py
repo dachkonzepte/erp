@@ -287,6 +287,7 @@ FIELD_LABELS = {
     "is_primary_address": "Hauptadresse",
     "is_template": "Mustervorgang",
     "portal_aktiv": "Kundenportal an",  # 1.11.0
+    "portal_aus_seit": "Kundenportal aus seit",  # 1.11.51
     # seit 1.11.10: Zugang zum Kundenportal
     "email_anzeige": "E-Mail (verdeckt)", "link_sha256": "Link (Prüfwert)", "link_erzeugt_am": "Link erzeugt am", "gueltig_bis": "Link gültig bis",
     "gesperrt_am": "Zugang gesperrt am", "gesperrt_grund": "Grund der Sperre", "gesperrt_von_user_id": "Gesperrt von (Konto)",

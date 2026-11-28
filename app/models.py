@@ -282,6 +282,10 @@ class Customer(Base):
     # Kundenportal (seit 1.11.0, Stufe P1): je Kunde einschalten, ab Werk aus. Aus heißt: kein Zugang wirkt (die Funktionen der Datenbank prüfen es).
     # Nur server_default, keine Vorgabe in Python: ein Core-Insert alter Migrationsproben (tests/test_v380) schriebe die Spalte sonst mit.
     portal_aktiv: Mapped[bool] = mapped_column(Boolean, server_default="0")
+    # Seit 1.11.51 (W1c Stufe 2, S2-0 c; Antwort W2-3 vom 28.11.2026): wann das Portal am Kunden ausgeschaltet wurde (naiv UTC) -- 6 Monate danach geht
+    # der Zugang (nach Vorschau und Bestätigung, Stufe 2). Gesetzt nur beim Wechsel von an auf aus (app/kundenportal.py::schalten()), leer, solange
+    # das Portal an ist oder nie an war; der Bestand aus der Änderungshistorie (Migration f6b1d8e3a925).
+    portal_aus_seit: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     profile: Mapped["CustomerProfile | None"] = relationship(
         back_populates="customer", cascade="all, delete-orphan", uselist=False

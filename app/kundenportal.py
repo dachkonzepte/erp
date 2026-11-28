@@ -191,7 +191,12 @@ def schalten(db: Session, kunde: Customer, an: bool, jetzt_: datetime) -> None:
     if an and (grund := pflicht_grund(db)):  # seit 1.11.47: ausschalten geht immer
         raise PortalNicht(grund)
     zugang = zugang_von(db, kunde.id, sperren=True)
+    war_an = bool(kunde.portal_aktiv)
     kunde.portal_aktiv = an
+    if an:  # seit 1.11.51 (W1c Stufe 2, S2-0 c): „Portal aus seit“ nur beim Wechsel von an auf aus, leer, sobald es wieder an ist
+        kunde.portal_aus_seit = None
+    elif war_an:
+        kunde.portal_aus_seit = jetzt_
     if not an and zugang is not None:
         _sitzungen_beenden(db, zugang.id, "portal_aus", jetzt_)
     db.commit()

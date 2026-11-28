@@ -4680,6 +4680,30 @@ Erwartungen: keine. Gegenproben 9 von 9 rot: `vor_ort_merken()` tut nichts; merk
 Prüfwert; Prüfwert ohne Trennzeichen; Prüfwert in der Historie; SQLite über `batch_alter_table` (scheitert an den Fremdschlüsseln); Fremdschlüssel ohne
 `use_alter` (Warnung beim Sortieren); Migration füllt den Bestand.
 
+#### Umsetzung 1.11.51 (S2-0 c): „Portal aus seit“ am Kunden
+
+- `customers.portal_aus_seit` (naiv UTC, leer erlaubt). `app/kundenportal.py::schalten()`: beim Wechsel von an auf aus die Zeit des Ausschaltens
+  (`utc_jetzt()` des Routers), beim Einschalten leer; ein zweites „aus“ lässt den Zeitpunkt stehen, „aus“ an einem Kunden, an dem das Portal nie an war, setzt
+  keinen. In der Änderungshistorie mit Namen („Kundenportal aus seit“). Das Löschen des Zugangs 6 Monate danach (Antwort W2-3, mit Vorschau und Bestätigung)
+  baut Stufe 2 (S2-2/S2-4); hier nur der Zeitpunkt.
+- Migration `f6b1d8e3a925`: die Spalte, dazu der Bestand -- je Kunde mit ausgeschaltetem Portal der jüngste Eintrag der Änderungshistorie „Kundenportal an:
+  Nein“ (Art „Kunde“, Feld `portal_aktiv`); nie an, wieder an oder ohne Eintrag: leer. Mit Core (Archivschutz). `downgrade()` nimmt die Spalte -- unter SQLite
+  über `ALTER TABLE … DROP COLUMN` statt `batch_alter_table` (der baute `customers` neu, auf die viele Tabellen zeigen).
+
+#### Festlegungen 1.11.51 (Bitte bestätigen)
+
+1. „Portal aus seit“ entsteht nur beim Wechsel von an auf aus und ist leer, solange das Portal an ist oder nie an war; ein zweites „aus“ ändert ihn nicht.
+2. Der Bestand kommt aus dem jüngsten Eintrag „Kundenportal an: Nein“ der Änderungshistorie, nur für Kunden mit ausgeschaltetem Portal.
+3. Der Zeitpunkt steht mit Namen in der Änderungshistorie.
+
+#### Tests und Prüfung 1.11.51
+
+Neu `tests/test_v842_portal_aus_seit.py` (4: an/aus/an über den Schalter der Karte samt „nie an“ und zweitem „aus“; Historie mit Namen; Migration unter SQLite mit
+Prüfung der Fremdschlüssel und Zeilen, die auf `customers` zeigen, und unter PostgreSQL -- sechs Kunden: an dann aus, zweimal aus, an, nie an, wieder an, aus mit
+späterem „Nein“ in einem anderen Feld). Angepasste Erwartungen: keine. Gegenproben 8 von 8 rot: „aus“ setzt nichts; jedes „aus“ setzt neu; „an“ leert nicht;
+ohne Namen in der Historie; der älteste statt der jüngste Eintrag; jedes Feld statt `portal_aktiv` (blieb im ersten Anlauf grün -- die Testdaten hatten keinen
+Kunden mit späterem „Nein“ in einem anderen Feld; Kunde 6 nachgezogen, danach rot); auch Kunden mit Portal an; zurück über `batch_alter_table`.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
