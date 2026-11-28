@@ -57,8 +57,8 @@ def load_calculation_settings(db: Session) -> CalculationSettings:
         # Abfrage würde also ebenfalls an der fehlenden Spalte scheitern.
         # Deshalb hier bewusst klar und verständlich fehlschlagen, statt
         # einen Fallback vorzutäuschen, der es nicht ist -- die Meldung
-        # landet dank der Fehler-Middleware aus 1.0.8 vollständig in
-        # data/erp.log.
+        # landet dank der Fehler-Middleware aus 1.0.8 vollständig im
+        # Protokoll (lokal data/erp.log, im Betrieb das Journal, seit 1.11.49).
         raise RuntimeError(
             "calculation_settings.catalog_id fehlt in der Datenbank -- die 1.0.14-Migration "
             "wurde noch nicht angewendet. Bitte 'alembic revision --autogenerate' und "

@@ -11,7 +11,11 @@ CLAUDE.md, mehrfach dokumentiert, u. a. bei den Wartungsverträgen).
 **Der exakte Crontab-Eintrag (alle 15 Minuten) -- inklusive .env, das ist hier KEINE
 Nebensächlichkeit:**
 
-    */15 * * * * cd /home/tobias/erp && bash -c 'set -a; source .env; set +a; .venv/bin/python scripts/sync_outlook_calendars.py' >> /home/tobias/erp-data/outlook_sync.log 2>&1
+    */15 * * * * cd /home/tobias/erp && bash -c 'set -a; source .env; set +a; .venv/bin/python scripts/sync_outlook_calendars.py' 2>&1 | systemd-cat -t erp-outlook-sync
+
+Seit 1.11.49 (W1c Stufe 2, S2-0 a): die Ausgabe geht über systemd-cat ins Journal (Kennung erp-outlook-sync, 14 Tage wie jedes Protokoll
+des Servers; lesen mit `journalctl -t erp-outlook-sync`). Bis dahin hängte die Zeile mit `>> /home/tobias/erp-data/outlook_sync.log` an
+eine Datei an, die nie wechselte und in jeder Sicherung lag. Umgestellt wird der Eintrag auf dem Server von Hand (Server-Schritt zu 1.11.49).
 
 Warum unbedingt `bash -c '...; source .env; ...'` und nicht nur der nackte Python-Aufruf: cron
 führt jede Zeile standardmäßig über /bin/sh aus, nicht /bin/bash -- `source` ist eine

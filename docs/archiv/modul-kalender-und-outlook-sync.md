@@ -419,6 +419,9 @@ ausdrücklich verlangt nur skizziert:
 
     */15 * * * * cd /home/tobias/erp && bash -c 'set -a; source .env; set +a; .venv/bin/python scripts/sync_outlook_calendars.py' >> /home/tobias/erp-data/outlook_sync.log 2>&1
 
+**Seit 1.11.49 (W1c Stufe 2, S2-0 a) überholt:** die Ausgabe geht über `2>&1 | systemd-cat -t erp-outlook-sync` ins Journal (14 Tage), nicht mehr mit
+`>>` in eine Datei, die nie wechselte -- die gültige Zeile steht im Kopf von `scripts/sync_outlook_calendars.py`, umgestellt per Server-Schritt.
+
 `bash -c '...'` ist nötig, weil Cron Zeilen standardmäßig über `/bin/sh` ausführt, das `source`
 (eine Bash-Erweiterung) nicht kennt. Ohne das `.env`-Laden würde dieses Skript denselben Fehler
 wiederholen, der beim Ausliefern von 1.3.38–1.3.41 bereits real passiert ist (siehe

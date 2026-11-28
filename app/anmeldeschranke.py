@@ -383,6 +383,7 @@ async def _weiter(request: Request, call_next, user, has_users: bool, otp_ok: bo
         # unverändert weitergereicht, sodass sich am Antwortverhalten
         # nichts ändert -- neu ist ausschließlich der Log-Eintrag mit
         # vollständigem Traceback (seit 1.0.8 dauerhaft in data/erp.log
-        # statt nur in der Konsole).
+        # statt nur in der Konsole; seit 1.11.49 im Betrieb nur im Journal,
+        # app/logging_config.py).
         logger.exception("Unbehandelter Fehler bei %s %s", request.method, request.url.path)
         raise

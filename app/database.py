@@ -46,10 +46,16 @@ def _zahl(name: str, vorgabe: int, minimum: int) -> int:
 
 
 def engine_optionen(url: str) -> dict:
-    """Die Optionen für create_engine() zu url (seit 1.8.114, siehe oben)."""
+    """Die Optionen für create_engine() zu url (seit 1.8.114, siehe oben). Seit 1.11.49 (W1c Stufe 2, S2-0 a) im Betrieb hide_parameters: eine
+    Fehlermeldung der Datenbank (etwa IntegrityError) nennt dann die Anweisung, nicht ihre Werte -- ein Traceback im Journal enthält so keinen Namen
+    und keine Adresse. Lokal und in Tests bleiben die Werte sichtbar (app/logging_config.py::im_betrieb())."""
+    from .logging_config import im_betrieb
+
+    verdeckt = {"hide_parameters": True} if im_betrieb() else {}
     if url.startswith("sqlite"):
-        return {"connect_args": {"check_same_thread": False}}
+        return {"connect_args": {"check_same_thread": False}, **verdeckt}
     return {
+        **verdeckt,
         "pool_pre_ping": True,
         "pool_size": _zahl("ERP_DB_POOL_SIZE", POOL_SIZE, 1),
         "max_overflow": _zahl("ERP_DB_MAX_OVERFLOW", MAX_OVERFLOW, 0),

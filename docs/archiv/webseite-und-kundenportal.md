@@ -835,6 +835,8 @@ um den Spam erweitert (35 Prüfungen: Büro – Auftrag sieht „Zum Löschen“
 
 ### Stufe 2: Löschen bzw. Anonymisieren (festgehalten, nicht gebaut -- Vorgabe W1c, Punkt 6)
 
+Seit 28.11.2026: Befund und Bauplan mit den Daten aus P1/P2, dem Versandprotokoll und den Sicherungen in `bauplan_w1c2_8c99ad2c.txt` (Archiv der Berichte, mit den Antworten W2-1 bis W2-10 am Ende); gebaut wird zuerst die Runde S2-0 (unten, „Stufe 2, Runde S2-0“), S2-1 bis S2-5 nach dem Rechtsberater.
+
 Fällig frühestens 2030: die Datenschutzerklärung (Paket 2026-11-19a) sagt „löschen drei Jahre nach Ende des Jahres der Archivierung“ -- ein Vorgang, der 2026 ins
 Archiv kommt, frühestens am 01.01.2030. Gebaut erst nach dem Rechtsberater.
 
@@ -4589,6 +4591,57 @@ Herunterladen, Foto groß, Zurück, Abmelden, Kopfzeilen mit curl ohne den Wert 
 
 Nur Klicktest-Werkzeug (`scripts/cdp_klicktest.py`, `scripts/klicktest_alle.py`); Umsetzung, Festlegungen 1.11.48-1 bis -4 (Werkzeug und Testablauf) und Gegenproben im Archiv
 „Testablauf“, Abschnitt „Grenze je Befehl an Chrome (1.11.48)“. Keine Migration, keine Datei unter `scripts/server/`.
+
+### Antworten des Betriebs zum Bericht 1.11.48 (28.11.2026)
+
+- Bestätigt: 1.11.48-1 bis -4 und 1.11.47-N1; der Nachtrag 76fafbc5 ist in Ordnung. Bericht 1.11.48 und die Datei von N2 seit 28.11.2026 im Archiv der Berichte.
+- Server, 28.11.2026: N1a zeigte **Fall A** (von außen die 404 von nginx, 146 Byte; die installierte Datei gleich e99c99a) -- die Vermutung des Betriebs
+  (erster curl von P2b-6 in derselben Sekunde wie das Neuladen, ein alter Arbeitsprozess mit der Datei davor) gilt damit als Ursache der 404 mit 15 155 Byte.
+  N2 eingespielt, alles wie erwartet: nginx mit `^~` und `http2 on`, Prüfsummen Repo = Server, `/_portal_dateien/.datenbank` und `x.pdf` je 404 mit 146 Byte und
+  der CSP des Blocks, `/_portal_dateien` beim Dienst (22 862 Byte), Wartungsseite mit beiden Links. Foto-Kind (Messung seit 1.11.47 genau des Kinds): JPEG
+  48 Mio. Bildpunkte **127 MB** (bis 1.11.46 gemessen 323/324 MB -- die Spitze des Skripts), PNG 36 Mio. mit Alpha 343 MB; Postbote 107 MB.
+- Bauplan W1c Stufe 2 (`bauplan_w1c2_8c99ad2c.txt`, Archiv der Berichte), Antworten: W2-1 ja (im Betrieb nur Journal, hide_parameters, alte erp.log einmal
+  von Hand löschen -- Befehl in den Server-Schritten); W2-2 offen (der Betrieb prüft das NAS); W2-3 6 Monate nach „Portal aus“ mit Vorschau und Bestätigung,
+  „Portal aus seit“ ab jetzt festhalten; W2-4 ja, 24 Monate, von selbst durch den Postboten, mit Wächter für Regel 21; W2-5 ja, Freigaben und
+  Zugriffsprotokoll gehen mit; W2-6 ja, Kopien auch bei „Portal aus“ löschen, danach die Datenschutz-Stichpunkte wieder mit „Portal aus“; W2-7 ja, S2-0 a
+  bis e jetzt, je als eigene kleine Version, S2-1 bis S2-5 nach dem Rechtsberater; W2-8 vier Klassen (bis 5.000 €, bis 20.000 €, bis 50.000 €, darüber);
+  W2-9 auf die Liste für den Rechtsberater; W2-10 unbekannt, offen vermerkt. Nach S2-0 anhalten; Fehler aus dem Rauchtest P2f haben jederzeit Vorrang.
+
+### Stufe 2, Runde S2-0 (ab 1.11.49): was vor dem Rechtsberater geht
+
+Fünf kleine Versionen nach dem Bauplan W1c Stufe 2, Abschnitt 4 (Antwort W2-7). Server-Schritte für alle fünf in einer Datei in `bildgrundlage/`.
+
+#### Umsetzung 1.11.49 (S2-0 a): Protokolle im Betrieb nur im Journal
+
+- `app/logging_config.py::im_betrieb()`: Betrieb ist jede `ERP_ENV` außer development und test, auch eine fehlende (dieselbe Regel wie `NUR_HTTPS` in
+  `app/auth.py`). `configure_logging()` legt die Datei `data/erp.log` nur außerhalb des Betriebs an; im Betrieb nur stderr -- unter systemd das Journal (14 Tage).
+  Idempotent über eine Markierung der eigenen Handler (bis 1.11.48 am RotatingFileHandler erkannt, den es im Betrieb nicht mehr gibt).
+- `app/database.py::engine_optionen()`: im Betrieb `hide_parameters=True` -- ein IntegrityError nennt die Anweisung, nicht ihre Werte (geprüft mit einem
+  erfundenen Merkmal).
+- Weiterer Fund beim Suchen: der Cron-Eintrag des Outlook-Abgleichs (Kopf von `scripts/sync_outlook_calendars.py`, Archiv „Kalender“) hängte die Ausgabe mit
+  `>>` an `erp-data/outlook_sync.log` an -- nie gewechselt, in jeder Sicherung. Die Zeile schreibt jetzt `2>&1 | systemd-cat -t erp-outlook-sync`; umgestellt
+  per Server-Schritt (Crontab sichern, eine Zeile per sed, diff zeigt genau sie). Andere Protokolle als Datei gibt es unter `app/` und `scripts/` nicht
+  (Postbote, Notfallskripte über `configure_logging()`; die Abholung der Webanfragen über systemd).
+- Die vorhandenen `erp.log*` und `outlook_sync.log` löscht der Betrieb einmal von Hand (Server-Schritt); in den Sicherungen fallen sie mit deren Frist.
+
+#### Festlegungen 1.11.49 (Bitte bestätigen)
+
+1. Im Betrieb (jede `ERP_ENV` außer development und test, auch ohne) schreibt das ERP kein Protokoll als Datei, nur nach stderr (Journal); lokal und in Tests
+   bleibt `data/erp.log`.
+2. Im Betrieb verdeckt die Engine die Parameter in Fehlermeldungen (`hide_parameters`).
+3. Kein Code unter `app/` oder `scripts/` legt ein anderes Protokoll als Datei an (Ausnahme: das Werkzeug der Klicktests, nur lokal); keine Anleitung unter
+   `scripts/` hängt eine Ausgabe mit `>>` an eine Datei unter erp-data an.
+4. Der Outlook-Abgleich per Cron schreibt über `systemd-cat -t erp-outlook-sync` ins Journal.
+5. Die alten Dateien `erp.log*` und `outlook_sync.log` löscht der Betrieb einmal von Hand.
+
+#### Tests und Prüfung 1.11.49
+
+Neu `tests/test_v840_protokoll_im_betrieb.py` (14: Datei je `ERP_ENV` als Kindprozess -- production, ohne, leer, staging ohne Datei, development, Development,
+test mit -- samt Meldung auf stderr und ein zweiter Aufruf ohne weiteren Handler; Parameter verdeckt je `ERP_ENV` mit erfundenem Merkmal; kein anderes Protokoll
+als Datei; keine Anleitung mit `>>` nach erp-data; Cron-Zeile ins Journal). Angepasste Erwartungen: keine (`test_v419` prüft `engine_optionen()` unter
+`ERP_ENV=test` -- ohne `hide_parameters`, unverändert). Gegenproben 6 von 6 rot: immer Datei; fehlende `ERP_ENV` als lokal; ohne `hide_parameters`; ohne
+Markierung (zweiter Aufruf hängt an); ein `FileHandler` in `app/main.py`; Cron-Zeile wieder mit `>>`. Der sed-Befehl des Server-Schritts lokal an der
+dokumentierten Zeile geprüft (diff genau eine Zeile, Ergebnis gleich der Zeile im Skript).
 
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 

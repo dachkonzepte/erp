@@ -1513,6 +1513,9 @@ Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grü
   Werkzeugs nicht mehr; kein Absturzbericht. 1.11.47 berührt die Seite nicht; der zweite Endlauf auf demselben Stand war in einem Durchgang grün (168 von 168).
   Stand: Ursache in Chrome offen; seit 1.11.48 endet ein solcher Lauf nach 60 s mit „Chrome antwortet nicht“ statt nach 15 min (Abschnitt „Grenze je Befehl
   an Chrome (1.11.48)“).
+- **`klicktest_mahnen_endrechnung`** -- 28.11.2026, Endlauf von 1.11.48 auf 8c99ad2c (frische Arbeitskopie, zu zweit): „Anfrage nicht angekommen: GET
+  /api/reminder-levels“, im Verbindungsprotokoll eine stille Verbindung (angenommen, keine Anfrage, nach 29,8 s geschlossen); `klicktest_alle.py` wiederholte
+  ihn einmal, zweiter Lauf 18 von 18. Stand: abgefangen durch die Wiederholung, Ursache offen (Abschnitt „Stille Verbindungen (1.11.25)“).
 
 ## Umsetzung 1.11.25: `_waits_for()` wartet an der Sperre und auf beide Fäden
 
@@ -1811,7 +1814,7 @@ ist für `arbeitstag_ab()` ein Arbeitstag). Urlaub, der direkt als Zeile entsteh
 enthält. v326 und v519 nehmen ihn. Neu `tests/test_v839_testdaten_ohne_silvester.py` (8 Fälle, unabhängig vom Datum). Gegenprobe: der Helfer gibt den Zeitraum
 unverändert zurück -- 4 der 8 rot (Datei danach byte-gleich). Am Lauftag selbst: v326 vorher 30 Fehler beim Aufbau, mit dem Helfer grün.
 
-**Festlegung 1.11.47 (Nachtrag) zum Testablauf (Bitte bestätigen):** Testdaten, die einen Urlaub relativ zu heute über `create_request()` oder die API anlegen,
+**Festlegung 1.11.47 (Nachtrag) zum Testablauf (bestätigt am 28.11.2026):** Testdaten, die einen Urlaub relativ zu heute über `create_request()` oder die API anlegen,
 nehmen `tests/uhr.py::ohne_silvester()`.
 
 ## Grenze je Befehl an Chrome (1.11.48)
@@ -1838,7 +1841,7 @@ Antwort von Chrome. Vorgabe des Betriebs vom 28.11.2026: eine Grenze von 60 s je
   13 s samt Befüllen, die Zeile `XX  Chrome antwortet nicht: Runtime.evaluate ohne Antwort nach 5 s (Ausdruck: new Promise(()=>{})), Seite /login -- …`, „Netzwerk:
   keine offenen Anfragen“, die Schlusszeile, kein Traceback.
 
-**Festlegungen 1.11.48 zu Werkzeug und Testablauf (Bitte bestätigen)**
+**Festlegungen 1.11.48 zu Werkzeug und Testablauf (bestätigt am 28.11.2026)**
 
 1. Jeder Befehl an Chrome wartet höchstens 60 s auf die Antwort, gezählt ab dem Senden; Ereignisse dazwischen verlängern nicht.
 2. Danach endet der Klicktest: Zeile „XX  Chrome antwortet nicht: …“ mit Befehl, Anfang des Ausdrucks und Seite, darunter das Netzprotokoll; kein weiterer Befehl
