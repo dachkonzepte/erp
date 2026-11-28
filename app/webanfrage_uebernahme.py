@@ -23,6 +23,7 @@ Rollenlos wie jede Geschäftslogik.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
 
@@ -233,6 +234,26 @@ def objekte(db: Session, zeile: WebAnfrage, kunde_id: int) -> list[dict]:
     return out
 
 
+def vor_ort_pruefwert(name: str | None, telefon: str | None) -> str:
+    """Seit 1.11.50 (W1c Stufe 2, S2-0 b): Prüfwert über Ansprechpartner vor Ort und Telefon -- SHA-256 über beide, getrennt durch \x1f, leer als „“.
+    Gespeichert am Objekt statt einer Kopie der Werte: Stufe 2 erkennt so „seither unverändert“, ohne den Inhalt ein zweites Mal zu halten."""
+    return hashlib.sha256(f"{name or ''}\x1f{telefon or ''}".encode("utf-8")).hexdigest()
+
+
+def vor_ort_merken(objekt: Property, webanfrage_id: int) -> None:
+    """Seit 1.11.50 (Bauplan W1c Stufe 2, B6; Antwort F5 vom 21.11.2026): hat das Übernehmen Ansprechpartner vor Ort oder Telefon am Objekt gesetzt, hält
+    das Objekt fest, aus welchem Eingang sie stammen, und den Prüfwert der gesetzten Werte. Ohne beides bleibt eine frühere Herkunft, wie sie ist."""
+    if objekt.site_contact_name or objekt.site_contact_phone:
+        objekt.vor_ort_aus_webanfrage_id = webanfrage_id
+        objekt.vor_ort_pruefwert = vor_ort_pruefwert(objekt.site_contact_name, objekt.site_contact_phone)
+
+
+def vor_ort_unveraendert(objekt: Property) -> bool:
+    """Für Stufe 2: stammen Ansprechpartner vor Ort und Telefon aus einem Eingang, und sind sie seither unverändert? Nur dann leert das Löschen der
+    Anfrage sie (F5); von Hand geändert oder ohne Herkunft bleiben sie."""
+    return objekt.vor_ort_aus_webanfrage_id is not None and objekt.vor_ort_pruefwert == vor_ort_pruefwert(objekt.site_contact_name, objekt.site_contact_phone)
+
+
 def erp_id_aus(inquiry: Inquiry) -> str:
     """Die Anfragenummer als erp_id (F2) -- passt sie nicht in die Zeichen des Empfangsdienstes, anfrage-<ID>."""
     return inquiry.inquiry_number if ERP_ID.match(inquiry.inquiry_number or "") else f"anfrage-{inquiry.id}"
@@ -269,10 +290,12 @@ def uebernehmen(db: Session, webanfrage_id: int, e, user_id: int | None) -> Inqu
                 vor_ort = vorschlag(db, zeile)["vor_ort"]
                 if vor_ort:
                     objekt.site_contact_name, objekt.site_contact_phone = vor_ort["name"], vor_ort["telefon"]
+                    vor_ort_merken(objekt, webanfrage_id)  # seit 1.11.50
         elif e.objekt == "neu":
             if e.objekt_neu is None:
                 raise AuswahlFehlt("Bitte die Angaben des neuen Objekts ausfüllen.")
             objekt = Property(customer_id=kunde.id, **e.objekt_neu.model_dump())
+            vor_ort_merken(objekt, webanfrage_id)  # seit 1.11.50: nur, wenn das neue Objekt einen Ansprechpartner vor Ort bekommt
             db.add(objekt)
             db.flush()
         elif e.objekt == "hauptadresse":

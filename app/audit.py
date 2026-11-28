@@ -30,7 +30,8 @@ _request_method = contextvars.ContextVar("audit_request_method", default=None)
 # sealed_content (Checklisten-Unterschrift seit 1.8.14, Checklisten-Abschluss seit 1.8.15): die
 # versiegelte Kopie steht an der Unterschrift bzw. Checkliste selbst; die Historie trägt ihre
 # Prüfsumme (content_sha256), nicht noch eine Kopie.
-EXCLUDED_FIELDS = {"created_at", "updated_at", "last_login_at", "password_hash", "sealed_content"}
+EXCLUDED_FIELDS = {"created_at", "updated_at", "last_login_at", "password_hash", "sealed_content",
+                   "vor_ort_pruefwert"}  # seit 1.11.50: ein Prüfwert, kein Inhalt -- gehört nicht in die Historie
 # Die Art wird so gespeichert (entity_type); angezeigt wird sie über app/verlauf_namen.py::art_lesbar() -- seit 1.9.301 heißen dort „Ressource“,
 # „Plantafel-Gerät“, „Team-Ressource“ und „AV-Team-Ressource“ „Gerät“, „Gerät am Einsatz“, „Gerät der Kolonne“ und „Gerät der Kolonne (AV)“; gespeichert
 # bleiben die bisherigen Namen (Filter, Verlauf der Akte, Schwärzung hängen an ihnen).
@@ -389,6 +390,7 @@ FIELD_LABELS = {
     "sidebar_logo_height_px": "Logohöhe in der Leiste (px)",
     "site_contact_name": "Ansprechpartner vor Ort",
     "site_contact_phone": "Telefon vor Ort",
+    "vor_ort_aus_webanfrage_id": "Ansprechpartner vor Ort aus Anfrage der Webseite",
     "slot_id": "Plantafel-Einsatz",
     "snapshot_json": "Stand (Daten)",
     "source_external_id": "Externe Kennung (Quelle)",

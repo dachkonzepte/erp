@@ -435,6 +435,15 @@ class Property(Base):
     access_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     site_contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     site_contact_phone: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Seit 1.11.50 (W1c Stufe 2, S2-0 b; Bauplan B6, Antwort F5 vom 21.11.2026): hat das Übernehmen eines Eingangs der Webseite Ansprechpartner vor Ort
+    # und Telefon gesetzt, steht hier der Eingang und ein Prüfwert der gesetzten Werte (app/webanfrage_uebernahme.py::vor_ort_merken()). Stufe 2 leert beim
+    # Löschen der Anfrage beide nur, wenn sie aus ihr stammen und seither unverändert sind (vor_ort_unveraendert()). Kein Inhalt, nur der Prüfwert;
+    # leer = von Hand gesetzt oder vor 1.11.50 übernommen. Der Fremdschlüssel schließt einen Ring (properties -> webanfragen -> inquiries -> properties):
+    # deshalb use_alter mit Namen -- create_all legt ihn unter PostgreSQL nach den Tabellen an, sorted_tables lässt ihn beim Sortieren weg (ohne ihn
+    # warnte SQLAlchemy, die Tabellen ließen sich nicht sortieren). Derselbe Name wie in der Migration d4a8c2f61b07.
+    vor_ort_aus_webanfrage_id: Mapped[int | None] = mapped_column(
+        ForeignKey("webanfragen.id", use_alter=True, name="fk_properties_vor_ort_aus_webanfrage_id"), nullable=True, index=True)
+    vor_ort_pruefwert: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Seit "Objekte: Hauptadressen kennzeichnen und ausblenden" (siehe CLAUDE.md) -- wird
     # ausschließlich dort gesetzt, wo die Hauptadresse automatisch entsteht
     # (routers/customers.py::create_customer()/update_customer(),

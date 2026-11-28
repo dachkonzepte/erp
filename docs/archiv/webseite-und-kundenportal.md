@@ -4643,6 +4643,43 @@ als Datei; keine Anleitung mit `>>` nach erp-data; Cron-Zeile ins Journal). Ange
 Markierung (zweiter Aufruf hängt an); ein `FileHandler` in `app/main.py`; Cron-Zeile wieder mit `>>`. Der sed-Befehl des Server-Schritts lokal an der
 dokumentierten Zeile geprüft (diff genau eine Zeile, Ergebnis gleich der Zeile im Skript).
 
+#### Umsetzung 1.11.50 (S2-0 b): Übernehmen hält die Herkunft des Ansprechpartners vor Ort fest
+
+- `properties.vor_ort_aus_webanfrage_id` (Fremdschlüssel auf `webanfragen`, leer erlaubt, Index) und `properties.vor_ort_pruefwert` (SHA-256 über Name und
+  Telefon mit Trennzeichen `\x1f`, `app/webanfrage_uebernahme.py::vor_ort_pruefwert()`). `vor_ort_merken()` setzt beide, wenn das Übernehmen Name oder Telefon
+  am Objekt gesetzt hat -- gewähltes Objekt mit „vor Ort übernehmen“ oder neues Objekt mit Ansprechpartner; ohne Haken, ohne Ansprechpartner und bei
+  „Hauptadresse“ nichts, eine frühere Herkunft bleibt dann stehen. `vor_ort_unveraendert()` für Stufe 2: Herkunft da und Prüfwert gleich.
+- Kein Inhalt doppelt: der Prüfwert statt einer Kopie. Änderungshistorie: die Herkunft mit Namen („Ansprechpartner vor Ort aus Anfrage der Webseite“), der
+  Prüfwert nicht (`EXCLUDED_FIELDS`).
+- Migration `d4a8c2f61b07`: unter SQLite die Spalte mit `REFERENCES` in einem `ALTER TABLE ADD COLUMN` -- ein `batch_alter_table` baute `properties` neu,
+  und mit eingeschalteter Prüfung der Fremdschlüssel verweigerte SQLite das Löschen der alten Tabelle, solange etwas auf sie zeigt (der Fall von
+  `test_v325`); unter PostgreSQL Spalte und benannter Fremdschlüssel. Keine Daten geändert: ältere Übernahmen bleiben ohne Herkunft (Stufe 2 lässt deren
+  Ansprechpartner stehen). `downgrade()` nimmt Index, Fremdschlüssel und Spalten (unter SQLite über `batch_alter_table`, nur ohne Zeilen, die auf
+  `properties` zeigen, oder ohne Prüfung -- lokal).
+
+#### Festlegungen 1.11.50 (Bitte bestätigen)
+
+1. Setzt das Übernehmen am Objekt Ansprechpartner vor Ort oder Telefon, hält das Objekt den Eingang und einen Prüfwert der gesetzten Werte fest -- nicht die
+   Werte selbst ein zweites Mal.
+2. Ohne „vor Ort übernehmen“, ohne Ansprechpartner und bei „Hauptadresse“ entsteht keine Herkunft; eine frühere bleibt.
+3. „Aus dieser Anfrage und seither unverändert“ heißt: Herkunft gleich dem Eingang und Prüfwert gleich dem heutigen Wert (`vor_ort_unveraendert()`).
+4. Der Prüfwert steht nicht in der Änderungshistorie, die Herkunft schon.
+5. Übernahmen vor 1.11.50 bekommen keine Herkunft (Bestand auf dem Server: Zahl im Server-Schritt).
+
+- Der Fremdschlüssel schließt einen Ring (`properties` -> `webanfragen` -> `inquiries` -> `properties`): im Modell mit `use_alter=True` und demselben Namen wie
+  in der Migration -- ohne ihn warnte SQLAlchemy, die Tabellen ließen sich nicht sortieren (`sorted_tables`, `tests/conftest.py` legt Vorlagen in dieser
+  Reihenfolge an); unter PostgreSQL legt `create_all` ihn nach den Tabellen an, `drop_all` geht, unter SQLite steht er inline. Für Stufe 2 (Regel 6): beim
+  Löschen eines Eingangs zuerst die Herkunft am Objekt leeren.
+
+#### Tests und Prüfung 1.11.50
+
+Neu `tests/test_v841_vor_ort_herkunft.py` (10: gewähltes Objekt mit Haken samt Änderung von Hand; ohne Haken nichts, eine frühere Herkunft bleibt; neues Objekt
+mit und ohne Ansprechpartner; Hauptadresse; Prüfwert mit Trennzeichen; Historie mit Herkunft ohne Prüfwert; Migration unter SQLite mit eingeschalteter Prüfung
+und Zeilen, die auf `properties` zeigen; unter PostgreSQL hinauf und zurück; ein Objekt von Hand ohne Herkunft; kein Ring beim Sortieren). Angepasste
+Erwartungen: keine. Gegenproben 9 von 9 rot: `vor_ort_merken()` tut nichts; merkt auch ohne Ansprechpartner; merkt auch ohne Haken; „unverändert“ ohne
+Prüfwert; Prüfwert ohne Trennzeichen; Prüfwert in der Historie; SQLite über `batch_alter_table` (scheitert an den Fremdschlüsseln); Fremdschlüssel ohne
+`use_alter` (Warnung beim Sortieren); Migration füllt den Bestand.
+
 ### Server-Schritte P2b (nach dem Einspielen von 1.11.32 bis 1.11.35)
 
 Reihenfolge wie hier; jeder Schritt mit Erwartung, Abbruch und Rückweg. Als tobias, wenn nicht anders gesagt. Keine Freigabe nötig: es gibt noch keine (P2c).
